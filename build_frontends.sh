@@ -36,10 +36,6 @@ fi
 if [ "$build_tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME=$TT_THOMAS_HOME/third_party/tt-forge-fe
 
-    if [ ! -d "$TOOLCHAIN_DIR/ffe" ]; then
-        mkdir -p $TOOLCHAIN_DIR/ffe
-    fi
-
     if [ ! -d "$TOOLCHAIN_DIR/ffe/ttmlir-toolchain" ]; then
         mkdir -p $TOOLCHAIN_DIR/ffe/ttmlir-toolchain
     fi
@@ -47,8 +43,6 @@ if [ "$build_tt_forge_fe" = true ]; then
     sudo ln -s $TOOLCHAIN_DIR/ffe/ttmlir-toolchain /opt/
 
     if [ "$full_build" = true ]; then
-
-
         git submodule update --init --recursive
 
         sudo apt install ninja-build
