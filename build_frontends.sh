@@ -21,6 +21,47 @@ build_forge_fe() {
     cmake --build "$TT_FORGE_FE_HOME/build"
 }
 
+build_xla() {
+    echo "Building tt-xla"
+    if [ ! -v TTMLIR_TOOLCHAIN_DIR ]; then
+        echo "TTMLIR_TOOLCHAIN_DIR is not set"
+        exit 1
+    fi
+
+    TT_XLA_HOME="$TT_THOMAS_HOME/third_party/tt-xla"
+    cd "$TT_XLA_HOME"
+    source venv/activate
+    cmake -G Ninja -B build
+    cmake --build build
+    cd "$TT_THOMAS_HOME"
+}
+
+build_tt_mlir() {
+    echo "Building tt-mlir"
+    if [ ! -v TTMLIR_TOOLCHAIN_DIR ]; then
+        echo "TTMLIR_TOOLCHAIN_DIR is not set"
+        exit 1
+    fi
+
+    if [ -d "$TOOLCHAIN_DIR/tt-mlir" ]; then
+        return
+    fi
+
+    git clone https://github.com/tenstorrent/tt-mlir.git "$TOOLCHAIN_DIR/tt-mlir"
+    TT_MLIR_HOME="$TOOLCHAIN_DIR/tt-mlir"
+
+    mkdir -p "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain"
+    sudo ln -s "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain" /opt/
+
+    cmake -B "$TT_MLIR_HOME/env/build" "$TT_MLIR_HOME/env"
+    cmake --build "$TT_MLIR_HOME/env/build"
+    source "$TT_MLIR_HOME/env/activate"
+    cmake -G Ninja -B "$TT_MLIR_HOME/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-17 -DCMAKE_CXX_COMPILER=clang++-17 "$TT_MLIR_HOME" 
+    cmake --build "$TT_MLIR_HOME/build"
+
+    sudo unlink /opt/ttmlir-toolchain
+}
+
 export TT_THOMAS_HOME="$(pwd)"
 
 build_tt_forge_fe=false
@@ -79,5 +120,27 @@ if [ "$build_tt_forge_fe" = true ]; then
     build_forge_fe
 
     install_thomas
+fi
+
+if [ "$build_tt_xla" = true ]; then
+    export TT_XLA_HOME="$TT_THOMAS_HOME/third_party/tt-xla"
+
+
+    # Fist we need to set TTMLIR_TOOLCHAIN_DIR
+    export TTMLIR_TOOLCHAIN_DIR="$OPT_MLIR_TOOLCHAIN_DIR"
+
+    build_tt_mlir
+    
+    if [ -d "$TOOLCHAIN_DIR/tt-xla" ]; then
+        rm -rf "$TOOLCHAIN_DIR/tt-xla/"
+    fi
+    mkdir -p "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain"
+    sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
+    
+    cp -r "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain" "$TOOLCHAIN_DIR/tt-xla/"
+
+    if [ "$full_build" = true ]; then
+        build_xla
+    fi
     sudo unlink /opt/ttmlir-toolchain
 fi
