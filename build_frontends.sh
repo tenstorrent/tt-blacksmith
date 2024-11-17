@@ -3,6 +3,20 @@
 # -o pipefail return error code from any command in a pipeline
 set -euo pipefail
 
+build_forfe_fe_env() {
+    echo "Building forge frontend environment"
+    source "$TT_FORGE_FE_HOME/env/activate"
+    cmake -B "$TT_FORGE_FE_HOME/env/build" "$TT_FORGE_FE_HOME/env"
+    cmake --build "$TT_FORGE_FE_HOME/env/build"
+}
+
+build_forge_fe() {
+    echo "Building forge frontend"
+    source "$TT_FORGE_FE_HOME/env/activate"
+    cmake -G Ninja -B "$TT_FORGE_FE_HOME/build" "$TT_FORGE_FE_HOME"
+    cmake --build "$TT_FORGE_FE_HOME/build"
+}
+
 export TT_THOMAS_HOME="$(pwd)"
 
 build_tt_forge_fe=false
@@ -17,22 +31,18 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-
-
-# check if the TOOLCHAIN_DIR is set
+# Set the toolchain directory
+# This directory is used to store the toolchains for the different frontends
 if [ -z "$TOOLCHAIN_DIR" ]; then
     export TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
 fi
 
-export OPT_MLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
-
-# check if MLIR_TOOLCHAIN_DIR is symlink 
+# Unlink the ttmlir-toolchain if it is a symlink
+OPT_MLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
 if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     sudo unlink "$OPT_MLIR_TOOLCHAIN_DIR"
-fi
-
-if [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
-    echo "Toolchain directory exists, please remove it"
+elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
+    echo "ttmlir-toolchain directory exists, please remove it"
     exit 1
 fi
 
@@ -63,10 +73,21 @@ if [ "$build_tt_forge_fe" = true ]; then
         cmake --build "$TT_FORGE_FE_HOME/env/build"
     
     fi
+    if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" ]; then
+        mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
+    fi
+    
+    # For ttmlir-toolchain is already checked in the previous step
+    sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
+    
+    # Check if ttforge-toolchain is symlink, this will return error if the directory exists
+    if [ -L "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" ]; then
+        sudo unlink "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
+    fi
+    sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
 
-    echo "Building forge frontend"
-    source "$TT_FORGE_FE_HOME/env/activate"
-
-    cmake -G Ninja -B "$TT_FORGE_FE_HOME/build" "$TT_FORGE_FE_HOME"
-    cmake --build "$TT_FORGE_FE_HOME/build"
+    if [ "$full_build" = true ]; then        
+        build_forfe_fe_env
+    fi
+    build_forge_fe
 fi
