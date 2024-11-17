@@ -55,12 +55,8 @@ fi
 if [ "$build_tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME="$TT_THOMAS_HOME/third_party/tt-forge-fe"
 
-    if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" ]; then
-        mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
-    fi
-    if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" ]; then
-        mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain"
-    fi
+    mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
+    mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain"
     
     # For ttmlir-toolchain is already checked in the previous step
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/

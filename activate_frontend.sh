@@ -1,7 +1,3 @@
-# -e exit on error
-# -o pipefail return error code from any command in a pipeline
-set -eo pipefail
-
 export TT_THOMAS_HOME="$(pwd)"
 
 tt_forge_fe=false
