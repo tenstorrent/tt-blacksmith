@@ -1,4 +1,7 @@
-# Build forge frontend
+# -e exit on error
+# -u exit on unset variable
+# -o pipefail return error code from any command in a pipeline
+set -euo pipefail
 
 export TT_THOMAS_HOME="$(pwd)"
 
