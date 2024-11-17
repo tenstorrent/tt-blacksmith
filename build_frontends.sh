@@ -56,30 +56,15 @@ fi
 if [ "$build_tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME="$TT_THOMAS_HOME/third_party/tt-forge-fe"
 
-    if [ ! -d "$TOOLCHAIN_DIR/ffe/ttmlir-toolchain" ]; then
-        mkdir -p $TOOLCHAIN_DIR/ffe/ttmlir-toolchain
-    fi
-    
-    sudo ln -s $TOOLCHAIN_DIR/ffe/ttmlir-toolchain /opt/
-
-    if [ "$full_build" = true ]; then
-        git submodule update --init --recursive
-
-        sudo apt install ninja-build
-        source "$TT_FORGE_FE_HOME/env/activate"
-
-        echo "Building forge frontend environment"
-        cmake -B "$TT_FORGE_FE_HOME/env/build" "$TT_FORGE_FE_HOME/env"
-        cmake --build "$TT_FORGE_FE_HOME/env/build"
-    
-    fi
     if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" ]; then
         mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
+    fi
+    if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" ]; then
+        mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain"
     fi
     
     # For ttmlir-toolchain is already checked in the previous step
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
-    
     # Check if ttforge-toolchain is symlink, this will return error if the directory exists
     if [ -L "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" ]; then
         sudo unlink "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
