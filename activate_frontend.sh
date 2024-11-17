@@ -17,6 +17,11 @@ if [ $sum -gt 1 ]; then
     exit 1
 fi
 
+# check if deactive command exists
+if command -v deactivate &> /dev/null; then
+    deactivate
+fi
+
 OPT_MLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
 # check if MLIR_TOOLCHAIN_DIR is symlink 
 if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then

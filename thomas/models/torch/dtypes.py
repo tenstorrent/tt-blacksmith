@@ -1,7 +1,7 @@
 from typing import Union, Literal
 import torch
 
-dtypes = Union[
+DType = Union[
     Literal['float32'],
     Literal['bfloat16'],
 ]
