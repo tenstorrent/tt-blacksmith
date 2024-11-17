@@ -36,6 +36,13 @@ if [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     exit 1
 fi
 
+# Update submodules
+git submodule update --init --recursive
+# Install ninja if not installed
+if ! command -v ninja &> /dev/null; then
+    sudo apt install ninja-build
+fi
+
 if [ "$build_tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME="$TT_THOMAS_HOME/third_party/tt-forge-fe"
 
@@ -50,8 +57,6 @@ if [ "$build_tt_forge_fe" = true ]; then
 
         sudo apt install ninja-build
         source "$TT_FORGE_FE_HOME/env/activate"
-
-        git submodule update --init --recursive
 
         echo "Building forge frontend environment"
         cmake -B "$TT_FORGE_FE_HOME/env/build" "$TT_FORGE_FE_HOME/env"
