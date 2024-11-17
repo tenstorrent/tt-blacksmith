@@ -1,0 +1,52 @@
+from dataclasses import dataclass
+
+import lightning as L
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.callbacks import ModelCheckpoint
+
+from thomas.tooling.forge_tooling import disable_forge_logger
+from thomas.training.tt_forge_fe.torch_lightning import TTLightningModel, LightningConfig
+from thomas.models.torch.mnist import MNISTLinear, ModelConfig
+from thomas.tooling.data import load_dataset, DataLoadingConfig
+from thomas.tooling.cli import generate_config
+
+@dataclass
+class ExperimentConfig:
+    experiment_name: str
+    epochs: int
+    wandb_dir: str
+    checkpoint_dir: str
+    model: ModelConfig
+    lightning: LightningConfig
+    data_loading: DataLoadingConfig
+
+
+def test_training():
+    disable_forge_logger()
+
+    config: ExperimentConfig = generate_config(ExperimentConfig, 'thomas/test/tt-forge-fe/test_mnist.yaml')
+
+    train_loader, test_loader = load_dataset(config.data_loading)
+    model = MNISTLinear(config.model)
+    tag = "tt-forge"
+    log_model = False
+    logger = WandbLogger(project=config.experiment_name, log_model=log_model, tags=[tag], save_dir=config.wandb_dir)
+    L_model = TTLightningModel(config.lightning, model)
+    print(L_model._get_name())
+
+    print(logger.experiment.name)
+    checkpoint_filename = logger.experiment.name + '/{epoch:02d}-{step:06d}'
+    log_checkpoint = ModelCheckpoint(
+        dirpath=config.checkpoint_dir, 
+        every_n_train_steps=100, 
+        filename=checkpoint_filename,
+        save_top_k=-1)
+    callbacks = [log_checkpoint]
+
+    trainer = L.Trainer(max_epochs=config.epochs, logger=logger, callbacks=callbacks)
+    trainer.fit(L_model, train_loader, test_loader)
+
+    trainer.test(dataloaders=test_loader)
+
+if __name__ == "__main__":
+    test_training()

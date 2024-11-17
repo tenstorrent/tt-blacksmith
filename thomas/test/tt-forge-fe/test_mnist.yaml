@@ -1,0 +1,18 @@
+experiment_name: thomas-mnist
+epochs: 5
+wandb_dir: ./wandb
+checkpoint_dir: ./checkpoints
+model:
+    input_size: 784
+    hidden_size: 512
+    output_size: 10
+    bias: True
+lightning:
+    batch_size: 64
+    input_size: 784
+    loss: CrossEntropyLoss
+    log_histogram: null
+data_loading:
+    batch_size: 64
+    dtype: float32
+    pre_shuffle: True
