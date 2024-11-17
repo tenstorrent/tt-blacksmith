@@ -24,11 +24,13 @@ build_forge_fe() {
 export TT_THOMAS_HOME="$(pwd)"
 
 build_tt_forge_fe=false
+build_tt_xla=false
 full_build=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --ffe) build_tt_forge_fe=true ;;
+        --xla) build_tt_xla=true ;;
         --full) full_build=true ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
