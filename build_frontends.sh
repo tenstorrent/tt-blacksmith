@@ -1,7 +1,6 @@
 # -e exit on error
-# -u exit on unset variable
 # -o pipefail return error code from any command in a pipeline
-set -euo pipefail
+set -eo pipefail
 
 build_forfe_fe_env() {
     echo "Building forge frontend environment"
@@ -33,8 +32,8 @@ done
 
 # Set the toolchain directory
 # This directory is used to store the toolchains for the different frontends
-if [ -z "$TOOLCHAIN_DIR" ]; then
-    export TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
+if [ ! -v TOOLCHAIN_DIR ]; then
+    TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
 fi
 
 # Unlink the ttmlir-toolchain if it is a symlink
@@ -66,8 +65,8 @@ if [ "$build_tt_forge_fe" = true ]; then
     # For ttmlir-toolchain is already checked in the previous step
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
     # Check if ttforge-toolchain is symlink, this will return error if the directory exists
-    if [ -L "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" ]; then
-        sudo unlink "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
+    if [ -L "/opt/ttforge-toolchain" ]; then
+        sudo unlink /opt/ttforge-toolchain
     fi
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
 
