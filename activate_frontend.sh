@@ -22,7 +22,7 @@ OPT_MLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
 if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     sudo unlink $OPT_MLIR_TOOLCHAIN_DIR
 elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
-    echo "$OPT_MLIR_TOOLCHAIN_DIR is directory, build the enviroment first with ./build_fronteds.sh"
+    echo "$OPT_MLIR_TOOLCHAIN_DIR is directory, build the enviroment first with ./build_frontends.sh"
     exit 1
 fi
 

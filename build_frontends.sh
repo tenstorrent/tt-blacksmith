@@ -2,7 +2,7 @@
 # -o pipefail return error code from any command in a pipeline
 set -eo pipefail
 
-build_forfe_fe_env() {
+build_forge_fe_env() {
     echo "Building forge frontend environment"
     source "$TT_FORGE_FE_HOME/env/activate"
     cmake -B "$TT_FORGE_FE_HOME/env/build" "$TT_FORGE_FE_HOME/env"
@@ -67,7 +67,7 @@ if [ "$build_tt_forge_fe" = true ]; then
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
 
     if [ "$full_build" = true ]; then        
-        build_forfe_fe_env
+        build_forge_fe_env
     fi
     build_forge_fe
 fi
