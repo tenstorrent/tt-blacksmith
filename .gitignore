@@ -1,3 +1,6 @@
 third_party/toolchains
 data/
 generated_modules/
+**/__pycache__/
+*.egg-info/
+checkpoints/

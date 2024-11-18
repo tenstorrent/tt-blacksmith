@@ -1,1 +1,1 @@
-from .tt_forge_fe import torch_lightning
+from . import tt_forge_fe

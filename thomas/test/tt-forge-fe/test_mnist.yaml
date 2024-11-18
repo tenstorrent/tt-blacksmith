@@ -1,5 +1,7 @@
 experiment_name: thomas-mnist
-epochs: 5
+tags:
+    - tt-forge-fe
+epochs: 2
 wandb_dir: ./wandb
 checkpoint_dir: ./checkpoints
 model:
