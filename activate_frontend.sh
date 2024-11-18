@@ -14,7 +14,7 @@ sum=$(($tt_forge_fe))
 
 if [ $sum -gt 1 ]; then
     echo "Only one frontend can be activated at a time"
-    exit 1
+    return 1
 fi
 
 # check if deactive command exists
@@ -28,11 +28,11 @@ if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     sudo unlink $OPT_MLIR_TOOLCHAIN_DIR
 elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     echo "$OPT_MLIR_TOOLCHAIN_DIR is directory, build the enviroment first with ./build_frontends.sh"
-    exit 1
+    return 1
 fi
 
 # check if the TOOLCHAIN_DIR is set
-if [ ! -v $TOOLCHAIN_DIR ]; then
+if [ ! -v TOOLCHAIN_DIR ]; then
     TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
 fi
 
@@ -40,7 +40,7 @@ if [ "$tt_forge_fe" = true ]; then
     echo "Activating forge frontend"
     if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" ]; then
         echo "Forge frontend toolchain not found"
-        exit 1
+        return 1
     fi
 
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/

@@ -47,7 +47,7 @@ if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     sudo unlink "$OPT_MLIR_TOOLCHAIN_DIR"
 elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     echo "ttmlir-toolchain directory exists, please remove it"
-    exit 1
+    return 1
 fi
 
 # Update submodules
