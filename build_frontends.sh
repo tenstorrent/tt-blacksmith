@@ -44,7 +44,7 @@ build_tt_mlir() {
     fi
 
     if [ -d "$TOOLCHAIN_DIR/tt-mlir" ]; then
-        return
+        rm -rf "$TOOLCHAIN_DIR/tt-mlir/"
     fi
 
     git clone https://github.com/tenstorrent/tt-mlir.git "$TOOLCHAIN_DIR/tt-mlir"
@@ -55,9 +55,6 @@ build_tt_mlir() {
 
     cmake -B "$TT_MLIR_HOME/env/build" "$TT_MLIR_HOME/env"
     cmake --build "$TT_MLIR_HOME/env/build"
-    source "$TT_MLIR_HOME/env/activate"
-    cmake -G Ninja -B "$TT_MLIR_HOME/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang-17 -DCMAKE_CXX_COMPILER=clang++-17 "$TT_MLIR_HOME" 
-    cmake --build "$TT_MLIR_HOME/build"
 
     sudo unlink /opt/ttmlir-toolchain
 }
@@ -129,18 +126,19 @@ if [ "$build_tt_xla" = true ]; then
     # Fist we need to set TTMLIR_TOOLCHAIN_DIR
     export TTMLIR_TOOLCHAIN_DIR="$OPT_MLIR_TOOLCHAIN_DIR"
 
-    build_tt_mlir
-    
-    if [ -d "$TOOLCHAIN_DIR/tt-xla" ]; then
-        rm -rf "$TOOLCHAIN_DIR/tt-xla/"
-    fi
-    mkdir -p "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain"
-    sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
-    
-    cp -r "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain" "$TOOLCHAIN_DIR/tt-xla/"
-
     if [ "$full_build" = true ]; then
-        build_xla
+        build_tt_mlir
+
+        if [ -d "$TOOLCHAIN_DIR/tt-xla" ]; then
+            rm -rf "$TOOLCHAIN_DIR/tt-xla/"
+        fi
+
+        mkdir -p "$TOOLCHAIN_DIR/tt-xla"
+        cp -r "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain" "$TOOLCHAIN_DIR/tt-xla/"
     fi
+    sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
+
+    build_xla
+
     sudo unlink /opt/ttmlir-toolchain
 fi
