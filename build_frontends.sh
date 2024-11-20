@@ -2,6 +2,11 @@
 # -o pipefail return error code from any command in a pipeline
 set -eo pipefail
 
+install_thomas() {
+    pip install -e "$TT_FORGE_FE_HOME"
+    pip install -r "$TT_FORGE_FE_HOME/requirements.txt"
+}
+
 build_forge_fe_env() {
     echo "Building forge frontend environment"
     source "$TT_FORGE_FE_HOME/env/activate"
@@ -42,7 +47,7 @@ if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     sudo unlink "$OPT_MLIR_TOOLCHAIN_DIR"
 elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     echo "ttmlir-toolchain directory exists, please remove it"
-    exit 1
+    return 1
 fi
 
 # Update submodules
@@ -70,4 +75,7 @@ if [ "$build_tt_forge_fe" = true ]; then
         build_forge_fe_env
     fi
     build_forge_fe
+
+    install_thomas
+    sudo unlink /opt/ttmlir-toolchain
 fi
