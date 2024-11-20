@@ -140,6 +140,6 @@ if [ "$build_tt_xla" = true ]; then
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
 
     build_xla
-
+    install_thomas
     sudo unlink /opt/ttmlir-toolchain
 fi
