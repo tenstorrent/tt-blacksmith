@@ -51,6 +51,9 @@ if [ "$tt_forge_fe" = true ]; then
     fi
 
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
+    if [ ! -d "/opt/ttforge-toolchain" ]; then
+        sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
+    fi
     export PROJECT_ROOT="$TT_THOMAS_HOME/third_party/tt-forge-fe"
     source "$PROJECT_ROOT/env/activate"
 fi
