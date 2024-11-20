@@ -117,6 +117,7 @@ if [ "$build_tt_forge_fe" = true ]; then
     build_forge_fe
 
     install_thomas
+    sudo unlink /opt/ttmlir-toolchain
 fi
 
 if [ "$build_tt_xla" = true ]; then
