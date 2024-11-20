@@ -14,7 +14,6 @@ class LightningConfig:
     batch_size: int
     input_size: int
     loss: Loss
-    log_histogram: Union[None, int]
 
 class TTLightningModel(L.LightningModule):
     def __init__(self, config: LightningConfig, model:nn.Module):

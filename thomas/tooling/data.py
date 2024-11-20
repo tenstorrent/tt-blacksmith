@@ -33,6 +33,7 @@ def load_dataset(config: DataLoadingConfig):
         root="data", train=False, download=True, transform=transform
     )
 
+    # Drop last to ensure all batches are the same size as compiled model expects
     train_loader = DataLoader(
         train_dataset, batch_size=config.batch_size, shuffle=True, drop_last=True
     )

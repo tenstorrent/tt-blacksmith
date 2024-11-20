@@ -13,7 +13,6 @@ lightning:
     batch_size: 64
     input_size: 784
     loss: CrossEntropyLoss
-    log_histogram: null
 data_loading:
     batch_size: 64
     dtype: float32
