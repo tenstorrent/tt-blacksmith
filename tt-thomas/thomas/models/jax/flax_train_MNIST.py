@@ -87,17 +87,22 @@ def train_step(state,  x, y):
     return state, new_model_state, loss, grads
 
 @jax.jit
-def eval_step(params, x, y):
+def eval_step(params, x):
     logits, _ = forward_pass(params, x)
+    return logits
+
+@jax.jit
+def calculate_metrics(logits, y):
     loss = func_optax_loss(logits, y)
     accuracy = jnp.mean(jnp.argmax(logits, -1) == y)
     return loss, accuracy
 
 rng = random.PRNGKey(0)
 input_shape = (1, 28, 28, 1)
+output_shape = jnp.ones((1, 10))
 model = MLP()
 params = model.init(rng, jnp.ones(input_shape))['params']
-tx = optax.adam(learning_rate = 0.01)
+tx = optax.noisy_sgd(learning_rate = 0.01)
 state = train_state.TrainState.create(apply_fn=model.apply, params=params, tx=tx)
 
 num_epochs = 10
@@ -107,61 +112,24 @@ for epoch in range(num_epochs):
     for i in range(num_batches):
         batch_images = train_images[i*batch_size:(i+1)*batch_size]
         batch_labels = train_labels[i*batch_size:(i+1)*batch_size]
-        #print(i)
-        #print(num_batches)
         state, _, loss, grads = train_step(state,  batch_images, batch_labels)
-    val_loss, val_accuracy = eval_step(state.params, test_images, test_labels)
+    logits = eval_step(state.params, test_images)
+    val_loss, val_accuracy = calculate_metrics(logits, test_labels)
     print(f"Epoch {epoch+1}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
     if early_stopping(val_accuracy):
         print("Early stopping triggered")
         break
 
 # Test
-test_loss, test_accuracy = eval_step(state.params,  test_images, test_labels)
+logits = eval_step(state.params, test_images)
+test_loss, test_accuracy = calculate_metrics(logits, test_labels)
 print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
 
-# Export the forward and backward passes to StableHLO
-exported_forward_tr: export.Exported = export.export(forward_pass)(state.params, jnp.ones(input_shape))
-print("Forward Pass StableHLO (Train):")
-print(exported_forward_tr.mlir_module())
+from utils import ExportSHLO
 
-# Export the forward and backward passes to StableHLO
-exported_forward_tst: export.Exported = export.export(eval_step)(state.params, jnp.ones(input_shape), jnp.ones((1,), dtype=jnp.int32))
-print("Forward Pass StableHLO (Test):")
-print(exported_forward_tst.mlir_module())
-
-exported_backward: export.Exported = export.export(backward_pass)(state.params, jnp.ones(input_shape), jnp.ones((1,), dtype=jnp.int32))
-print("Backward Pass StableHLO:")
-print(exported_backward.mlir_module())
-
-exported_loss: export.Exported = export.export(func_optax_loss)(jnp.ones((1, 10)), jnp.ones((1,), dtype=jnp.int32))
-print("Loss Function StableHLO:")
-print(exported_loss.mlir_module())
-
-exported_optimizer: export.Exported = export.export(update_params)(state, grads)
-print("Optimizer StableHLO:")
-print(exported_optimizer.mlir_module())
-
-# Extract and print unique operations for forward pass
-import re
-pattern = r"stablehlo\.(\w+)"
-operations_forward = re.findall(pattern, exported_forward_tr.mlir_module())
-unique_operations_forward = sorted(set(operations_forward))
-print("Unique Operations in Forward Pass (Training):", ", ".join(unique_operations_forward))
-
-operations_forward_tst = re.findall(pattern, exported_forward_tst.mlir_module())
-unique_operations_forward_tst = sorted(set(operations_forward_tst))
-print("Unique Operations in Forward Pass (Test):", ", ".join(unique_operations_forward_tst))
-
-
-operations_backward = re.findall(pattern, exported_backward.mlir_module())
-unique_operations_backward = sorted(set(operations_backward))
-print("Unique Operations in Backward Pass:", ", ".join(unique_operations_backward))
-
-operations_loss = re.findall(pattern, exported_loss.mlir_module())
-unique_operations_loss = sorted(set(operations_loss))
-print("Unique Operations in Loss Function:", ", ".join(unique_operations_loss))
-
-operations_optimizer = re.findall(pattern, exported_optimizer.mlir_module())
-unique_operations_optimizer = sorted(set(operations_optimizer))
-print("Unique Operations in Optimizer:", ", ".join(unique_operations_optimizer))
+export_it = ExportSHLO()
+export_it.export_fwd_train_to_StableHLO_and_get_ops(forward_pass, state, input_shape, print_stablehlo=False)
+export_it.export_fwd_tst_to_StableHLO_and_get_ops(eval_step, state, input_shape, print_stablehlo=False)
+export_it.export_bwd_to_StableHLO_and_get_ops(backward_pass, state, input_shape, print_stablehlo=False)
+export_it.export_loss_to_StableHLO_and_get_ops(func_optax_loss, output_shape, print_stablehlo=False)
+export_it.export_optimizer_to_StableHLO_and_get_ops(update_params, state, grads, print_stablehlo=False)
