@@ -1,16 +1,18 @@
 export TT_THOMAS_HOME="$(pwd)"
 
 tt_forge_fe=false
+tt_xla=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --ffe) tt_forge_fe=true ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+        --xla) tt_xla=true ;;
+        *) echo "Unknown parameter passed: $1"; return 1 ;;
     esac
     shift
 done
 
-sum=$(($tt_forge_fe))
+sum=$(($tt_forge_fe + $tt_xla))
 
 if [ $sum -gt 1 ]; then
     echo "Only one frontend can be activated at a time"
@@ -32,7 +34,7 @@ elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
 fi
 
 # check if the TOOLCHAIN_DIR is set
-if [ ! -v TOOLCHAIN_DIR ]; then
+if [ -z "$TOOLCHAIN_DIR" ]; then
     TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
 fi
 
@@ -44,6 +46,24 @@ if [ "$tt_forge_fe" = true ]; then
     fi
 
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
+    if [ ! -d "/opt/ttforge-toolchain" ]; then
+        sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
+    fi
     export PROJECT_ROOT="$TT_THOMAS_HOME/third_party/tt-forge-fe"
     source "$PROJECT_ROOT/env/activate"
+fi
+
+if [ "$tt_xla" = true ]; then
+    echo "Activating xla frontend"
+    if [ ! -d "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" ]; then
+        echo "XLA frontend toolchain not found"
+        return 1
+    fi
+    export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
+    sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
+    export PROJECT_ROOT="$TT_THOMAS_HOME/third_party/tt-xla"
+    # Activate environment will create a venv folder in the pwd, need to change directory
+    cd "$PROJECT_ROOT"
+    source "venv/activate"
+    cd "$TT_THOMAS_HOME"
 fi
