@@ -62,6 +62,7 @@ if [ "$tt_xla" = true ]; then
     export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
     export PROJECT_ROOT="$TT_THOMAS_HOME/third_party/tt-xla"
+    # Activate environment will create a venv folder in the pwd, need to change directory
     cd "$PROJECT_ROOT"
     source "venv/activate"
     cd "$TT_THOMAS_HOME"
