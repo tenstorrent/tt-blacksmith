@@ -7,7 +7,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --ffe) tt_forge_fe=true ;;
         --xla) tt_xla=true ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+        *) echo "Unknown parameter passed: $1"; return 1 ;;
     esac
     shift
 done
@@ -17,11 +17,6 @@ sum=$(($tt_forge_fe + $tt_xla))
 if [ $sum -gt 1 ]; then
     echo "Only one frontend can be activated at a time"
     return 1
-fi
-
-# check if deactive command exists
-if command -v deactivate &> /dev/null; then
-    deactivate
 fi
 
 # check if deactive command exists
@@ -62,7 +57,7 @@ if [ "$tt_xla" = true ]; then
     echo "Activating xla frontend"
     if [ ! -d "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" ]; then
         echo "XLA frontend toolchain not found"
-        exit 1
+        return 1
     fi
     export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/

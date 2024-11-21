@@ -2,28 +2,28 @@
 # -o pipefail return error code from any command in a pipeline
 set -eo pipefail
 
-install_thomas() {
+install_tt_thomas() {
     pip install -e "$TT_FORGE_FE_HOME"
     pip install -r "$TT_FORGE_FE_HOME/requirements.txt"
 }
 
-build_forge_fe_env() {
+build_tt_forge_fe_env() {
     echo "Building forge frontend environment"
     source "$TT_FORGE_FE_HOME/env/activate"
     cmake -B "$TT_FORGE_FE_HOME/env/build" "$TT_FORGE_FE_HOME/env"
     cmake --build "$TT_FORGE_FE_HOME/env/build"
 }
 
-build_forge_fe() {
+build_tt_forge_fe() {
     echo "Building forge frontend"
     source "$TT_FORGE_FE_HOME/env/activate"
     cmake -G Ninja -B "$TT_FORGE_FE_HOME/build" "$TT_FORGE_FE_HOME"
     cmake --build "$TT_FORGE_FE_HOME/build"
 }
 
-build_xla() {
+build_tt_xla() {
     echo "Building tt-xla"
-    if [ ! -v TTMLIR_TOOLCHAIN_DIR ]; then
+    if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
         echo "TTMLIR_TOOLCHAIN_DIR is not set"
         exit 1
     fi
@@ -38,7 +38,7 @@ build_xla() {
 
 build_tt_mlir() {
     echo "Building tt-mlir"
-    if [ ! -v TTMLIR_TOOLCHAIN_DIR ]; then
+    if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
         echo "TTMLIR_TOOLCHAIN_DIR is not set"
         exit 1
     fi
@@ -55,20 +55,18 @@ build_tt_mlir() {
 
     cmake -B "$TT_MLIR_HOME/env/build" "$TT_MLIR_HOME/env"
     cmake --build "$TT_MLIR_HOME/env/build"
-
-    sudo unlink /opt/ttmlir-toolchain
 }
 
 export TT_THOMAS_HOME="$(pwd)"
 
-build_tt_forge_fe=false
-build_tt_xla=false
+tt_forge_fe=false
+tt_xla=false
 full_build=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --ffe) build_tt_forge_fe=true ;;
-        --xla) build_tt_xla=true ;;
+        --ffe) tt_forge_fe=true ;;
+        --xla) tt_xla=true ;;
         --full) full_build=true ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
@@ -77,7 +75,7 @@ done
 
 # Set the toolchain directory
 # This directory is used to store the toolchains for the different frontends
-if [ ! -v TOOLCHAIN_DIR ]; then
+if [ -z "$TOOLCHAIN_DIR" ]; then
     TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
 fi
 
@@ -97,7 +95,7 @@ if ! command -v ninja &> /dev/null; then
     sudo apt install ninja-build
 fi
 
-if [ "$build_tt_forge_fe" = true ]; then
+if [ "$tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME="$TT_THOMAS_HOME/third_party/tt-forge-fe"
 
     mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
@@ -112,15 +110,15 @@ if [ "$build_tt_forge_fe" = true ]; then
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
 
     if [ "$full_build" = true ]; then        
-        build_forge_fe_env
+        build_tt_forge_fe_env
     fi
-    build_forge_fe
+    build_tt_forge_fe
 
-    install_thomas
+    install_tt_thomas
     sudo unlink /opt/ttmlir-toolchain
 fi
 
-if [ "$build_tt_xla" = true ]; then
+if [ "$tt_xla" = true ]; then
     export TT_XLA_HOME="$TT_THOMAS_HOME/third_party/tt-xla"
 
 
@@ -129,6 +127,7 @@ if [ "$build_tt_xla" = true ]; then
 
     if [ "$full_build" = true ]; then
         build_tt_mlir
+        sudo unlink /opt/ttmlir-toolchain
 
         if [ -d "$TOOLCHAIN_DIR/tt-xla" ]; then
             rm -rf "$TOOLCHAIN_DIR/tt-xla/"
@@ -139,7 +138,7 @@ if [ "$build_tt_xla" = true ]; then
     fi
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
 
-    build_xla
-    install_thomas
+    build_tt_xla
+    install_tt_thomas
     sudo unlink /opt/ttmlir-toolchain
 fi
