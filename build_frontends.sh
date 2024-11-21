@@ -100,7 +100,7 @@ if [ "$tt_forge_fe" = true ]; then
 
     mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
     mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain"
-    
+
     # For ttmlir-toolchain is already checked in the previous step
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
     # Check if ttforge-toolchain is symlink, this will return error if the directory exists
@@ -109,7 +109,7 @@ if [ "$tt_forge_fe" = true ]; then
     fi
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
 
-    if [ "$full_build" = true ]; then        
+    if [ "$full_build" = true ]; then
         build_tt_forge_fe_env
     fi
     build_tt_forge_fe
