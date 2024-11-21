@@ -25,7 +25,7 @@ if command -v deactivate &> /dev/null; then
 fi
 
 OPT_MLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
-# check if MLIR_TOOLCHAIN_DIR is symlink 
+# check if MLIR_TOOLCHAIN_DIR is symlink
 if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
     sudo unlink $OPT_MLIR_TOOLCHAIN_DIR
 elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then

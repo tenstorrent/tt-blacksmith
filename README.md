@@ -1,5 +1,32 @@
 # tt-thomas
 
+## Prerequisites
+
+### Pre-commit
+
+We have defined various pre-commit hooks that check the code for formatting, licensing issues, etc.
+
+To install pre-commit, run the following command:
+
+```sh
+pip install pre-commit
+```
+
+After installing pre-commit, you can install the hooks by running:
+
+```sh
+pre-commit install
+```
+
+Now, each time you run `git commit` the pre-commit hooks (checks) will be executed.
+
+If you have already committed before installing the pre-commit hooks, you can run on all files to "catch up":
+
+```sh
+pre-commit run --all-files
+```
+
+For more information visit [pre-commit](https://pre-commit.com/)
 
 ## Building
 

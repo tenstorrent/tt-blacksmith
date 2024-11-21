@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 from dataclasses import dataclass
 from typing import Union
 
@@ -15,13 +18,16 @@ class LightningConfig:
     input_size: int
     loss: Loss
 
+
 class TTLightningModel(L.LightningModule):
-    def __init__(self, config: LightningConfig, model:nn.Module):
+    def __init__(self, config: LightningConfig, model: nn.Module):
         super(TTLightningModel, self).__init__()
         self.save_hyperparameters()
         self.framework_model = model
         tt_model = forge.compile(
-            self.framework_model, sample_inputs=[torch.rand(config.batch_size, config.input_size)], loss=map_loss[config.loss]()
+            self.framework_model,
+            sample_inputs=[torch.rand(config.batch_size, config.input_size)],
+            loss=map_loss[config.loss](),
         )
         self.model = tt_model
         self.loss = map_loss[config.loss]()
@@ -30,7 +36,7 @@ class TTLightningModel(L.LightningModule):
         logits = self.model(x)
         logits = logits[0]
         return logits
-    
+
     def backward(self, loss, *args, **kwargs):
         loss.backward(*args, **kwargs)
         self.model.backward()
