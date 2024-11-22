@@ -12,6 +12,8 @@ from model import Models, MLP
 
 import tensorflow_datasets as tfds
 
+from utils import ExportSHLO
+
 def load_mnist():
     ds_builder = tfds.builder('mnist')
     ds_builder.download_and_prepare()
@@ -123,8 +125,6 @@ for epoch in range(num_epochs):
 logits = eval_step(state.params, test_images)
 test_loss, test_accuracy = calculate_metrics(logits, test_labels)
 print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
-
-from utils import ExportSHLO
 
 export_it = ExportSHLO()
 export_it.export_fwd_train_to_StableHLO_and_get_ops(forward_pass, state, input_shape, print_stablehlo=False)
