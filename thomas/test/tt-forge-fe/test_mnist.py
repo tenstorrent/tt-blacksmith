@@ -9,7 +9,10 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import TTLightningModel, LightningConfig
+from thomas.training.tt_forge_fe.torch_lightning import (
+    TTLightningModel,
+    LightningConfig,
+)
 from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
 from thomas.tooling.data import load_dataset, DataLoadingConfig
 from thomas.tooling.cli import generate_config
@@ -37,12 +40,20 @@ def test_training():
     model = MNISTLinear(config.model)
     tag = "tt-forge"
     log_model = False
-    logger = WandbLogger(project=config.experiment_name, log_model=log_model, tags=[tag], save_dir=config.wandb_dir)
+    logger = WandbLogger(
+        project=config.experiment_name,
+        log_model=log_model,
+        tags=[tag],
+        save_dir=config.wandb_dir,
+    )
     L_model = TTLightningModel(config.lightning, model)
 
     checkpoint_filename = logger.experiment.name + "/{epoch:02d}-{step:06d}"
     log_checkpoint = ModelCheckpoint(
-        dirpath=config.checkpoint_dir, every_n_train_steps=100, filename=checkpoint_filename, save_top_k=-1
+        dirpath=config.checkpoint_dir,
+        every_n_train_steps=100,
+        filename=checkpoint_filename,
+        save_top_k=-1,
     )
 
     callbacks = [log_checkpoint]
