@@ -1,5 +1,6 @@
 import flax.linen as nn
 
+
 class MLP(nn.Module):
     @nn.compact
     def __call__(self, x):
@@ -11,9 +12,10 @@ class MLP(nn.Module):
         x = nn.Dense(features=10)(x)
         return x
 
+
 class Models:
-    def __init__(self, model_type='MLP'):
-        if model_type == 'MLP':
+    def __init__(self, model_type="MLP"):
+        if model_type == "MLP":
             self.model = MLP()
         # Add other model types here
         # elif model_type == 'CNN':
