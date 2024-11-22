@@ -1,12 +1,16 @@
 import jax
-import jax.numpy as jnp
-import optax
 from jax import random
+from jax import export
+import jax.numpy as jnp
+
+import optax
+
 from flax import linen as nn
 from flax.training import train_state
-from jax import export
+
+from model import Models, MLP
+
 import tensorflow_datasets as tfds
-from functools import partial
 
 def load_mnist():
     ds_builder = tfds.builder('mnist')
@@ -17,11 +21,22 @@ def load_mnist():
     test_images, test_labels = test_ds['image'], test_ds['label']
     train_images = train_images[..., None] / 255.0
     test_images = test_images[..., None] / 255.0
+
+    # Shuffle the training dataset
+    key_train = random.PRNGKey(0)
+    perm_train = random.permutation(key_train, len(train_images))
+    train_images = train_images[perm_train]
+    train_labels = train_labels[perm_train]
+    
+    # Shuffle the test dataset
+    key_test = random.PRNGKey(1)
+    perm_test = random.permutation(key_test, len(test_images))
+    test_images = test_images[perm_test]
+    test_labels = test_labels[perm_test]
+
     return train_images, train_labels, test_images, test_labels
 
 train_images, train_labels, test_images, test_labels = load_mnist()
-
-import operator
 
 class EarlyStopping:
     def __init__(self, patience=1):
@@ -37,35 +52,27 @@ class EarlyStopping:
             self.counter += 1
         return self.counter >= self.patience
 
-early_stopping = EarlyStopping(patience=3)
-
-from model import Models, MLP
+early_stopping = EarlyStopping(patience=1)
 
 @jax.jit
 def forward_pass(params, x):
-    def apply_fn(x):
-        return MLP().apply({'params': params}, x, mutable=['params'])
-    return apply_fn(x)
-
+    return MLP().apply({'params': params}, x, mutable=['params'])
 
 def compute_loss(params, x, y):
-    logits, new_model_state = forward_pass(params, x)
+    logits, _ = forward_pass(params, x)
     loss = func_optax_loss(logits, y)
-    return loss, new_model_state
+    return loss
 
 @jax.jit
 def func_optax_loss(logits, labels):
     #one_hot_labels = jax.nn.one_hot(labels, num_classes=logits.shape[-1]).astype(jnp.float32)
-    #jax.debug.print("Logits: {}", logits)
-    #jax.debug.print("Labels: {}", one_hot_labels)
-    #return optax.losses.l2_loss(predictions=logits, targets=one_hot_labels).mean() 
     return optax.losses.softmax_cross_entropy_with_integer_labels(logits=logits, labels=labels).mean()
 
 @jax.jit
 def backward_pass(params,  x, y):
-    grad_fn = jax.value_and_grad(compute_loss, has_aux=True)
-    (loss, new_model_state), grads = grad_fn(params, x, y)
-    return grads, loss, new_model_state
+    grad_fn = jax.value_and_grad(compute_loss, has_aux=False)
+    loss, grads = grad_fn(params, x, y)
+    return grads, loss
 
 @jax.jit
 def update_params(state, grads):
@@ -73,9 +80,9 @@ def update_params(state, grads):
 
 @jax.jit
 def train_step(state,  x, y):
-    grads, loss, new_model_state = backward_pass(state.params, x, y)
+    grads, loss = backward_pass(state.params, x, y)
     state = update_params(state, grads)
-    return state, new_model_state, loss, grads
+    return state, loss, grads
 
 @jax.jit
 def eval_step(params, x):
@@ -88,14 +95,13 @@ def calculate_metrics(logits, y):
     accuracy = jnp.mean(jnp.argmax(logits, -1) == y)
     return loss, accuracy
 
-from model import Models
 
 rng = random.PRNGKey(0)
 input_shape = (1, 28, 28, 1)
 output_shape = jnp.ones((1, 10))
 pred_model = Models(model_type='MLP')
 params = pred_model.model.init(rng, jnp.ones(input_shape))['params']
-tx = optax.yogi(learning_rate=1e-3)
+tx = optax.sgd(learning_rate=1e-3)
 state = train_state.TrainState.create(apply_fn=pred_model.model.apply, params=params, tx=tx)
 
 num_epochs = 10
@@ -105,10 +111,10 @@ for epoch in range(num_epochs):
     for i in range(num_batches):
         batch_images = train_images[i*batch_size:(i+1)*batch_size]
         batch_labels = train_labels[i*batch_size:(i+1)*batch_size]
-        state, _, loss, grads = train_step(state,  batch_images, batch_labels)
+        state, loss, grads = train_step(state,  batch_images, batch_labels)
     logits = eval_step(state.params, test_images)
     val_loss, val_accuracy = calculate_metrics(logits, test_labels)
-    print(f"Epoch {epoch+1}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
+    print(f"Epoch {epoch}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
     if early_stopping(val_accuracy):
         print("Early stopping triggered")
         break
