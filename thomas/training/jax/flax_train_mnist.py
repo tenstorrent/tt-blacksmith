@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import jax
 from jax import random
 from jax import export
@@ -75,9 +78,7 @@ def compute_loss(params, x, y):
 @jax.jit
 def func_optax_loss(logits, labels):
     # one_hot_labels = jax.nn.one_hot(labels, num_classes=logits.shape[-1]).astype(jnp.float32)
-    return optax.losses.softmax_cross_entropy_with_integer_labels(
-        logits=logits, labels=labels
-    ).mean()
+    return optax.losses.softmax_cross_entropy_with_integer_labels(logits=logits, labels=labels).mean()
 
 
 @jax.jit
@@ -118,9 +119,7 @@ output_shape = jnp.ones((1, 10))
 pred_model = Models(model_type="MLP")
 params = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
 tx = optax.sgd(learning_rate=1e-3)
-state = train_state.TrainState.create(
-    apply_fn=pred_model.model.apply, params=params, tx=tx
-)
+state = train_state.TrainState.create(apply_fn=pred_model.model.apply, params=params, tx=tx)
 
 num_epochs = 10
 batch_size = 64
@@ -132,9 +131,7 @@ for epoch in range(num_epochs):
         state, loss, grads = train_step(state, batch_images, batch_labels)
     logits = eval_step(state.params, test_images)
     val_loss, val_accuracy = calculate_metrics(logits, test_labels)
-    print(
-        f"Epoch {epoch}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}"
-    )
+    print(f"Epoch {epoch}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
     if early_stopping(val_accuracy):
         print("Early stopping triggered")
         break
@@ -145,18 +142,8 @@ test_loss, test_accuracy = calculate_metrics(logits, test_labels)
 print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
 
 export_it = ExportSHLO()
-export_it.export_fwd_train_to_StableHLO_and_get_ops(
-    forward_pass, state, input_shape, print_stablehlo=False
-)
-export_it.export_fwd_tst_to_StableHLO_and_get_ops(
-    eval_step, state, input_shape, print_stablehlo=False
-)
-export_it.export_bwd_to_StableHLO_and_get_ops(
-    backward_pass, state, input_shape, print_stablehlo=False
-)
-export_it.export_loss_to_StableHLO_and_get_ops(
-    func_optax_loss, output_shape, print_stablehlo=False
-)
-export_it.export_optimizer_to_StableHLO_and_get_ops(
-    update_params, state, grads, print_stablehlo=False
-)
+export_it.export_fwd_train_to_StableHLO_and_get_ops(forward_pass, state, input_shape, print_stablehlo=False)
+export_it.export_fwd_tst_to_StableHLO_and_get_ops(eval_step, state, input_shape, print_stablehlo=False)
+export_it.export_bwd_to_StableHLO_and_get_ops(backward_pass, state, input_shape, print_stablehlo=False)
+export_it.export_loss_to_StableHLO_and_get_ops(func_optax_loss, output_shape, print_stablehlo=False)
+export_it.export_optimizer_to_StableHLO_and_get_ops(update_params, state, grads, print_stablehlo=False)

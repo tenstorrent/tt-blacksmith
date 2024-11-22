@@ -10,9 +10,7 @@ def from_dict(cls, data):
         return data  # Not a dataclass, return as-is
 
     field_types = {f.name: f.type for f in fields(cls)}
-    return cls(
-        **{key: from_dict(field_types[key], value) for key, value in data.items()}
-    )
+    return cls(**{key: from_dict(field_types[key], value) for key, value in data.items()})
 
 
 def generate_config(config, yaml_path):
