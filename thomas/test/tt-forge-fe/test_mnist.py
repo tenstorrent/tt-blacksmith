@@ -4,6 +4,7 @@
 from dataclasses import dataclass
 from typing import List
 
+from pydantic import BaseModel
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
@@ -19,7 +20,7 @@ from thomas.tooling.cli import generate_config
 
 
 @dataclass
-class ExperimentConfig:
+class ExperimentConfig(BaseModel):
     experiment_name: str
     tags: List[str]
     epochs: int

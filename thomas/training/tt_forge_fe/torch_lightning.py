@@ -8,12 +8,13 @@ import forge
 import torch
 from torch import nn
 import lightning as L
+from pydantic import BaseModel
 
 from thomas.models.torch.loss import TorchLoss
 
 
 @dataclass
-class LightningConfig:
+class LightningConfig(BaseModel):
     batch_size: int
     input_size: int
     loss: TorchLoss

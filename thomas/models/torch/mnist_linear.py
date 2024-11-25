@@ -3,10 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 from dataclasses import dataclass
 from torch import nn
+from pydantic import BaseModel
 
 
 @dataclass
-class ModelConfig:
+class ModelConfig(BaseModel):
     input_size: int
     output_size: int
     hidden_size: int

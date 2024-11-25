@@ -14,4 +14,4 @@ map_optimizer = {
 }
 
 # Create the Annotated types
-TorchOptimizer = create_mapped_type(map_optimizer, Union[Literal["SGD"], Literal["Adam"], Literal["AdamW"]])
+TorchOptimizer = create_mapped_type(map_optimizer, optim.Optimizer)
