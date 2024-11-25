@@ -8,18 +8,18 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
 
-from thomas.models.torch.dtypes import DType, map_dtype
+from thomas.models.torch.dtype import TorchDType
 
 
 @dataclass
 class DataLoadingConfig:
     batch_size: int
-    dtype: DType
+    dtype: TorchDType
     pre_shuffle: bool
 
 
 def load_dataset(config: DataLoadingConfig):
-    dtype = map_dtype[config.dtype]
+    dtype = config.dtype
     transform = transforms.Compose(
         [
             transforms.ToTensor(),

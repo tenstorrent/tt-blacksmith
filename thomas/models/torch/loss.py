@@ -5,6 +5,13 @@ from typing import Union, Literal
 
 from torch import nn
 
-Loss = Union[Literal["CrossEntropyLoss"], Literal["MSELoss"]]
+from thomas.tooling.types import create_mapped_type
 
-map_loss = {"CrossEntropyLoss": nn.CrossEntropyLoss, "MSELoss": nn.MSELoss}
+# Maybe should be frozen or somehow protected
+map_loss = {
+    "MSELoss": nn.MSELoss,
+    "CrossEntropyLoss": nn.CrossEntropyLoss,
+}
+
+# Create the Annotated types
+TorchLoss = create_mapped_type(map_loss, Union[Literal["MSELoss"], Literal["CrossEntropyLoss"]])
