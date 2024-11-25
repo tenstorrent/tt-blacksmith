@@ -2,8 +2,10 @@ experiment_name: thomas-mnist
 tags:
     - tt-forge-fe
 epochs: 2
-wandb_dir: ./wandb
-checkpoint_dir: ./checkpoints
+wandb_dir: /proj_sw/training_artifacts/
+checkpoint_dir: /proj_sw/training_artifacts/checkpoints/
+gradiend_checkpoint: True
+model_checkpoint: True
 model:
     input_size: 784
     hidden_size: 512
