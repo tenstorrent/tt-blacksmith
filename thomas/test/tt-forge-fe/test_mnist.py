@@ -6,6 +6,7 @@ from typing import List
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.loggers.utilities import _scan_checkpoints
 from pydantic import BaseModel
 
 from thomas.tooling.forge_tooling import disable_forge_logger
@@ -38,15 +39,12 @@ class CustomLogger(WandbLogger):
         WandbLogger.__init__(self, *args, **kwargs)
     
     def after_save_checkpoint(self, checkpoint_callback):
-        # print all atributes of self
-        checkpoint_path = checkpoint_callback.format_checkpoint_name({"epoch": self.current_epoch, "step": self.global_step})
         import wandb
-        artifact = wandb.Artifact("model", type="model")
-        print(f"Adding {checkpoint_path} to artifact")
-        import os
-        assert os.path.exists(checkpoint_path)
-        artifact.add_reference(f"file://{checkpoint_path}")
 
+        last_model_path = checkpoint_callback.last_model_path
+        artifact = wandb.Artifact("model", type="model")
+        artifact.add_reference(last_model_path)
+        self.experiment.log_artifact(artifact)
 
 def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
