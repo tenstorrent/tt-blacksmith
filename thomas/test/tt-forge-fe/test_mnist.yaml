@@ -1,7 +1,7 @@
 experiment_name: thomas-mnist
 tags:
     - tt-forge-fe
-epochs: 2
+epochs: 5
 wandb_dir: /proj_sw/training_artifacts/
 checkpoint_dir: /proj_sw/training_artifacts/checkpoints/
 gradiend_checkpoint: True

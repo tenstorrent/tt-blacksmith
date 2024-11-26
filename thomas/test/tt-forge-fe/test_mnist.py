@@ -36,15 +36,18 @@ class ExperimentConfig(BaseModel):
 
 class CustomLogger(WandbLogger):
     def __init__(self, *args, **kwargs):
+        self.logged_model_time = set()
         WandbLogger.__init__(self, *args, **kwargs)
     
     def after_save_checkpoint(self, checkpoint_callback):
         import wandb
-
-        last_model_path = checkpoint_callback.last_model_path
+        models_to_log = _scan_checkpoints(checkpoint_callback, self.logged_model_time)
         artifact = wandb.Artifact("model", type="model")
-        artifact.add_reference(last_model_path)
-        self.experiment.log_artifact(artifact)
+        for save_time, model_path, _, tag in models_to_log:
+            print(save_time, model_path, tag)
+            artifact.add_reference(f"file://{model_path}")
+
+        self.logged_model_time.update({model_path: model_time for model_time, model_path, _, _ in models_to_log})
 
 def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
