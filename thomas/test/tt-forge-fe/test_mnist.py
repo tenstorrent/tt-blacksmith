@@ -1,25 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
 from typing import List
 
-from pydantic import BaseModel
 import lightning as L
-from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
+from pydantic import BaseModel
 
-from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import (
-    TTLightningModel,
-    LightningConfig,
-)
 from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
-from thomas.tooling.data import load_dataset, DataLoadingConfig
 from thomas.tooling.cli import generate_config
+from thomas.tooling.data import DataLoadingConfig, load_dataset
+from thomas.tooling.forge_tooling import disable_forge_logger
+from thomas.training.tt_forge_fe.torch_lightning import (LightningConfig,
+                                                         TTLightningModel)
 
 
-@dataclass
 class ExperimentConfig(BaseModel):
     experiment_name: str
     tags: List[str]

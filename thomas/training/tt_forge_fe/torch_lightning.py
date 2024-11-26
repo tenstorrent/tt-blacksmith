@@ -1,19 +1,15 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
-from typing import Union
-
 import forge
-import torch
-from torch import nn
 import lightning as L
+import torch
 from pydantic import BaseModel
+from torch import nn
 
 from thomas.models.torch.loss import TorchLoss
 
 
-@dataclass
 class LightningConfig(BaseModel):
     batch_size: int
     input_size: int

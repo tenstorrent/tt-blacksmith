@@ -1,10 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
 
 from pydantic import BaseModel
-import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
@@ -12,7 +10,6 @@ from torchvision.datasets import MNIST as mnist_dataset
 from thomas.models.torch.dtypes import TorchDType
 
 
-@dataclass
 class DataLoadingConfig(BaseModel):
     batch_size: int
     dtype: TorchDType
@@ -20,7 +17,6 @@ class DataLoadingConfig(BaseModel):
 
 
 def load_dataset(config: DataLoadingConfig):
-    print(config)
     dtype = config.dtype
     transform = transforms.Compose(
         [

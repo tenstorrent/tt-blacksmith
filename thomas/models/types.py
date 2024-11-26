@@ -1,25 +1,25 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Annotated, Dict, Any, Type
+from typing import Annotated, Any, Dict
 
-from pydantic import BaseModel, GetJsonSchemaHandler, GetCoreSchemaHandler
-from pydantic_core import core_schema
+from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import core_schema
 
 
-def create_mapped_type(map_values: Dict[str, Any], map_type: Type[Any]):
+def create_mapped_type(map_values: Dict[str, Any]):
     """
     Create a Pydantic type that maps a string to a specific value from a dictionary.
     Class created by following the Pydantic documentation on adding third-party types:
     https://docs.pydantic.dev/latest/concepts/types/#handling-third-party-types
     """
     reverse_map_values = {v: k for k, v in map_values.items()}
-
+    
     # Create a serializer schema that converts the value to a string.
     serializer_schema = core_schema.plain_serializer_function_ser_schema(lambda v: reverse_map_values.get(v, str(v)))
 
-    def validate(value):
+    def validate(value: str):
         """
         Function to validate the value passed to the Pydantic type.
         """
@@ -30,14 +30,8 @@ def create_mapped_type(map_values: Dict[str, Any], map_type: Type[Any]):
                 return map_values[value]
             raise ValueError(f"Invalid value '{value}', expected one of {list(map_values.keys())}")
 
-        # If the value is of the map_type, check if it is in the map_values dictionary.
-        if isinstance(value, map_type) or (isinstance(value, type) and issubclass(value, map_type)):
-            if value in map_values.values():
-                return value
-            raise ValueError(f"Invalid value '{value}', expected one of {list(map_values.values())}")
-
-        # If the value is neither a string nor of the map_type, raise the error
-        raise ValueError(f"Invalid value '{value}', expected a `str` or `{map_type}`")
+        # If the value is not string, raise the error
+        raise ValueError(f"Invalid value '{value}', expected a `str`")
 
     class _MapTypePydanticAnnotation:
         @classmethod

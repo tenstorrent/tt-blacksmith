@@ -1,12 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Union, Literal
-
 from torch import nn
-from pydantic import BaseModel
 
-from thomas.tooling.types import create_mapped_type
+from ..types import create_mapped_type
 
 # Maybe should be frozen or somehow protected
 map_loss = {
@@ -15,4 +12,4 @@ map_loss = {
 }
 
 # Create the Annotated types
-TorchLoss = create_mapped_type(map_loss, nn.modules.loss._Loss)
+TorchLoss = create_mapped_type(map_loss)
