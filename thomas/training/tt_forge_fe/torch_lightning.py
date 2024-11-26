@@ -55,7 +55,7 @@ class TTLightningModel(L.LightningModule):
 
     def configure_optimizers(self):
         return torch.optim.SGD(self.parameters(), lr=1e-3)
-    
+
     def on_load_checkpoint(self, checkpoint):
         # Maybe ??
         if not self.restore_grads:
@@ -64,7 +64,12 @@ class TTLightningModel(L.LightningModule):
             if name in checkpoint["grads"]:
                 param.grad = checkpoint["grads"][name]
 
-class GradCheckpoint(L.Callback):
+
+class GradientCheckpoint(L.Callback):
+    """
+    Callback to save gradients during training
+    """
+
     def on_save_checkpoint(self, trainer, pl_module, checkpoint):
         checkpoint["grads"] = {
             name: param.grad for name, param in pl_module.named_parameters() if param.grad is not None

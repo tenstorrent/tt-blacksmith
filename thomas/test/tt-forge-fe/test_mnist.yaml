@@ -1,11 +1,14 @@
 experiment_name: thomas-mnist
 tags:
     - tt-forge-fe
+    - model:torch
+    - lightning
 epochs: 5
 wandb_dir: /proj_sw/training_artifacts/
 checkpoint_dir: /proj_sw/training_artifacts/checkpoints/
 gradiend_checkpoint: True
 model_checkpoint: True
+checkpoint_name: /{epoch:02d}-{step:06d}
 model:
     input_size: 784
     hidden_size: 512
