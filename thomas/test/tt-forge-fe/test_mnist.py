@@ -12,8 +12,7 @@ from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
 from thomas.tooling.cli import generate_config
 from thomas.tooling.data import DataLoadingConfig, load_dataset
 from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import (LightningConfig,
-                                                         TTLightningModel)
+from thomas.training.tt_forge_fe.torch_lightning import LightningConfig, TTLightningModel
 
 
 class ExperimentConfig(BaseModel):

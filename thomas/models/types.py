@@ -15,7 +15,7 @@ def create_mapped_type(map_values: Dict[str, Any]):
     https://docs.pydantic.dev/latest/concepts/types/#handling-third-party-types
     """
     reverse_map_values = {v: k for k, v in map_values.items()}
-    
+
     # Create a serializer schema that converts the value to a string.
     serializer_schema = core_schema.plain_serializer_function_ser_schema(lambda v: reverse_map_values.get(v, str(v)))
 
