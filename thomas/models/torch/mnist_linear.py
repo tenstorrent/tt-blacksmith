@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
+from pydantic import BaseModel
 from torch import nn
 
 
-@dataclass
-class ModelConfig:
+class ModelConfig(BaseModel):
     input_size: int
     output_size: int
     hidden_size: int

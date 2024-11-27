@@ -1,22 +1,19 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
-from typing import Union
-
 import forge
-import torch
-from torch import nn
 import lightning as L
+import torch
+from pydantic import BaseModel
+from torch import nn
 
-from thomas.models.torch.loss import Loss, map_loss
+from thomas.models.torch.loss import TorchLoss
 
 
-@dataclass
-class LightningConfig:
+class LightningConfig(BaseModel):
     batch_size: int
     input_size: int
-    loss: Loss
+    loss: TorchLoss
 
 
 class TTLightningModel(L.LightningModule):
@@ -27,10 +24,10 @@ class TTLightningModel(L.LightningModule):
         tt_model = forge.compile(
             self.framework_model,
             sample_inputs=[torch.rand(config.batch_size, config.input_size)],
-            loss=map_loss[config.loss](),
+            loss=config.loss(),
         )
         self.model = tt_model
-        self.loss = map_loss[config.loss]()
+        self.loss = config.loss()
 
     def forward(self, x):
         logits = self.model(x)
