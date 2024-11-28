@@ -14,7 +14,8 @@ from peft import LoraConfig, get_peft_model
 
 import yaml
 
-from thomas.training.pytorch_train.consts import CONFIG_PATH
+from thomas.training.pytorch_train.consts import CONFIG_PATH, TrainConfig
+from thomas.tooling.cli import generate_config
 
 
 def tokenize_function(example: dict, max_length: int):
@@ -29,21 +30,20 @@ def add_labels(example: dict):
 
 if __name__ == "__main__":
     # Load config
-    with open(CONFIG_PATH, "r") as f:
-        config = yaml.safe_load(f)
+    config = generate_config(TrainConfig, CONFIG_PATH)
 
     # Init model
-    model = AutoModelForCausalLM.from_pretrained(config["model_id"], torch_dtype=torch.float16)
-    lora_config = LoraConfig(r=config["lora_r"], lora_alpha=config["lora_alpha"])
+    model = AutoModelForCausalLM.from_pretrained(config.model_id, torch_dtype=torch.float16)
+    lora_config = LoraConfig(r=config.lora_r, lora_alpha=config.lora_alpha)
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
     # Load dataset
-    ds = load_dataset(config["dataset_id"])
+    ds = load_dataset(config.dataset_id)
 
-    tokenizer = AutoTokenizer.from_pretrained(config["model_id"])
+    tokenizer = AutoTokenizer.from_pretrained(config.model_id)
     tokenizer.pad_token = tokenizer.eos_token
-    tokenized_ds = ds.map(tokenize_function, batched=True, fn_kwargs={"max_length": config["max_length"]})
+    tokenized_ds = ds.map(tokenize_function, batched=True, fn_kwargs={"max_length": config.max_length})
     tokenized_ds = tokenized_ds.map(add_labels)
     tokenized_ds = tokenized_ds.remove_columns(["text"])
     tokenized_ds.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
@@ -52,15 +52,15 @@ if __name__ == "__main__":
 
     # Start training
     train_args = TrainingArguments(
-        output_dir=config["output_path"],
-        num_train_epochs=config["num_epochs"],
-        per_device_train_batch_size=config["batch_size"],
-        per_device_eval_batch_size=config["batch_size"],
-        learning_rate=float(config["lr"]),
+        output_dir=config.output_path,
+        num_train_epochs=config.num_epochs,
+        per_device_train_batch_size=config.batch_size,
+        per_device_eval_batch_size=config.batch_size,
+        learning_rate=float(config.lr),
         remove_unused_columns=False,
         evaluation_strategy="no",
         save_strategy="steps",
-        save_steps=config["save_steps"],
+        save_steps=config.save_steps,
     )
 
     trainer = Trainer(

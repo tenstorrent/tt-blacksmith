@@ -16,7 +16,8 @@ from tqdm import tqdm
 from peft import LoraConfig, get_peft_model
 import yaml
 
-from thomas.training.pytorch_train.consts import CONFIG_PATH
+from thomas.training.pytorch_train.consts import CONFIG_PATH, TrainConfig
+from thomas.tooling.cli import generate_config
 
 
 def tokenize_function(example: dict, max_length: int):
@@ -31,22 +32,21 @@ def add_labels(example: dict):
 
 if __name__ == "__main__":
     # Load config
-    with open(CONFIG_PATH, "r") as f:
-        config = yaml.safe_load(f)
+    config = generate_config(TrainConfig, CONFIG_PATH)
 
     # Init model
-    model = AutoModelForCausalLM.from_pretrained(config["model_id"], torch_dtype=torch.float16)
-    lora_config = LoraConfig(r=2, lora_alpha=16)
+    model = AutoModelForCausalLM.from_pretrained(config.model_id, torch_dtype=torch.float16)
+    lora_config = LoraConfig(r=config.lora_r, lora_alpha=config.lora_alpha)
     model = get_peft_model(model, lora_config)
-    model.to(config["device"])
+    model.to(config.device)
     model.print_trainable_parameters()
 
     # Load dataset
-    ds = load_dataset(config["dataset_id"])
+    ds = load_dataset(config.dataset_id)
 
-    tokenizer = AutoTokenizer.from_pretrained(config["model_id"])
+    tokenizer = AutoTokenizer.from_pretrained(config.model_id)
     tokenizer.pad_token = tokenizer.eos_token
-    tokenized_ds = ds.map(tokenize_function, batched=True, fn_kwargs={"max_length": config["max_length"]})
+    tokenized_ds = ds.map(tokenize_function, batched=True, fn_kwargs={"max_length": config.max_length})
     tokenized_ds = tokenized_ds.map(add_labels)
     tokenized_ds = tokenized_ds.remove_columns(["text"])
     tokenized_ds.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
@@ -55,23 +55,23 @@ if __name__ == "__main__":
 
     train_sample = tokenized_ds["train"].select(range(100))
     train_dataloader = DataLoader(
-        train_sample, shuffle=True, collate_fn=data_collator, batch_size=config["batch_size"], pin_memory=True
+        train_sample, shuffle=True, collate_fn=data_collator, batch_size=config.batch_size, pin_memory=True
     )
 
     # Train loop
-    optimizer = torch.optim.AdamW(model.parameters(), lr=float(config["lr"]))
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(config.lr))
     lr_scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=0,
-        num_training_steps=(len(train_dataloader) * config["num_epochs"]),
+        num_training_steps=(len(train_dataloader) * config.num_epochs),
     )
 
     step_counter = 0
-    for epoch in range(config["num_epochs"]):
+    for epoch in range(config.num_epochs):
         model.train()
         total_loss = 0
         for batch in tqdm(train_dataloader):
-            batch = {k: v.to(config["device"]) for k, v in batch.items()}
+            batch = {k: v.to(config.device) for k, v in batch.items()}
 
             outputs = model(**batch)
             loss = outputs.loss
@@ -82,11 +82,11 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             step_counter += 1
 
-            if step_counter % config["save_steps"] == 0:
-                model.save_pretrained(os.path.join(config["output_path"], f"checkpoint_{step_counter}"))
+            if step_counter % config.save_steps == 0:
+                model.save_pretrained(os.path.join(config.output_path, f"checkpoint_{step_counter}"))
 
         train_epoch_loss = total_loss / len(train_dataloader)
         train_ppl = torch.exp(train_epoch_loss)
         print(f"{epoch=}: {train_ppl=} {train_epoch_loss=}")
 
-    model.save_pretrained(os.path.join(config["output_path"], "final_model"))
+    model.save_pretrained(os.path.join(config.output_path, "final_model"))
