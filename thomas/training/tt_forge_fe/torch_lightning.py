@@ -72,7 +72,6 @@ class TTLightningModel(L.LightningModule):
         return torch.optim.SGD(self.parameters(), lr=self.config.lr)
 
     def on_after_backward(self):
-        print()
         if self.logging_config.log_gradients is None and self.logging_config.log_weights is None:
             return
         if self.global_step % self.logging_config.log_every_n_steps != 0:
@@ -115,10 +114,10 @@ class CustomLogger(WandbLogger):
         self.checkpoint_artifact = None
 
     def after_save_checkpoint(self, checkpoint_callback):
-        # Get all checkpoint that are not logged yet
+        # Get all checkpoints that are not logged yet
         models_to_log = _scan_checkpoints(checkpoint_callback, self.logged_model_time)
 
-        # Add only new references
+        # Add only new checkpoints to the artifact
         for save_time, model_path, _, tag in models_to_log:
             if model_path not in self.logged_model_time:
                 self.checkpoint_artifact.add_reference(f"file://{model_path}")
@@ -127,6 +126,9 @@ class CustomLogger(WandbLogger):
         self.logged_model_time.update({model_path: save_time for save_time, model_path, _, _ in models_to_log})
 
     def log_checkpoints(self):
+        """
+        Log the checkpoints as artifacts, after that no new references can be added
+        """
         if self.checkpoint_artifact is not None:
             self.experiment.log_artifact(self.checkpoint_artifact)
             self.checkpoint_artifact = None
@@ -142,6 +144,10 @@ class CustomLogger(WandbLogger):
 
 
 class SaveChecpointArtifact(L.Callback):
+    """
+    Save the model checkpoints as artifacts at the end of the epoch
+    """
+
     def on_train_epoch_start(self, trainer, pl_module):
         if isinstance(trainer.logger, CustomLogger):
             trainer.logger.create_artifact()

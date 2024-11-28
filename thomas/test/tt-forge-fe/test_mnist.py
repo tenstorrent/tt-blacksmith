@@ -57,17 +57,19 @@ def test_training():
     callbacks = []
     checkpoint_config = logger_config.checkpoint
     if checkpoint_config.log_checkpoint:
-        checkpoint_filename = f"{logger.experiment.name}/{checkpoint_config.checkpoint_name}"
+        # Callback for saving checkpoints every n global steps
         callbacks.append(
             ModelCheckpoint(
                 dirpath=checkpoint_config.checkpoint_dir,
                 every_n_train_steps=checkpoint_config.log_every_n_steps,
-                filename=checkpoint_filename,
+                filename=f"{logger.experiment.name}/{checkpoint_config.checkpoint_name}",
                 save_top_k=checkpoint_config.save_top_k,
             )
         )
+        # Callback to send the artifact to wandb with references to the checkpoints of the one epoch
         callbacks.append(SaveChecpointArtifact())
     if checkpoint_config.save_gradients:
+        # Callback for saving gradients inside checkpoint
         callbacks.append(GradientCheckpoint())
 
     trainer = L.Trainer(max_epochs=config.epochs, logger=logger, callbacks=callbacks)
@@ -75,5 +77,4 @@ def test_training():
 
 
 if __name__ == "__main__":
-
     test_training()

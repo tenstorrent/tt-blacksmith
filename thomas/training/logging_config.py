@@ -20,7 +20,7 @@ class CheckpointLoggerConfig(BaseModel):
 
 
 class LoggerConfig(BaseModel):
-    checkpoint: CheckpointLoggerConfig
+    checkpoint: Union[None, CheckpointLoggerConfig] = Field(default=None)
     log_hyperparameters: bool
     wandb_dir: str
     log_train_loss: Union[None, str] = Field(default=None)
