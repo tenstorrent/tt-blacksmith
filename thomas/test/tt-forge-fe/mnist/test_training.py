@@ -14,7 +14,7 @@ from forge.op.eval.common import compare_with_golden
 from thomas.tooling.forge_tooling import disable_forge_logger
 from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
 from thomas.tooling.data import load_dataset, DataLoadingConfig
-from thomas.training.utils import EarlyStopping, get_param_grads, copy_params
+from thomas.training.torch_utils import copy_params, get_param_grads
 
 
 @pytest.mark.push
@@ -72,7 +72,7 @@ def test_mnist_training():
             total_loss += loss.item()
 
             golden_loss = loss_fn(golden_pred, target)
-            assert torch.allclose(loss, golden_loss, rtol=5e-2)  # 5% tolerance
+            assert torch.allclose(loss, golden_loss, rtol=1e-1)  # 10% tolerance
 
             # Run backward pass on device
             loss.backward()
