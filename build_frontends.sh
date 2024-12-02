@@ -3,8 +3,8 @@
 set -eo pipefail
 
 install_tt_thomas() {
-    pip install -e "$TT_FORGE_FE_HOME"
-    pip install -r "$TT_FORGE_FE_HOME/requirements.txt"
+    pip install -e "$TT_THOMAS_HOME"
+    pip install -r "$TT_THOMAS_HOME/requirements.txt"
 }
 
 build_tt_forge_fe_env() {
@@ -97,6 +97,7 @@ fi
 
 if [ "$tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME="$TT_THOMAS_HOME/third_party/tt-forge-fe"
+    export PROJECT_ROOT="$TT_FORGE_FE_HOME"
 
     mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
     mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain"
@@ -120,7 +121,7 @@ fi
 
 if [ "$tt_xla" = true ]; then
     export TT_XLA_HOME="$TT_THOMAS_HOME/third_party/tt-xla"
-
+    export PROJECT_ROOT="$TT_XLA_HOME"
 
     # Fist we need to set TTMLIR_TOOLCHAIN_DIR
     export TTMLIR_TOOLCHAIN_DIR="$OPT_MLIR_TOOLCHAIN_DIR"
