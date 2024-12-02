@@ -29,11 +29,9 @@ def load_mnist():
     train_images = train_images[..., None] / 255.0
     test_images = test_images[..., None] / 255.0
 
-    # Shuffle the training data
     perm = jax.random.permutation(jax.random.PRNGKey(0), len(train_images))
     train_images, train_labels = train_images[perm], train_labels[perm]
 
-    # Split the training data into training and validation sets
     train_size = int(0.8 * len(train_images))
     val_size = int(0.2 * len(train_images))
 

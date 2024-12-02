@@ -62,7 +62,7 @@ def save_checkpoint(ckpt_path, state, epoch):
 
 
 def load_checkpoint(ckpt_file, state, epoch):
-    artifact = wandb.use_artifact(f"{wandb.run.name}-checkpoint-epoch-{epoch}:latest")  # Referencing the specific epoch
+    artifact = wandb.use_artifact(f"{wandb.run.name}-checkpoint-epoch-{epoch}:latest")  # Reference to the specific epoch
     artifact_dir = artifact.download()
 
     ckpt_path = os.path.join(artifact_dir, ckpt_file)

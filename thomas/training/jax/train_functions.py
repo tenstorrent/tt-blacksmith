@@ -74,7 +74,7 @@ def accumulate_metrics(metrics):
         
     count = len(metrics)
     sums = {}
-    # Calculate the mean of each key (loss, accuracy, etc.)
+    # Calculate the mean of each key (loss, accuracy)
     for d in metrics:
         for key, value in d.items():
             if key not in sums:
