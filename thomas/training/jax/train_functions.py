@@ -1,9 +1,13 @@
+# SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
 
 import optax
 
 from model import MLP
+
 
 @jax.jit
 def forward_pass(params, x):
@@ -51,27 +55,29 @@ def eval_step(params, x):
 def calculate_metrics_train(logits, y, loss):
     accuracy = jnp.mean(jnp.argmax(logits, 1) == y)
     metrics = {
-           'loss': loss,
-            'accuracy': accuracy,
+        "loss": loss,
+        "accuracy": accuracy,
     }
     return metrics
+
 
 @jax.jit
 def calculate_metrics_val(logits, y):
     loss = func_optax_loss(logits, y)
     accuracy = jnp.mean(jnp.argmax(logits, 1) == y)
     metrics = {
-            'loss': loss,
-            'accuracy': accuracy,
+        "loss": loss,
+        "accuracy": accuracy,
     }
     return metrics
+
 
 def accumulate_metrics(metrics):
     keys = metrics[0].keys()
 
     if any(set(metric.keys()) != set(keys) for metric in metrics):
         raise ValueError("All dictionaries in 'metrics' must have the same keys.")
-        
+
     count = len(metrics)
     sums = {}
     # Calculate the mean of each key (loss, accuracy)
@@ -83,4 +89,3 @@ def accumulate_metrics(metrics):
 
     averages = {key: sums[key] / count for key in sums}
     return averages
-    
