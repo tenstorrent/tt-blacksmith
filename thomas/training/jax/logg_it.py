@@ -80,7 +80,6 @@ def load_checkpoint(ckpt_file, state, epoch):
     artifact_dir = artifact.download()
 
     ckpt_path = os.path.join(artifact_dir, ckpt_file)
-
     with open(ckpt_path, "rb") as data_file:
         byte_data = data_file.read()
 

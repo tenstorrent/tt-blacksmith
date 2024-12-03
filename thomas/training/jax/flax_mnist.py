@@ -16,6 +16,16 @@ from flax.serialization import to_state_dict, msgpack_serialize, from_bytes
 from tensorflow import keras
 import wandb
 import os
+import sys
+
+import time
+
+# There have been some problems with importing the model2.py file
+# Add the path to the models/jax directory to sys.path
+current_dir = os.getcwd()  # This will be /proj_sw/user_dev/umales/tt-thomas/thomas/
+model_dir = os.path.join(current_dir, "models/jax")  # This is /proj_sw/user_dev/umales/tt-thomas/thomas/models/jax
+
+sys.path.append(model_dir)
 
 from model import Models, MLP
 from utils import ExportSHLO
@@ -46,7 +56,7 @@ def load_mnist():
     train_images, train_labels = train_images[perm], train_labels[perm]
 
     train_size = int(0.8 * len(train_images))
-    val_size = int(0.2 * len(train_images))
+    val_size = len(train_images) - train_size
 
     train_images, val_images = train_images[:train_size], train_images[train_size : train_size + val_size]
     train_labels, val_labels = train_labels[:train_size], train_labels[train_size : train_size + val_size]
@@ -69,7 +79,7 @@ class EarlyStopping:
         return self.counter >= self.patience
 
 
-def train(get_best_checkpoint=False, use_export_shlo=False):
+def train(run_test=False, use_export_shlo=False):
 
     train_images, train_labels, eval_images, eval_labels, test_images, test_labels = load_mnist()
 
@@ -79,7 +89,7 @@ def train(get_best_checkpoint=False, use_export_shlo=False):
 
     config.learning_rate = 1e-3
     config.batch_size = 64
-    config.num_epochs = 30
+    config.num_epochs = 10
     config.seed = 0
 
     rng = random.PRNGKey(config.seed)
@@ -140,20 +150,19 @@ def train(get_best_checkpoint=False, use_export_shlo=False):
         checkpoint_file_path = os.path.join(checkpoint_dir, checkpoint_file_name)
         save_checkpoint(checkpoint_file_path, state, epoch)
 
-    if get_best_checkpoint:
+    time.sleep(2)
+
+    if run_test:
         # For some reason, wandb is unable to load 2 most recent checkpoints
         # So, we load the best checkpoint and the two checkpoints before it
         # I suppose this is a bug in wandb, some sort of latency between saving and loading
         # becaue this pattern repeats no matter the number of epochs
-        epoch = best_epoch - 2
+        epoch = best_epoch
         ckpt_file = "checkpoint.msgpack"
         restored_state = load_checkpoint(ckpt_file, state, epoch)
         logits = eval_step(restored_state.params, test_images)
         metrics = calculate_metrics_val(logits, test_labels)
-        test_batch_metrics = []
-        test_batch_metrics.append(metrics)
-        test_batch_metrics_avg = accumulate_metrics(test_batch_metrics)
-        wandb.log({"Test Loss": test_batch_metrics_avg["loss"], "Test Accuracy": test_batch_metrics_avg["accuracy"]})
+        wandb.log({"Test Loss": metrics["loss"], "Test Accuracy": metrics["accuracy"]})
 
     wandb.finish()
 
@@ -170,7 +179,7 @@ def train(get_best_checkpoint=False, use_export_shlo=False):
 
 
 def main():
-    train(get_best_checkpoint=True, use_export_shlo=True)
+    train(run_test=True, use_export_shlo=False)
 
 
 if __name__ == "__main__":

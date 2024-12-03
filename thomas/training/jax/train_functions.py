@@ -64,12 +64,7 @@ def calculate_metrics_train(logits, y, loss):
 @jax.jit
 def calculate_metrics_val(logits, y):
     loss = func_optax_loss(logits, y)
-    accuracy = jnp.mean(jnp.argmax(logits, 1) == y)
-    metrics = {
-        "loss": loss,
-        "accuracy": accuracy,
-    }
-    return metrics
+    return calculate_metrics_train(logits, y, loss)
 
 
 def accumulate_metrics(metrics):
