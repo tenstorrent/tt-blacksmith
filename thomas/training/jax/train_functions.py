@@ -6,7 +6,7 @@ import jax.numpy as jnp
 
 import optax
 
-from model import MLP
+from thomas.models.jax.model import MLP
 
 
 @jax.jit

@@ -20,14 +20,7 @@ import sys
 
 import time
 
-# There have been some problems with importing the model2.py file
-# Add the path to the models/jax directory to sys.path
-current_dir = os.getcwd()  # This will be /proj_sw/user_dev/umales/tt-thomas/thomas/
-model_dir = os.path.join(current_dir, "models/jax")  # This is /proj_sw/user_dev/umales/tt-thomas/thomas/models/jax
-
-sys.path.append(model_dir)
-
-from model import Models, MLP
+from thomas.models.jax.model import Models, MLP
 from utils import ExportSHLO
 from logg_it import init_wandb, log_metrics, save_checkpoint, load_checkpoint
 
