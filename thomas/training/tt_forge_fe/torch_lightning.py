@@ -10,11 +10,11 @@ from torch import nn
 import wandb
 
 from thomas.models.torch.loss import TorchLoss
-from thomas.training.logging_config import LoggerConfig
+from thomas.training.logger_config import LoggerConfig
 from thomas.tooling.wandb_utils import log_histogram
 
 
-class LightningConfig(BaseModel):
+class TTLightningConfig(BaseModel):
     batch_size: int
     input_size: int
     loss: TorchLoss
@@ -26,7 +26,7 @@ class TTLightningModel(L.LightningModule):
     Wrapper around the model to use it with PyTorch Lightning for forge-fe models
     """
 
-    def __init__(self, config: LightningConfig, model: nn.Module, logging_config: LoggerConfig):
+    def __init__(self, config: TTLightningConfig, model: nn.Module, logger_config: LoggerConfig):
         super(TTLightningModel, self).__init__()
         import forge
         # self.save_hyperparameters(config.model_dump())
@@ -39,7 +39,7 @@ class TTLightningModel(L.LightningModule):
         self.config = config
         self.model = tt_model
         self.loss = config.loss()
-        self.logging_config = logging_config
+        self.logger_config = logger_config
 
     def forward(self, x):
         logits = self.model(x)
@@ -54,8 +54,8 @@ class TTLightningModel(L.LightningModule):
         x, y = batch
         pred = self(x)
         loss = self.loss(pred, y)
-        if self.logging_config.log_train_loss:
-            self.log(self.logging_config.log_train_loss, loss)
+        if self.logger_config.log_train_loss:
+            self.log(self.logger_config.log_train_loss, loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -63,32 +63,42 @@ class TTLightningModel(L.LightningModule):
         pred = self(x)
         loss = self.loss(pred, y)
         acc = (pred.argmax(1) == y).type(torch.float).mean()
-        if self.logging_config.log_val_loss:
-            self.log(self.logging_config.log_val_loss, loss)
-        if self.logging_config.log_val_accuracy:
-            self.log(self.logging_config.log_val_accuracy, acc)
+        if self.logger_config.log_val_loss:
+            self.log(self.logger_config.log_val_loss, loss)
+        if self.logger_config.log_val_accuracy:
+            self.log(self.logger_config.log_val_accuracy, acc)
 
     def configure_optimizers(self):
         return torch.optim.SGD(self.parameters(), lr=self.config.lr)
 
     def on_after_backward(self):
-        if self.logging_config.log_gradients is None and self.logging_config.log_weights is None:
+        if self.logger_config.log_gradients is None:
             return
-        if self.global_step % self.logging_config.log_every_n_steps != 0:
+        if self.global_step % self.logger_config.log_every_n_steps != 0:
             return
         for name, param in self.framework_model.named_parameters():
             if param.grad is None:
                 continue
-            if self.logging_config.log_gradients:
+            if self.logger_config.log_gradients:
                 log_histogram(
                     self.logger.experiment,
-                    self.logging_config.log_gradients.format(name=name),
+                    self.logger_config.log_gradients.format(name=name),
                     param.grad,
                     self.global_step,
                 )
-            if self.logging_config.log_weights:
+
+    def on_train_batch_start(self, batch, batch_idx):
+        if self.logger_config.log_weights is None:
+            return
+        if self.global_step % self.logger_config.log_every_n_steps != 0:
+            return
+        for name, param in self.framework_model.named_parameters():
+            if self.logger_config.log_weights:
                 log_histogram(
-                    self.logger.experiment, self.logging_config.log_weights.format(name=name), param, self.global_step
+                    self.logger.experiment,
+                    self.logger_config.log_weights.format(name=name),
+                    param,
+                    self.global_step,
                 )
 
 
@@ -103,27 +113,29 @@ class GradientCheckpoint(L.Callback):
         }
 
 
-class CustomLogger(WandbLogger):
+class TTWandbLogger(WandbLogger):
     """
     Custom logger to log the model checkpoints as artifacts, and everything else as usual
     """
 
     def __init__(self, *args, **kwargs):
         WandbLogger.__init__(self, *args, **kwargs)
-        self.logged_model_time = {}
+        # Key is path to the checkpoint, value is the timestamp when the checkpoint was saved
+        # In case the model is saved again, the timestamp is updated, and the checkpoint is added to the artifact
+        self.checkpoint_save_timestamp = {}
         self.checkpoint_artifact = None
 
     def after_save_checkpoint(self, checkpoint_callback):
         # Get all checkpoints that are not logged yet
-        models_to_log = _scan_checkpoints(checkpoint_callback, self.logged_model_time)
+        models_to_log = _scan_checkpoints(checkpoint_callback, self.checkpoint_save_timestamp)
 
         # Add only new checkpoints to the artifact
         for save_time, model_path, _, tag in models_to_log:
-            if model_path not in self.logged_model_time:
+            if model_path not in self.checkpoint_save_timestamp:
                 self.checkpoint_artifact.add_reference(f"file://{model_path}")
 
-        # Update the logged_model_time, in case the model is saved again, or new checkpoints are added
-        self.logged_model_time.update({model_path: save_time for save_time, model_path, _, _ in models_to_log})
+        # Update the checkpoint_save_timestamp, in case the model is saved again, or new checkpoints are added
+        self.checkpoint_save_timestamp.update({model_path: save_time for save_time, model_path, _, _ in models_to_log})
 
     def log_checkpoints(self):
         """
@@ -143,15 +155,15 @@ class CustomLogger(WandbLogger):
         super().finalize(status)
 
 
-class SaveChecpointArtifact(L.Callback):
+class SaveCheckpointArtifact(L.Callback):
     """
     Save the model checkpoints as artifacts at the end of the epoch
     """
 
     def on_train_epoch_start(self, trainer, pl_module):
-        if isinstance(trainer.logger, CustomLogger):
+        if isinstance(trainer.logger, TTWandbLogger):
             trainer.logger.create_artifact()
 
     def on_train_epoch_end(self, trainer, pl_module):
-        if isinstance(trainer.logger, CustomLogger):
+        if isinstance(trainer.logger, TTWandbLogger):
             trainer.logger.log_checkpoints()

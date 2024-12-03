@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from thomas.models.torch.dtypes import TorchDType
 from thomas.models.torch.loss import TorchLoss
 from thomas.models.torch.opt import TorchOptimizer
+from thomas.training.logger_config import LoggerConfig
 
 
 def test_create_mapped_type():
@@ -28,6 +29,13 @@ def test_create_mapped_type():
     except ValueError as e:
         print(e)
         assert True
+    try:
+        LoggerConfig(log_every_n_steps=1, log_every_n_epochs=1, log_hyperparameters=True, wandb_dir="dir")
+        assert False
+    except ValueError as e:
+        print(e)
+        assert True
+    print("All tests passed")
 
 
 if __name__ == "__main__":

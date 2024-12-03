@@ -2,4 +2,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from . import tt_forge_fe
-from . import logging_config
+from . import logger_config

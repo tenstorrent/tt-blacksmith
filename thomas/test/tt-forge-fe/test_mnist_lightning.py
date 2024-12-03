@@ -12,17 +12,17 @@ from pydantic import BaseModel, Field
 from thomas.tooling.forge_tooling import disable_forge_logger
 from thomas.training.tt_forge_fe.torch_lightning import (
     TTLightningModel,
-    LightningConfig,
+    TTLightningConfig,
     GradientCheckpoint,
-    CustomLogger,
-    SaveChecpointArtifact,
+    TTWandbLogger,
+    SaveCheckpointArtifact,
 )
-from thomas.training.logging_config import LoggerConfig, get_default_logger_config
+from thomas.training.logger_config import LoggerConfig, get_default_logger_config
 from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
 from thomas.tooling.cli import generate_config
 from thomas.tooling.data import DataLoadingConfig, load_dataset
 from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import LightningConfig, TTLightningModel
+from thomas.training.tt_forge_fe.torch_lightning import TTLightningConfig, TTLightningModel
 
 
 class ExperimentConfig(BaseModel):
@@ -30,7 +30,7 @@ class ExperimentConfig(BaseModel):
     tags: List[str]
     epochs: int
     model: ModelConfig
-    lightning: LightningConfig
+    lightning: TTLightningConfig
     data_loading: DataLoadingConfig
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
 
@@ -39,12 +39,12 @@ def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
     disable_forge_logger()
 
-    config: ExperimentConfig = generate_config(ExperimentConfig, "thomas/test/tt-forge-fe/test_mnist.yaml")
+    config: ExperimentConfig = generate_config(ExperimentConfig, "thomas/test/tt-forge-fe/test_mnist_lightning.yaml")
     logger_config = config.logger_config
 
     train_loader, test_loader = load_dataset(config.data_loading)
     model = MNISTLinear(config.model)
-    logger = CustomLogger(
+    logger = TTWandbLogger(
         project=config.experiment_name,
         tags=config.tags,
         save_dir=logger_config.wandb_dir,
@@ -67,7 +67,7 @@ def test_training():
             )
         )
         # Callback to send the artifact to wandb with references to the checkpoints of the one epoch
-        callbacks.append(SaveChecpointArtifact())
+        callbacks.append(SaveCheckpointArtifact())
     if checkpoint_config.save_gradients:
         # Callback for saving gradients inside checkpoint
         callbacks.append(GradientCheckpoint())
