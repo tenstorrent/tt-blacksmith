@@ -17,89 +17,6 @@ from thomas.tooling.data import load_dataset, DataLoadingConfig
 from thomas.training.torch_utils import copy_params, get_param_grads
 
 
-@pytest.mark.push
-def test_mnist_training():
-    disable_forge_logger()
-    torch.manual_seed(0)
-
-    # Config
-    num_epochs = 3
-    batch_size = 1
-    learning_rate = 0.001
-    input_size = 28 * 28
-
-    # Limit number of batches to run - quicker test
-    limit_num_batches = 1000
-
-    # Load dataset
-    model_config = ModelConfig(batch_size=batch_size, bias=False)
-    data_config = DataLoadingConfig(batch_size=batch_size, dtype="float32", pre_shuffle=True)
-
-    test_loader, train_loader = load_dataset(data_config)
-
-    # Define model and instruct it to compile and run on TT device
-    framework_model = MNISTLinear(model_config)  # bias=False because batch_size=1 with bias=True is not supported
-
-    # Create a torch loss and leave on CPU
-    loss_fn = torch.nn.CrossEntropyLoss()
-
-    # Define optimizer and instruct it to compile and run on TT device
-    framework_optimizer = torch.optim.SGD(framework_model.parameters(), lr=learning_rate)
-    tt_model = forge.compile(
-        framework_model, sample_inputs=[torch.rand(batch_size, input_size)], loss=loss_fn, optimizer=framework_optimizer
-    )
-
-    disable_forge_logger
-    for epoch_idx in range(num_epochs):
-        # Reset gradients (every epoch) - since our batch size is currently 1,
-        # we accumulate gradients across multiple batches (limit_num_batches),
-        # and then run the optimizer.
-        framework_optimizer.zero_grad()
-
-        total_loss = 0
-        for batch_idx, (data, target) in enumerate(train_loader):
-
-            # Create target tensor and leave on CPU
-            target = nn.functional.one_hot(target, num_classes=10).float()
-
-            # Forward pass (prediction) on device
-            pred = tt_model(data)[0]
-            golden_pred = framework_model(data)
-            assert compare_with_golden(golden_pred, pred, pcc=0.95)
-
-            # Compute loss on CPU
-            loss = loss_fn(pred, target)
-            total_loss += loss.item()
-
-            golden_loss = loss_fn(golden_pred, target)
-            assert torch.allclose(loss, golden_loss, rtol=1e-1)  # 10% tolerance
-
-            # Run backward pass on device
-            loss.backward()
-
-            tt_model.backward()
-
-            if batch_idx >= limit_num_batches:
-                break
-
-        print(f"epoch: {epoch_idx} loss: {total_loss}")
-
-        # Adjust weights (on CPU)
-        framework_optimizer.step()
-
-    test_loss = 0
-    for batch_idx, (data, target) in enumerate(test_loader):
-        pred = tt_model(data)[0]
-        target = nn.functional.one_hot(target, num_classes=10).float()
-
-        test_loss += loss_fn(pred, target)
-
-        if batch_idx == 1000:
-            break
-
-    print(f"Test (total) loss: {test_loss}")
-
-
 @pytest.mark.parametrize("freeze_layer", [None, 0, 2, 4])
 @pytest.mark.push
 def test_forge_vs_torch_gradients(freeze_layer):
@@ -156,3 +73,108 @@ def test_forge_vs_torch_gradients(freeze_layer):
     # Compare gradients for each parameter
     for name in reversed(list(torch_grads.keys())):
         assert compare_with_golden(torch_grads[name], forge_grads[name])
+
+
+# For bfloat16, the following line should be added to the test_forge_vs_torch function:
+# In file forge/forge/op/eval/forge/eltwise_unary.py:418 should be replaced with: threshold_tensor = ac.tensor(torch.zeros(shape, dtype=torch.bfloat16) + threshold)
+# That sets relu threshold to bfloat16 tensor.
+# And in file forge/forge/compile.py::compile_main forced bfloat 16 should be added compiler_cfg.default_df_override = DataFormat.Float16_b
+@pytest.mark.skip(reason="Need to be tested with bfloat16 and takes around 10 minutes to run")
+@pytest.mark.push
+def test_forge_vs_torch():
+    torch.manual_seed(0)
+
+    batch_size = 64
+    learning_rate = 1e-2
+    epochs = 10
+    verbose = True
+
+    dtype = torch.float32
+
+    torch_model = MNISTLinear(dtype=dtype)
+    forge_model = MNISTLinear(dtype=dtype)
+
+    copy_params(torch_model, forge_model)
+
+    torch_writer = load_tb_writer("torch")
+    forge_writer = load_tb_writer("forge")
+
+    loss_fn = nn.CrossEntropyLoss()
+    torch_optimizer = torch.optim.SGD(torch_model.parameters(), lr=learning_rate)
+    forge_optimizer = torch.optim.SGD(forge_model.parameters(), lr=learning_rate)
+
+    tt_model = forge.compile(
+        forge_model, sample_inputs=[torch.ones(batch_size, 784, dtype=dtype)], loss=loss_fn, optimizer=forge_optimizer
+    )
+
+    test_loader, train_loader = load_dataset(batch_size, dtype=dtype)
+    step = 0
+
+    early_stop = EarlyStopping(patience=1, mode="max")
+
+    logger.info("Starting training loop... (logger will be disabled)")
+    logger.disable("")
+    for i in range(epochs):
+        start_time = time.time()
+        torch_loop = train_loop(
+            train_loader,
+            torch_model,
+            loss_fn,
+            torch_optimizer,
+            batch_size,
+            torch_model.named_parameters,
+            is_tt=False,
+            verbose=verbose,
+        )
+        forge_loop = train_loop(
+            train_loader,
+            tt_model,
+            loss_fn,
+            forge_optimizer,
+            batch_size,
+            forge_model.named_parameters,
+            is_tt=True,
+            verbose=verbose,
+        )
+        for torch_data, forge_data in zip(torch_loop, forge_loop):
+            step += 1
+
+            torch_loss, torch_pred, torch_grads = torch_data
+            forge_loss, forge_pred, forge_grads = forge_data
+
+            if step % 100 == 0:
+                torch_val_loss, torch_val_acc = validation_loop(
+                    test_loader, torch_model, loss_fn, batch_size, is_tt=False
+                )
+                forge_val_loss, forge_val_acc = validation_loop(test_loader, tt_model, loss_fn, batch_size, is_tt=True)
+
+                torch_writer.add_scalar("train_loss", torch_loss.float(), step)
+                forge_writer.add_scalar("train_loss", forge_loss.float(), step)
+                torch_writer.add_scalar("validation_acc", torch_val_acc, step)
+                forge_writer.add_scalar("validation_acc", forge_val_acc, step)
+
+                torch_writer.flush()
+                forge_writer.flush()
+
+        if verbose:
+            print(f"Epoch {i} took {time.time() - start_time} seconds")
+
+        forge_val_loss, forge_val_acc = validation_loop(test_loader, tt_model, loss_fn, batch_size, is_tt=True)
+        early_stop.step(forge_val_acc, i)
+
+        if early_stop.is_best():
+            torch.save(torch_model.state_dict(), f"runs/models/torch_model_{i}.pth")
+            torch.save(forge_model.state_dict(), f"runs/models/forge_model_{i}.pth")
+
+        if early_stop.is_early_stop():
+            break
+
+    # Load best model
+    torch_model.load_state_dict(torch.load(f"runs/models/torch_model_{early_stop.get_best_model()}.pth"))
+    forge_model.load_state_dict(torch.load(f"runs/models/forge_model_{early_stop.get_best_model()}.pth"))
+
+    torch_val_loss, torch_val_acc = validation_loop(test_loader, torch_model, loss_fn, batch_size, is_tt=False)
+    forge_val_loss, forge_val_acc = validation_loop(test_loader, tt_model, loss_fn, batch_size, is_tt=True)
+
+    print(f"Validation accuracy for Torch: {torch_val_acc} in epoch {early_stop.get_best_model()}")
+    print(f"Validation accuracy for Forge: {forge_val_acc} in epoch {early_stop.get_best_model()}")
