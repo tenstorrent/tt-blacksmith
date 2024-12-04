@@ -14,9 +14,16 @@ class CheckpointLoggerConfig(BaseModel):
     log_checkpoint: bool
     checkpoint_dir: str
     checkpoint_name: str
-    log_every_n_steps: int
+    log_every_n_steps: Union[None, int] = Field(default=None)
+    log_every_n_epochs: Union[None, int] = Field(default=None)
     save_gradients: bool
     save_top_k: int = Field(default=-1)  # how many checkpoints to keep, -1 means keep all
+
+    @model_validator(mode="after")
+    def check_exclusive_every_n(self):
+        if self.log_every_n_steps is not None and self.log_every_n_epochs is not None:
+            raise ValueError("log_every_n_steps and log_every_n_epochs are mutually exclusive")
+        return self
 
 
 class LoggerConfig(BaseModel):

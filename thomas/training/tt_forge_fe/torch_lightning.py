@@ -74,32 +74,51 @@ class TTLightningModel(L.LightningModule):
     def on_after_backward(self):
         if self.logger_config.log_gradients is None:
             return
+        if self.logger_config.log_every_n_steps is None:
+            return
         if self.global_step % self.logger_config.log_every_n_steps != 0:
             return
         for name, param in self.framework_model.named_parameters():
             if param.grad is None:
                 continue
-            if self.logger_config.log_gradients:
-                log_histogram(
-                    self.logger.experiment,
-                    self.logger_config.log_gradients.format(name=name),
-                    param.grad,
-                    self.global_step,
-                )
+            log_histogram(
+                self.logger.experiment,
+                self.logger_config.log_gradients.format(name=name),
+                param.grad,
+                self.global_step,
+            )
 
     def on_train_batch_start(self, batch, batch_idx):
         if self.logger_config.log_weights is None:
             return
+        if self.logger_config.log_every_n_steps is None:
+            return
         if self.global_step % self.logger_config.log_every_n_steps != 0:
             return
         for name, param in self.framework_model.named_parameters():
-            if self.logger_config.log_weights:
-                log_histogram(
-                    self.logger.experiment,
-                    self.logger_config.log_weights.format(name=name),
-                    param,
-                    self.global_step,
-                )
+            log_histogram(
+                self.logger.experiment,
+                self.logger_config.log_weights.format(name=name),
+                param,
+                self.global_step,
+            )
+
+    def on_train_epoch_start(self):
+        print("Epoch start", self.current_epoch)
+        if self.logger_config.log_weights is None:
+            return
+        if self.logger_config.log_every_n_epochs is None:
+            return
+        if self.current_epoch % self.logger_config.log_every_n_epochs != 0:
+            return
+        print("Logging weights", self.current_epoch)
+        for name, param in self.framework_model.named_parameters():
+            log_histogram(
+                self.logger.experiment,
+                self.logger_config.log_weights.format(name=name),
+                param,
+                self.global_step,
+            )
 
 
 class GradientCheckpoint(L.Callback):
@@ -128,6 +147,9 @@ class TTWandbLogger(WandbLogger):
     def after_save_checkpoint(self, checkpoint_callback):
         # Get all checkpoints that are not logged yet
         models_to_log = _scan_checkpoints(checkpoint_callback, self.checkpoint_save_timestamp)
+
+        if self.checkpoint_artifact is None:
+            self.create_artifact()
 
         # Add only new checkpoints to the artifact
         for save_time, model_path, _, tag in models_to_log:
@@ -160,10 +182,7 @@ class SaveCheckpointArtifact(L.Callback):
     Save the model checkpoints as artifacts at the end of the epoch
     """
 
-    def on_train_epoch_start(self, trainer, pl_module):
-        if isinstance(trainer.logger, TTWandbLogger):
-            trainer.logger.create_artifact()
-
     def on_train_epoch_end(self, trainer, pl_module):
         if isinstance(trainer.logger, TTWandbLogger):
+            print("Saving Logging checkpoint", trainer.current_epoch)
             trainer.logger.log_checkpoints()
