@@ -1,9 +1,9 @@
 experiment_name: thomas-mnist
 tags:
     - tt-forge-fe
-epochs: 2
-wandb_dir: ./wandb
-checkpoint_dir: ./checkpoints
+    - model:torch
+    - lightning
+epochs: 5
 model:
     input_size: 784
     hidden_size: 512
@@ -13,6 +13,7 @@ lightning:
     batch_size: 64
     input_size: 784
     loss: CrossEntropyLoss
+    lr: 0.001
 data_loading:
     batch_size: 64
     dtype: float32
