@@ -39,7 +39,7 @@ def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
     disable_forge_logger()
 
-    config: ExperimentConfig = generate_config(ExperimentConfig, "thomas/test/tt-forge-fe/test_mnist_lightning.yaml")
+    config: ExperimentConfig = generate_config(ExperimentConfig, "thomas/experiments/test_mnist_lightning_ffe.yaml")
     logger_config = config.logger_config
 
     train_loader, test_loader = load_dataset(config.data_loading)

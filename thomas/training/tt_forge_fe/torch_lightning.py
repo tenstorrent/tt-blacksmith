@@ -29,6 +29,7 @@ class TTLightningModel(L.LightningModule):
     def __init__(self, config: TTLightningConfig, model: nn.Module, logger_config: LoggerConfig):
         super(TTLightningModel, self).__init__()
         import forge
+
         # self.save_hyperparameters(config.model_dump())
         self.framework_model = model
         tt_model = forge.compile(
@@ -104,14 +105,12 @@ class TTLightningModel(L.LightningModule):
             )
 
     def on_train_epoch_start(self):
-        print("Epoch start", self.current_epoch)
         if self.logger_config.log_weights is None:
             return
         if self.logger_config.log_every_n_epochs is None:
             return
         if self.current_epoch % self.logger_config.log_every_n_epochs != 0:
             return
-        print("Logging weights", self.current_epoch)
         for name, param in self.framework_model.named_parameters():
             log_histogram(
                 self.logger.experiment,
@@ -184,5 +183,4 @@ class SaveCheckpointArtifact(L.Callback):
 
     def on_train_epoch_end(self, trainer, pl_module):
         if isinstance(trainer.logger, TTWandbLogger):
-            print("Saving Logging checkpoint", trainer.current_epoch)
             trainer.logger.log_checkpoints()
