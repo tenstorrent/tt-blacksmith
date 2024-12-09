@@ -2,18 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-
 from datasets import load_dataset
 import torch
 from torch.utils.data import DataLoader
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    get_linear_schedule_with_warmup,
-)
+from transformers import AutoTokenizer, DataCollatorForLanguageModeling, get_linear_schedule_with_warmup
 from tqdm import tqdm
-from peft import LoraConfig, get_peft_model
+from torchtune.models.llama3_2 import lora_llama3_2_1b
+from torchtune.modules.peft._utils import get_adapter_params, set_trainable_params
 
 from thomas.training.pytorch_train.consts import CONFIG_PATH, TrainConfig
 from thomas.tooling.cli import generate_config
@@ -34,11 +29,25 @@ if __name__ == "__main__":
     config = generate_config(TrainConfig, CONFIG_PATH)
 
     # Init model
-    model = AutoModelForCausalLM.from_pretrained(config.model_id, torch_dtype=torch.float16)
-    lora_config = LoraConfig(r=config.lora_r, lora_alpha=config.lora_alpha)
-    model = get_peft_model(model, lora_config)
-    model.to(config.device)
-    model.print_trainable_parameters()
+    lora_model = lora_llama3_2_1b(
+        lora_attn_modules=["q_proj", "v_proj"], lora_rank=config.lora_r, lora_alpha=config.lora_alpha
+    )
+    lora_params = get_adapter_params(lora_model)
+    # Set requires_grad=True on lora_params, and requires_grad=False on all others.
+    set_trainable_params(lora_model, lora_params)
+
+    lora_model.to(config.device)
+
+    # Print the total number of parameters
+    total_params = sum([p.numel() for p in lora_model.parameters()])
+    trainable_params = sum([p.numel() for p in lora_model.parameters() if p.requires_grad])
+    print(
+        f"""
+    {total_params} total params,
+    {trainable_params}" trainable params,
+    {(100.0 * trainable_params / total_params):.2f}% of all params are trainable.
+    """
+    )
 
     # Load dataset
     ds = load_dataset(config.dataset_id)
@@ -58,34 +67,54 @@ if __name__ == "__main__":
     )
 
     # Train loop
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.lr)
+    optimizer = torch.optim.AdamW(lora_model.parameters(), lr=config.lr)
     lr_scheduler = get_linear_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=0,
         num_training_steps=(len(train_dataloader) * config.num_epochs),
     )
+    loss_fn = torch.nn.CrossEntropyLoss()
 
     step_counter = 0
     for epoch in range(config.num_epochs):
-        model.train()
+        lora_model.train()
         total_loss = 0
         for batch in tqdm(train_dataloader):
             batch = {k: v.to(config.device) for k, v in batch.items()}
 
-            outputs = model(**batch)
-            loss = outputs.loss
-            total_loss += loss.detach().float()
+            outputs = lora_model(batch["input_ids"])
+
+            loss = loss_fn(outputs.flatten(0, 1), batch["labels"].flatten())
+            total_loss += loss.detach().item()
             loss.backward()
+
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
             step_counter += 1
 
             if step_counter % config.save_steps == 0:
-                model.save_pretrained(os.path.join(config.output_path, f"checkpoint_{step_counter}"))
+                torch.save(
+                    {
+                        "step": step_counter,
+                        "model_state_dict": lora_model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "loss": loss,
+                    },
+                    os.path.join(config.output_path, f"checkpoint_{step_counter}.pt"),
+                )
 
         train_epoch_loss = total_loss / len(train_dataloader)
-        train_ppl = torch.exp(train_epoch_loss)
+        train_ppl = torch.exp(torch.tensor([train_epoch_loss]))
         print(f"{epoch=}: {train_ppl=} {train_epoch_loss=}")
 
-    model.save_pretrained(os.path.join(config.output_path, "final_model"))
+    torch.save(
+        {
+            "step": step_counter,
+            "model_state_dict": lora_model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "loss": train_epoch_loss,
+            "ppl": train_ppl,
+        },
+        os.path.join(config.output_path, f"final_model.pt"),
+    )

@@ -1,11 +1,11 @@
 # Hyperparameters
 model_id: meta-llama/Llama-3.2-1B
 dataset_id: timdettmers/openassistant-guanaco
-output_path: thomas/training/pytorch_train/lora_model/trained_model
+output_path: thomas/training/pytorch_train/lora_model
 device: mps
 max_length: 512
 lr: 5e-2
-num_epochs: 1
+num_epochs: 3
 batch_size: 2
 lora_r: 2
 lora_alpha: 4

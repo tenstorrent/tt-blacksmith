@@ -12,8 +12,6 @@ from transformers import (
 )
 from peft import LoraConfig, get_peft_model
 
-import yaml
-
 from thomas.training.pytorch_train.consts import CONFIG_PATH, TrainConfig
 from thomas.tooling.cli import generate_config
 
@@ -56,7 +54,7 @@ if __name__ == "__main__":
         num_train_epochs=config.num_epochs,
         per_device_train_batch_size=config.batch_size,
         per_device_eval_batch_size=config.batch_size,
-        learning_rate=float(config.lr),
+        learning_rate=config.lr,
         remove_unused_columns=False,
         evaluation_strategy="no",
         save_strategy="steps",
