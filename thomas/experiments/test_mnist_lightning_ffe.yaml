@@ -3,17 +3,16 @@ tags:
     - tt-forge-fe
     - model:torch
     - lightning
-epochs: 5
 model:
     input_size: 784
     hidden_size: 512
     output_size: 10
     bias: True
-lightning:
+training:
     batch_size: 64
-    input_size: 784
     loss: CrossEntropyLoss
     lr: 0.001
+    epochs: 2
 data_loading:
     batch_size: 64
     dtype: float32

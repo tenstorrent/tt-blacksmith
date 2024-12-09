@@ -2,14 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from pydantic import BaseModel
+from thomas.models.config import ModelConfig
 from torch import nn
-
-
-class ModelConfig(BaseModel):
-    input_size: int
-    output_size: int
-    hidden_size: int
-    bias: bool
 
 
 class MNISTLinear(nn.Module):

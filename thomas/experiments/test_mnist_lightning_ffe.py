@@ -5,14 +5,9 @@ from typing import List
 
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
-from lightning.pytorch.loggers.utilities import _scan_checkpoints
-from pydantic import BaseModel, Field
-
 from thomas.tooling.forge_tooling import disable_forge_logger
 from thomas.training.tt_forge_fe.torch_lightning import (
     TTLightningModel,
-    TTLightningConfig,
     GradientCheckpoint,
     TTWandbLogger,
     SaveCheckpointArtifact,
@@ -20,19 +15,10 @@ from thomas.training.tt_forge_fe.torch_lightning import (
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
 from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
 from thomas.tooling.cli import generate_config
-from thomas.tooling.data import DataLoadingConfig, load_dataset
+from thomas.tooling.data import load_dataset
 from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import TTLightningConfig, TTLightningModel
-
-
-class ExperimentConfig(BaseModel):
-    experiment_name: str
-    tags: List[str]
-    epochs: int
-    model: ModelConfig
-    lightning: TTLightningConfig
-    data_loading: DataLoadingConfig
-    logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
+from thomas.training.tt_forge_fe.torch_lightning import TTLightningModel
+from thomas.experiments.config import ExperimentConfig
 
 
 def test_training():
@@ -52,7 +38,7 @@ def test_training():
     if logger_config.log_hyperparameters:
         logger.experiment.config.update(config.model_dump())
 
-    L_model = TTLightningModel(config.lightning, model, config.logger_config)
+    L_model = TTLightningModel(config, model)
 
     callbacks = []
     checkpoint_config = logger_config.checkpoint
@@ -72,7 +58,7 @@ def test_training():
         # Callback for saving gradients inside checkpoint
         callbacks.append(GradientCheckpoint())
 
-    trainer = L.Trainer(max_epochs=config.epochs, logger=logger, callbacks=callbacks)
+    trainer = L.Trainer(max_epochs=config.training.epochs, logger=logger, callbacks=callbacks)
     trainer.fit(L_model, train_loader, test_loader)
 
 

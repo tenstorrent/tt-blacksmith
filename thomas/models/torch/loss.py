@@ -4,11 +4,12 @@
 from torch import nn
 
 from ..types import create_mapped_type
+from forge.op.loss import CrossEntropyLoss, L1Loss
 
 # Maybe should be frozen or somehow protected
 map_loss = {
-    "MSELoss": nn.MSELoss,
-    "CrossEntropyLoss": nn.CrossEntropyLoss,
+    "L1Loss": L1Loss,
+    "CrossEntropyLoss": CrossEntropyLoss,
 }
 
 # Create the Annotated types
