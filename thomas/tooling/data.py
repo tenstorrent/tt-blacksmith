@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from pydantic import BaseModel
-from thomas.experiments.config import DataLoadingConfig
+from thomas.tooling.config import DataLoadingConfig
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset

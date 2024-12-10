@@ -13,12 +13,23 @@ from thomas.training.tt_forge_fe.torch_lightning import (
     SaveCheckpointArtifact,
 )
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
-from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
+from thomas.models.torch.mnist_linear import MNISTLinear
 from thomas.tooling.cli import generate_config
 from thomas.tooling.data import load_dataset
-from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import TTLightningModel
-from thomas.experiments.config import ExperimentConfig
+from pydantic import BaseModel, Field
+from thomas.models.config import ModelConfig
+from thomas.models.torch.dtypes import TorchDType
+from thomas.tooling.config import DataLoadingConfig
+from thomas.training.config import TrainingConfig
+
+
+class ExperimentConfig(BaseModel):
+    experiment_name: str
+    tags: List[str]
+    model: ModelConfig
+    training: TrainingConfig
+    data_loading: DataLoadingConfig
+    logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
 
 
 def test_training():
@@ -38,7 +49,9 @@ def test_training():
     if logger_config.log_hyperparameters:
         logger.experiment.config.update(config.model_dump())
 
-    L_model = TTLightningModel(config, model)
+    L_model = TTLightningModel(
+        training_config=config.training, model_config=config.model, model=model, logger_config=config.logger_config
+    )
 
     callbacks = []
     checkpoint_config = logger_config.checkpoint
