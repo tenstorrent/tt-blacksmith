@@ -73,13 +73,6 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# Set TT_THOMAS_FRONTEND if ffe or xla exclusively is set to true
-if [ "$tt_forge_fe" = true ] && [ "$tt_xla" = false ]; then
-    export TT_THOMAS_FRONTEND="tt-forge-fe"
-elif [ "$tt_xla" = true ] && [ "$tt_forge_fe" = false ]; then
-    export TT_THOMAS_FRONTEND="tt-xla"
-fi
-
 # Set the toolchain directory
 # This directory is used to store the toolchains for the different frontends
 if [ -z "$TOOLCHAIN_DIR" ]; then
@@ -122,7 +115,10 @@ if [ "$tt_forge_fe" = true ]; then
     fi
     build_tt_forge_fe
 
+    export TT_THOMAS_FRONTEND="tt-forge-fe"
     install_tt_thomas
+    unset TT_THOMAS_FRONTEND
+
     sudo unlink /opt/ttmlir-toolchain
 fi
 
@@ -147,6 +143,8 @@ if [ "$tt_xla" = true ]; then
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
 
     build_tt_xla
+    export TT_THOMAS_FRONTEND="tt-xla"
     install_tt_thomas
+    unset TT_THOMAS_FRONTEND
     sudo unlink /opt/ttmlir-toolchain
 fi
