@@ -73,6 +73,13 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# Set TT_THOMAS_FRONTEND if ffe or xla exclusively is set to true
+if [ "$tt_forge_fe" = true ] && [ "$tt_xla" = false ]; then
+    export TT_THOMAS_FRONTEND="tt-forge-fe"
+elif [ "$tt_xla" = true ] && [ "$tt_forge_fe" = false ]; then
+    export TT_THOMAS_FRONTEND="tt-xla"
+fi
+
 # Set the toolchain directory
 # This directory is used to store the toolchains for the different frontends
 if [ -z "$TOOLCHAIN_DIR" ]; then

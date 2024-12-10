@@ -1,17 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from collections import defaultdict
 import re
 from setuptools import find_packages, setup
+import os
 
+# Frontends can be tt-forge-fe or tt-xla
+FRONTEND = os.environ.get("TT_THOMAS_FRONTEND", "tt-forge-fe")
 
-# frontends can be forge or jax. Exclude the other frontend from the package
-FRONTEND = "forge"
-
-exclude_keywords = {
-    "forge": ["jax"],
-    "jax": ["forge", "torch", "lightning", "torchvision"],
-}
+exclude_keywords = defaultdict(list)
+exclude_keywords.update(
+    {
+        "tt-forge-fe": ["jax"],
+        "tt-xla": ["forge", "torch", "lightning", "torchvision"],
+    }
+)
 
 all_packages = find_packages(include=["thomas*"])
 excluded_packages = [
