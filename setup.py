@@ -7,7 +7,10 @@ from setuptools import find_packages, setup
 import os
 
 # Frontends can be tt-forge-fe or tt-xla
-FRONTEND = os.environ.get("TT_THOMAS_FRONTEND", "tt-forge-fe")
+FRONTEND = os.environ.get("TT_THOMAS_FRONTEND", "")
+if not FRONTEND:
+    print("Warning: TT_THOMAS_FRONTEND environment variable not set. All packages will be included.")
+
 
 exclude_keywords = defaultdict(list)
 exclude_keywords.update(
