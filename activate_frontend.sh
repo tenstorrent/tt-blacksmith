@@ -44,6 +44,10 @@ if [ "$tt_forge_fe" = true ]; then
         echo "Forge frontend toolchain not found"
         return 1
     fi
+    # Unlink the ttforge-toolchain if it is a symlink
+    if [ -L "/opt/ttforge-toolchain" ]; then
+        sudo unlink "/opt/ttforge-toolchain"
+    fi
 
     sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
     if [ ! -d "/opt/ttforge-toolchain" ]; then
