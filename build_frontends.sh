@@ -115,7 +115,10 @@ if [ "$tt_forge_fe" = true ]; then
     fi
     build_tt_forge_fe
 
+    export TT_THOMAS_FRONTEND="tt-forge-fe"
     install_tt_thomas
+    unset TT_THOMAS_FRONTEND
+
     sudo unlink /opt/ttmlir-toolchain
 fi
 
@@ -140,6 +143,8 @@ if [ "$tt_xla" = true ]; then
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
 
     build_tt_xla
+    export TT_THOMAS_FRONTEND="tt-xla"
     install_tt_thomas
+    unset TT_THOMAS_FRONTEND
     sudo unlink /opt/ttmlir-toolchain
 fi
