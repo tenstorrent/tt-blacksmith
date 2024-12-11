@@ -13,11 +13,11 @@ from thomas.training.tt_forge_fe.torch_lightning import (
     SaveCheckpointArtifact,
 )
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
-from thomas.models.torch.mnist_linear import MNISTLinear
+from thomas.models.torch.mnist_linear import MNISTLinear, MNISTLinearConfig
 from thomas.tooling.cli import generate_config
 from thomas.tooling.data import load_dataset
 from pydantic import BaseModel, Field
-from thomas.models.config import ModelConfig
+from thomas.models.config import NetConfig
 from thomas.models.torch.dtypes import TorchDType
 from thomas.tooling.config import DataLoadingConfig
 from thomas.training.config import TrainingConfig
@@ -26,9 +26,9 @@ from thomas.training.config import TrainingConfig
 class ExperimentConfig(BaseModel):
     experiment_name: str
     tags: List[str]
-    model: ModelConfig
-    training: TrainingConfig
-    data_loading: DataLoadingConfig
+    net_config: MNISTLinearConfig
+    training_config: TrainingConfig
+    data_loading_config: DataLoadingConfig
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
 
 
@@ -39,8 +39,8 @@ def test_training():
     config: ExperimentConfig = generate_config(ExperimentConfig, "thomas/experiments/test_mnist_lightning_ffe.yaml")
     logger_config = config.logger_config
 
-    train_loader, test_loader = load_dataset(config.data_loading)
-    model = MNISTLinear(config.model)
+    train_loader, test_loader = load_dataset(config.data_loading_config)
+    model = MNISTLinear(config.net_config)
     logger = TTWandbLogger(
         project=config.experiment_name,
         tags=config.tags,
@@ -50,7 +50,10 @@ def test_training():
         logger.experiment.config.update(config.model_dump())
 
     L_model = TTLightningModel(
-        training_config=config.training, model_config=config.model, model=model, logger_config=config.logger_config
+        training_config=config.training_config,
+        model_config=config.net_config,
+        model=model,
+        logger_config=config.logger_config,
     )
 
     callbacks = []
@@ -71,7 +74,7 @@ def test_training():
         # Callback for saving gradients inside checkpoint
         callbacks.append(GradientCheckpoint())
 
-    trainer = L.Trainer(max_epochs=config.training.epochs, logger=logger, callbacks=callbacks)
+    trainer = L.Trainer(max_epochs=config.training_config.epochs, logger=logger, callbacks=callbacks)
     trainer.fit(L_model, train_loader, test_loader)
 
 

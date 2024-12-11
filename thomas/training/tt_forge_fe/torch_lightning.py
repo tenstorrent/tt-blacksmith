@@ -7,10 +7,10 @@ import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.loggers.utilities import _scan_checkpoints
 import torch
-from pydantic import BaseModel
 from torch import nn
 import wandb
-from thomas.models.config import ModelConfig
+from thomas.models.config import NetConfig
+from thomas.models.types import Device
 from thomas.training.config import TrainingConfig
 from thomas.training.logger_config import LoggerConfig
 from thomas.tooling.wandb_utils import log_histogram
@@ -18,7 +18,7 @@ from thomas.tooling.wandb_utils import log_histogram
 
 class TTLightningModel(L.LightningModule):
     def __init__(
-        self, training_config: TrainingConfig, model_config: ModelConfig, model: nn.Module, logger_config: LoggerConfig
+        self, training_config: TrainingConfig, model_config: NetConfig, model: nn.Module, logger_config: LoggerConfig
     ):
         super(TTLightningModel, self).__init__()
 
@@ -40,13 +40,15 @@ class TTLightningModel(L.LightningModule):
             torch.rand(self.training_config.batch_size, self.model_config.output_size),
         ]
         loss_inputs = to_forge_tensors(loss_inputs)
-        self.loss_on_cpu = self.training_config.loss_config.run_on == "cpu"
+        self.loss_on_cpu = self.training_config.loss_config.run_on == Device.cpu
 
         if self.loss_on_cpu:
-            self.loss = self.training_config.loss_config.loss()
+            self.loss_module = self.training_config.loss_config.loss()
         else:
-            self.loss = self.training_config.loss_config.loss(self.training_config.loss_config.loss_name)
-            self.loss = forge.compile(self.loss, sample_inputs=loss_inputs, attach_to=tt_model, training=True)
+            self.loss_module = self.training_config.loss_config.loss(self.training_config.loss_config.loss_name)
+            self.loss_module = forge.compile(
+                self.loss_module, sample_inputs=loss_inputs, attach_to=tt_model, training=True
+            )
 
     def forward(self, x):
         logits = self.model(x)
@@ -58,15 +60,15 @@ class TTLightningModel(L.LightningModule):
             loss.backward()
             self.model.backward()
         else:
-            self.loss.backward()
+            self.loss_module.backward()
 
     def calculate_loss(self, pred, target):
-        loss = self.loss(pred, target)
+        loss = self.loss_module(pred, target)
         return loss if self.loss_on_cpu else loss[0]
 
     def training_step(self, batch, batch_idx):
         x, y = batch
-        y = torch.nn.functional.one_hot(y, num_classes=10).to(torch.float32)
+        y = torch.nn.functional.one_hot(y, num_classes=self.model_config.output_size).to(torch.float32)
         pred = self(x)
         loss = self.calculate_loss(pred, y)
         if self.logger_config.log_train_loss:
@@ -75,7 +77,7 @@ class TTLightningModel(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_one_hot = torch.nn.functional.one_hot(y, num_classes=10).to(torch.float32)
+        y_one_hot = torch.nn.functional.one_hot(y, num_classes=self.model_config.output_size).to(torch.float32)
         pred = self(x)
         loss = self.calculate_loss(pred, y_one_hot)
         acc = (pred.argmax(1) == y).type(torch.float).mean()

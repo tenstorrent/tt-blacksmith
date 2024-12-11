@@ -6,6 +6,7 @@ from typing import Annotated, Any, Dict
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
+from enum import Enum
 
 
 def create_mapped_type(map_values: Dict[str, Any]):
@@ -52,3 +53,11 @@ def create_mapped_type(map_values: Dict[str, Any]):
             return {"type": "string", "enum": list(map_values.keys())}
 
     return Annotated[Any, _MapTypePydanticAnnotation]
+
+
+class Device(str, Enum):
+    cpu = "cpu"
+    tt = "tt"
+
+
+DeviceType = create_mapped_type({k: v for k, v in Device.__members__.items()})

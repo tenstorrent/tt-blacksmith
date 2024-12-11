@@ -4,8 +4,6 @@
 from pydantic import BaseModel
 
 
-class ModelConfig(BaseModel):
+class NetConfig(BaseModel):
     input_size: int
     output_size: int
-    hidden_size: int
-    bias: bool
