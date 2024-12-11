@@ -10,13 +10,4 @@ if ! command -v mdbook &> /dev/null; then
     fi
 fi
 
-if [ -d build/docs ]; then
-    rm -rf build/docs
-fi
-
-# Generate docs
-cmake -G Ninja -B build
-cmake --build build -- docs
-
-# Serve the docs
-mdbook serve build/docs
+mdbook serve docs -p 5500 -n 0.0.0.0

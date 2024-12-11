@@ -10,5 +10,7 @@
 
 # Dev Notes
 
+- [Experiment Tracking](./dev_notes/experiment_tracking.md)
+
 # User Guide
 - [Getting Started](./getting-started.md)
