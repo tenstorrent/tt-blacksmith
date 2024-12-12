@@ -2,18 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from pydantic import BaseModel
+from thomas.models.config import NetConfig
 from torch import nn
 
 
-class ModelConfig(BaseModel):
-    input_size: int
-    output_size: int
-    hidden_size: int
-    bias: bool
+class MNISTLinearConfig(NetConfig):
+    input_size: int = 784
+    output_size: int = 10
+    hidden_size: int = 128
+    bias: bool = True
 
 
 class MNISTLinear(nn.Module):
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: MNISTLinearConfig):
         super(MNISTLinear, self).__init__()
         self.config = config
         self.linear_relu_stack = nn.Sequential(

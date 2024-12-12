@@ -1,46 +1,54 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import forge
+from forge.tensor import to_forge_tensors
 import lightning as L
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.loggers.utilities import _scan_checkpoints
 import torch
-from pydantic import BaseModel
 from torch import nn
 import wandb
-
-from thomas.models.torch.loss import TorchLoss
+from thomas.models.config import NetConfig
+from thomas.models.types import Device
+from thomas.training.config import TrainingConfig
 from thomas.training.logger_config import LoggerConfig
 from thomas.tooling.wandb_utils import log_histogram
 
 
-class TTLightningConfig(BaseModel):
-    batch_size: int
-    input_size: int
-    loss: TorchLoss
-    lr: float
-
-
 class TTLightningModel(L.LightningModule):
-    """
-    Wrapper around the model to use it with PyTorch Lightning for forge-fe models
-    """
-
-    def __init__(self, config: TTLightningConfig, model: nn.Module, logger_config: LoggerConfig):
+    def __init__(
+        self, training_config: TrainingConfig, model_config: NetConfig, model: nn.Module, logger_config: LoggerConfig
+    ):
         super(TTLightningModel, self).__init__()
-        import forge
 
-        # self.save_hyperparameters(config.model_dump())
+        # self.save_hyperparameters(model_config_dump())
+        self.training_config = training_config
+        self.model_config = model_config
         self.framework_model = model
+        self.logger_config = logger_config
+
         tt_model = forge.compile(
             self.framework_model,
-            sample_inputs=[torch.rand(config.batch_size, config.input_size)],
-            loss=config.loss(),
+            sample_inputs=[torch.rand(self.training_config.batch_size, self.model_config.input_size)],
+            training=True,
         )
-        self.config = config
+
         self.model = tt_model
-        self.loss = config.loss()
-        self.logger_config = logger_config
+        loss_inputs = [
+            torch.rand(self.training_config.batch_size, self.model_config.output_size).requires_grad_(True),
+            torch.rand(self.training_config.batch_size, self.model_config.output_size),
+        ]
+        loss_inputs = to_forge_tensors(loss_inputs)
+        self.loss_on_cpu = self.training_config.loss_config.run_on == Device.cpu
+
+        if self.loss_on_cpu:
+            self.loss_module = self.training_config.loss_config.loss()
+        else:
+            self.loss_module = self.training_config.loss_config.loss(self.training_config.loss_config.loss_name)
+            self.loss_module = forge.compile(
+                self.loss_module, sample_inputs=loss_inputs, attach_to=tt_model, training=True
+            )
 
     def forward(self, x):
         logits = self.model(x)
@@ -48,21 +56,30 @@ class TTLightningModel(L.LightningModule):
         return logits
 
     def backward(self, loss, *args, **kwargs):
-        loss.backward(*args, **kwargs)
-        self.model.backward()
+        if self.loss_on_cpu:
+            loss.backward()
+            self.model.backward()
+        else:
+            self.loss_module.backward()
+
+    def calculate_loss(self, pred, target):
+        loss = self.loss_module(pred, target)
+        return loss if self.loss_on_cpu else loss[0]
 
     def training_step(self, batch, batch_idx):
         x, y = batch
+        y = torch.nn.functional.one_hot(y, num_classes=self.model_config.output_size).to(torch.float32)
         pred = self(x)
-        loss = self.loss(pred, y)
+        loss = self.calculate_loss(pred, y)
         if self.logger_config.log_train_loss:
             self.log(self.logger_config.log_train_loss, loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
+        y_one_hot = torch.nn.functional.one_hot(y, num_classes=self.model_config.output_size).to(torch.float32)
         pred = self(x)
-        loss = self.loss(pred, y)
+        loss = self.calculate_loss(pred, y_one_hot)
         acc = (pred.argmax(1) == y).type(torch.float).mean()
         if self.logger_config.log_val_loss:
             self.log(self.logger_config.log_val_loss, loss)
@@ -70,7 +87,7 @@ class TTLightningModel(L.LightningModule):
             self.log(self.logger_config.log_val_accuracy, acc)
 
     def configure_optimizers(self):
-        return torch.optim.SGD(self.parameters(), lr=self.config.lr)
+        return torch.optim.SGD(self.framework_model.parameters(), lr=self.training_config.lr)
 
     def on_after_backward(self):
         if self.logger_config.log_gradients is None:

@@ -3,17 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from pydantic import BaseModel
+from thomas.tooling.config import DataLoadingConfig
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
-
-from thomas.models.torch.dtypes import TorchDType
-
-
-class DataLoadingConfig(BaseModel):
-    batch_size: int
-    dtype: TorchDType
-    pre_shuffle: bool
 
 
 def load_dataset(config: DataLoadingConfig):
