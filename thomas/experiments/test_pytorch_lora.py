@@ -3,15 +3,17 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 
+from torch.utils.data import DataLoader
 from pydantic import BaseModel, Field
 from typing import List
-from transformers import TrainingArguments, Trainer
 
 from thomas.models.torch.hf_model import LoraModelConfig, load_hf_model
 from thomas.data_loaders.hf_lora import LoraDataLoadingConfig, load_data
 from thomas.tooling.cli import generate_config, print_trainable_params
-from thomas.models.torch.loss import TorchLoss
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
+from thomas.models.torch.loss import TorchLoss
+from thomas.models.torch.opt import TorchOptimizer
+from thomas.training.pytorch_train.trainer import PyTorchTrainer
 
 
 # Config model
@@ -19,11 +21,12 @@ class LoraTrainingConfig(BaseModel):
     output_dir: str
     epochs: int
     loss: TorchLoss
-    lr: float
+    optimizer: TorchOptimizer
+    optimizer_kwargs: dict
     run_on: str
-    eval_strategy: str
     save_strategy: str
     save_steps: int
+    do_validation: bool
 
 
 class ExperimentConfig(BaseModel):
@@ -46,29 +49,31 @@ def run_experiment():
     print_trainable_params(model)
 
     # Load dataset
+    # TODO: Custom dataset with methods to retrieve data loaders
     train_dataset, validation_dataset, data_collator, tokenizer = load_data(config.data_loading, config.model.model_id)
-
-    # Training loop
-    train_args = TrainingArguments(
-        output_dir=config.training_config.output_dir,
-        num_train_epochs=config.training_config.epochs,
-        per_device_train_batch_size=config.data_loading.batch_size,
-        learning_rate=config.training_config.lr,
-        remove_unused_columns=False,
-        eval_strategy=config.training_config.eval_strategy,
-        save_strategy=config.training_config.save_strategy,
-        save_steps=config.training_config.save_steps,
+    train_dataloader = DataLoader(
+        train_dataset,
+        shuffle=True,
+        collate_fn=data_collator,
+        batch_size=config.data_loading.batch_size,
+        pin_memory=True,
+    )
+    validation_dataloader = DataLoader(
+        validation_dataset,
+        shuffle=False,
+        collate_fn=data_collator,
+        batch_size=config.data_loading.batch_size,
+        pin_memory=True,
     )
 
-    trainer = Trainer(
-        model,
-        train_args,
-        train_dataset=train_dataset,
-        eval_dataset=validation_dataset,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
-    )
+    # Init logger
+    # logger_config = config.logger_config
+
+    # Start training
+    trainer = PyTorchTrainer(model, train_dataloader, validation_dataloader, config.training_config)
     trainer.train()
+
+    # TODO: Save model
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
-experiment_name: hf-llama-lora
+experiment_name: pytorch-llama-lora
 tags:
-    - huggingface
+    - pytorch
 model:
     model_id: meta-llama/Llama-3.2-1B
     dtype: float32
@@ -10,14 +10,16 @@ data_loading:
     dataset_id: timdettmers/openassistant-guanaco
     max_length: 512
     batch_size: 2
-    train_sample: 10
+    train_sample: 100
     validation_sample: 20
 training_config:
     output_dir: thomas/experiments/test_hf_lora
     epochs: 3
     loss: CrossEntropyLoss
-    lr: 0.001
+    optimizer: AdamW
+    optimizer_kwargs:
+      lr: 0.001
     run_on: mps
-    save_strategy: "no"
+    save_strategy: steps
     save_steps: 25
-    eval_strategy: "epoch"
+    do_validation: True

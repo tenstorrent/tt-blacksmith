@@ -38,5 +38,6 @@ def load_data(config: LoraDataLoadingConfig, model_id: str):
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     train_sample = tokenized_ds["train"].select(range(config.train_sample))
+    validation_sample = tokenized_ds["test"].select(range(config.validation_sample))
 
-    return train_sample, data_collator, tokenizer
+    return train_sample, validation_sample, data_collator, tokenizer
