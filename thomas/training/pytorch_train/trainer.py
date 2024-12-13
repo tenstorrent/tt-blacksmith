@@ -25,7 +25,7 @@ class PyTorchTrainer:
         self.run_on = config.run_on
         self.do_validation = config.do_validation
 
-    def _train_epoch(self, epoch):
+    def _train_epoch(self):
         self.model.train()
 
         epoch_loss = 0
@@ -34,7 +34,8 @@ class PyTorchTrainer:
 
             self.optimizer.zero_grad()
 
-            logits = self.model(**batch).logits
+            # logits = self.model(**batch).logits
+            logits = self.model(batch["input_ids"])
 
             loss = self.loss(logits.flatten(0, 1), batch["labels"].flatten())
             epoch_loss += loss.detach().item()
@@ -74,7 +75,7 @@ class PyTorchTrainer:
         """
         losses = []
         for epoch in range(self.start_epoch, self.epochs + 1):
-            epoch_loss, validation_loss = self._train_epoch(epoch)
+            epoch_loss, validation_loss = self._train_epoch()
             losses.append((epoch_loss, validation_loss))
 
         for idx, loss in enumerate(losses, start=1):

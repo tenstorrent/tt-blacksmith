@@ -6,6 +6,7 @@ model:
     dtype: float32
     rank: 4
     alpha: 8
+    lora_attn_modules: ["q_proj", "v_proj"]
 data_loading:
     dataset_id: timdettmers/openassistant-guanaco
     max_length: 512
