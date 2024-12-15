@@ -7,8 +7,9 @@ model:
     rank: 4
     alpha: 8
 data_loading:
-    dataset_id: timdettmers/openassistant-guanaco
+    dataset_id: yahma/alpaca-cleaned
     max_length: 512
+    instruction_columns: ["instruction", "input"]
     batch_size: 2
     train_sample: 10
     validation_sample: 20

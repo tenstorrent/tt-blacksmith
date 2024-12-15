@@ -8,8 +8,10 @@ model:
     alpha: 8
     lora_attn_modules: ["q_proj", "v_proj"]
 data_loading:
-    dataset_id: timdettmers/openassistant-guanaco
+    dataset_id: yahma/alpaca-cleaned
+    cache_dir: data
     max_length: 512
+    instruction_columns: ["instruction", "input"]
     batch_size: 2
     train_sample: 100
     validation_sample: 20

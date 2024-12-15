@@ -8,7 +8,7 @@ from typing import List
 from transformers import TrainingArguments, Trainer
 
 from thomas.models.torch.hf_model import LoraModelConfig, load_hf_model
-from thomas.data_loaders.hf_lora import LoraDataLoadingConfig, load_data
+from thomas.data_loaders.instruction_tuning import InstructionTuningDataLoadingConfig, InstructionTuningDataStore
 from thomas.tooling.cli import generate_config, print_trainable_params
 from thomas.models.torch.loss import TorchLoss
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
@@ -30,7 +30,7 @@ class ExperimentConfig(BaseModel):
     experiment_name: str
     model: LoraModelConfig
     training_config: LoraTrainingConfig
-    data_loading: LoraDataLoadingConfig
+    data_loading: InstructionTuningDataLoadingConfig
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
     tags: List[str]
 
@@ -46,7 +46,7 @@ def run_experiment():
     print_trainable_params(model)
 
     # Load dataset
-    train_dataset, validation_dataset, data_collator, tokenizer = load_data(config.data_loading, config.model.model_id)
+    data_store = InstructionTuningDataStore(config.data_loading, config.model.model_id)
 
     # Training loop
     train_args = TrainingArguments(
@@ -65,8 +65,8 @@ def run_experiment():
         train_args,
         train_dataset=train_dataset,
         eval_dataset=validation_dataset,
-        tokenizer=tokenizer,
-        data_collator=data_collator,
+        tokenizer=data_store.tokenizer,
+        data_collator=data_store.data_collator,
     )
     trainer.train()
 

@@ -20,8 +20,6 @@ class TorchTuneModelConfig(BaseModel):
 
 def load_torch_tune_model(config: TorchTuneModelConfig):
     model = lora_llama3_2_1b(lora_attn_modules=config.lora_attn_modules, lora_rank=config.rank, lora_alpha=config.alpha)
-
-    # Set requires_grad=True on lora_params, and requires_grad=False on all others.
     lora_params = get_adapter_params(model)
     set_trainable_params(model, lora_params)
 
