@@ -94,6 +94,7 @@ class InstructionTuningDataStore:
             shuffle=True,
             collate_fn=self.data_collator,
             batch_size=self.batch_size,
+            drop_last=True,
         )
 
         validation_dataloader = DataLoader(
@@ -101,6 +102,7 @@ class InstructionTuningDataStore:
             shuffle=False,
             collate_fn=self.data_collator,
             batch_size=self.batch_size,
+            drop_last=True,
         )
 
         return train_dataloader, validation_dataloader
