@@ -15,18 +15,16 @@ from thomas.models.torch.hf_model import LoraModelConfig, load_hf_model
 from thomas.models.torch.loss import TorchLoss
 from thomas.models.torch.opt import TorchOptimizer
 from thomas.training.pytorch_train.trainer import PyTorchTrainer
+from thomas.training.pytorch_train.logger import PyTorchWandbLogger
 
 
 # Config model
 class LoraTrainingConfig(BaseModel):
-    output_dir: str
     epochs: int
     loss: TorchLoss
     optimizer: TorchOptimizer
     optimizer_kwargs: dict
     run_on: str
-    save_strategy: str
-    save_steps: int
     do_validation: bool
 
 
@@ -56,13 +54,11 @@ def run_experiment():
     train_dataloader, validation_dataloader = data_store.get_data_loaders()
 
     # Init logger
-    # logger_config = config.logger_config
+    logger = PyTorchWandbLogger(config)
 
     # Start training
-    trainer = PyTorchTrainer(model, train_dataloader, validation_dataloader, config.training_config)
+    trainer = PyTorchTrainer(model, train_dataloader, validation_dataloader, config.training_config, logger)
     trainer.train()
-
-    # TODO: Save model
 
 
 if __name__ == "__main__":

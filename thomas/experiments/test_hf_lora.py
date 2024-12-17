@@ -57,14 +57,14 @@ def run_experiment():
         remove_unused_columns=False,
         eval_strategy=config.training_config.eval_strategy,
         save_strategy=config.training_config.save_strategy,
-        save_steps=config.training_config.save_steps,
+        save_steps=config.logger_config.log_every_n_steps,
     )
 
     trainer = Trainer(
         model,
         train_args,
-        train_dataset=train_dataset,
-        eval_dataset=validation_dataset,
+        train_dataset=data_store.train_set,
+        eval_dataset=data_store.validation_set,
         tokenizer=data_store.tokenizer,
         data_collator=data_store.data_collator,
     )
