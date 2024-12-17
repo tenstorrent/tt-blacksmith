@@ -14,11 +14,7 @@ data_loading:
     train_sample: 10
     validation_sample: 20
 training_config:
-    output_dir: thomas/experiments/test_hf_lora
     epochs: 3
     loss: CrossEntropyLoss
     lr: 0.001
     run_on: mps
-    save_strategy: "no"
-    save_steps: 25
-    eval_strategy: "epoch"

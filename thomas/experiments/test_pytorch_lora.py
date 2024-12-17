@@ -4,14 +4,13 @@
 import os
 
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Union
 
 from thomas.data_loaders.instruction_tuning import InstructionTuningDataLoadingConfig, InstructionTuningDataStore
 from thomas.tooling.cli import generate_config, print_trainable_params
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
 from thomas.models.torch.hf_model import LoraModelConfig, load_hf_model
-
-# from thomas.models.torch.torch_tune_model import TorchTuneModelConfig, load_torch_tune_model
+from thomas.models.torch.torch_tune_model import TorchTuneModelConfig, load_torch_tune_model
 from thomas.models.torch.loss import TorchLoss
 from thomas.models.torch.opt import TorchOptimizer
 from thomas.training.pytorch_train.trainer import PyTorchTrainer
@@ -30,8 +29,7 @@ class LoraTrainingConfig(BaseModel):
 
 class ExperimentConfig(BaseModel):
     experiment_name: str
-    model: LoraModelConfig
-    # model: TorchTuneModelConfig
+    model: Union[None, LoraModelConfig, TorchTuneModelConfig] = Field(default=None)
     training_config: LoraTrainingConfig
     data_loading: InstructionTuningDataLoadingConfig
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
@@ -44,8 +42,11 @@ def run_experiment():
     config = generate_config(ExperimentConfig, config_path)
 
     # Init model
-    model = load_hf_model(config.model)
-    # model = load_torch_tune_model(config.model)
+    # Fine for now, will need to be updated with more model configs
+    if isinstance(config.model, LoraModelConfig):
+        model = load_hf_model(config.model)
+    elif isinstance(config.model, TorchTuneModelConfig):
+        model = load_torch_tune_model(config.model)
     model.to(config.training_config.run_on)
     print_trainable_params(model)
 

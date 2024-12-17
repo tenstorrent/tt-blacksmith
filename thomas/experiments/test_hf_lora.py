@@ -16,14 +16,10 @@ from thomas.training.logger_config import LoggerConfig, get_default_logger_confi
 
 # Config model
 class LoraTrainingConfig(BaseModel):
-    output_dir: str
     epochs: int
     loss: TorchLoss
     lr: float
     run_on: str
-    eval_strategy: str
-    save_strategy: str
-    save_steps: int
 
 
 class ExperimentConfig(BaseModel):
@@ -50,13 +46,13 @@ def run_experiment():
 
     # Training loop
     train_args = TrainingArguments(
-        output_dir=config.training_config.output_dir,
+        output_dir=config.logger_config.wandb_dir,
         num_train_epochs=config.training_config.epochs,
         per_device_train_batch_size=config.data_loading.batch_size,
         learning_rate=config.training_config.lr,
         remove_unused_columns=False,
-        eval_strategy=config.training_config.eval_strategy,
-        save_strategy=config.training_config.save_strategy,
+        eval_strategy=config.logger_config.eval_strategy,
+        save_strategy=config.logger_config.save_strategy,
         save_steps=config.logger_config.log_every_n_steps,
     )
 

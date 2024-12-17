@@ -4,6 +4,7 @@
 from tqdm import tqdm
 import torch
 from transformers import get_linear_schedule_with_warmup
+from peft.peft_model import PeftModel
 
 
 class PyTorchTrainer:
@@ -40,7 +41,7 @@ class PyTorchTrainer:
 
             logits = self.model(batch["input_ids"])
             # Hack for HF models, TorchTune returns logits directly
-            if "logits" in logits:
+            if isinstance(self.model, PeftModel):
                 logits = logits.logits
 
             loss = self.loss(logits.flatten(0, 1), batch["labels"].flatten())

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List
+from typing import List, Union
 from string import Template
 
 from datasets import load_dataset
@@ -10,7 +10,7 @@ from transformers import (
     AutoTokenizer,
     DataCollatorForLanguageModeling,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 PROMPT_COLUMN = "prompt"
@@ -31,7 +31,7 @@ $input
 
 class InstructionTuningDataLoadingConfig(BaseModel):
     dataset_id: str
-    cache_dir: str
+    cache_dir: Union[None, str] = Field(default=None)
     max_length: int
     instruction_columns: List[str]
     batch_size: int
