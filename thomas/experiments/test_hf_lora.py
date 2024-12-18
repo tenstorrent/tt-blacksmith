@@ -31,6 +31,15 @@ class ExperimentConfig(BaseModel):
     tags: List[str]
 
 
+# Temp solution
+def get_save_strategy(logger_config):
+    if logger_config.log_every_n_steps is not None:
+        return "steps"
+    if logger_config.log_every_n_epochs is not None:
+        return "epochs"
+    return "no"
+
+
 def run_experiment():
     # Load config
     config_path = os.path.splitext(__file__)[0] + ".yaml"
@@ -44,6 +53,8 @@ def run_experiment():
     # Load dataset
     data_store = InstructionTuningDataStore(config.data_loading, config.model.model_id)
 
+    save_strategy = get_save_strategy(config.logger_config)
+
     # Training loop
     train_args = TrainingArguments(
         output_dir=config.logger_config.wandb_dir,
@@ -51,8 +62,8 @@ def run_experiment():
         per_device_train_batch_size=config.data_loading.batch_size,
         learning_rate=config.training_config.lr,
         remove_unused_columns=False,
-        eval_strategy=config.logger_config.eval_strategy,
-        save_strategy=config.logger_config.save_strategy,
+        eval_strategy=save_strategy,
+        save_strategy=save_strategy,
         save_steps=config.logger_config.log_every_n_steps,
     )
 

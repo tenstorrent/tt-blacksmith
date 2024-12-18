@@ -81,7 +81,7 @@ class PyTorchTrainer:
         return validation_loss
 
     def train(self):
-        self.logger.watch_model(self.model, log="all")
+        self.logger.watch_model(self.model, log="all", log_freq=self.logger.config.log_every_n_steps)
         for epoch in range(self.start_epoch, self.epochs + 1):
             epoch_loss, validation_loss = self._train_epoch()
 

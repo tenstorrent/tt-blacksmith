@@ -39,8 +39,6 @@ class LoggerConfig(BaseModel):
     log_every_n_epochs: Union[None, int] = Field(default=None)
     log_val_loss: Union[None, str] = Field(default=None)
     log_val_accuracy: Union[None, str] = Field(default=None)
-    eval_strategy: Union[None, str] = Field(default=None)
-    save_strategy: Union[None, str] = Field(default=None)
 
     @model_validator(mode="after")
     def check_exclusive_every_n(self):

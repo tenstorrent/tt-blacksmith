@@ -14,5 +14,3 @@ log_every_n_steps: 10
 # log_every_n_epochs: 1
 log_val_loss: "val/loss"
 log_val_accuracy: "val/acc"
-eval_strategy: "steps"
-save_strategy: "steps"
