@@ -15,6 +15,7 @@ from thomas.tooling.forge_tooling import disable_forge_logger
 from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
 from thomas.tooling.data import load_dataset, DataLoadingConfig
 from thomas.training.torch_utils import copy_params, get_param_grads
+from thomas.training.pytorch_train.trainer import PyTorchTrainer
 
 
 @pytest.mark.parametrize("freeze_layer", [None, 0, 2, 4])
@@ -112,8 +113,7 @@ def test_forge_vs_torch():
 
     early_stop = EarlyStopping(patience=1, mode="max")
 
-    logger.info("Starting training loop... (logger will be disabled)")
-    logger.disable("")
+    disable_forge_logger()
     for i in range(epochs):
         start_time = time.time()
         torch_loop = train_loop(
