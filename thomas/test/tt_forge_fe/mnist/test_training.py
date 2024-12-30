@@ -18,9 +18,10 @@ from thomas.tooling.data import load_dataset, DataLoadingConfig
 from thomas.training.torch_utils import copy_params, get_param_grads
 from thomas.training.pytorch_train.trainer import PyTorchTrainer
 from thomas.tooling.config import DataLoadingConfig
+from thomas.training.early_stopping import EarlyStopping
 
 
-from thomas.test.tt_forge_fe.utils import load_tb_writer, train_loop, validation_loop, EarlyStopping
+from thomas.test.tt_forge_fe.utils import load_tb_writer, train_loop, validation_loop
 
 
 @pytest.mark.parametrize("freeze_layer", [None, 0, 2, 4])

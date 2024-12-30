@@ -32,89 +32,6 @@ class MNISTLinear(nn.Module):
         return logits
 
 
-class LoraLayer(nn.Module):
-    def __init__(self, input_size, output_size, rank=8, alpha=4, dtype=torch.float32):
-        super(LoraLayer, self).__init__()
-        self.a = nn.Linear(in_features=input_size, out_features=rank, bias=False, dtype=dtype)
-        self.b = nn.Linear(in_features=rank, out_features=output_size, bias=False, dtype=dtype)
-        self.alpha = alpha / rank
-
-        nn.init.kaiming_uniform_(self.a.weight, a=torch.sqrt(torch.tensor([5])).item())
-        nn.init.zeros_(self.b.weight)
-
-    def forward(self, x):
-        logits = self.a(x)
-        logits = self.alpha * self.b(logits)
-
-        return logits
-
-
-class MNISTLora(nn.Module):
-    def __init__(
-        self, input_size=784, output_size=10, hidden_size=512, bias=True, rank=8, alpha=16, dtype=torch.float32
-    ):
-        super(MNISTLora, self).__init__()
-        self.linear1 = nn.Linear(input_size, hidden_size, bias=bias, dtype=dtype)
-        self.lora1 = LoraLayer(input_size, hidden_size, rank=rank, alpha=alpha, dtype=dtype)
-        self.relu1 = nn.ReLU()
-
-        self.linear2 = nn.Linear(hidden_size, hidden_size, bias=bias, dtype=dtype)
-        self.lora2 = LoraLayer(hidden_size, hidden_size, rank=rank, alpha=alpha, dtype=dtype)
-        self.relu2 = nn.ReLU()
-
-        self.linear3 = nn.Linear(hidden_size, output_size, bias=bias, dtype=dtype)
-
-        self.freeze_linear_layers()
-
-    def forward(self, x):
-        first_layer_logits = self.relu1(self.linear1(x) + self.lora1(x))
-        second_layer_logits = self.relu2(self.linear2(first_layer_logits) + self.lora2(first_layer_logits))
-        final_logits = self.linear3(second_layer_logits)
-
-        return final_logits
-
-    def freeze_linear_layers(self):
-        for layer in [self.linear1, self.linear2, self.linear3]:
-            for param in layer.parameters():
-                param.requires_grad = False
-
-
-class EarlyStopping:
-    def __init__(self, patience=3, mode="max"):
-        assert mode in ["min", "max"]
-        if mode == "min":
-            self.better = operator.lt
-        elif mode == "max":
-            self.better = operator.gt
-        self.patience = patience
-        self.counter = 0
-        self.best_score = None
-        self.early_stop = False
-        self.is_current_best = False
-        self.best_model = None
-
-    def step(self, val_metric, model_id):
-        if self.best_score is None or self.better(val_metric, self.best_score):
-            self.is_current_best = True
-            self.best_score = val_metric
-            self.counter = 0
-            self.best_model = model_id
-        else:
-            self.is_current_best = False
-            self.counter += 1
-            if self.counter > self.patience:
-                self.early_stop = True
-
-    def is_best(self):
-        return self.is_current_best
-
-    def is_early_stop(self):
-        return self.early_stop
-
-    def get_best_model(self):
-        return self.best_model
-
-
 def load_tb_writer(model):
     """
     Load TensorBoard writer for logging
@@ -124,33 +41,6 @@ def load_tb_writer(model):
     writer = SummaryWriter(log_dir)
 
     return writer
-
-
-def load_dataset(batch_size, dtype=torch.float32):
-    """
-    Load and normalize MNIST dataset
-    """
-    transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize((0.1307,), (0.3081,)),  # Mean and std for MNIST
-            transforms.Lambda(lambda x: x.view(-1)),  # Flatten image
-            transforms.Lambda(lambda x: x.to(dtype)),  # Convert to dtype
-        ]
-    )
-
-    train_dataset = mnist_dataset(root="./data", train=True, download=True, transform=transform)
-    test_dataset = mnist_dataset(root="./data", train=False, download=True, transform=transform)
-
-    # Shuffle training data so that shuffling is not done in the training loop
-    # This is to ensure that the same data is used for both Torch and Forge
-    indices = torch.randperm(len(train_dataset))
-    train_dataset = [train_dataset[i] for i in indices]
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, drop_last=True)
-
-    return test_loader, train_loader
 
 
 def get_param_grads(named_params):
