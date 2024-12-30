@@ -9,17 +9,21 @@ import torch
 from torch import nn
 
 import forge
-from forge.op.eval.common import compare_with_golden
+from forge.verify.compare import compare_with_golden
 
 from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.models.torch.mnist_linear import MNISTLinear, ModelConfig
+from thomas.models.config import MNISTLinearConfig
+from thomas.models.torch.mnist_linear import MNISTLinear
 from thomas.tooling.data import load_dataset, DataLoadingConfig
 from thomas.training.torch_utils import copy_params, get_param_grads
 from thomas.training.pytorch_train.trainer import PyTorchTrainer
+from thomas.tooling.config import DataLoadingConfig
+
+
+from thomas.test.tt_forge_fe.utils import load_tb_writer, train_loop, validation_loop, EarlyStopping
 
 
 @pytest.mark.parametrize("freeze_layer", [None, 0, 2, 4])
-@pytest.mark.push
 def test_forge_vs_torch_gradients(freeze_layer):
     disable_forge_logger()
     torch.manual_seed(0)
@@ -30,8 +34,11 @@ def test_forge_vs_torch_gradients(freeze_layer):
 
     in_features = 28 * 28
     out_features = 10
+    hidden_size = 512
 
-    model_config = ModelConfig(batch_size=batch_size, bias=True)
+    model_config = MNISTLinearConfig(
+        batch_size=batch_size, bias=True, input_size=in_features, output_size=out_features, hidden_size=hidden_size
+    )
     torch_model = MNISTLinear(model_config)
 
     forge_model = MNISTLinear(model_config)
@@ -48,7 +55,7 @@ def test_forge_vs_torch_gradients(freeze_layer):
 
     sample_inputs = [torch.ones(batch_size, in_features, dtype=dtype)]
 
-    tt_model = forge.compile(forge_model, sample_inputs=sample_inputs, loss=loss_fn)
+    tt_model = forge.compile(forge_model, sample_inputs=sample_inputs, training=True)
 
     X = torch.ones(batch_size, in_features, dtype=dtype)
     y = torch.zeros(batch_size, out_features, dtype=dtype)
@@ -80,8 +87,7 @@ def test_forge_vs_torch_gradients(freeze_layer):
 # In file forge/forge/op/eval/forge/eltwise_unary.py:418 should be replaced with: threshold_tensor = ac.tensor(torch.zeros(shape, dtype=torch.bfloat16) + threshold)
 # That sets relu threshold to bfloat16 tensor.
 # And in file forge/forge/compile.py::compile_main forced bfloat 16 should be added compiler_cfg.default_df_override = DataFormat.Float16_b
-@pytest.mark.skip(reason="Need to be tested with bfloat16 and takes around 10 minutes to run")
-@pytest.mark.push
+# @pytest.mark.skip(reason="Need to be tested with bfloat16 and takes around 10 minutes to run")
 def test_forge_vs_torch():
     torch.manual_seed(0)
 
@@ -89,11 +95,18 @@ def test_forge_vs_torch():
     learning_rate = 1e-2
     epochs = 10
     verbose = True
+    in_features = 28 * 28
+    out_features = 10
+    hidden_size = 512
 
-    dtype = torch.float32
+    dtype = "float32"
 
-    torch_model = MNISTLinear(dtype=dtype)
-    forge_model = MNISTLinear(dtype=dtype)
+    data_config = DataLoadingConfig(batch_size=batch_size, dtype=dtype, pre_shuffle=False)
+    model_config = MNISTLinearConfig(
+        batch_size=batch_size, bias=True, input_size=in_features, output_size=out_features, hidden_size=hidden_size
+    )
+    torch_model = MNISTLinear(model_config)
+    forge_model = MNISTLinear(model_config)
 
     copy_params(torch_model, forge_model)
 
@@ -104,11 +117,10 @@ def test_forge_vs_torch():
     torch_optimizer = torch.optim.SGD(torch_model.parameters(), lr=learning_rate)
     forge_optimizer = torch.optim.SGD(forge_model.parameters(), lr=learning_rate)
 
-    tt_model = forge.compile(
-        forge_model, sample_inputs=[torch.ones(batch_size, 784, dtype=dtype)], loss=loss_fn, optimizer=forge_optimizer
-    )
+    torch_dtype = torch.bfloat16 if dtype == "bfloat16" else torch.float32
+    tt_model = forge.compile(forge_model, sample_inputs=[torch.ones(batch_size, 784, dtype=torch_dtype)], training=True)
 
-    test_loader, train_loader = load_dataset(batch_size, dtype=dtype)
+    test_loader, train_loader = load_dataset(data_config)
     step = 0
 
     early_stop = EarlyStopping(patience=1, mode="max")
