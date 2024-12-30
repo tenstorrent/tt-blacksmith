@@ -7,9 +7,11 @@ from thomas.tooling.config import DataLoadingConfig
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
+import torch
+from torchdata.stateful_dataloader import StatefulDataLoader
 
 
-def load_dataset(config: DataLoadingConfig):
+def load_dataset(config: DataLoadingConfig, checkpoint_path=None) -> DataLoader:
     dtype = config.dtype
     transform = transforms.Compose(
         [
@@ -24,8 +26,8 @@ def load_dataset(config: DataLoadingConfig):
 
     test_dataset = mnist_dataset(root="data", train=False, download=True, transform=transform)
 
+    train_loader = StatefulDataLoader(train_dataset, batch_size=config.batch_size, shuffle=False, drop_last=True)
     # Drop last to ensure all batches are the same size as compiled model expects
-    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False, drop_last=True)
 
     return train_loader, test_loader

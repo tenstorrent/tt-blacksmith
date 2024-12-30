@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator
+
+
 class EarlyStopping:
     def __init__(self, patience=3, mode="max"):
         assert mode in ["min", "max"]

@@ -4,12 +4,15 @@
 
 import pytest
 import time
+import os
 
 import torch
 from torch import nn
 
 import forge
 from forge.verify.compare import compare_with_golden
+from forge.op.loss import CrossEntropyLoss
+from forge.tensor import to_forge_tensors
 
 from thomas.tooling.forge_tooling import disable_forge_logger
 from thomas.models.config import MNISTLinearConfig
@@ -19,7 +22,7 @@ from thomas.training.torch_utils import copy_params, get_param_grads
 from thomas.training.pytorch_train.trainer import PyTorchTrainer
 from thomas.tooling.config import DataLoadingConfig
 from thomas.training.early_stopping import EarlyStopping
-
+from thomas.models.types import Device
 
 from thomas.test.tt_forge_fe.utils import load_tb_writer, train_loop, validation_loop
 
@@ -191,3 +194,125 @@ def test_forge_vs_torch():
 
     print(f"Validation accuracy for Torch: {torch_val_acc} in epoch {early_stop.get_best_model()}")
     print(f"Validation accuracy for Forge: {forge_val_acc} in epoch {early_stop.get_best_model()}")
+
+
+# Test for experiment reproducibility
+# Should maybe add one more test that loads a checkpoint and continues training
+def test_mnist_training(device_type=Device.cpu, checkpoint_path=None):
+    torch.manual_seed(0)
+
+    batch_size = 64
+    learning_rate = 1e-2
+    epochs = 10
+    verbose = True
+    in_features = 28 * 28
+    out_features = 10
+    hidden_size = 512
+
+    dtype = "float32"
+
+    data_config = DataLoadingConfig(batch_size=batch_size, dtype=dtype, pre_shuffle=False)
+    model_config = MNISTLinearConfig(
+        batch_size=batch_size, bias=True, input_size=in_features, output_size=out_features, hidden_size=hidden_size
+    )
+    framework_model = MNISTLinear(model_config)
+
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.SGD(framework_model.parameters(), lr=learning_rate)
+
+    torch_dtype = torch.bfloat16 if dtype == "bfloat16" else torch.float32
+
+    train_loader, test_loader = load_dataset(data_config)
+
+    if device_type == Device.tt:
+        # Compile model with Forge
+        model = forge.compile(
+            framework_model, sample_inputs=[torch.ones(batch_size, 784, dtype=torch_dtype)], training=True
+        )
+        loss_inputs = [
+            torch.ones(batch_size, 10, dtype=torch_dtype).requires_grad_(True),
+            torch.ones(batch_size, 10, dtype=torch_dtype),
+        ]
+        loss_inputs = to_forge_tensors(loss_inputs)
+        forge_loss_fn = CrossEntropyLoss(name="cross_entropy_loss")
+        loss_fn = forge.compile(forge_loss_fn, sample_inputs=loss_inputs, attach_to=model, training=True)
+    else:
+        model = framework_model
+
+    step = 0
+    start_epoch = 0
+
+    # Should be a function
+    if checkpoint_path:
+        checkpoint = torch.load(checkpoint_path)
+        framework_model.load_state_dict(checkpoint["model"])
+        train_loader.load_state_dict(checkpoint["generator_state"])
+        step = checkpoint["step"]
+        start_epoch = checkpoint["epoch"]
+
+    # Initialize tensorboard writer
+    writer = load_tb_writer("forge" if device_type == Device.tt else "torch")
+
+    # Training loop with early stopping
+    early_stop = EarlyStopping(patience=2, mode="max")
+
+    # TODO: Maybe should not be hardcoded, also should point to /proj_sw/training_artifacts but not sure how to set unique name for each run
+    model_path = f"runs/models/{'forge' if device_type == Device.tt else 'torch'}/model_step={{step}}.pth"
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+
+    for epoch in range(start_epoch, epochs):
+        start_time = time.time()
+
+        # Training phase
+        train = train_loop(
+            train_loader,
+            model,
+            loss_fn,
+            optimizer,
+            batch_size,
+            framework_model.named_parameters,
+            is_tt=device_type == Device.tt,
+        )
+        for data in train:
+            step += 1
+
+            loss, pred, grads = data
+
+            if step % 100 == 0:
+                torch_val_loss, torch_val_acc = validation_loop(
+                    test_loader, model, loss_fn, batch_size, is_tt=device_type == Device.tt
+                )
+
+                writer.add_scalar("train_loss", loss.float(), step)
+                writer.add_scalar("validation_acc", torch_val_acc, step)
+
+                writer.flush()
+                torch.save(
+                    {
+                        "model": framework_model.state_dict(),
+                        "generator_state": train_loader.state_dict(),
+                        "step": step,
+                        "epoch": epoch,
+                    },
+                    model_path.format(step=step),
+                )
+
+        # Validation phase
+        val_loss, val_acc = validation_loop(test_loader, model, loss_fn, batch_size, is_tt=device_type == Device.tt)
+
+        # Log epoch metrics
+        writer.add_scalar("epoch/val_loss", val_loss, epoch)
+        writer.add_scalar("epoch/val_accuracy", val_acc, epoch)
+
+        print(f"Epoch {epoch+1}/{epochs}")
+        print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
+        print(f"Time: {time.time() - start_time:.2f}s")
+        print("-" * 60)
+
+        # Early stopping
+        early_stop.step(val_acc, epoch)
+        if early_stop.is_early_stop():
+            print(f"Early stopping triggered at epoch {epoch+1}")
+            break
+
+    writer.close()

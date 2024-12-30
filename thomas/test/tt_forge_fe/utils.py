@@ -3,14 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime
-import operator
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
-import torchvision.transforms as transforms
 from torch.utils.tensorboard import SummaryWriter
-from torchvision.datasets import MNIST as mnist_dataset
 
 
 # Model definition
@@ -69,6 +65,7 @@ def train_loop(dataloader, model, loss_fn, optimizer, batch_size, named_params, 
 
         y = nn.functional.one_hot(y, num_classes=10).to(pred.dtype)
         loss = loss_fn(pred, y)
+        loss = loss[0] if is_tt else loss
 
         loss.backward()
         if is_tt:
