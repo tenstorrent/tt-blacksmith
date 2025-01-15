@@ -1,0 +1,35 @@
+2024-11-28 13:12:35,743 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Current SDK version is 0.18.7
+2024-11-28 13:12:35,743 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Configure stats pid to 20223
+2024-11-28 13:12:35,743 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Loading settings from /home/umales/.config/wandb/settings
+2024-11-28 13:12:35,744 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Loading settings from /proj_sw/user_dev/umales/tt-thomas/wandb/settings
+2024-11-28 13:12:35,744 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Loading settings from environment variables: {}
+2024-11-28 13:12:35,744 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Applying setup settings: {'mode': None, '_disable_service': None}
+2024-11-28 13:12:35,744 WARNING MainThread:20223 [wandb_setup.py:_flush():79] Could not save program above cwd: /proj_sw/user_dev/umales/tracking/tflax_train_mnist.py
+2024-11-28 13:12:35,744 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Inferring run settings from compute environment: {'program_relpath': None, 'program_abspath': '/proj_sw/user_dev/umales/tracking/tflax_train_mnist.py', 'program': '/proj_sw/user_dev/umales/tracking/tflax_train_mnist.py'}
+2024-11-28 13:12:35,744 INFO    MainThread:20223 [wandb_setup.py:_flush():79] Applying login settings: {}
+2024-11-28 13:12:35,744 INFO    MainThread:20223 [wandb_init.py:_log_setup():533] Logging user logs to /proj_sw/user_dev/umales/tt-thomas/wandb/run-20241128_131235-qmatq3pm/logs/debug.log
+2024-11-28 13:12:35,745 INFO    MainThread:20223 [wandb_init.py:_log_setup():534] Logging internal logs to /proj_sw/user_dev/umales/tt-thomas/wandb/run-20241128_131235-qmatq3pm/logs/debug-internal.log
+2024-11-28 13:12:35,745 INFO    MainThread:20223 [wandb_init.py:init():619] calling init triggers
+2024-11-28 13:12:35,745 INFO    MainThread:20223 [wandb_init.py:init():626] wandb.init called with sweep_config: {}
+config: {}
+2024-11-28 13:12:35,745 INFO    MainThread:20223 [wandb_init.py:init():669] starting backend
+2024-11-28 13:12:35,745 INFO    MainThread:20223 [wandb_init.py:init():673] sending inform_init request
+2024-11-28 13:12:35,746 INFO    MainThread:20223 [backend.py:_multiprocessing_setup():104] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2024-11-28 13:12:35,746 INFO    MainThread:20223 [wandb_init.py:init():686] backend started and connected
+2024-11-28 13:12:35,748 INFO    MainThread:20223 [wandb_init.py:init():781] updated telemetry
+2024-11-28 13:12:35,762 INFO    MainThread:20223 [wandb_init.py:init():814] communicating run to backend with 90.0 second timeout
+2024-11-28 13:12:36,164 INFO    MainThread:20223 [wandb_init.py:init():867] starting run threads in backend
+2024-11-28 13:12:36,308 INFO    MainThread:20223 [wandb_run.py:_console_start():2456] atexit reg
+2024-11-28 13:12:36,308 INFO    MainThread:20223 [wandb_run.py:_redirect():2305] redirect: wrap_raw
+2024-11-28 13:12:36,309 INFO    MainThread:20223 [wandb_run.py:_redirect():2370] Wrapping output streams.
+2024-11-28 13:12:36,309 INFO    MainThread:20223 [wandb_run.py:_redirect():2395] Redirects installed.
+2024-11-28 13:12:36,314 INFO    MainThread:20223 [wandb_init.py:init():911] run started, returning control to user process
+2024-11-28 13:12:36,314 INFO    MainThread:20223 [wandb_config.py:__setitem__():154] config set learning_rate = 0.001 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7f146dae85b0>>
+2024-11-28 13:12:36,314 INFO    MainThread:20223 [wandb_run.py:_config_callback():1387] config_cb learning_rate 0.001 None
+2024-11-28 13:12:36,314 INFO    MainThread:20223 [wandb_config.py:__setitem__():154] config set batch_size = 64 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7f146dae85b0>>
+2024-11-28 13:12:36,315 INFO    MainThread:20223 [wandb_run.py:_config_callback():1387] config_cb batch_size 64 None
+2024-11-28 13:12:36,315 INFO    MainThread:20223 [wandb_config.py:__setitem__():154] config set num_epochs = 20 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7f146dae85b0>>
+2024-11-28 13:12:36,316 INFO    MainThread:20223 [wandb_run.py:_config_callback():1387] config_cb num_epochs 20 None
+2024-11-28 13:12:36,316 INFO    MainThread:20223 [wandb_config.py:__setitem__():154] config set seed = 0 - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x7f146dae85b0>>
+2024-11-28 13:12:36,316 INFO    MainThread:20223 [wandb_run.py:_config_callback():1387] config_cb seed 0 None
+2024-11-28 13:12:37,309 WARNING MsgRouterThr:20223 [router.py:message_loop():75] message_loop has been closed

@@ -1,0 +1,33 @@
+{
+  "os": "Linux-5.4.0-200-generic-x86_64-with-glibc2.35",
+  "python": "3.10.12",
+  "startedAt": "2024-11-28T13:12:35.747364Z",
+  "program": "/proj_sw/user_dev/umales/tracking/tflax_train_mnist.py",
+  "git": {
+    "remote": "https://github.com/tenstorrent/tt-thomas.git",
+    "commit": "5e2fb0e5271f63af2a846f12b56b8df74886542b"
+  },
+  "email": "umales@tenstorrent.com",
+  "root": "/proj_sw/user_dev/umales/tt-thomas",
+  "host": "bgd-lab-t3005-special-umales-for-reservation-4822427",
+  "username": "umales",
+  "executable": "/usr/bin/python3",
+  "cpu_count": 16,
+  "cpu_count_logical": 32,
+  "disk": {
+    "/": {
+      "total": "3778773463040",
+      "used": "208325689344"
+    }
+  },
+  "memory": {
+    "total": "270058774528"
+  },
+  "cpu": {
+    "count": 16,
+    "countLogical": 32
+  },
+  "slurm": {
+    "gres_ids": "3"
+  }
+}

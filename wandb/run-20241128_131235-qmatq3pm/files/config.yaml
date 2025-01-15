@@ -1,0 +1,36 @@
+_wandb:
+    value:
+        cli_version: 0.18.7
+        m: []
+        python_version: 3.10.12
+        t:
+            "1":
+                - 2
+                - 3
+                - 12
+                - 45
+                - 55
+            "2":
+                - 2
+                - 3
+                - 12
+                - 45
+                - 55
+            "3":
+                - 19
+                - 23
+                - 55
+            "4": 3.10.12
+            "5": 0.18.7
+            "8":
+                - 5
+            "12": 0.18.7
+            "13": linux-x86_64
+batch_size:
+    value: 64
+learning_rate:
+    value: 0.001
+num_epochs:
+    value: 20
+seed:
+    value: 0

@@ -1,0 +1,7 @@
+valiant-sky-101
+Traceback (most recent call last):
+  File "/proj_sw/user_dev/umales/tracking/tflax_train_mnist.py", line 206, in <module>
+    save_checkpoint("/proj_sw/training_artifacts/checkpoints", state, epoch)
+  File "/proj_sw/user_dev/umales/tracking/tflax_train_mnist.py", line 147, in save_checkpoint
+    with open(ckpt_path, "wb") as outfile:
+IsADirectoryError: [Errno 21] Is a directory: '/proj_sw/training_artifacts/checkpoints'
