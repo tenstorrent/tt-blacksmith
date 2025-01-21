@@ -1,5 +1,6 @@
 third_party/toolchains
 data/
+!thomas/tooling/data/
 generated_modules/
 **/__pycache__/
 *.egg-info/
