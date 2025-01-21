@@ -15,7 +15,7 @@ from thomas.training.tt_forge_fe.torch_lightning import (
 from thomas.training.logger_config import LoggerConfig, get_default_logger_config
 from thomas.models.torch.mnist_linear import MNISTLinear, MNISTLinearConfig
 from thomas.tooling.cli import generate_config
-from thomas.tooling.data import load_dataset
+from thomas.tooling.data.mnist import load_dataset
 from pydantic import BaseModel, Field
 from thomas.models.config import NetConfig
 from thomas.models.torch.dtypes import TorchDType

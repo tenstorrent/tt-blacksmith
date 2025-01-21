@@ -1,0 +1,32 @@
+experiment_name: nerf
+tags:
+    - nerf
+    - pytorch
+model:
+    path: ./data/nerf/model_bu.tar
+    render_only: False
+    multires: 10
+    multires_views: 4
+    netdepth: 8
+    netwidth: 256
+    netdepth_fine: 8
+    netwidth_fine: 256
+training_config:
+    lrate: 5e-4
+    tt: False
+    video_save_freq: 1000
+data_loading:
+    basedir: ./data/nerf/lego-25
+    datadir: ./data/nerf/lego
+    batching: False
+    lrate_decay: 500
+    N_samples: 32
+    N_importance: 128
+    N_rand: 1024
+    precrop_iters: 500
+    precrop_frac: 0.5
+    netchunk: 4096
+    chunk: 4096
+    half_res: True
+    perturb: 1.0
+    render_factor: 4
