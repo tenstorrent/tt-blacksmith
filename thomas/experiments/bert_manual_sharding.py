@@ -87,22 +87,16 @@ def prepare_batch_input(texts, tokenizer, mesh, max_length=128):
 
 
 def create_inference_fn(model, mesh):
-    def forward(input_ids, attention_mask, params):
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, params=params, train=False)
+    def forward(input_ids, attention_mask):
+        outputs = model(input_ids=input_ids, attention_mask=attention_mask, params=model.params, train=False)
         return jax.nn.softmax(outputs.logits, axis=-1)
 
-        param_specs = jax.tree_util.tree_map_with_path(
-            lambda path, x: get_param_sharding_rule(str(path[-1]), x, mesh).spec, model.params
-        )
+    sharded_forward = forward
+    sharded_comp = shard_map(
+        sharded_forward, mesh=mesh, in_specs=(P("data", None), P("data", None)), out_specs=P("data", None)
+    )
 
-        sharded_forward = partial(forward, params=model.params)
-        sharded_comp = shard_map(
-            sharded_forward, mesh=mesh, in_specs=(P("data", None), P("data", None)), out_specs=P("data", None)
-        )
-
-        return sharded_comp
-
-    return forward
+    return sharded_comp
 
 
 def run_profiled_inference(model, forward_fn, inputs, mesh, num_warmup=1, num_runs=5):
@@ -110,19 +104,16 @@ def run_profiled_inference(model, forward_fn, inputs, mesh, num_warmup=1, num_ru
 
     with mesh:
         for _ in range(num_warmup):
-            _ = forward_fn(inputs["input_ids"], inputs["attention_mask"], model.params)
+            _ = forward_fn(inputs["input_ids"], inputs["attention_mask"])
 
-            # jax.config.update("jax_use_shardy_partitioner", True)
-            fwd_jit = jax.jit(forward_fn)
-            jit_lowered = fwd_jit.lower(inputs["input_ids"], inputs["attention_mask"], model.params)
-            jitted_stablehlo = jit_lowered.compiler_ir(dialect="stablehlo")
-            # fwd_hlo = jit_lowered.compile()
-            # print(fwd_hlo.as_text())
-            print(jitted_stablehlo.dump())
+        fwd_jit = jax.jit(forward_fn)
+        jit_lowered = fwd_jit.lower(inputs["input_ids"], inputs["attention_mask"])
+        jitted_stablehlo = jit_lowered.compiler_ir(dialect="stablehlo")
+        print(jitted_stablehlo.dump())
 
         for i in range(num_runs):
             start_time = time.time()
-            predictions = forward_fn(inputs["input_ids"], inputs["attention_mask"], model.params)
+            predictions = forward_fn(inputs["input_ids"], inputs["attention_mask"])
             run_time = time.time() - start_time
             run_times.append(run_time)
 
