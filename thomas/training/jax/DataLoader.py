@@ -3,28 +3,36 @@
 # SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
+import torchvision
 from tensorflow import keras
 
 
 def load_mnist():
-    # Load data from MNIST dataset
-    (train_images, train_labels), (test_images, test_labels) = keras.datasets.mnist.load_data()
+    # Load MNIST data using torchvision
+    mnist = {
+        "train": torchvision.datasets.MNIST("./data", train=True, download=True),
+        "test": torchvision.datasets.MNIST("./data", train=False, download=True),
+    }
 
-    train_images = train_images
-    train_labels = train_labels
+    ds = {}
 
-    test_images = test_images
-    test_labels = test_labels
+    for split in ["train", "test"]:
+        # Get the images and labels
+        ds[split] = {"image": mnist[split].data.numpy(), "label": mnist[split].targets.numpy()}
 
-    # Normalize and add channel dimension
-    train_images = (train_images[..., None] / 255.0).astype(jnp.float32)
-    test_images = (test_images[..., None] / 255.0).astype(jnp.float32)
+        # Normalize the images by scaling them to [0, 1]
+        ds[split]["image"] = jnp.float32(ds[split]["image"]) / 255
 
-    # Reshape images to (batch_size, 28 * 28)
-    train_images = train_images.reshape(-1, 28 * 28).astype(jnp.float32)
-    test_images = test_images.reshape(-1, 28 * 28).astype(jnp.float32)
+        # Cast labels to the appropriate type
+        ds[split]["label"] = jnp.int16(ds[split]["label"])
+
+        # Reshape images to (batch_size, 28 * 28)
+        ds[split]["image"] = ds[split]["image"].reshape(-1, 28 * 28)
 
     # One-hot encode the labels
+    train_images, train_labels = ds["train"]["image"], ds["train"]["label"]
+    test_images, test_labels = ds["test"]["image"], ds["test"]["label"]
+
     train_labels = jax.nn.one_hot(train_labels, 10).astype(jnp.float32)
     test_labels = jax.nn.one_hot(test_labels, 10).astype(jnp.float32)
 
