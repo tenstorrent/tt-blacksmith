@@ -24,6 +24,8 @@ from thomas.models.jax.model import Models, MLP
 from utils import ExportSHLO
 from logg_it import init_wandb, log_metrics, save_checkpoint, load_checkpoint
 
+from DataLoader import load_mnist
+
 from train_functions import (
     forward_pass,
     forward_and_compute_loss,
@@ -36,25 +38,6 @@ from train_functions import (
     calculate_metrics_val,
     accumulate_metrics,
 )
-
-
-def load_mnist():
-
-    (train_images, train_labels), (test_images, test_labels) = keras.datasets.mnist.load_data()
-
-    train_images = train_images[..., None] / 255.0
-    test_images = test_images[..., None] / 255.0
-
-    perm = jax.random.permutation(jax.random.PRNGKey(0), len(train_images))
-    train_images, train_labels = train_images[perm], train_labels[perm]
-
-    train_size = int(0.8 * len(train_images))
-    val_size = len(train_images) - train_size
-
-    train_images, val_images = train_images[:train_size], train_images[train_size : train_size + val_size]
-    train_labels, val_labels = train_labels[:train_size], train_labels[train_size : train_size + val_size]
-
-    return train_images, train_labels, val_images, val_labels, test_images, test_labels
 
 
 class EarlyStopping:

@@ -2,11 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from pydantic import BaseModel
-from thomas.models.torch.loss import LossConfig
 
 
 class TrainingConfig(BaseModel):
     batch_size: int
-    loss_config: LossConfig
     epochs: int
     lr: float
