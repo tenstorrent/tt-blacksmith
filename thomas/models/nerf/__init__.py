@@ -1,4 +1,4 @@
-from .nerf import NeRF, Embedding, NeRFHead, NeRFEncoding
+from .nerf import NeRF, Embedding, NeRFHead, NeRFEncoding, inference
 from .nerftree import NerfTree
 from .sh import eval_sh
 
@@ -10,4 +10,5 @@ __all__ = [
     'NeRFEncoding',
     'eval_sh',
     'NerfTree',
+    'inference',
 ]

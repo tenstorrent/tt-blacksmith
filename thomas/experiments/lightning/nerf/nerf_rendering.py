@@ -1,7 +1,7 @@
     
 import torch
 
-from models.nerf import inference
+from thomas.models.nerf import inference
 
 def render_rays(
         config, 

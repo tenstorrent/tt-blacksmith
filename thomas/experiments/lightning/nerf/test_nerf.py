@@ -461,7 +461,7 @@ def main(config: NerfConfig):
 if __name__ == "__main__":
     import os
 
-    config = load_config("test_nerf.yaml")
+    config = load_config("thomas/experiments/lightning/nerf/test_nerf.yaml")
     # hparams = get_opts()
     os.makedirs(f"logs/{config.experiment_name}/ckpts", exist_ok=True)
     main(config)
