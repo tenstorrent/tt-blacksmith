@@ -104,7 +104,6 @@ def calculate_coarse_rendering(
     result = {}
 
     num_rays = rays_directions.shape[0]
-    use_white_background = True
     samples_per_ray = config.model.coarse.samples
     chunk_size = config.data_loading.batch_size * samples_per_ray
 

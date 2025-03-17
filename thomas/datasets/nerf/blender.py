@@ -39,7 +39,6 @@ class BlenderDataset(Dataset):
         self.define_transforms()
 
         self.read_meta()
-        self.white_back = True
 
     def read_meta(self):
         with open(os.path.join(self.root_dir, f"transforms_{self.split}.json"), "r") as f:
