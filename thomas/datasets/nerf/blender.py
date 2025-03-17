@@ -9,7 +9,7 @@ import os
 from PIL import Image
 from torchvision import transforms as T
 
-from .ray_utils import *
+from thomas.datasets.nerf.ray_utils import *
 
 trans_t = lambda t: torch.Tensor([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, t], [0, 0, 0, 1]]).float()
 

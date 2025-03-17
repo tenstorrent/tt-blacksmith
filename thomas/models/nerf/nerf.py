@@ -57,7 +57,7 @@ class NeRFEncoding(nn.Module):
 
 
 class NeRF(nn.Module):
-    def __init__(self, depth=8, width=256, in_channels_xyz=63, in_channels_dir=27, deg=2):
+    def __init__(self, depth=4, width=128, in_channels_xyz=63, in_channels_dir=32, deg=2):
         super(NeRF, self).__init__()
         self.depth = depth
         self.width = width
@@ -101,8 +101,9 @@ class NeRF(nn.Module):
         Compute weights and alphas from sigmas and deltas.
         """
         sigmas2 = sigmas.squeeze(-1)
-        noise = torch.zeros(sigmas.shape[:2], device=sigmas.device)
-        sigmas2 = sigmas2 + noise
+        # Noise can be added here make the training more robust
+        # noise =  torch.randn(sigmas.shape[:2], device=sigmas.device)
+        # sigmas2 = sigmas2 + noise
 
         alphas = 1 - torch.exp(-deltas * self.softplus(sigmas2))  # (N_rays, N_samples_)
         alphas_shifted = torch.cat([torch.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], -1)  # [1, a1, a2, ...]
