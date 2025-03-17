@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 import torch
 from torch import nn
 from thomas.models.nerf.sh import eval_sh
@@ -54,9 +57,7 @@ class NeRFEncoding(nn.Module):
 
 
 class NeRF(nn.Module):
-    def __init__(
-        self, depth=8, width=256, in_channels_xyz=63, in_channels_dir=27, deg=2
-    ):
+    def __init__(self, depth=8, width=256, in_channels_xyz=63, in_channels_dir=27, deg=2):
         super(NeRF, self).__init__()
         self.depth = depth
         self.width = width
@@ -88,31 +89,24 @@ class NeRF(nn.Module):
 
     def sh2rgb(self, sigma, sh, deg, dirs):
         """
-            Converts spherical harmonics to RGB.
+        Converts spherical harmonics to RGB.
         """
         sh = sh[:, :27]
-        rgb = eval_sh(
-            deg=deg, sh=sh.reshape(-1, 3, (self.deg + 1) ** 2), dirs=dirs
-        )  # sh: [..., x , (deg + 1) ** 2]
+        rgb = eval_sh(deg=deg, sh=sh.reshape(-1, 3, (self.deg + 1) ** 2), dirs=dirs)  # sh: [..., x , (deg + 1) ** 2]
         rgb = torch.sigmoid(rgb)
         return sigma, rgb, sh
 
-
     def sigma2weights(self, deltas, sigmas):
         """
-            Compute weights and alphas from sigmas and deltas.
+        Compute weights and alphas from sigmas and deltas.
         """
         sigmas2 = sigmas.squeeze(-1)
         noise = torch.zeros(sigmas.shape[:2], device=sigmas.device)
         sigmas2 = sigmas2 + noise
 
         alphas = 1 - torch.exp(-deltas * self.softplus(sigmas2))  # (N_rays, N_samples_)
-        alphas_shifted = torch.cat(
-            [torch.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], -1
-        )  # [1, a1, a2, ...]
-        weights = (
-            alphas * torch.cumprod(alphas_shifted, -1)[:, :-1]
-        )  # (N_rays, N_samples_)
+        alphas_shifted = torch.cat([torch.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], -1)  # [1, a1, a2, ...]
+        weights = alphas * torch.cumprod(alphas_shifted, -1)[:, :-1]  # (N_rays, N_samples_)
         return weights, alphas
 
 
@@ -136,9 +130,7 @@ def inference(
 
     # Pad to chunk size
     real_chunk_size = xyzs.shape[0]
-    xyz_to_process = torch.cat(
-        [xyzs, torch.zeros(chunk - real_chunk_size, 3, device=xyzs.device)], dim=0
-    )
+    xyz_to_process = torch.cat([xyzs, torch.zeros(chunk - real_chunk_size, 3, device=xyzs.device)], dim=0)
     view_dir_to_process = torch.cat(
         [view_dir, torch.zeros(chunk - real_chunk_size, 3, device=view_dir.device)],
         dim=0,
@@ -152,12 +144,8 @@ def inference(
     sh = sh[:real_chunk_size]
 
     if not hasattr(model, "out_sigma"):
-        out_rgb = torch.ones(
-            (batch_size, sample_size, 3), device=device
-        )  # Only use ones where needed
-        out_sigma = torch.full(
-            (batch_size, sample_size, 1), sigma_default, device=device
-        )
+        out_rgb = torch.ones((batch_size, sample_size, 3), device=device)  # Only use ones where needed
+        out_sigma = torch.full((batch_size, sample_size, 1), sigma_default, device=device)
         out_sh = torch.zeros((batch_size, sample_size, 27), device=device)
         model.out_sigma = out_sigma
         model.out_rgb = out_rgb

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 from thomas.datasets.nerf.blender import BlenderDataset
 import os
 
@@ -112,9 +115,7 @@ class EfficientNeRFSystem(LightningModule):
             max_input = config.data_loading.batch_size * config.model.coarse.samples
             self.nerf_coarse_forge = forge.compile(
                 self.nerf_coarse,
-                sample_inputs=[
-                    torch.randn(max_input, self.in_channels_xyz).requires_grad_()
-                ],
+                sample_inputs=[torch.randn(max_input, self.in_channels_xyz).requires_grad_()],
                 optimizer=self.optimizer,
                 training=True,
                 module_name="nerf_coarse_sigma",
@@ -124,9 +125,7 @@ class EfficientNeRFSystem(LightningModule):
 
             self.nerf_fine_forge = forge.compile(
                 self.nerf_fine,
-                sample_inputs=[
-                    torch.randn(max_input, self.in_channels_xyz).requires_grad_()
-                ],
+                sample_inputs=[torch.randn(max_input, self.in_channels_xyz).requires_grad_()],
                 optimizer=self.optimizer,
                 training=True,
                 module_name="nerf_fine_sigma",
@@ -173,9 +172,7 @@ class EfficientNeRFSystem(LightningModule):
         results = defaultdict(list)
 
         target_models = (
-            [self.nerf_coarse_forge, self.nerf_fine_forge]
-            if self.config.training.use_forge
-            else self.models
+            [self.nerf_coarse_forge, self.nerf_fine_forge] if self.config.training.use_forge else self.models
         )
 
         batch_size = self.config.data_loading.batch_size
@@ -188,23 +185,21 @@ class EfficientNeRFSystem(LightningModule):
 
             if num_padding_needed > 0:
                 # Select random rays to pad the batch
-                random_ray_indices = torch.randint(
-                    0, rays.shape[0], (num_padding_needed,)
-                )
+                random_ray_indices = torch.randint(0, rays.shape[0], (num_padding_needed,))
                 padding_rays = rays[random_ray_indices]
                 rays_chunk = torch.cat([rays_chunk, padding_rays], dim=0)
 
             # Render the rays in this chunk
             chunk_results = render_rays(
                 config=self.config,
-                rays=rays_chunk, 
-                embedding_xyz=self.embedding_xyz, 
-                nerf_tree=self.nerf_tree, 
-                near=self.near, 
-                far=self.far, 
-                global_step=self.global_step, 
-                model_coarse=target_models[0], 
-                model_fine=target_models[1]
+                rays=rays_chunk,
+                embedding_xyz=self.embedding_xyz,
+                nerf_tree=self.nerf_tree,
+                near=self.near,
+                far=self.far,
+                global_step=self.global_step,
+                model_coarse=target_models[0],
+                model_fine=target_models[1],
             )
 
             # Remove padding from results before storing
@@ -253,9 +248,7 @@ class EfficientNeRFSystem(LightningModule):
         )
 
     def training_step(self, batch: int, batch_idx: int) -> torch.Tensor:
-        self.log(
-            "train/lr", get_learning_rate(self.optimizer), on_step=True, prog_bar=True
-        )
+        self.log("train/lr", get_learning_rate(self.optimizer), on_step=True, prog_bar=True)
         rays, rgbs = batch["rays"], batch["rgbs"]
         extract_time = self.current_epoch >= (self.config.training.epochs - 1)
 
@@ -297,9 +290,7 @@ class EfficientNeRFSystem(LightningModule):
         W, H = self.config.data_loading.img_wh
         img = results[f"rgb_{typ}"].view(H, W, 3).cpu()
         img = img.permute(2, 0, 1)  # (3, H, W)
-        img_path = os.path.join(
-            f"logs/{self.config.experiment_name}/video", "%06d.png" % batch_idx
-        )
+        img_path = os.path.join(f"logs/{self.config.experiment_name}/video", "%06d.png" % batch_idx)
         os.makedirs(os.path.dirname(img_path), exist_ok=True)
         transforms.ToPILImage()(img).convert("RGB").save(img_path)
 
@@ -314,9 +305,7 @@ class EfficientNeRFSystem(LightningModule):
                 step=self.global_step,
             )
 
-            img_path = os.path.join(
-                f"logs/{self.config.experiment_name}", f"epoch_{self.current_epoch}.png"
-            )
+            img_path = os.path.join(f"logs/{self.config.experiment_name}", f"epoch_{self.current_epoch}.png")
             transforms.ToPILImage()(img).convert("RGB").save(img_path)
 
         log["val_psnr"] = psnr(results[f"rgb_{typ}"], rgbs)
@@ -326,12 +315,8 @@ class EfficientNeRFSystem(LightningModule):
         return log
 
     def on_validation_epoch_end(self):
-        mean_loss = torch.stack(
-            [x["val_loss"] for x in self.validation_step_outputs]
-        ).mean()
-        mean_psnr = torch.stack(
-            [x["val_psnr"] for x in self.validation_step_outputs]
-        ).mean()
+        mean_loss = torch.stack([x["val_loss"] for x in self.validation_step_outputs]).mean()
+        mean_psnr = torch.stack([x["val_psnr"] for x in self.validation_step_outputs]).mean()
         num_voxels_coarse = (
             torch.logical_and(
                 self.nerf_tree.sigma_voxels_coarse > 0,
@@ -350,9 +335,7 @@ class EfficientNeRFSystem(LightningModule):
 
         # Clean and save voxel data
         sigma_voxels_coarse_clean = self.nerf_tree.sigma_voxels_coarse.clone()
-        sigma_voxels_coarse_clean[sigma_voxels_coarse_clean == self.sigma_init] = (
-            self.sigma_default
-        )
+        sigma_voxels_coarse_clean[sigma_voxels_coarse_clean == self.sigma_init] = self.sigma_default
 
         # Add voxel data to state
         state["nerf_tree"] = {
@@ -368,9 +351,7 @@ class EfficientNeRFSystem(LightningModule):
             else self.nerf_coarse_forge.framework_module.module.state_dict()
         )
         state["nerf_fine"] = (
-            self.nerf_fine.state_dict()
-            if not use_forge
-            else self.nerf_fine_forge.framework_module.module.state_dict()
+            self.nerf_fine.state_dict() if not use_forge else self.nerf_fine_forge.framework_module.module.state_dict()
         )
 
         return state
@@ -378,25 +359,15 @@ class EfficientNeRFSystem(LightningModule):
     def load_state_dict(self, state_dict, strict=False, assign=False):
         # Load voxel data
         nerf_tree_state = state_dict.pop("nerf_tree")
-        to_device = lambda x: (
-            x.to(self.config.training.device) if x is not None else None
-        )
-        self.nerf_tree.sigma_voxels_coarse = to_device(
-            nerf_tree_state["sigma_voxels_coarse"]
-        )
-        self.nerf_tree.index_voxels_coarse = to_device(
-            nerf_tree_state["index_voxels_coarse"]
-        )
+        to_device = lambda x: (x.to(self.config.training.device) if x is not None else None)
+        self.nerf_tree.sigma_voxels_coarse = to_device(nerf_tree_state["sigma_voxels_coarse"])
+        self.nerf_tree.index_voxels_coarse = to_device(nerf_tree_state["index_voxels_coarse"])
         self.nerf_tree.voxels_fine = to_device(nerf_tree_state["voxels_fine"])
 
         # Load models
         if self.config.training.use_forge:
-            self.nerf_coarse_forge.framework_module.module.load_state_dict(
-                state_dict.pop("nerf_coarse")
-            )
-            self.nerf_fine_forge.framework_module.module.load_state_dict(
-                state_dict.pop("nerf_fine")
-            )
+            self.nerf_coarse_forge.framework_module.module.load_state_dict(state_dict.pop("nerf_coarse"))
+            self.nerf_fine_forge.framework_module.module.load_state_dict(state_dict.pop("nerf_fine"))
         else:
             self.nerf_coarse.load_state_dict(state_dict.pop("nerf_coarse"))
             self.nerf_fine.load_state_dict(state_dict.pop("nerf_fine"))
@@ -424,9 +395,7 @@ def main(config: NerfConfig):
 
     wandb_id = str(hash(str(config.model_dump())))[-10:]
 
-    experiment_name_suffix = (
-        "_forge" if use_forge else ("_cpu" if device == "cpu" else "_gpu")
-    )
+    experiment_name_suffix = "_forge" if use_forge else ("_cpu" if device == "cpu" else "_gpu")
     wandb.init(
         project="thomas-nerf",
         config=config,

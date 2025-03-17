@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 from torch.optim import SGD, Adam, AdamW
 
 from configs import NerfConfig
@@ -8,7 +11,7 @@ from thomas.experiments.lightning.nerf.utils.warmup_scheduler import GradualWarm
 
 def get_optimizer(hparams: NerfConfig, models: list[torch.nn.Module]):
     assert hparams.training.optimizer in ["sgd", "adam", "radam", "adamw"], "Invalid optimizer"
-    
+
     parameters = []
     for model in models:
         parameters.extend(model.parameters())
