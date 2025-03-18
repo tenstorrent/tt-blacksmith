@@ -72,6 +72,8 @@ class EfficientNeRFSystem(LightningModule):
         self.save_hyperparameters(config.model_dump(exclude_none=True))
         self.config: NerfConfig = config
 
+        self.experiment_log_dir = os.path.join(config.training.log_dir, config.experiment_name)
+
         self.loss = loss_dict[config.training.loss]()
 
         self.in_channels_xyz = 3 + config.model.num_freqs * 2 * 3
@@ -105,9 +107,9 @@ class EfficientNeRFSystem(LightningModule):
             deg=self.deg,
         )
 
-        self.models = [self.nerf_coarse, self.nerf_fine]
+        self.framework_models = [self.nerf_coarse, self.nerf_fine]
 
-        self.optimizer = get_optimizer(config, self.models)
+        self.optimizer = get_optimizer(config, self.framework_models)
 
         if config.training.use_forge:
             import forge
@@ -171,8 +173,8 @@ class EfficientNeRFSystem(LightningModule):
         """
         results = defaultdict(list)
 
-        target_models = (
-            [self.nerf_coarse_forge, self.nerf_fine_forge] if self.config.training.use_forge else self.models
+        models = (
+            [self.nerf_coarse_forge, self.nerf_fine_forge] if self.config.training.use_forge else self.framework_models
         )
 
         batch_size = self.config.data_loading.batch_size
@@ -198,8 +200,8 @@ class EfficientNeRFSystem(LightningModule):
                 near=self.near,
                 far=self.far,
                 global_step=self.global_step,
-                model_coarse=target_models[0],
-                model_fine=target_models[1],
+                model_coarse=models[0],
+                model_fine=models[1],
             )
 
             # Remove padding from results before storing
@@ -290,7 +292,7 @@ class EfficientNeRFSystem(LightningModule):
         W, H = self.config.data_loading.img_wh
         img = results[f"rgb_{typ}"].view(H, W, 3).cpu()
         img = img.permute(2, 0, 1)  # (3, H, W)
-        img_path = os.path.join(f"logs/{self.config.experiment_name}/video", "%06d.png" % batch_idx)
+        img_path = os.path.join(self.experiment_log_dir, "video", "%06d.png" % batch_idx)
         os.makedirs(os.path.dirname(img_path), exist_ok=True)
         transforms.ToPILImage()(img).convert("RGB").save(img_path)
 
@@ -305,7 +307,7 @@ class EfficientNeRFSystem(LightningModule):
                 step=self.global_step,
             )
 
-            img_path = os.path.join(f"logs/{self.config.experiment_name}", f"epoch_{self.current_epoch}.png")
+            img_path = os.path.join(self.experiment_log_dir, f"epoch_{self.current_epoch}.png")
             transforms.ToPILImage()(img).convert("RGB").save(img_path)
 
         log["val_psnr"] = psnr(results[f"rgb_{typ}"], rgbs)
@@ -380,9 +382,10 @@ def main(config: NerfConfig):
     use_forge = config.training.use_forge
 
     system = EfficientNeRFSystem(config).to(device)
-
+    checkpoint_dir = os.path.join(config.training.log_dir, config.experiment_name, "ckpts")
+    os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_callback = ModelCheckpoint(
-        dirpath=f"logs/{config.experiment_name}/ckpts",
+        dirpath=checkpoint_dir,
         filename="nerf-epoch-{epoch}-step-{step:06d}-val_psnr-{val/psnr:.2f}",
         monitor="val/psnr",
         mode="max",
@@ -406,7 +409,7 @@ def main(config: NerfConfig):
     )
 
     logger = WandbLogger(
-        save_dir="logs",
+        save_dir=config.training.log_dir,
         name=config.experiment_name,
     )
     logger.log_hyperparams(config.model_dump())
@@ -430,7 +433,6 @@ def main(config: NerfConfig):
 if __name__ == "__main__":
     import os
 
-    config = load_config("thomas/experiments/lightning/nerf/test_nerf.yaml")
-    # hparams = get_opts()
-    os.makedirs(f"logs/{config.experiment_name}/ckpts", exist_ok=True)
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
+    config = load_config(config_file_path)
     main(config)

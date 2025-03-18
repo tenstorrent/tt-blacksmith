@@ -47,6 +47,7 @@ class TrainingConfig(BaseModel):
     warmup_epochs: int = 0
     ckpt_path: Optional[str] = None
     log_every: int = 5
+    log_dir: str = "./logs"
 
 
 class NerfConfig(BaseModel):
