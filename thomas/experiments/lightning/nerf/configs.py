@@ -28,7 +28,7 @@ class ModelConfig(BaseModel):
 
 
 class DataLoadingConfig(BaseModel):
-    input_dir: str = "/home/ubuntu/data/nerf_example_data/nerf_synthetic/lego"
+    input_dir: str = "./data/nerf_synthetic/lego"
     img_wh: List[int] = Field(default=[800, 800])
     batch_size: int = 1024
 
