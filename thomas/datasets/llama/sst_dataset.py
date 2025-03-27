@@ -6,14 +6,13 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from thomas.datasets.llama.sst_utils import TRAIN_PROMPT_TEMPLATE, TEST_PROMPT_TEMPLATE, LBL2VALUE
-from thomas.experiments.huggingface.configs import TrainingConfig
+from thomas.experiments.pytorch.configs import TrainingConfig
 
 
 class SSTDataset:
     def __init__(self, config: TrainingConfig):
         self.config = config
 
-        # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -45,16 +44,13 @@ class SSTDataset:
         return tokenized_batch
 
     def load_tokenized_data(self) -> Tuple[Any, Any]:
-        """Load and preprocess dataset."""
         print(f"Loading dataset ({self.config.dataset_id})...")
         dataset = load_dataset(self.config.dataset_id)
 
-        # Prepare training set
         train_set = dataset["train"].map(self._apply_template, fn_kwargs={"mode": "train"})
         tokenized_train_set = train_set.map(self._tokenize_function, batched=True)
         tokenized_train_set.set_format("torch", columns=self.required_columns)
 
-        # Prepare evaluation set
         eval_set = dataset["validation"].map(self._apply_template, fn_kwargs={"mode": "test"})
         tokenized_eval_set = eval_set.map(self._tokenize_function, batched=True)
         tokenized_eval_set.set_format("torch", columns=self.required_columns)

@@ -10,8 +10,8 @@ import wandb
 from tqdm import tqdm
 from transformers import TrainingArguments, Trainer, DataCollatorForLanguageModeling, set_seed
 
-from thomas.experiments.huggingface.configs import TrainingConfig
-from thomas.models.huggingface.llama import LlamaLoraModel
+from thomas.experiments.pytorch.configs import TrainingConfig
+from thomas.models.pytorch.hf_models import get_model
 from thomas.datasets.llama.sst_dataset import SSTDataset
 from thomas.datasets.llama.sst_utils import VALUE2LBL
 from thomas.tools.cli import generate_config
@@ -35,12 +35,12 @@ def setup_training(config, model, tokenizer, train_set, eval_set):
         learning_rate=config.learning_rate,
         num_train_epochs=config.num_epochs,
         optim=config.optim,
-        logging_strategy="steps",
+        logging_strategy=config.logging_strategy,
         logging_steps=config.logging_steps,
-        save_strategy="epoch",
+        save_strategy=config.save_strategy,
         save_total_limit=config.save_total_limit,
         gradient_checkpointing=config.gradient_checkpointing,
-        report_to="wandb",
+        report_to=config.report_to,
     )
 
     trainer = Trainer(
@@ -50,6 +50,7 @@ def setup_training(config, model, tokenizer, train_set, eval_set):
         eval_dataset=eval_set,
         data_collator=data_collator,
         callbacks=[WandbMemoryCallback(), GradientSavingCallback(gradients_dir)],
+        callbacks=[GradientSavingCallback(gradients_dir)],
     )
 
     return trainer
@@ -61,9 +62,8 @@ def train(config: TrainingConfig, model, tokenizer, train_set, eval_set):
     try:
         set_seed(config.seed)
 
-        wandb.init(
-            project=config.wandb_project, name=f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}", config=vars(config)
-        )
+        run_name = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        wandb.init(project=config.wandb_project, name=run_name, config=vars(config))
 
         trainer = setup_training(config, model, tokenizer, train_set, eval_set)
         trainer.train()
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
-    model = LlamaLoraModel(config)
+    model = get_model(config)
 
     dataset = SSTDataset(config)
     train_set, eval_set = dataset.load_tokenized_data()
