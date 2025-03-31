@@ -75,7 +75,7 @@ class BlenderDataset:
         if self.split == "train":
             self._prepare_train_data()
         elif self.split == "test":
-            self.meta["frames"] = self.meta["frames"][::10]
+            self.meta["frames"] = self.meta["frames"][0:1]
         else:  # val
             angles = jnp.linspace(-180, 180, 1001)[:-1]
             self.pose_vis = jax.vmap(pose_spherical, in_axes=(0, None, None))(angles, -30.0, 4.0)

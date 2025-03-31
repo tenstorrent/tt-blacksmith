@@ -95,7 +95,18 @@ class NeRF(nn.Module):
             # jax.debug.print("Size of mask: {}", (mask.shape,), ordered = True)
             alphas = alphas * mask + 1 - mask
         alphas_shifted = jnp.concatenate([jnp.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], axis=-1)
-        weights = alphas * jnp.cumprod(alphas_shifted, axis=-1)[:, :-1]
+        # weights = alphas * jnp.cumprod(alphas_shifted, axis=-1)[:, :-1]
+        cumulative_prod = jnp.ones_like(alphas_shifted)
+
+        # Compute cumulative product manually along axis=-1
+        for i in range(1, alphas_shifted.shape[-1]):
+            cumulative_prod = cumulative_prod.at[:, i].set(cumulative_prod[:, i - 1] * alphas_shifted[:, i])
+
+        # We want to exclude the last value in the cumulative product
+        cumulative_prod = cumulative_prod[:, :-1]
+
+        # Calculate weights
+        weights = alphas * cumulative_prod
         # norm = jax.numpy.linalg.norm(weights)
         # print(norm)
         # jax.debug.print("Norm of weights: {}", (jax.numpy.linalg.norm(weights),), ordered = True)
@@ -133,7 +144,30 @@ def inference(
     # import pdb; pdb.set_trace()
     # print(embedded_xyz)
     # Apply model with parameters
-    sigma, sh = model.apply({"params": params}, embedded_xyz)
+    # with jax.default_device(jax.devices("tt")[0]):
+    # model_device = jax.device_put(model, jax.devices("tt")[0])
+    # params_device = jax.device_put(params, jax.devices("tt")[0])
+    # embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
+    # with jax.default_device(jax.devices("tt")[0]):
+
+    @jax.jit
+    def get_sigma_sh(params, embedded_xyz):
+        return model.apply({"params": params}, embedded_xyz)
+
+    with jax.default_device(jax.devices("tt")[0]):
+        params_device = jax.device_put(params, jax.devices("tt")[0])
+        embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
+        sigma_device, sh_device = get_sigma_sh(params_device, embedded_xyz_device)
+
+    sigma = jax.device_put(sigma_device, jax.devices("cpu")[0])
+    sh = jax.device_put(sh_device, jax.devices("cpu")[0])
+    # sigma, sh = get_sigma_sh(params, embedded_xyz)
+
+    # print("zavrsio sam get_sigma_sh")
+
+    # sigma = jax.device_put(sigma_device, jax.devices("cpu")[0])
+    # sh = jax.device_put(sh_device, jax.devices("cpu")[0])
+
     sigma, rgb, sh = model.sh2rgb(sigma, sh, model.deg, view_dir_to_process)
     sigma = sigma[:real_chunk_size]
     rgb = rgb[:real_chunk_size]
@@ -159,26 +193,3 @@ def inference(
     rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)
     rgb_final = rgb_final + (1 - weights_sum[..., None])  # White background
     return rgb_final, out_sigma, out_sh
-
-
-# Example usage:
-if __name__ == "__main__":
-    key = random.PRNGKey(0)
-    model = NeRF()
-    embedding_xyz = Embedding(in_channels=3, num_freqs=10)
-
-    # Dummy inputs
-    xyzs = jnp.ones((2, 4, 3))
-    dirs = jnp.ones((2, 3))
-    deltas = jnp.ones((2, 4))
-    idx_render = jnp.array([[0, 0], [0, 1], [1, 2], [1, 3]])
-
-    # Initialize parameters for NeRF (which has trainable params)
-    variables = model.init(key, jnp.ones((4, 63)))
-    params = variables["params"]  # Extract 'params' for NeRF
-
-    # No need to initialize params for Embedding since it’s stateless
-    rgb_final, out_sigma, out_sh = inference(
-        model, params, embedding_xyz, xyzs, dirs, deltas, idx_render, sigma_default=0.0
-    )
-    print(rgb_final.shape, out_sigma.shape, out_sh.shape)

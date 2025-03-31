@@ -170,6 +170,8 @@ def update_fine_out(voxels_fine, xyz, sigma, sh, tree_data):
 def query_coarse_out(xyz, tree_data, type="sigma"):
     ijk_coarse = calc_index_coarse_out(xyz, tree_data)
     if type == "sigma":
+        # print(ijk_coarse.shape)
+        # print(tree_data["sigma_voxels_coarse"].shape)
         return tree_data["sigma_voxels_coarse"][ijk_coarse[:, 0], ijk_coarse[:, 1], ijk_coarse[:, 2]]
     else:
         return tree_data["index_voxels_coarse"][ijk_coarse[:, 0], ijk_coarse[:, 1], ijk_coarse[:, 2]]

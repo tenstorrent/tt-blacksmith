@@ -122,7 +122,7 @@ def get_optimizer(config, models: List[Any]) -> optax.GradientTransformation:
     optimizer_kwargs = config.training.optimizer_kwargs or {}
     if config.training.optimizer == "radam":
         return optax.radam(
-            learning_rate=optimizer_kwargs.get("lr", 5e-4),
+            learning_rate=optimizer_kwargs.get("lr", 1e-4),
             b1=optimizer_kwargs.get("betas", (0.9, 0.999))[0],  # Extract beta1
             b2=optimizer_kwargs.get("betas", (0.9, 0.999))[1],  # Extract beta2
             eps=optimizer_kwargs.get("eps", 1e-8),

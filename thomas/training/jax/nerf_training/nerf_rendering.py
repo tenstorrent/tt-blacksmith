@@ -29,13 +29,13 @@ def render_rays(
     params_coarse,
     model_fine,
     params_fine,
+    xyz_coarse,
+    deltas_coarse,
+    xyz_fine,
+    deltas_fine,
+    rays_origin,
+    rays_direction,
 ) -> dict:
-    n_samples_coarse = config.model.coarse.samples
-    n_samples_fine = n_samples_coarse * config.model.fine.samples
-
-    rays_origin, rays_direction = rays[:, 0:3], rays[:, 3:6]
-    xyz_coarse, deltas_coarse = generate_ray_samples(rays, n_samples_coarse, near, far)
-    xyz_fine, deltas_fine = generate_ray_samples(rays, n_samples_fine, near, far)
 
     coarse_results = calculate_coarse_rendering(
         config=config,
@@ -51,7 +51,7 @@ def render_rays(
 
     weights_coarse = coarse_results["weights_coarse"]
 
-    fine_results = calculate_fine_rendering(  # Assuming this exists
+    fine_results = calculate_fine_rendering(
         config=config,
         model_fine=model_fine,
         params_fine=params_fine,
@@ -83,15 +83,12 @@ def calculate_coarse_rendering(
     samples_per_ray = config.model.coarse.samples
     chunk_size = config.data_loading.batch_size * samples_per_ray
 
-    # Use standalone query_coarse_out instead of NerfTree.query_coarse
     sigmas = query_coarse_out(xyz_coarse.reshape(-1, 3), tree_data, type="sigma").reshape(num_rays, samples_per_ray)
 
-    # import pdb; pdb.set_trace()
-
     if tree_data["voxels_fine"] is None:
-        key = random.PRNGKey(0)
-        uniform_mask = random.uniform(key, sigmas[:, 0].shape) < config.model.uniform_ratio
-        sigmas = jnp.where(uniform_mask[:, None], config.model.sigma_init, sigmas)
+        # key = random.PRNGKey(0)
+        # uniform_mask = random.uniform(key, sigmas[:, 0].shape) < config.model.uniform_ratio
+        # sigmas = jnp.where(uniform_mask[:, None], config.model.sigma_init, sigmas)
 
         max_samples = num_rays * samples_per_ray
         if config.model.warmup_step > 0 and global_step <= config.model.warmup_step:
@@ -164,11 +161,15 @@ def calculate_fine_rendering(
     chunk_size = config.data_loading.batch_size * config.model.coarse.samples
 
     # Pick top-k weights instead of thresholding
-    k = chunk_size // fine_samples_per_coarse  # Ensure we don’t exceed chunk_size after expansion
+    # k = chunk_size // fine_samples_per_coarse  # Ensure we don’t exceed chunk_size after expansion
+    k = 20000
     # import pdb; pdb.set_trace()
     # print(k)
     flat_weights = weights_coarse.reshape(-1)  # Flatten to 1D for top-k
-    top_k_indices = jnp.argpartition(flat_weights, -k)[-k:]  # Get indices of top k weights
+    # top_k_indices = jnp.argpartition(flat_weights, -k)[-k:]  # Get indices of top k weights
+    sorted_indices = jnp.argsort(flat_weights)[::-1]  # Sort in descending order
+    # Select the top k indices
+    top_k_indices = sorted_indices[:k]
     # import pdb; pdb.set_trace()
     important_samples = jnp.stack(
         [top_k_indices // weights_coarse.shape[1], top_k_indices % weights_coarse.shape[1]], axis=-1
@@ -230,6 +231,7 @@ def generate_ray_samples(rays, num_samples, near, far):
     z_vals = jnp.repeat(z_vals, N_rays, axis=0)
     key = random.PRNGKey(0)  # Fixed seed for reproducibility
     delta_z_vals = random.uniform(key, z_vals.shape) * (distance / num_samples)
+
     z_vals = z_vals + delta_z_vals
     xyz_sampled = rays_o[:, None, :] + rays_d[:, None, :] * z_vals[:, :, None]
 
@@ -239,72 +241,3 @@ def generate_ray_samples(rays, num_samples, near, far):
     deltas = jnp.concatenate([deltas, delta_inf], axis=-1)
 
     return xyz_sampled, deltas
-
-
-# Dummy Config class for testing (replace with actual config in practice)
-class Config:
-    class Model:
-        class coarse:
-            samples = 4
-
-        class fine:
-            samples = 2
-
-        uniform_ratio = 0.1
-        warmup_step = 100
-        sigma_init = 0.0
-        sigma_default = -1.0
-        beta = 0.1
-        weight_threshold = 0.01
-
-    class DataLoading:
-        batch_size = 2
-
-    model = Model()
-    data_loading = DataLoading()
-
-
-if __name__ == "__main__":
-    # Test setup
-    key = random.PRNGKey(0)
-    config = Config()
-    rays = jnp.ones((2, 6))  # Dummy rays: [batch_size, 6] (origins + directions)
-    near, far = 0.0, 1.0
-    global_step = 50  # During warmup phase
-
-    from nerf import NeRF, Embedding
-
-    model_coarse = NeRF()
-    model_fine = NeRF()
-    embedding_xyz = Embedding(in_channels=3, num_freqs=10)
-    variables_coarse = model_coarse.init(key, jnp.ones((4, 63)))
-    variables_fine = model_fine.init(key, jnp.ones((4, 63)))
-    params_coarse = variables_coarse["params"]
-    params_fine = variables_fine["params"]
-
-    nerf_tree = NerfTree(
-        xyz_min=[[-1, -1, -1]],
-        xyz_max=[[1, 1, 1]],
-        grid_coarse=4,
-        grid_fine=2,
-        deg=2,
-        sigma_init=config.model.sigma_init,
-        sigma_default=config.model.sigma_default,
-    )
-
-    # Run rendering
-    results = render_rays(
-        config=config,
-        rays=rays,
-        embedding_xyz=embedding_xyz,
-        nerf_tree=nerf_tree,
-        near=near,
-        far=far,
-        global_step=global_step,
-        model_coarse=model_coarse,
-        params_coarse=params_coarse,  # Added
-        model_fine=model_fine,
-        params_fine=params_fine,  # Added
-    )
-    print("Coarse RGB shape:", results["rgb_coarse"].shape)
-    print("Fine RGB shape:", results["rgb_fine"].shape)

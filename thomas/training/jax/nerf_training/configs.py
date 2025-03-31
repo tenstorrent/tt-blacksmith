@@ -48,6 +48,7 @@ class TrainingConfig(BaseModel):
     ckpt_path: Optional[str] = None
     log_every: int = 5
     log_dir: str = "./logs"
+    log_on_wandb: bool = False
 
 
 class NerfConfig(BaseModel):
