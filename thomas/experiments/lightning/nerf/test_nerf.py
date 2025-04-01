@@ -45,10 +45,6 @@ logger.disable("")
 
 torch.manual_seed(0)
 
-torch_state = torch.get_rng_state()
-numpy_state = np.random.get_state()
-python_state = random.getstate()
-
 
 def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
@@ -117,7 +113,7 @@ class EfficientNeRFSystem(LightningModule):
             max_input = config.data_loading.batch_size * config.model.coarse.samples
             self.nerf_coarse_forge = forge.compile(
                 self.nerf_coarse,
-                sample_inputs=[torch.randn(max_input, self.in_channels_xyz).requires_grad_()],
+                sample_inputs=[torch.randn(max_input, self.in_channels_xyz)],
                 optimizer=self.optimizer,
                 training=True,
                 module_name="nerf_coarse_sigma",
@@ -127,7 +123,7 @@ class EfficientNeRFSystem(LightningModule):
 
             self.nerf_fine_forge = forge.compile(
                 self.nerf_fine,
-                sample_inputs=[torch.randn(max_input, self.in_channels_xyz).requires_grad_()],
+                sample_inputs=[torch.randn(max_input, self.in_channels_xyz)],
                 optimizer=self.optimizer,
                 training=True,
                 module_name="nerf_fine_sigma",
@@ -138,7 +134,7 @@ class EfficientNeRFSystem(LightningModule):
         # forge messes up the random state, so we need to reset it
         torch.manual_seed(0)
         seed_everything(0, workers=True)
-        np.random.seed(100)
+        np.random.seed(0)
 
         coord_scope = config.model.coord_scope
         self.nerf_tree = NerfTree(
