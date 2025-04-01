@@ -88,7 +88,3 @@ Current `test_nerf.yaml` has the recommended and tested hyperparameters for the 
 | `model.warmup_step` | Warmup steps used for nerftree | 0 |
 | `model.in_channels_dir` | Number of channels for direction tensor | 32 |
 | `model.in_channels_xyz` | Number of channels for position tensor | 63 |
-
-
-
-
