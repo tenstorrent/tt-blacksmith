@@ -5,3 +5,4 @@ generated_modules/
 *.egg-info/
 checkpoints/
 wandb/
+**/results/

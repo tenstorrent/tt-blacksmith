@@ -15,7 +15,7 @@ from thomas.models.pytorch.hf_models import get_model
 from thomas.datasets.llama.sst_dataset import SSTDataset
 from thomas.datasets.llama.sst_utils import VALUE2LBL
 from thomas.tools.cli import generate_config
-from thomas.tools.transformers_callbacks import WandbMemoryCallback, GradientSavingCallback
+from thomas.tools.transformers_callbacks import GradientSavingCallback, ProfilerCallback, WandbMemoryCallback
 
 
 def setup_training(config, model, tokenizer, train_set, eval_set):
@@ -23,8 +23,10 @@ def setup_training(config, model, tokenizer, train_set, eval_set):
 
     checkpoint_dir = os.path.join(config.output_dir, "checkpoints")
     gradients_dir = os.path.join(config.output_dir, "gradients")
+    profiler_dir = os.path.join(config.output_dir, "profiler_logs")
     os.makedirs(checkpoint_dir, exist_ok=True)
     os.makedirs(gradients_dir, exist_ok=True)
+    os.makedirs(profiler_dir, exist_ok=True)
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False, return_tensors="pt")
 
@@ -49,8 +51,7 @@ def setup_training(config, model, tokenizer, train_set, eval_set):
         train_dataset=train_set,
         eval_dataset=eval_set,
         data_collator=data_collator,
-        callbacks=[WandbMemoryCallback(), GradientSavingCallback(gradients_dir)],
-        callbacks=[GradientSavingCallback(gradients_dir)],
+        callbacks=[WandbMemoryCallback(), GradientSavingCallback(gradients_dir), ProfilerCallback(profiler_dir)],
     )
 
     return trainer
@@ -62,9 +63,6 @@ def train(config: TrainingConfig, model, tokenizer, train_set, eval_set):
     try:
         set_seed(config.seed)
 
-        run_name = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        wandb.init(project=config.wandb_project, name=run_name, config=vars(config))
-
         trainer = setup_training(config, model, tokenizer, train_set, eval_set)
         trainer.train()
 
@@ -75,9 +73,6 @@ def train(config: TrainingConfig, model, tokenizer, train_set, eval_set):
         print(f"Error during training: {str(e)}")
         wandb.alert(title="Training Failed", text=str(e))
         raise
-
-    finally:
-        wandb.finish()
 
     print("Training complete!")
 
@@ -139,6 +134,9 @@ if __name__ == "__main__":
 
     dataset = SSTDataset(config)
     train_set, eval_set = dataset.load_tokenized_data()
+
+    run_name = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    wandb.init(project=config.wandb_project, name=run_name, config=vars(config))
 
     if config.do_train:
         train(config, model, dataset.tokenizer, train_set, eval_set)

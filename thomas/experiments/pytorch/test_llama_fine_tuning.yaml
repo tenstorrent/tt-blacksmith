@@ -2,13 +2,13 @@
     dataset_id: "stanfordnlp/sst2"
 
     # Model settings
-    model_name: "openlm-research/open_llama_3b" # "meta-llama/Llama-3.2-1B"
+    model_name: "openlm-research/open_llama_3b"
     max_length: 128
     dtype: "torch.bfloat16"
 
     # Training hyperparameters
     learning_rate: 2e-5
-    batch_size: 32
+    batch_size: 4
     gradient_accumulation_steps: 1
     gradient_checkpointing: False
     num_epochs: 1
@@ -23,7 +23,7 @@
 
     # Other settings
     seed: 23
-    output_dir: "experiments/results/llama32-1b-bs32-ft32-ml128-r4-a8-adamw_torch"
+    output_dir: "thomas/experiments/pytorch/results/open_llama-3b-bs4-bf16-ml128-r4-a8-adamw_torch"
     report_to: "wandb"
     wandb_project: "llama-finetuning"
     save_strategy: "epoch"
