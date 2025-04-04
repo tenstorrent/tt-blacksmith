@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # -e exit on error
 # -o pipefail return error code from any command in a pipeline
 set -eo pipefail
