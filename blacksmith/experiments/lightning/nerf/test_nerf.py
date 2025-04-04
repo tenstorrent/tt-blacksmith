@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from thomas.datasets.nerf.blender import BlenderDataset
+from blacksmith.datasets.nerf.blender import BlenderDataset
 import os
 
 import torch
@@ -16,13 +16,13 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 
 # models
 
-from thomas.models.nerf import Embedding, NeRF
-from thomas.models.nerf.nerftree import NerfTree
-from thomas.experiments.lightning.nerf.configs import NerfConfig, load_config
-from thomas.experiments.lightning.nerf.utils.losses import loss_dict
-from thomas.experiments.lightning.nerf.utils.metrics import *
-from thomas.experiments.lightning.nerf.utils import *
-from thomas.experiments.lightning.nerf.utils.log import log_gradients, log_training_metrics
+from blacksmith.models.nerf import Embedding, NeRF
+from blacksmith.models.nerf.nerftree import NerfTree
+from blacksmith.experiments.lightning.nerf.configs import NerfConfig, load_config
+from blacksmith.experiments.lightning.nerf.utils.losses import loss_dict
+from blacksmith.experiments.lightning.nerf.utils.metrics import *
+from blacksmith.experiments.lightning.nerf.utils import *
+from blacksmith.experiments.lightning.nerf.utils.log import log_gradients, log_training_metrics
 
 
 # pytorch-lightning
