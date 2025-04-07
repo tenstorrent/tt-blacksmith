@@ -4,9 +4,9 @@
 from torch.optim import SGD, Adam, AdamW
 
 from configs import NerfConfig
-from thomas.experiments.lightning.nerf.utils.optimizers import *
+from blacksmith.experiments.lightning.nerf.utils.optimizers import *
 from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR, LambdaLR
-from thomas.experiments.lightning.nerf.utils.warmup_scheduler import GradualWarmupScheduler
+from blacksmith.experiments.lightning.nerf.utils.warmup_scheduler import GradualWarmupScheduler
 
 
 def get_optimizer(hparams: NerfConfig, models: list[torch.nn.Module]):
