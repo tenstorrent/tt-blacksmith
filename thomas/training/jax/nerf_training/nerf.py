@@ -72,7 +72,7 @@ class NeRF(nn.Module):
                 xyz_ = NeRFEncoding(self.width, self.width, self.width)(xyz_)
 
         sigma = NeRFHead(self.width, 1)(xyz_)
-        sh = NeRFHead(self.width, 32)(xyz_)
+        sh = NeRFHead(self.width, 27)(xyz_)
         return sigma, sh
 
     def sh2rgb(self, sigma, sh, deg, dirs):
@@ -123,6 +123,7 @@ def inference(
     idx_render: jnp.ndarray,
     sigma_default: float,
     chunk: int = 1024,
+    callee: str = "coarse",
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     batch_size, sample_size = xyzs.shape[0], xyzs.shape[1]
 
@@ -130,55 +131,48 @@ def inference(
     non_one_idx = idx_render * (idx_render == -1)
     non_minus_one_mask = non_minus_one_mask.at[non_one_idx].set(0)
 
+    # import time
+    # time.sleep(1000)
+
     xyzs_flat = xyzs[idx_render[:, 0], idx_render[:, 1]].reshape(-1, 3)
     view_dir = jnp.expand_dims(dirs, 1).repeat(sample_size, axis=1)
     view_dir_flat = view_dir[idx_render[:, 0], idx_render[:, 1]]
 
     # Pad to chunk size
     real_chunk_size = xyzs_flat.shape[0]
+
     xyz_to_process = jnp.concatenate([xyzs_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
     view_dir_to_process = jnp.concatenate([view_dir_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
 
-    # Apply embedding without parameters (stateless)
     embedded_xyz = embedding_xyz.apply({}, xyz_to_process)  # No 'params' needed
-    # import pdb; pdb.set_trace()
-    # print(embedded_xyz)
-    # Apply model with parameters
-    # with jax.default_device(jax.devices("tt")[0]):
-    # model_device = jax.device_put(model, jax.devices("tt")[0])
-    # params_device = jax.device_put(params, jax.devices("tt")[0])
-    # embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
-    # with jax.default_device(jax.devices("tt")[0]):
 
+    # Define neural network forward pass
     @jax.jit
-    def get_sigma_sh(params, embedded_xyz):
-        return model.apply({"params": params}, embedded_xyz)
+    def nn_forward(params, embedded_xyz):
+        sigma, sh = model.apply({"params": params}, embedded_xyz)
+        return sigma, sh
 
+    # Compute neural network forward pass with VJP on "tt" device
     with jax.default_device(jax.devices("tt")[0]):
         params_device = jax.device_put(params, jax.devices("tt")[0])
         embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
-        sigma_device, sh_device = get_sigma_sh(params_device, embedded_xyz_device)
+        (sigma_device, sh_device), nn_vjp_fn = jax.vjp(nn_forward, params_device, embedded_xyz_device)
 
+    # Move outputs to CPU for downstream processing
     sigma = jax.device_put(sigma_device, jax.devices("cpu")[0])
     sh = jax.device_put(sh_device, jax.devices("cpu")[0])
-    # sigma, sh = get_sigma_sh(params, embedded_xyz)
-
-    # print("zavrsio sam get_sigma_sh")
-
-    # sigma = jax.device_put(sigma_device, jax.devices("cpu")[0])
-    # sh = jax.device_put(sh_device, jax.devices("cpu")[0])
 
     sigma, rgb, sh = model.sh2rgb(sigma, sh, model.deg, view_dir_to_process)
+
+    # optional
     sigma = sigma[:real_chunk_size]
     rgb = rgb[:real_chunk_size]
     sh = sh[:real_chunk_size]
 
-    # Initialize outputs
     out_rgb = jnp.ones((batch_size, sample_size, 3))
     out_sigma = jnp.full((batch_size, sample_size, 1), sigma_default)
     out_sh = jnp.zeros((batch_size, sample_size, 27))
 
-    # Update outputs with computed values
     out_sigma = out_sigma.at[idx_render[:, 0], idx_render[:, 1]].set(sigma)
     out_rgb = out_rgb.at[idx_render[:, 0], idx_render[:, 1]].set(rgb)
     out_sh = out_sh.at[idx_render[:, 0], idx_render[:, 1]].set(sh)
@@ -188,8 +182,32 @@ def inference(
 
     weights, alphas = model.sigma2weights(deltas, out_sigma, non_minus_one_mask)
     weights_sum = weights.sum(axis=1)
-
-    # Compute final weighted outputs
     rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)
     rgb_final = rgb_final + (1 - weights_sum[..., None])  # White background
-    return rgb_final, out_sigma, out_sh
+
+    # Define neural network backward function (runs on "tt" device)
+    def nn_backward(seed_sigma, seed_sh):
+        with jax.default_device(jax.devices("tt")[0]):
+            seed_sigma_device = jax.device_put(seed_sigma, jax.devices("tt")[0])
+            seed_sh_device = jax.device_put(seed_sh, jax.devices("tt")[0])
+            grads_device = nn_vjp_fn((seed_sigma_device, seed_sh_device))
+            return jax.device_put(grads_device[0], jax.devices("cpu")[0])  # Return gradients w.r.t. params
+
+    # Return results and the backward function
+    if callee == "coarse":
+        intermediates = {
+            "sigma_coarse_immediate": sigma,
+            "sh_coarse_immediate": sh,
+            "weights": weights,
+            "alphas": alphas,
+            "idx_render_coarse": idx_render,
+        }
+    else:
+        intermediates = {
+            "sigma_fine_immediate": sigma,
+            "sh_fine_immediate": sh,
+            "weights": weights,
+            "alphas": alphas,
+            "idx_render_fine": idx_render,
+        }
+    return rgb_final, out_sigma, out_sh, {"intermediates": intermediates, "nn_backward": nn_backward}

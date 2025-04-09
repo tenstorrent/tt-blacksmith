@@ -32,7 +32,7 @@ training:
   use_forge: True
   device: cpu
   val_only: True
-  epochs: 16
+  epochs: 10
   loss: mse
   optimizer: radam
   optimizer_kwargs:

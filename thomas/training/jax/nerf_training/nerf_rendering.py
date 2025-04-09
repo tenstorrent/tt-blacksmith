@@ -47,6 +47,7 @@ def render_rays(
         xyz_coarse=xyz_coarse,
         deltas_coarse=deltas_coarse,
         global_step=global_step,
+        callee="coarse",
     )
 
     weights_coarse = coarse_results["weights_coarse"]
@@ -61,6 +62,7 @@ def render_rays(
         xyz_fine=xyz_fine,
         deltas_fine=deltas_fine,
         weights_coarse=weights_coarse,
+        callee="fine",
     )
 
     combined_results = {**coarse_results, **fine_results}
@@ -77,6 +79,7 @@ def calculate_coarse_rendering(
     xyz_coarse,
     deltas_coarse,
     global_step,
+    callee,
 ):
     result = {}
     num_rays = rays_directions.shape[0]
@@ -86,10 +89,6 @@ def calculate_coarse_rendering(
     sigmas = query_coarse_out(xyz_coarse.reshape(-1, 3), tree_data, type="sigma").reshape(num_rays, samples_per_ray)
 
     if tree_data["voxels_fine"] is None:
-        # key = random.PRNGKey(0)
-        # uniform_mask = random.uniform(key, sigmas[:, 0].shape) < config.model.uniform_ratio
-        # sigmas = jnp.where(uniform_mask[:, None], config.model.sigma_init, sigmas)
-
         max_samples = num_rays * samples_per_ray
         if config.model.warmup_step > 0 and global_step <= config.model.warmup_step:
             valid_sample_indices = jnp.nonzero(sigmas >= -1e10, size=max_samples, fill_value=-1)
@@ -98,7 +97,7 @@ def calculate_coarse_rendering(
             valid_sample_indices = jnp.nonzero(sigmas > 0.0, size=max_samples, fill_value=-1)
             valid_sample_indices = jnp.stack([valid_sample_indices[0], valid_sample_indices[1]], axis=-1)
 
-        rgb_values, updated_sigmas, spherical_harmonics = inference(
+        rgb_values, updated_sigmas, spherical_harmonics, extras = inference(
             model=model_coarse,
             params=params_coarse,
             embedding_xyz=embedding_xyz,
@@ -108,11 +107,15 @@ def calculate_coarse_rendering(
             idx_render=valid_sample_indices,
             sigma_default=config.model.sigma_default,
             chunk=chunk_size,
+            callee="coarse",
         )
 
         result["rgb_coarse"] = rgb_values
         result["sigma_coarse"] = updated_sigmas
+        result["sh_coarse"] = spherical_harmonics
         result["rgb_valid"] = valid_sample_indices
+        result["nn_backward_coarse"] = extras["nn_backward"]  # Store the backward function
+        result.update(extras["intermediates"])  # Include intermediates
 
         valid_mask = valid_sample_indices[:, 0] >= 0
         sample_positions = jnp.where(
@@ -121,7 +124,6 @@ def calculate_coarse_rendering(
         sample_densities = jnp.where(
             valid_mask, updated_sigmas[valid_sample_indices[:, 0], valid_sample_indices[:, 1]].squeeze(-1), 0.0
         )
-        # Use standalone update_coarse_out instead of NerfTree.update_coarse
         updated_sigma_voxels = update_coarse_out(
             tree_data["sigma_voxels_coarse"], sample_positions, sample_densities, config.model.beta, tree_data
         )
@@ -137,7 +139,7 @@ def calculate_coarse_rendering(
 import jax
 import jax.numpy as jnp
 from jax import random
-from nerf import inference
+from nerf import inference  # Importing from nerf.py
 from nerftree import update_fine_out
 
 
@@ -151,6 +153,7 @@ def calculate_fine_rendering(
     xyz_fine,
     deltas_fine,
     weights_coarse,
+    callee,
 ):
     """
     Calculates the fine rendering of NeRF using importance sampling based on top-k coarse weights.
@@ -161,16 +164,12 @@ def calculate_fine_rendering(
     chunk_size = config.data_loading.batch_size * config.model.coarse.samples
 
     # Pick top-k weights instead of thresholding
-    # k = chunk_size // fine_samples_per_coarse  # Ensure we don’t exceed chunk_size after expansion
-    k = 20000
-    # import pdb; pdb.set_trace()
-    # print(k)
+    k = chunk_size // fine_samples_per_coarse  # Fixed value as in your code
     flat_weights = weights_coarse.reshape(-1)  # Flatten to 1D for top-k
-    # top_k_indices = jnp.argpartition(flat_weights, -k)[-k:]  # Get indices of top k weights
     sorted_indices = jnp.argsort(flat_weights)[::-1]  # Sort in descending order
-    # Select the top k indices
-    top_k_indices = sorted_indices[:k]
-    # import pdb; pdb.set_trace()
+    top_k_indices = sorted_indices[:k]  # Select the top k indices
+
+    # Convert 1D indices to 2D (ray_idx, sample_idx)
     important_samples = jnp.stack(
         [top_k_indices // weights_coarse.shape[1], top_k_indices % weights_coarse.shape[1]], axis=-1
     )
@@ -184,13 +183,15 @@ def calculate_fine_rendering(
     )
     fine_indices = fine_indices.reshape(-1, 2)
 
-    # No need to limit samples since top-k already ensures static size <= chunk_size
+    # print(fine_indices.shape)
+
+    # Ensure we don’t exceed chunk_size
     assert (
         fine_indices.shape[0] <= chunk_size
     ), f"fine_indices size {fine_indices.shape[0]} exceeds chunk_size {chunk_size}"
 
-    # Compute RGB values and densities with params
-    rgb_values, sigma_values, spherical_harmonics = inference(
+    # Compute RGB values, densities, and spherical harmonics with params, including nn_backward
+    rgb_values, sigma_values, spherical_harmonics, extras = inference(
         model=model_fine,
         params=params_fine,
         embedding_xyz=embedding_xyz,
@@ -200,6 +201,7 @@ def calculate_fine_rendering(
         idx_render=fine_indices,
         sigma_default=config.model.sigma_default,
         chunk=chunk_size,
+        callee="fine",
     )
 
     # Update fine voxel grid using tree_data and update_fine_out
@@ -212,8 +214,13 @@ def calculate_fine_rendering(
         )
         result["voxels_fine"] = updated_voxels_fine  # Return the updated voxels
 
+    # Store results
     result["rgb_fine"] = rgb_values
+    result["sigma_fine"] = sigma_values  # Add sigma for gradient computation
+    result["sh_fine"] = spherical_harmonics  # Add sh for gradient computation
     result["num_samples_fine"] = jnp.array([fine_indices.shape[0] / num_rays])
+    result["nn_backward_fine"] = extras["nn_backward"]  # Store the neural network backward function
+    result.update(extras["intermediates"])  # Include intermediates like sigma, sh, weights, alphas
 
     return result
 

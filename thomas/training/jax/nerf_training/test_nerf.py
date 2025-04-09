@@ -22,7 +22,6 @@ from configs import NerfConfig, load_config
 from optimizers import get_optimizer
 
 import wandb
-import matplotlib.pyplot as plt
 
 import time
 from utils import init_device
@@ -275,35 +274,216 @@ class EfficientNeRFSystem:
                 "rays_d": rays_d,
             }
 
-        # @jax.jit
-        def compute_grads(params, rays_data, num_padding_needed, rays, rgbs, tree_data, global_step, rng_key):
-            def loss_fn(params):
-                results = self.forward(rays, rays_data, params, tree_data, global_step, rng_key)
-                loss = self.loss_fn(results, rays_data["rgbs_chunk"])
-                return loss, results
-
-            grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-            (loss, results), grads = grad_fn(params)
-            return (loss, results), grads
-
-        with jax.default_device(jax.devices("cpu")[0]):
+            # Forward pass
             params = {"nerf_coarse": state.state_coarse.params, "nerf_fine": state.state_fine.params}
-            (loss, results), grads = compute_grads(
-                params, rays_data, rays_data["num_padding_needed"], rays, rgbs, tree_data, global_step, rng_key
-            )
+            results = self.forward(rays, rays_data, params, tree_data, global_step, rng_key)
+            loss = self.loss_fn(results, rays_data["rgbs_chunk"])
 
-        print("Global step: ", global_step)
-        print("Loss: ", loss)
+            print("Loss: ", loss)
 
-        with jax.default_device(jax.devices("cpu")[0]):
-            time2 = time.time()
-            # print(time2 - time1)
+            # Extract neural network backward functions (fix duplicate pop)
+            nn_backward_coarse = results.pop("nn_backward_coarse", None)
+            nn_backward_fine = results.pop("nn_backward_fine", None)
+            idx_render_coarse = results.get("idx_render_coarse")  # Use get to avoid KeyError
+            idx_render_fine = results.get("idx_render_fine")
 
-            # grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
-            # (loss, results), grads = grad_fn({'nerf_coarse': state.state_coarse.params, 'nerf_fine': state.state_fine.params})
+            # time.sleep(1000)
 
+            rgb_valid_idx = results.get("rgb_valid", None)
+
+            # Helper function to recompute rgb from sigma and sh
+            def compute_rgb_from_sigma_sh(
+                sigma, sh, deltas, rays_d, idx_render, sigma_default, non_minus_one_mask, chunk_size, sigma_key
+            ):
+                batch_size, sample_size = deltas.shape[:2]  # e.g., (4096, 64)
+                real_chunk_size = idx_render.shape[0]  # Number of valid samples (e.g., 262144)
+
+                # Select model based on sigma_key
+                model = self.nerf_coarse if "coarse" in sigma_key else self.nerf_fine
+
+                # Expand ray directions to match sample size
+                view_dir = jnp.expand_dims(rays_d, 1).repeat(sample_size, axis=1)  # (batch_size, sample_size, 3)
+                view_dir_flat = view_dir[idx_render[:, 0], idx_render[:, 1]]  # (real_chunk_size, 3)
+
+                # Pad inputs to chunk size
+
+                sigma = sigma.reshape(-1, 1)
+                sh = sh.reshape(-1, 27)
+
+                # sigma_padded = jnp.concatenate([sigma, jnp.zeros((chunk_size - real_chunk_size, 1))], axis=0)
+                # sh_padded = jnp.concatenate([sh, jnp.zeros((chunk_size - real_chunk_size, 27))], axis=0)
+                # view_dir_padded = jnp.concatenate([view_dir_flat, jnp.zeros((chunk_size - real_chunk_size, 3))], axis=0)
+
+                # Compute RGB from sigma and sh using the selected model's sh2rgb method
+                sigma_out, rgb, sh_out = model.sh2rgb(sigma, sh, model.deg, view_dir_flat)
+
+                # Trim padded outputs back to real_chunk_size
+                sigma = sigma_out[:real_chunk_size]
+                rgb = rgb[:real_chunk_size]
+                sh = sh_out[:real_chunk_size]
+
+                # Initialize output arrays with defaults
+                out_rgb = jnp.ones((batch_size, sample_size, 3))  # Default white
+                out_sigma = jnp.full((batch_size, sample_size, 1), sigma_default)  # Default sigma
+                out_sh = jnp.zeros((batch_size, sample_size, 27))  # Default zeros
+
+                # Scatter computed values into output arrays using idx_render
+                out_sigma = out_sigma.at[idx_render[:, 0], idx_render[:, 1]].set(sigma)
+                out_rgb = out_rgb.at[idx_render[:, 0], idx_render[:, 1]].set(rgb)
+                out_sh = out_sh.at[idx_render[:, 0], idx_render[:, 1]].set(sh)
+
+                # Apply mask to sigma
+                non_minus_one_mask = jnp.expand_dims(non_minus_one_mask, axis=-1)  # (batch_size, sample_size, 1)
+                out_sigma = out_sigma * non_minus_one_mask
+
+                # Volume rendering with the selected model
+                weights, _ = model.sigma2weights(deltas, out_sigma, non_minus_one_mask)  # (batch_size, sample_size)
+                weights_sum = weights.sum(axis=1)  # (batch_size,)
+                rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)  # (batch_size, 3)
+                rgb_final = rgb_final + (1 - weights_sum[..., None])  # Add white background, (batch_size, 3)
+
+                return rgb_final
+
+            def loss_from_sigma_sh(sigma_key, sh_key, results, rgbs):
+                # print keys in results
+                # for key in results.keys():
+                #    print(key)
+                # Select coarse or fine data
+                deltas = rays_data["deltas_coarse"] if sigma_key == "sigma_coarse" else rays_data["deltas_fine"]
+                rays_d = rays_data["rays_d"]
+                idx_render = results.get("idx_render_coarse" if sigma_key == "sigma_coarse" else "idx_render_fine")
+
+                # Access immediate sigma and sh from intermediates
+                # intermediates = results["intermediates"]
+                sigma_immediate_key = (
+                    "sigma_coarse_immediate" if sigma_key == "sigma_coarse" else "sigma_fine_immediate"
+                )
+                sh_immediate_key = "sh_coarse_immediate" if sigma_key == "sigma_coarse" else "sh_fine_immediate"
+                sigma = results[sigma_immediate_key]
+                sh = results[sh_immediate_key]
+
+                # Compute non_minus_one_mask
+                batch_size, sample_size = deltas.shape[:2]
+                non_minus_one_mask = jnp.ones((batch_size, sample_size))
+                non_one_idx = idx_render * (idx_render == -1)
+                non_minus_one_mask = non_minus_one_mask.at[non_one_idx].set(0)
+
+                # Compute rgb using immediate sigma and sh
+                rgb = compute_rgb_from_sigma_sh(
+                    sigma=sigma,
+                    sh=sh,
+                    deltas=deltas,
+                    rays_d=rays_d,
+                    idx_render=idx_render,
+                    sigma_default=config.model.sigma_default,  # Assuming this is in scope
+                    non_minus_one_mask=non_minus_one_mask,
+                    chunk_size=1024,
+                    sigma_key=sigma_key,
+                )
+
+                new_results = {**results}
+                if sigma_key == "sigma_coarse":
+                    new_results["rgb_coarse"] = rgb
+                else:
+                    new_results["rgb_fine"] = rgb
+                return self.loss_fn(new_results, rgbs)  # Assuming loss_fn is in scope
+
+            # Compute gradients w.r.t. sigma and sh with rendering included
+            sigma_grad_coarse_full = jax.grad(
+                lambda s: loss_from_sigma_sh(
+                    "sigma_coarse", "sh_coarse", {**results, "sigma_coarse_immediate": s}, rgbs_chunk
+                )
+            )(results["sigma_coarse_immediate"])
+            sh_grad_coarse_full = jax.grad(
+                lambda sh: loss_from_sigma_sh(
+                    "sigma_coarse", "sh_coarse", {**results, "sh_coarse_immediate": sh}, rgbs_chunk
+                )
+            )(results["sh_coarse_immediate"])
+            sigma_grad_fine_full = jax.grad(
+                lambda s: loss_from_sigma_sh(
+                    "sigma_fine", "sh_fine", {**results, "sigma_fine_immediate": s}, rgbs_chunk
+                )
+            )(results["sigma_fine_immediate"])
+            sh_grad_fine_full = jax.grad(
+                lambda sh: loss_from_sigma_sh("sigma_fine", "sh_fine", {**results, "sh_fine_immediate": sh}, rgbs_chunk)
+            )(results["sh_fine_immediate"])
+
+            # if idx_render_coarse is not None:
+            #    # Index with explicit column selection to keep shape
+            #    sigma_grad_coarse = sigma_grad_coarse_full[idx_render_coarse[:, 0], idx_render_coarse[:, 1], :]
+            # else:
+            #    sigma_grad_coarse = sigma_grad_coarse_full.reshape(-1, 1)
+
+            # Apply to all gradients
+            if idx_render_coarse is not None:
+                sigma_grad_coarse = sigma_grad_coarse_full[idx_render_coarse[:, 0], idx_render_coarse[:, 1]]
+                sh_grad_coarse = sh_grad_coarse_full[idx_render_coarse[:, 0], idx_render_coarse[:, 1]]
+                sigma_grad_coarse = sigma_grad_coarse_full.reshape(-1, 1)
+                sh_grad_coarse = sh_grad_coarse_full.reshape(-1, 27)
+                # print('s ta ')
+                # print(sigma_grad_coarse.shape)
+            else:
+                sigma_grad_coarse = sigma_grad_coarse_full.reshape(-1, 1)
+                sh_grad_coarse = sh_grad_coarse_full.reshape(-1, 27)
+
+            if idx_render_fine is not None:
+                sigma_grad_fine = sigma_grad_fine_full[idx_render_fine[:, 0], idx_render_fine[:, 1]]
+                sh_grad_fine = sh_grad_fine_full[idx_render_fine[:, 0], idx_render_fine[:, 1]]
+                sigma_grad_fine = sigma_grad_fine_full.reshape(-1, 1)
+                sh_grad_fine = sh_grad_fine_full.reshape(-1, 27)
+            else:
+                sigma_grad_fine = sigma_grad_fine_full.reshape(-1, 1)
+                sh_grad_fine = sh_grad_fine_full.reshape(-1, 27)
+
+            # print('SIGMA_GRAD_FINE SHAPE:', sigma_grad_fine.shape)
+            # print('SH_GRAD_FINE SHAPE:', sh_grad_fine.shape)
+
+            # expected_size = 262144
+            # if sigma_grad_fine.shape[0] < expected_size:
+            #    sigma_grad_fine = jnp.pad(sigma_grad_fine, ((0, expected_size - sigma_grad_fine.shape[0]), (0, 0)), mode='constant')
+            #    sh_grad_fine = jnp.pad(sh_grad_fine, ((0, expected_size - sh_grad_fine.shape[0]), (0, 0)), mode='constant')
+            # fa
+            # full_sigma_grad_fine = jnp.zeros((batch_size, config.model.coarse.samples * config.model.fine.samples, 1))
+            # full_sh_grad_fine = jnp.zeros((batch_size, config.model.coarse.samples * config.model.fine.samples, 27))
+
+            # print("full_sigma_grad_fine shape:", full_sigma_grad_fine.shape)
+            # print("full_sh_grad_fine shape:", full_sh_grad_fine.shape)
+
+            # Insert the computed gradients at the correct positions
+            # full_sigma_grad_fine = full_sigma_grad_fine.at[idx_render_fine[:, 0], idx_render_fine[:, 1]].set(sigma_grad_fine)
+            # full_sh_grad_fine = full_sh_grad_fine.at[idx_render_fine[:, 0], idx_render_fine[:, 1]].set(sh_grad_fine)
+
+            # print("full_sigma_grad_fine shape after set:", full_sigma_grad_fine.shape)
+            # print("full_sh_grad_fine shape after set:", full_sh_grad_fine.shape)
+
+            # Then reshape if needed
+            # sigma_grad_fine = full_sigma_grad_fine.reshape(-1, 1)
+            # sh_grad_fine = full_sh_grad_fine.reshape(-1, 27)
+
+            # print("sigma_grad_fine shape after reshape:", sigma_grad_fine.shape)
+            # print("sh_grad_fine shape after reshape:", sh_grad_fine.shape)
+
+            # Compute neural network gradients on "tt" device
+            grads = {}
+            if nn_backward_coarse is None or nn_backward_fine is None:
+                raise ValueError(
+                    "One or both nn_backward functions are None: coarse=%s, fine=%s"
+                    % (nn_backward_coarse is None, nn_backward_fine is None)
+                )
+            # print("in coarse") ok ima mnooooooogo koda
+            coarse_grads = nn_backward_coarse(sigma_grad_coarse, sh_grad_coarse)
+            # print("coarse grads")
+            fine_grads = nn_backward_fine(sigma_grad_fine, sh_grad_fine)
+            grads["nerf_coarse"] = coarse_grads
+            grads["nerf_fine"] = fine_grads
+
+            print("Global step: ", global_step)
+            print("Loss: ", loss)
+            # print("coarse_grads sample:", coarse_grads)  # Adjust based on your grad structure
+
+            # Update state
             if "sigma_voxels_coarse" in results:
-                self.nerf_tree_base.sigma_voxels_coarse = results["sigma_voxels_coarse"]  # Update outside tracing
+                self.nerf_tree_base.sigma_voxels_coarse = results["sigma_voxels_coarse"]
             if "index_voxels_coarse" in results:
                 self.nerf_tree_base.index_voxels_coarse = results["index_voxels_coarse"]
             if "voxels_fine" in results:
@@ -312,10 +492,10 @@ class EfficientNeRFSystem:
             state_coarse = state.state_coarse.apply_gradients(grads=grads["nerf_coarse"])
             state_fine = state.state_fine.apply_gradients(grads=grads["nerf_fine"])
 
-            self.state_coarse = state_coarse
-            self.state_fine = state_fine
-
             new_state = SystemState(state_coarse, state_fine)
+
+            # self.state_coarse.params = new_state.state_coarse.params
+            # self.state_fine.params = new_state.state_fine.params
 
         return new_state, loss, results, grads, rays_chunk, rgbs_chunk
 
