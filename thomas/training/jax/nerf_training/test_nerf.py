@@ -227,7 +227,7 @@ class EfficientNeRFSystem:
             nerf_tree.voxels_fine = self.nerf_tree_base.voxels_fine
 
             extract_time = global_step >= (self.config.training.epochs * self.train_steps_per_epoch - 1)
-            if extract_time and nerf_tree.voxels_fine is None:
+            if self.config.training.cache_voxels_fine and extract_time and nerf_tree.voxels_fine is None:
                 index_voxels_coarse, voxels_fine = nerf_tree.create_voxels_fine(
                     nerf_tree.sigma_voxels_coarse, nerf_tree.index_voxels_coarse
                 )
@@ -609,6 +609,7 @@ class EfficientNeRFSystem:
                 # Log only the first image (idx=0) to Wandb
                 if idx == 0:
                     img_np = np.array(img)
+                    img_np = np.clip(img_np, 0.0, 1.0)
                     img_gt_np = np.array(img_gt)
                     if config.training.log_on_wandb:
                         wandb.log(

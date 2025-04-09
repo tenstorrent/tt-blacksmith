@@ -49,6 +49,7 @@ class TrainingConfig(BaseModel):
     log_every: int = 5
     log_dir: str = "./logs"
     log_on_wandb: bool = False
+    cache_voxels_fine: bool = False
 
 
 class NerfConfig(BaseModel):

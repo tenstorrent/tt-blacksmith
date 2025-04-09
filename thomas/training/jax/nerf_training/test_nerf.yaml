@@ -42,3 +42,4 @@ training:
   warmup_epochs: 0
   log_every: 200
   log_on_wandb: False
+  cache_voxels_fine: False
