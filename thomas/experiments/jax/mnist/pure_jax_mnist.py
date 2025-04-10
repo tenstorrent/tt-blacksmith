@@ -69,7 +69,13 @@ def train_mnist():
     @jax.jit
     def mse_loss(params, x, y):
         logits = mlp_model(params, x)
-        return jnp.mean((logits - y) ** 2)
+        loss = jnp.mean((logits - y) ** 2)
+        return loss, logits
+
+    @jax.jit
+    def compute_loss_grads_logits(params, x, y):
+        (loss, logits), grads = jax.value_and_grad(mse_loss, argnums=0, has_aux=True)(params, x, y)
+        return loss, grads, logits
 
     # Gradient descent update rule (simple SGD)
     @jax.jit
@@ -152,16 +158,12 @@ def train_mnist():
                 x_batch = jax.device_put(x_batch_host, current_device)
                 y_batch = jax.device_put(y_batch_host, current_device)
 
-                logits = mlp_model(params, x_batch)
-
-                batch_accuracy = compute_accuracy(logits, y_batch)
-
-                grads = jax.grad(mse_loss, argnums=0)(params, x_batch, y_batch)
+                batch_loss, grads, logits = compute_loss_grads_logits(params, x_batch, y_batch)
 
                 w1, b1, w2, b2, w3, b3 = update(params, grads, learning_rate)
                 params = (w1, b1, w2, b2, w3, b3)
 
-                batch_loss = mse_loss(params, x_batch, y_batch)
+                batch_accuracy = compute_accuracy(logits, y_batch)
 
                 batch_loss_accum += batch_loss
                 batch_accuracy_accum += batch_accuracy
@@ -196,8 +198,7 @@ def train_mnist():
             x_batch = jax.device_put(x_batch_host, jax.devices()[0])
             y_batch = jax.device_put(y_batch_host, jax.devices()[0])
 
-            logits = mlp_model(params, x_batch)
-            batch_loss = mse_loss(params, x_batch, y_batch)
+            batch_loss, logits = mse_loss(params, x_batch, y_batch)
             batch_accuracy = compute_accuracy(logits, y_batch)
 
             total_loss += batch_loss * 1.0
