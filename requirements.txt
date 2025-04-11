@@ -1,2 +1,2 @@
-wandb>=0.12.10
-pydantic>2.0
+torchdata==0.19.8
+wandb==0.19.8
