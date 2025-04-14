@@ -7,9 +7,9 @@ from setuptools import find_packages, setup
 import os
 
 # Frontends can be tt-forge-fe or tt-xla
-FRONTEND = os.environ.get("TT_THOMAS_FRONTEND", "")
+FRONTEND = os.environ.get("TT_BLACKSMITH_FRONTEND", "")
 if not FRONTEND:
-    print("Error: TT_THOMAS_FRONTEND environment variable not set.")
+    print("Error: TT_BLACKSMITH_FRONTEND environment variable not set.")
     exit(1)
 
 
@@ -22,7 +22,7 @@ exclude_keywords = defaultdict(
 )
 
 
-all_packages = find_packages(include=["thomas*"])
+all_packages = find_packages(include=["blacksmith*"])
 excluded_packages = []
 for pkg in all_packages:
     for keyword in exclude_keywords[FRONTEND]:
@@ -31,9 +31,9 @@ for pkg in all_packages:
             break
 
 setup(
-    name="thomas",
+    name="blacksmith",
     version="0.1",
-    description="Tenstorrent Python Thomas",
+    description="Tenstorrent Python Blacksmith",
     packages=[pkg for pkg in all_packages if pkg not in excluded_packages],
-    package_dir={"thomas": "thomas"},
+    package_dir={"blacksmith": "blacksmith"},
 )
