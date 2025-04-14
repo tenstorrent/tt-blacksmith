@@ -2,8 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from pydantic import BaseModel, Field
-from thomas.models.jax.mnist.mnist_linear import MNISTLinearConfig
 from thomas.experiments.jax.mnist.logging.logger_config import LoggerConfig, get_default_logger_config
+
+
+class NetConfig(BaseModel):
+    input_size: int
+    output_size: int
+
+
+class MNISTLinearConfig(NetConfig):
+    input_size: int = 784
+    output_size: int = 10
+    hidden_size: int = 128
 
 
 class TrainingConfig(BaseModel):

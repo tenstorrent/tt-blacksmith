@@ -9,6 +9,7 @@ import jax._src.xla_bridge as xb
 
 
 def init_device():
+    priority = 500
     backend = "tt"
     path = os.path.join(os.getcwd(), "third_party/tt-xla/build/src/tt/pjrt_plugin_tt.so")
     if not os.path.exists(path):
@@ -17,6 +18,6 @@ def init_device():
     print("Loading tt_pjrt C API plugin", file=sys.stderr)
     xb.discover_pjrt_plugins()
 
-    plugin = xb.register_plugin("tt", priority=500, library_path=path, options=None)
+    plugin = xb.register_plugin(backend, priority=priority, library_path=path, options=None)
     print("Loaded", file=sys.stderr)
     jax.config.update("jax_platforms", "tt,cpu")

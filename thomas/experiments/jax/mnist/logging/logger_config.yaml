@@ -1,4 +1,5 @@
 log_hyperparameters: True
+experiment_name: "Flax mnist mlp training"
 wandb_dir: /proj_sw/training_artifacts/
 checkpoint:
     log_checkpoint: True

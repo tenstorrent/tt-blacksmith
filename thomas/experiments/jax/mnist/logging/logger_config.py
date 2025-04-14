@@ -1,13 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 from typing import Union
 
 from pydantic import BaseModel, Field, model_validator
 
 from thomas.tools.cli import generate_config
-
-DEFAULT_LOGGER_CONFIG = "thomas/experiments/jax/mnist/logging/logger_config.yaml"
 
 
 class CheckpointLoggerConfig(BaseModel):
@@ -29,6 +28,7 @@ class CheckpointLoggerConfig(BaseModel):
 class LoggerConfig(BaseModel):
     checkpoint: Union[None, CheckpointLoggerConfig] = Field(default=None)
     log_hyperparameters: bool
+    experiment_name: str
     wandb_dir: str
     log_train_loss: Union[None, str] = Field(default=None)
     log_train_accuracy: Union[None, str] = Field(default=None)
@@ -48,4 +48,5 @@ class LoggerConfig(BaseModel):
 
 
 def get_default_logger_config() -> LoggerConfig:
-    return generate_config(LoggerConfig, DEFAULT_LOGGER_CONFIG)
+    logger_config = os.path.join(os.path.dirname(__file__), "logger_config.yaml")
+    return generate_config(LoggerConfig, logger_config)

@@ -71,6 +71,7 @@ def save_checkpoint(ckpt_path, state, epoch):
     artifact.add_reference(f"file://{ckpt_path}")
 
     wandb.log_artifact(artifact, aliases=[f"epoch_{epoch}", "latest"])
+    artifact.wait()
 
 
 def load_checkpoint(ckpt_file, state, epoch):

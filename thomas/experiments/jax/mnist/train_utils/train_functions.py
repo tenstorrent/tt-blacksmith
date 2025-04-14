@@ -20,6 +20,7 @@ def forward_and_compute_loss(params, x, y):
     return loss
 
 
+# Currently loss is L2 and not cross entropy (https://github.com/tenstorrent/tt-xla/issues/288)
 @jax.jit
 def func_optax_loss(logits, labels):
     # one_hot_labels = jax.nn.one_hot(labels, num_classes=logits.shape[-1]).astype(jnp.float32)
