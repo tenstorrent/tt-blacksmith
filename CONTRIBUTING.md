@@ -14,7 +14,7 @@ The initial review will encompass the following:
 For internal contributions we have the following guidelines:
 
 * At least 1 reviewer signs off on the change
-* Green CI
+* Green CI (right now we don't have full CI setup, e.g. running tests, we will update the doc when is setup)
 
 ### Coding Guidelines and Standards
 TBD
