@@ -4,7 +4,7 @@ dataset_id: "stanfordnlp/sst2"
 # Model settings
 model_name: "meta-llama/Llama-3.2-1B"
 max_length: 128
-dtype: "torch.bfloat16" # "torch.float32"
+dtype: "torch.bfloat16"
 
 # Training hyperparameters
 learning_rate: 2e-5
@@ -23,9 +23,11 @@ lora_target_modules: "all-linear"
 
 # Other settings
 seed: 23
-output_dir: "thomas/experiments/pytorch/results/llama32-1b-bs32-bf16-ml128-r4-a8-adamw_torch"
+output_dir: "blacksmith/experiments/pytorch/llama/results/llama32-1b-checkpointtest"
 report_to: "wandb"
 wandb_project: "llama-finetuning"
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
 save_strategy: "epoch"
 logging_strategy: "steps"
 logging_steps: 10

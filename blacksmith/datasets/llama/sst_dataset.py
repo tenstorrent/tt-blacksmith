@@ -55,4 +55,4 @@ class SSTDataset:
         tokenized_eval_set = eval_set.map(self._tokenize_function, batched=True)
         tokenized_eval_set.set_format("torch", columns=self.required_columns)
 
-        return tokenized_train_set.select(range(1000)), tokenized_eval_set.select(range(100))
+        return tokenized_train_set, tokenized_eval_set

@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from datetime import datetime
 import os
 import re
 import json
@@ -16,6 +15,9 @@ from blacksmith.datasets.llama.sst_dataset import SSTDataset
 from blacksmith.datasets.llama.sst_utils import VALUE2LBL
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.hf_callbacks import GradientSavingCallback, ProfilerCallback, WandbMemoryCallback
+
+
+os.environ["WANDB_LOG_MODEL"] = "checkpoint"
 
 
 def setup_training(config, model, tokenizer, train_set, eval_set):
@@ -135,8 +137,8 @@ if __name__ == "__main__":
     dataset = SSTDataset(config)
     train_set, eval_set = dataset.load_tokenized_data()
 
-    run_name = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    wandb.init(project=config.wandb_project, name=run_name, config=vars(config))
+    wandb.init(project=config.wandb_project, config=vars(config))
+    wandb.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
 
     if config.do_train:
         train(config, model, dataset.tokenizer, train_set, eval_set)

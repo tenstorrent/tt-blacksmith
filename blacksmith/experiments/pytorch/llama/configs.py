@@ -30,9 +30,11 @@ class TrainingConfig(BaseModel):
 
     # Other settings
     seed: int = Field(default=23)
-    output_dir: str = Field(default="experiments/results/llama32-1b-bs32-ft32-ml128-r4-a8-adamw_torch")
+    output_dir: str = Field(default="experiments/results/llama32-1b")
     report_to: str = Field(default="wandb")
     wandb_project: str = Field(default="llama-finetuning")
+    wandb_watch_mode: str = Field(default="all")
+    wandb_log_freq: int = Field(default=1000)
     save_strategy: str = Field(default="epoch")
     logging_strategy: str = Field(default="steps")
     logging_steps: int = Field(default=10, gt=0)
