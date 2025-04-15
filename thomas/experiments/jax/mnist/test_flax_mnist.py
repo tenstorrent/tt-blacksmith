@@ -41,7 +41,7 @@ from thomas.experiments.jax.mnist.configs import ExperimentConfig
 
 def init_configs(config_path=None):
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(__file__), "test_jax_mnist.yaml")
+        config_path = os.path.join(os.path.dirname(__file__), "test_mnist.yaml")
 
     config = generate_config(ExperimentConfig, config_path)
 

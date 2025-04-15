@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 def train_mnist():
 
-    config_path = os.path.join(os.path.dirname(__file__), "test_jax_mnist.yaml")
+    config_path = os.path.join(os.path.dirname(__file__), "test_mnist.yaml")
     config = generate_config(ExperimentConfig, config_path)
 
     training_config = config.training_config
