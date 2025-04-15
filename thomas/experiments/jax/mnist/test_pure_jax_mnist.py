@@ -30,7 +30,7 @@ def train_mnist():
     net_config = config.net_config
     logger_config = config.logger_config
 
-    # init_device()
+    init_device()
 
     @jax.jit
     def mlp_model(params, x):

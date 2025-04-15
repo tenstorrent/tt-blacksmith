@@ -20,11 +20,6 @@ class Models:
     def __init__(self, model_type="MLP", hidden_size=128):
         if model_type == "MLP":
             self.model = MLP(hidden_size=hidden_size)
-        # Add other model types here
-        # elif model_type == 'CNN':
-        #     self.model = CNN()
-        # elif model_type == 'LLM':
-        #     self.model = LLM()
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
