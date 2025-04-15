@@ -233,10 +233,6 @@ def train(run_test=False, use_export_shlo=False, config_path=None):
     return state, best_epoch, best_val_loss
 
 
-def main():
-    train(run_test=True, use_export_shlo=False)
-
-
 if __name__ == "__main__":
     init_device()
-    main()
+    train(run_test=True, use_export_shlo=False)
