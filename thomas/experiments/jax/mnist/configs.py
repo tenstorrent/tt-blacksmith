@@ -20,6 +20,8 @@ class TrainingConfig(BaseModel):
     batch_size: int = 128
     epochs: int = 10
     lr: float = 0.001
+    run_test: bool = True
+    export_shlo: bool = False
 
 
 class ExperimentConfig(BaseModel):

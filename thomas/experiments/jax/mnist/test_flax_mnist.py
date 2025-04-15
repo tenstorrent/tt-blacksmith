@@ -107,7 +107,7 @@ def init_training(config):
     }
 
 
-def train(run_test=False, use_export_shlo=False, config_path=None):
+def train(config_path=None):
     config, base_checkpoint_dir = init_configs(config_path)
 
     training_components = init_training(config)
@@ -208,7 +208,7 @@ def train(run_test=False, use_export_shlo=False, config_path=None):
         checkpoint_file_path = os.path.join(checkpoint_dir, checkpoint_file_name)
         save_checkpoint(checkpoint_file_path, state, epoch)
 
-    if run_test:
+    if training_config.run_test:
         ckpt_file = os.path.join(base_checkpoint_dir, f"epoch={best_epoch:02d}", checkpoint_file_name)
         restored_state = load_checkpoint(ckpt_file, state, best_epoch)
         logits = eval_step(restored_state.params, test_images_host)
@@ -217,7 +217,7 @@ def train(run_test=False, use_export_shlo=False, config_path=None):
 
     wandb.finish()
 
-    if use_export_shlo:
+    if training_config.export_shlo:
         export_it = ExportSHLO()
         export_it.export_fwd_train_to_StableHLO_and_get_ops(
             forward_pass, state, training_components["shapes"]["input"], print_stablehlo=False
@@ -235,4 +235,4 @@ def train(run_test=False, use_export_shlo=False, config_path=None):
 
 if __name__ == "__main__":
     init_device()
-    train(run_test=True, use_export_shlo=False)
+    train()
