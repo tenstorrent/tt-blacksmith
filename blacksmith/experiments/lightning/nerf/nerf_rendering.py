@@ -4,7 +4,7 @@
 
 import torch
 
-from thomas.models.nerf import inference
+from blacksmith.models.nerf import inference
 
 
 def render_rays(

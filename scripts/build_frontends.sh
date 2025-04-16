@@ -1,10 +1,14 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # -e exit on error
 # -o pipefail return error code from any command in a pipeline
 set -eo pipefail
 
-install_tt_thomas() {
-    pip install -e "$TT_THOMAS_HOME"
-    pip install -r "$TT_THOMAS_HOME/requirements.txt"
+install_tt_blacksmith() {
+    pip install -e "$TT_BLACKSMITH_HOME"
+    pip install -r "$TT_BLACKSMITH_HOME/requirements.txt"
 }
 
 build_tt_forge_fe_env() {
@@ -28,12 +32,12 @@ build_tt_xla() {
         exit 1
     fi
 
-    TT_XLA_HOME="$TT_THOMAS_HOME/third_party/tt-xla"
+    TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     cd "$TT_XLA_HOME"
     source venv/activate
     cmake -G Ninja -B build
     cmake --build build
-    cd "$TT_THOMAS_HOME"
+    cd "$TT_BLACKSMITH_HOME"
 }
 
 build_tt_mlir() {
@@ -57,7 +61,7 @@ build_tt_mlir() {
     cmake --build "$TT_MLIR_HOME/env/build"
 }
 
-export TT_THOMAS_HOME="$(pwd)"
+export TT_BLACKSMITH_HOME="$(pwd)"
 
 tt_forge_fe=false
 tt_xla=false
@@ -76,7 +80,7 @@ done
 # Set the toolchain directory
 # This directory is used to store the toolchains for the different frontends
 if [ -z "$TOOLCHAIN_DIR" ]; then
-    TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
+    TOOLCHAIN_DIR="$TT_BLACKSMITH_HOME/third_party/toolchains"
 fi
 
 # Unlink the ttmlir-toolchain if it is a symlink
@@ -96,7 +100,7 @@ if ! command -v ninja &> /dev/null; then
 fi
 
 if [ "$tt_forge_fe" = true ]; then
-    export TT_FORGE_FE_HOME="$TT_THOMAS_HOME/third_party/tt-forge-fe"
+    export TT_FORGE_FE_HOME="$TT_BLACKSMITH_HOME/third_party/tt-forge-fe"
     export PROJECT_ROOT="$TT_FORGE_FE_HOME"
 
     mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
@@ -115,15 +119,15 @@ if [ "$tt_forge_fe" = true ]; then
     fi
     build_tt_forge_fe
 
-    export TT_THOMAS_FRONTEND="tt-forge-fe"
-    install_tt_thomas
-    unset TT_THOMAS_FRONTEND
+    export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
+    install_tt_blacksmith
+    unset TT_BLACKSMITH_FRONTEND
 
     sudo unlink /opt/ttmlir-toolchain
 fi
 
 if [ "$tt_xla" = true ]; then
-    export TT_XLA_HOME="$TT_THOMAS_HOME/third_party/tt-xla"
+    export TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     export PROJECT_ROOT="$TT_XLA_HOME"
 
     # Fist we need to set TTMLIR_TOOLCHAIN_DIR
@@ -143,8 +147,8 @@ if [ "$tt_xla" = true ]; then
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
 
     build_tt_xla
-    export TT_THOMAS_FRONTEND="tt-xla"
-    install_tt_thomas
-    unset TT_THOMAS_FRONTEND
+    export TT_BLACKSMITH_FRONTEND="tt-xla"
+    install_tt_blacksmith
+    unset TT_BLACKSMITH_FRONTEND
     sudo unlink /opt/ttmlir-toolchain
 fi

@@ -1,4 +1,8 @@
-export TT_THOMAS_HOME="$(pwd)"
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+export TT_BLACKSMITH_HOME="$(pwd)"
 
 tt_forge_fe=false
 tt_xla=false
@@ -35,7 +39,7 @@ fi
 
 # check if the TOOLCHAIN_DIR is set
 if [ -z "$TOOLCHAIN_DIR" ]; then
-    TOOLCHAIN_DIR="$TT_THOMAS_HOME/third_party/toolchains"
+    TOOLCHAIN_DIR="$TT_BLACKSMITH_HOME/third_party/toolchains"
 fi
 
 if [ "$tt_forge_fe" = true ]; then
@@ -53,7 +57,7 @@ if [ "$tt_forge_fe" = true ]; then
     if [ ! -d "/opt/ttforge-toolchain" ]; then
         sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
     fi
-    export PROJECT_ROOT="$TT_THOMAS_HOME/third_party/tt-forge-fe"
+    export PROJECT_ROOT="$TT_BLACKSMITH_HOME/third_party/tt-forge-fe"
     source "$PROJECT_ROOT/env/activate"
 fi
 
@@ -65,9 +69,9 @@ if [ "$tt_xla" = true ]; then
     fi
     export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
     sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
-    export PROJECT_ROOT="$TT_THOMAS_HOME/third_party/tt-xla"
+    export PROJECT_ROOT="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     # Activate environment will create a venv folder in the pwd, need to change directory
     cd "$PROJECT_ROOT"
     source "venv/activate"
-    cd "$TT_THOMAS_HOME"
+    cd "$TT_BLACKSMITH_HOME"
 fi

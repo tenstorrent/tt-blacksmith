@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-from thomas.experiments.lightning.nerf.utils.metrics import psnr
+from blacksmith.experiments.lightning.nerf.utils.metrics import psnr
 
 
 def log_gradients(log, model_coarse, model_fine):
