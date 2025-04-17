@@ -28,7 +28,9 @@ from utils import init_device
 
 from functools import partial
 
-# key = random.PRNGKey(0)
+import orbax.checkpoint as ocp
+from flax import serialization
+from typing import Callable
 
 
 class EfficientNeRFSystem:
@@ -188,7 +190,12 @@ class EfficientNeRFSystem:
                     sigma_voxels_coarse = value
 
             for keyyy, value_list in results.items():
-                results[keyyy] = jnp.concatenate(value_list, axis=0)
+                if isinstance(value_list, Callable):
+                    continue
+                if isinstance(value_list, (list, tuple)) and all(isinstance(v, jnp.ndarray) for v in value_list):
+                    results[keyyy] = jnp.concatenate(value_list, axis=0)
+                else:
+                    print(f"Skipping key '{keyyy}': value is not a list of arrays")
 
             # Add sigma_voxels_coarse to results (should be (384, 384, 384), not batch-dependent)
             if sigma_voxels_coarse is not None:
@@ -499,13 +506,13 @@ class EfficientNeRFSystem:
 
         return new_state, loss, results, grads, rays_chunk, rgbs_chunk
 
-    def validation_step(self, batch, batch_idx, global_step, key):
+    def validation_step(self, state, batch, batch_idx, global_step, key):
         with jax.default_device(jax.devices("cpu")[0]):
             rays, rgbs = batch["rays"], batch["rgbs"]
             rays = rays.squeeze()  # (4096, 6)
             rgbs = rgbs.squeeze()  # (4096, 3)
 
-            params = {"nerf_coarse": self.state_coarse.params, "nerf_fine": self.state_fine.params}
+            params = {"nerf_coarse": state.state_coarse.params, "nerf_fine": state.state_fine.params}
             tree_data = {
                 "sigma_voxels_coarse": self.nerf_tree_base.sigma_voxels_coarse,
                 "index_voxels_coarse": self.nerf_tree_base.index_voxels_coarse,
@@ -713,19 +720,121 @@ class SystemState:
         self.state_fine = state_fine
 
 
+import orbax.checkpoint as ocp
+import shutil
+
+import flax.serialization as flax_serialization
+from flax.serialization import from_state_dict, to_state_dict
+import jax
+import jax.numpy as jnp
+import os
+import shutil
+
+
+def save_checkpoint(state: SystemState, global_step: int, rng_key: jnp.ndarray, checkpoint_dir: str, keep_last_n: int):
+    """Save SystemState, global_step, and rng_key, keeping only the last three checkpoints."""
+    checkpoint_data = {
+        "state_coarse": state.state_coarse,
+        "state_fine": state.state_fine,
+        "global_step": global_step,
+        "rng_key": rng_key,
+    }
+    checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_{global_step}.flax")
+    with jax.default_device(jax.devices("cpu")[0]):
+        serialized_data = flax_serialization.to_bytes(checkpoint_data)
+        with open(checkpoint_path, "wb") as f:
+            f.write(serialized_data)
+
+    # Keep only the last three checkpoints
+    checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_") and f.endswith(".flax")]
+    if len(checkpoint_files) > keep_last_n:
+        steps = sorted([int(f.split("_")[1].split(".")[0]) for f in checkpoint_files])
+        oldest_step = steps[0]
+        oldest_checkpoint = os.path.join(checkpoint_dir, f"checkpoint_{oldest_step}.flax")
+        os.remove(oldest_checkpoint)
+        print(f"Deleted oldest checkpoint: checkpoint_{oldest_step}.flax")
+
+
+def load_latest_checkpoint(system, checkpoint_dir: str) -> tuple[SystemState, int, jnp.ndarray] | None:
+    """Load the latest checkpoint, return (SystemState, global_step, rng_key) or None."""
+    if not os.path.exists(checkpoint_dir):
+        return None
+
+    checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_") and f.endswith(".flax")]
+    if not checkpoint_files:
+        return None
+
+    steps = [int(f.split("_")[1].split(".")[0]) for f in checkpoint_files]
+    latest_step = max(steps)
+    latest_checkpoint = os.path.join(checkpoint_dir, f"checkpoint_{latest_step}.flax")
+
+    try:
+        with jax.default_device(jax.devices("cpu")[0]):
+            with open(latest_checkpoint, "rb") as f:
+                restored = flax_serialization.from_bytes(None, f.read())
+
+        # Convert restored dictionaries to TrainState
+        state_coarse = train_state.TrainState(
+            step=restored["state_coarse"]["step"],
+            apply_fn=system.nerf_coarse.apply,
+            params=restored["state_coarse"]["params"],
+            tx=system.state_coarse.tx,
+            opt_state=from_state_dict(system.state_coarse.opt_state, restored["state_coarse"]["opt_state"]),
+        )
+        state_fine = train_state.TrainState(
+            step=restored["state_fine"]["step"],
+            apply_fn=system.nerf_fine.apply,
+            params=restored["state_fine"]["params"],
+            tx=system.state_fine.tx,
+            opt_state=from_state_dict(system.state_fine.opt_state, restored["state_fine"]["opt_state"]),
+        )
+
+        state = SystemState(
+            state_coarse=state_coarse,
+            state_fine=state_fine,
+        )
+        return state, restored["global_step"], restored["rng_key"]
+    except Exception as e:
+        print(f"Failed to load checkpoint {latest_checkpoint}: {e}")
+        return None
+
+
 def main(config: NerfConfig):
 
     with jax.default_device(jax.devices("cpu")[0]):
         rng_key = random.PRNGKey(0)
 
     if config.training.log_on_wandb:
-        wandb.init(project="jax-nerf", config=config.__dict__)
+        wandb.init(project="jax-nerf", config=config.__dict__, name="EfficientNeRF_400_fwd_bwd_device")
+
+    checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
+    os.makedirs(checkpoint_dir, exist_ok=True)
 
     with jax.default_device(jax.devices("cpu")[0]):
         system = EfficientNeRFSystem(config, rng_key)
         system.prepare_data()
 
-        state = SystemState(system.state_coarse, system.state_fine)
+        # Initialize state and step
+        if config.training.resume:
+            checkpoint_data = load_latest_checkpoint(system, checkpoint_dir)
+            if checkpoint_data:
+                state, start_step, rng_key = checkpoint_data
+                # Run validation to log metrics
+                val_iter = iter(system.val_dataloader)
+                system.validation_step_outputs = []
+                for batch_idx in range(system.val_steps_per_epoch):
+                    print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
+                    batch = next(val_iter)
+                    rng_key, subkey = random.split(rng_key)
+                    system.validation_step(state, batch, batch_idx, start_step, subkey)
+                system.on_validation_epoch_end()
+            else:
+                print("Resume requested but no checkpoint found, starting from scratch")
+                state = SystemState(system.state_coarse, system.state_fine)
+                start_step = 0
+        else:
+            state = SystemState(system.state_coarse, system.state_fine)
+            start_step = 0
 
         train_iter = iter(system.train_dataloader)
         total_steps = config.training.epochs * system.train_steps_per_epoch
@@ -733,38 +842,49 @@ def main(config: NerfConfig):
         for epoch in range(config.training.epochs):
             system.current_epoch = epoch
             for step in range(system.train_steps_per_epoch):
-
                 global_step = epoch * system.train_steps_per_epoch + step
+
+                if global_step < start_step:
+                    batch = next(train_iter)
+                    continue
+
                 batch = next(train_iter)
-
-                # if step > 1 and step < 975:
-                #    continue
-
                 rng_key, subkey = random.split(rng_key)
 
                 state = train_step(system, state, batch, global_step, subkey)
 
+                if global_step % config.checkpoint.save_every == 0:
+                    save_checkpoint(state, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last_n)
+                    print(f"Saved checkpoint at step {global_step}")
+
                 if global_step % config.training.log_every == 10:
-                    val_iter = iter(system.val_dataloader)  # Reset iterator each validation
+                    val_iter = iter(system.val_dataloader)
                     system.validation_step_outputs = []
-                    for batch_idx in range(system.val_steps_per_epoch):  # 195 steps
+                    for batch_idx in range(system.val_steps_per_epoch):
                         print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
                         batch = next(val_iter)
                         rng_key, subkey = random.split(rng_key)
-                        system.validation_step(batch, batch_idx, global_step, subkey)
+                        system.validation_step(state, batch, batch_idx, global_step, subkey)
                     system.on_validation_epoch_end()
 
-        # Final validation
+        # Final validation and checkpoint
         val_iter = iter(system.val_dataloader)
         system.validation_step_outputs = []
         for batch_idx in range(system.val_steps_per_epoch):
             batch = next(val_iter)
-            system.validation_step(batch, batch_idx, total_steps)
+            rng_key, subkey = random.split(rng_key)
+            system.validation_step(state, batch, batch_idx, total_steps, subkey)
         system.on_validation_epoch_end()
+
+        save_checkpoint(state, total_steps, rng_key, checkpoint_dir)
+        print(f"Saved final checkpoint at step {total_steps}")
 
 
 if __name__ == "__main__":
+
     init_device()
+
     config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
     config = load_config(config_file_path)
+    # print(config.checkpoint.save_dir)
     main(config)

@@ -41,7 +41,7 @@ def pose_spherical(theta: float, phi: float, radius: float) -> jnp.ndarray:
 
 
 class BlenderDataset:
-    def __init__(self, root_dir: str, split: str = "train", img_wh: Tuple[int, int] = (200, 200)):
+    def __init__(self, root_dir: str, split: str = "train", img_wh: Tuple[int, int] = (400, 400)):
         self.root_dir = root_dir
         self.split = split
         if img_wh[0] != img_wh[1]:
@@ -55,8 +55,8 @@ class BlenderDataset:
 
         # Compute focal length before directions
         w, h = self.img_wh
-        self.focal = 0.5 * 200 / jnp.tan(0.5 * self.meta["camera_angle_x"])
-        self.focal *= self.img_wh[0] / 200
+        self.focal = 0.5 * 400 / jnp.tan(0.5 * self.meta["camera_angle_x"])
+        self.focal *= self.img_wh[0] / 400
 
         # Precompute directions
         directions = get_ray_directions(h, w, self.focal)  # (h, w, 3)

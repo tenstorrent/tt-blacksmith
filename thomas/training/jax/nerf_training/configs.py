@@ -50,6 +50,13 @@ class TrainingConfig(BaseModel):
     log_dir: str = "./logs"
     log_on_wandb: bool = False
     cache_voxels_fine: bool = False
+    resume: bool = False
+
+
+class CheckpointConfig(BaseModel):
+    save_dir: str = "./checkpoints"
+    save_every: int = 500
+    keep_last: int = 3
 
 
 class NerfConfig(BaseModel):
@@ -58,6 +65,7 @@ class NerfConfig(BaseModel):
     model: ModelConfig = ModelConfig()
     data_loading: DataLoadingConfig = DataLoadingConfig()
     training: TrainingConfig = TrainingConfig()
+    checkpoint: CheckpointConfig = CheckpointConfig()
 
 
 def load_config(path: str) -> NerfConfig:
