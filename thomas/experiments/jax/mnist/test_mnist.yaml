@@ -1,0 +1,10 @@
+net_config:
+    input_size: 784
+    hidden_size: 128
+    output_size: 10
+training_config:
+    batch_size: 1
+    lr: 0.001
+    epochs: 10
+    run_test: true
+    export_shlo: false
