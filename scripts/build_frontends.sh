@@ -14,7 +14,7 @@ install_tt_blacksmith() {
 build_tt_forge_fe_env() {
     echo "Building forge frontend environment"
     source "$TT_FORGE_FE_HOME/env/activate"
-    cmake -B "$TT_FORGE_FE_HOME/env/build" "$TT_FORGE_FE_HOME/env"
+    cmake -B "$TT_FORGE_FE_HOME/env/build" -DTTFORGE_SKIP_BUILD_TTMLIR_ENV=ON "$TT_FORGE_FE_HOME/env"
     cmake --build "$TT_FORGE_FE_HOME/env/build"
 }
 
@@ -27,11 +27,7 @@ build_tt_forge_fe() {
 
 build_tt_xla() {
     echo "Building tt-xla"
-    if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
-        echo "TTMLIR_TOOLCHAIN_DIR is not set"
-        exit 1
-    fi
-
+    
     TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     cd "$TT_XLA_HOME"
     source venv/activate
@@ -40,22 +36,10 @@ build_tt_xla() {
     cd "$TT_BLACKSMITH_HOME"
 }
 
-build_tt_mlir() {
+build_tt_mlir_env() {
     echo "Building tt-mlir"
-    if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
-        echo "TTMLIR_TOOLCHAIN_DIR is not set"
-        exit 1
-    fi
 
-    if [ -d "$TOOLCHAIN_DIR/tt-mlir" ]; then
-        rm -rf "$TOOLCHAIN_DIR/tt-mlir/"
-    fi
-
-    git clone https://github.com/tenstorrent/tt-mlir.git "$TOOLCHAIN_DIR/tt-mlir"
-    TT_MLIR_HOME="$TOOLCHAIN_DIR/tt-mlir"
-
-    mkdir -p "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain"
-    sudo ln -s "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain" /opt/
+    git clone https://github.com/tenstorrent/tt-mlir.git "$TT_MLIR_HOME"
 
     cmake -B "$TT_MLIR_HOME/env/build" "$TT_MLIR_HOME/env"
     cmake --build "$TT_MLIR_HOME/env/build"
@@ -83,15 +67,6 @@ if [ -z "$TOOLCHAIN_DIR" ]; then
     TOOLCHAIN_DIR="$TT_BLACKSMITH_HOME/third_party/toolchains"
 fi
 
-# Unlink the ttmlir-toolchain if it is a symlink
-OPT_MLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
-if [ -L "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
-    sudo unlink "$OPT_MLIR_TOOLCHAIN_DIR"
-elif [ -d "$OPT_MLIR_TOOLCHAIN_DIR" ]; then
-    echo "ttmlir-toolchain directory exists, please remove it"
-    return 1
-fi
-
 # Update submodules
 git submodule update --init --recursive
 # Install ninja if not installed
@@ -99,56 +74,29 @@ if ! command -v ninja &> /dev/null; then
     sudo apt install ninja-build
 fi
 
+# If full build build mlir env
+if [ "$full_build" = true ]; then
+    TT_MLIR_HOME="$TT_BLACKSMITH_HOME/third_party/tt-mlir"
+    build_tt_mlir_env
+fi
+
 if [ "$tt_forge_fe" = true ]; then
     export TT_FORGE_FE_HOME="$TT_BLACKSMITH_HOME/third_party/tt-forge-fe"
     export PROJECT_ROOT="$TT_FORGE_FE_HOME"
-
-    mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain"
-    mkdir -p "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain"
-
-    # For ttmlir-toolchain is already checked in the previous step
-    sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
-    # Check if ttforge-toolchain is symlink, this will return error if the directory exists
-    if [ -L "/opt/ttforge-toolchain" ]; then
-        sudo unlink /opt/ttforge-toolchain
-    fi
-    sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
 
     if [ "$full_build" = true ]; then
         build_tt_forge_fe_env
     fi
     build_tt_forge_fe
-
-    export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
-    install_tt_blacksmith
-    unset TT_BLACKSMITH_FRONTEND
-
-    sudo unlink /opt/ttmlir-toolchain
 fi
 
 if [ "$tt_xla" = true ]; then
     export TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     export PROJECT_ROOT="$TT_XLA_HOME"
 
-    # Fist we need to set TTMLIR_TOOLCHAIN_DIR
-    export TTMLIR_TOOLCHAIN_DIR="$OPT_MLIR_TOOLCHAIN_DIR"
-
-    if [ "$full_build" = true ]; then
-        build_tt_mlir
-        sudo unlink /opt/ttmlir-toolchain
-
-        if [ -d "$TOOLCHAIN_DIR/tt-xla" ]; then
-            rm -rf "$TOOLCHAIN_DIR/tt-xla/"
-        fi
-
-        mkdir -p "$TOOLCHAIN_DIR/tt-xla"
-        cp -r "$TOOLCHAIN_DIR/tt-mlir/ttmlir-toolchain" "$TOOLCHAIN_DIR/tt-xla/"
-    fi
-    sudo ln -s "$TOOLCHAIN_DIR/tt-xla/ttmlir-toolchain" /opt/
-
     build_tt_xla
-    export TT_BLACKSMITH_FRONTEND="tt-xla"
-    install_tt_blacksmith
-    unset TT_BLACKSMITH_FRONTEND
-    sudo unlink /opt/ttmlir-toolchain
 fi
+
+# Install tt-blacksmith
+# TODO: make this better
+install_tt_blacksmith
