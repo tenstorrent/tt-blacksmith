@@ -197,11 +197,9 @@ class EfficientNeRFSystem:
                 else:
                     print(f"Skipping key '{keyyy}': value is not a list of arrays")
 
-            # Add sigma_voxels_coarse to results (should be (384, 384, 384), not batch-dependent)
             if sigma_voxels_coarse is not None:
                 results["sigma_voxels_coarse"] = sigma_voxels_coarse
             else:
-                # Fallback to tree_data if not updated (unlikely, but for safety)
                 results["sigma_voxels_coarse"] = tree_data["sigma_voxels_coarse"]
 
             return results
@@ -216,7 +214,7 @@ class EfficientNeRFSystem:
                 total_loss = total_loss + fine_loss
             return total_loss
 
-    def training_step(self, state, batch, global_step, rng_key):
+    def training_step(self, batch, global_step, rng_key):
 
         with jax.default_device(jax.devices("cpu")[0]):
             rays, rgbs = batch["rays"], batch["rgbs"]
@@ -282,19 +280,16 @@ class EfficientNeRFSystem:
             }
 
             # Forward pass
-            params = {"nerf_coarse": state.state_coarse.params, "nerf_fine": state.state_fine.params}
+            params = {"nerf_coarse": self.state_coarse.params, "nerf_fine": self.state_fine.params}
             results = self.forward(rays, rays_data, params, tree_data, global_step, rng_key)
             loss = self.loss_fn(results, rays_data["rgbs_chunk"])
 
             print("Loss: ", loss)
 
-            # Extract neural network backward functions (fix duplicate pop)
             nn_backward_coarse = results.pop("nn_backward_coarse", None)
             nn_backward_fine = results.pop("nn_backward_fine", None)
             idx_render_coarse = results.get("idx_render_coarse")  # Use get to avoid KeyError
             idx_render_fine = results.get("idx_render_fine")
-
-            # time.sleep(1000)
 
             rgb_valid_idx = results.get("rgb_valid", None)
 
@@ -302,66 +297,46 @@ class EfficientNeRFSystem:
             def compute_rgb_from_sigma_sh(
                 sigma, sh, deltas, rays_d, idx_render, sigma_default, non_minus_one_mask, chunk_size, sigma_key
             ):
-                batch_size, sample_size = deltas.shape[:2]  # e.g., (4096, 64)
-                real_chunk_size = idx_render.shape[0]  # Number of valid samples (e.g., 262144)
+                batch_size, sample_size = deltas.shape[:2]
+                real_chunk_size = idx_render.shape[0]
 
-                # Select model based on sigma_key
                 model = self.nerf_coarse if "coarse" in sigma_key else self.nerf_fine
 
-                # Expand ray directions to match sample size
-                view_dir = jnp.expand_dims(rays_d, 1).repeat(sample_size, axis=1)  # (batch_size, sample_size, 3)
-                view_dir_flat = view_dir[idx_render[:, 0], idx_render[:, 1]]  # (real_chunk_size, 3)
-
-                # Pad inputs to chunk size
+                view_dir = jnp.expand_dims(rays_d, 1).repeat(sample_size, axis=1)
+                view_dir_flat = view_dir[idx_render[:, 0], idx_render[:, 1]]
 
                 sigma = sigma.reshape(-1, 1)
                 sh = sh.reshape(-1, 27)
 
-                # sigma_padded = jnp.concatenate([sigma, jnp.zeros((chunk_size - real_chunk_size, 1))], axis=0)
-                # sh_padded = jnp.concatenate([sh, jnp.zeros((chunk_size - real_chunk_size, 27))], axis=0)
-                # view_dir_padded = jnp.concatenate([view_dir_flat, jnp.zeros((chunk_size - real_chunk_size, 3))], axis=0)
-
-                # Compute RGB from sigma and sh using the selected model's sh2rgb method
                 sigma_out, rgb, sh_out = model.sh2rgb(sigma, sh, model.deg, view_dir_flat)
 
-                # Trim padded outputs back to real_chunk_size
                 sigma = sigma_out[:real_chunk_size]
                 rgb = rgb[:real_chunk_size]
                 sh = sh_out[:real_chunk_size]
 
-                # Initialize output arrays with defaults
-                out_rgb = jnp.ones((batch_size, sample_size, 3))  # Default white
-                out_sigma = jnp.full((batch_size, sample_size, 1), sigma_default)  # Default sigma
-                out_sh = jnp.zeros((batch_size, sample_size, 27))  # Default zeros
+                out_rgb = jnp.ones((batch_size, sample_size, 3))
+                out_sigma = jnp.full((batch_size, sample_size, 1), sigma_default)
+                out_sh = jnp.zeros((batch_size, sample_size, 27))
 
-                # Scatter computed values into output arrays using idx_render
                 out_sigma = out_sigma.at[idx_render[:, 0], idx_render[:, 1]].set(sigma)
                 out_rgb = out_rgb.at[idx_render[:, 0], idx_render[:, 1]].set(rgb)
                 out_sh = out_sh.at[idx_render[:, 0], idx_render[:, 1]].set(sh)
 
-                # Apply mask to sigma
-                non_minus_one_mask = jnp.expand_dims(non_minus_one_mask, axis=-1)  # (batch_size, sample_size, 1)
+                non_minus_one_mask = jnp.expand_dims(non_minus_one_mask, axis=-1)
                 out_sigma = out_sigma * non_minus_one_mask
 
-                # Volume rendering with the selected model
-                weights, _ = model.sigma2weights(deltas, out_sigma, non_minus_one_mask)  # (batch_size, sample_size)
-                weights_sum = weights.sum(axis=1)  # (batch_size,)
-                rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)  # (batch_size, 3)
-                rgb_final = rgb_final + (1 - weights_sum[..., None])  # Add white background, (batch_size, 3)
+                weights, _ = model.sigma2weights(deltas, out_sigma, non_minus_one_mask)
+                weights_sum = weights.sum(axis=1)
+                rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)
+                rgb_final = rgb_final + (1 - weights_sum[..., None])
 
                 return rgb_final
 
             def loss_from_sigma_sh(sigma_key, sh_key, results, rgbs):
-                # print keys in results
-                # for key in results.keys():
-                #    print(key)
-                # Select coarse or fine data
                 deltas = rays_data["deltas_coarse"] if sigma_key == "sigma_coarse" else rays_data["deltas_fine"]
                 rays_d = rays_data["rays_d"]
                 idx_render = results.get("idx_render_coarse" if sigma_key == "sigma_coarse" else "idx_render_fine")
 
-                # Access immediate sigma and sh from intermediates
-                # intermediates = results["intermediates"]
                 sigma_immediate_key = (
                     "sigma_coarse_immediate" if sigma_key == "sigma_coarse" else "sigma_fine_immediate"
                 )
@@ -369,20 +344,18 @@ class EfficientNeRFSystem:
                 sigma = results[sigma_immediate_key]
                 sh = results[sh_immediate_key]
 
-                # Compute non_minus_one_mask
                 batch_size, sample_size = deltas.shape[:2]
                 non_minus_one_mask = jnp.ones((batch_size, sample_size))
                 non_one_idx = idx_render * (idx_render == -1)
                 non_minus_one_mask = non_minus_one_mask.at[non_one_idx].set(0)
 
-                # Compute rgb using immediate sigma and sh
                 rgb = compute_rgb_from_sigma_sh(
                     sigma=sigma,
                     sh=sh,
                     deltas=deltas,
                     rays_d=rays_d,
                     idx_render=idx_render,
-                    sigma_default=config.model.sigma_default,  # Assuming this is in scope
+                    sigma_default=config.model.sigma_default,
                     non_minus_one_mask=non_minus_one_mask,
                     chunk_size=1024,
                     sigma_key=sigma_key,
@@ -393,9 +366,8 @@ class EfficientNeRFSystem:
                     new_results["rgb_coarse"] = rgb
                 else:
                     new_results["rgb_fine"] = rgb
-                return self.loss_fn(new_results, rgbs)  # Assuming loss_fn is in scope
+                return self.loss_fn(new_results, rgbs)
 
-            # Compute gradients w.r.t. sigma and sh with rendering included
             sigma_grad_coarse_full = jax.grad(
                 lambda s: loss_from_sigma_sh(
                     "sigma_coarse", "sh_coarse", {**results, "sigma_coarse_immediate": s}, rgbs_chunk
@@ -415,20 +387,11 @@ class EfficientNeRFSystem:
                 lambda sh: loss_from_sigma_sh("sigma_fine", "sh_fine", {**results, "sh_fine_immediate": sh}, rgbs_chunk)
             )(results["sh_fine_immediate"])
 
-            # if idx_render_coarse is not None:
-            #    # Index with explicit column selection to keep shape
-            #    sigma_grad_coarse = sigma_grad_coarse_full[idx_render_coarse[:, 0], idx_render_coarse[:, 1], :]
-            # else:
-            #    sigma_grad_coarse = sigma_grad_coarse_full.reshape(-1, 1)
-
-            # Apply to all gradients
             if idx_render_coarse is not None:
                 sigma_grad_coarse = sigma_grad_coarse_full[idx_render_coarse[:, 0], idx_render_coarse[:, 1]]
                 sh_grad_coarse = sh_grad_coarse_full[idx_render_coarse[:, 0], idx_render_coarse[:, 1]]
                 sigma_grad_coarse = sigma_grad_coarse_full.reshape(-1, 1)
                 sh_grad_coarse = sh_grad_coarse_full.reshape(-1, 27)
-                # print('s ta ')
-                # print(sigma_grad_coarse.shape)
             else:
                 sigma_grad_coarse = sigma_grad_coarse_full.reshape(-1, 1)
                 sh_grad_coarse = sh_grad_coarse_full.reshape(-1, 27)
@@ -442,35 +405,6 @@ class EfficientNeRFSystem:
                 sigma_grad_fine = sigma_grad_fine_full.reshape(-1, 1)
                 sh_grad_fine = sh_grad_fine_full.reshape(-1, 27)
 
-            # print('SIGMA_GRAD_FINE SHAPE:', sigma_grad_fine.shape)
-            # print('SH_GRAD_FINE SHAPE:', sh_grad_fine.shape)
-
-            # expected_size = 262144
-            # if sigma_grad_fine.shape[0] < expected_size:
-            #    sigma_grad_fine = jnp.pad(sigma_grad_fine, ((0, expected_size - sigma_grad_fine.shape[0]), (0, 0)), mode='constant')
-            #    sh_grad_fine = jnp.pad(sh_grad_fine, ((0, expected_size - sh_grad_fine.shape[0]), (0, 0)), mode='constant')
-            # fa
-            # full_sigma_grad_fine = jnp.zeros((batch_size, config.model.coarse.samples * config.model.fine.samples, 1))
-            # full_sh_grad_fine = jnp.zeros((batch_size, config.model.coarse.samples * config.model.fine.samples, 27))
-
-            # print("full_sigma_grad_fine shape:", full_sigma_grad_fine.shape)
-            # print("full_sh_grad_fine shape:", full_sh_grad_fine.shape)
-
-            # Insert the computed gradients at the correct positions
-            # full_sigma_grad_fine = full_sigma_grad_fine.at[idx_render_fine[:, 0], idx_render_fine[:, 1]].set(sigma_grad_fine)
-            # full_sh_grad_fine = full_sh_grad_fine.at[idx_render_fine[:, 0], idx_render_fine[:, 1]].set(sh_grad_fine)
-
-            # print("full_sigma_grad_fine shape after set:", full_sigma_grad_fine.shape)
-            # print("full_sh_grad_fine shape after set:", full_sh_grad_fine.shape)
-
-            # Then reshape if needed
-            # sigma_grad_fine = full_sigma_grad_fine.reshape(-1, 1)
-            # sh_grad_fine = full_sh_grad_fine.reshape(-1, 27)
-
-            # print("sigma_grad_fine shape after reshape:", sigma_grad_fine.shape)
-            # print("sh_grad_fine shape after reshape:", sh_grad_fine.shape)
-
-            # Compute neural network gradients on "tt" device
             grads = {}
             if nn_backward_coarse is None or nn_backward_fine is None:
                 raise ValueError(
@@ -484,9 +418,7 @@ class EfficientNeRFSystem:
 
             print("Global step: ", global_step)
             print("Loss: ", loss)
-            # print("coarse_grads sample:", coarse_grads)  # Adjust based on your grad structure
 
-            # Update state
             if "sigma_voxels_coarse" in results:
                 self.nerf_tree_base.sigma_voxels_coarse = results["sigma_voxels_coarse"]
             if "index_voxels_coarse" in results:
@@ -494,23 +426,18 @@ class EfficientNeRFSystem:
             if "voxels_fine" in results:
                 self.nerf_tree_base.voxels_fine = results["voxels_fine"]
 
-            state_coarse = state.state_coarse.apply_gradients(grads=grads["nerf_coarse"])
-            state_fine = state.state_fine.apply_gradients(grads=grads["nerf_fine"])
+            self.state_coarse = self.state_coarse.apply_gradients(grads=grads["nerf_coarse"])
+            self.state_fine = self.state_fine.apply_gradients(grads=grads["nerf_fine"])
 
-            new_state = SystemState(state_coarse, state_fine)
+        return loss, results, grads, rays_chunk, rgbs_chunk
 
-            # self.state_coarse.params = new_state.state_coarse.params
-            # self.state_fine.params = new_state.state_fine.params
-
-        return new_state, loss, results, grads, rays_chunk, rgbs_chunk
-
-    def validation_step(self, state, batch, batch_idx, global_step, key):
+    def validation_step(self, batch, batch_idx, global_step, key):
         with jax.default_device(jax.devices("cpu")[0]):
             rays, rgbs = batch["rays"], batch["rgbs"]
             rays = rays.squeeze()  # (4096, 6)
             rgbs = rgbs.squeeze()  # (4096, 3)
 
-            params = {"nerf_coarse": state.state_coarse.params, "nerf_fine": state.state_fine.params}
+            params = {"nerf_coarse": self.state_coarse.params, "nerf_fine": self.state_fine.params}
             tree_data = {
                 "sigma_voxels_coarse": self.nerf_tree_base.sigma_voxels_coarse,
                 "index_voxels_coarse": self.nerf_tree_base.index_voxels_coarse,
@@ -554,16 +481,15 @@ class EfficientNeRFSystem:
             log["val_loss"] = self.loss_fn(results, rgbs)
             typ = "fine" if "rgb_fine" in results else "coarse"
 
-            W, H = self.config.data_loading.img_wh  # (200, 200)
-            # Map batch_idx to image index (0 to 19)
-            img_idx = batch_idx // ((W * H // 4096) + 1)  # 10 batches per image
-            batch_within_image = batch_idx % ((W * H // 4096) + 1)  # 0 to 9
+            W, H = self.config.data_loading.img_wh
+            img_idx = batch_idx // ((W * H // 4096) + 1)
+            batch_within_image = batch_idx % ((W * H // 4096) + 1)
             self.validation_step_outputs.append(
                 {
-                    "img": results[f"rgb_{typ}"],  # (4096, 3)
-                    "gt": rgbs,  # (4096, 3)
-                    "idx": img_idx,  # Image index (0 to 19)
-                    "batch_idx": batch_within_image,  # Batch within image (0 to 9)
+                    "img": results[f"rgb_{typ}"],
+                    "gt": rgbs,
+                    "idx": img_idx,
+                    "batch_idx": batch_within_image,
                 }
             )
 
@@ -607,11 +533,9 @@ class EfficientNeRFSystem:
                 pred_rays = jnp.concatenate(pred_batches, axis=0)[: W * H]
                 gt_rays = jnp.concatenate(gt_batches, axis=0)[: W * H]
 
-                # Just reshape to verify it works, no saving
                 img = pred_rays.reshape(H, W, 3)
                 img_gt = gt_rays.reshape(H, W, 3)
 
-                # Log only the first image (idx=0) to Wandb
                 if idx == 0:
                     img_np = np.array(img)
                     img_np = np.clip(img_np, 0.0, 1.0)
@@ -630,23 +554,14 @@ class EfficientNeRFSystem:
             # Convert JAX arrays to numpy for Wandb logging
             sigma_voxels_coarse_np = np.array(self.nerf_tree_base.sigma_voxels_coarse)
             index_voxels_coarse_np = np.array(self.nerf_tree_base.index_voxels_coarse)
-            # print(self.nerf_tree_base.voxels_fine)
             voxels_fine_np = np.array(self.nerf_tree_base.voxels_fine)
 
-            # Create histograms or summary statistics since these might be large arrays
             if config.training.log_on_wandb:
                 wandb_log_dict = {
                     "val/loss": float(mean_loss),
                     "val/psnr": float(mean_psnr),
-                    # "val/num_voxels_coarse": int(num_voxels_coarse),
-                    # "val/sigma_voxels_coarse_hist": wandb.Histogram(sigma_voxels_coarse_np.flatten()),
-                    # "val/index_voxels_coarse_hist": wandb.Histogram(index_voxels_coarse_np.flatten()),
-                    # "val/voxels_fine_hist": wandb.Histogram(voxels_fine_np.flatten()),
-                    # "val/sigma_voxels_coarse_mean": float(np.mean(sigma_voxels_coarse_np)),
-                    # "val/voxels_fine_mean": float(np.mean(voxels_fine_np))
                 }
 
-            # Log all metrics to Wandb
             if config.training.log_on_wandb:
                 wandb.log(wandb_log_dict, step=self.global_step)
 
@@ -658,16 +573,13 @@ class EfficientNeRFSystem:
             self.validation_step_outputs = []
 
 
-def train_step(system, state, batch, step, rng_key):
+def train_step(system, batch, step, rng_key):
     with jax.default_device(jax.devices("cpu")[0]):
-        state, loss, results, grads, rays_chunk, rgbs_chunk = system.training_step(state, batch, step, rng_key)
+        loss, results, grads, rays_chunk, rgbs_chunk = system.training_step(batch, step, rng_key)
         system.global_step = step
         print(f"Step {step}, Loss: {loss}")
         log_dict = {"train/loss": float(loss)}
-        # print(weights_coarse.shape)
-        # print(weights_fine.shape)
 
-        # Helper function to recursively log weights
         def log_weights(params, prefix=""):
             for keyyy, value in params.items():
                 current_path = f"{prefix}/{keyyy}" if prefix else keyyy
@@ -683,23 +595,18 @@ def train_step(system, state, batch, step, rng_key):
 
         # Log all weights for coarse and fine models
         if config.training.log_on_wandb:
-            log_weights(state.state_coarse.params, "coarse")
-            log_weights(state.state_fine.params, "fine")
+            log_weights(system.state_coarse.params, "coarse")
+            log_weights(system.state_fine.params, "fine")
 
-        # Compute and log training PSNR
-        rgbs = batch["rgbs"]  # Ground truth RGB values
-        pred_rgb = results.get("rgb_fine", results["rgb_coarse"])  # Use fine if available, else coarse
-        mse = jnp.mean((pred_rgb - rgbs_chunk) ** 2)  # Mean Squared Error
-        psnr = -10.0 * jnp.log10(mse)  # PSNR formula
+        rgbs = batch["rgbs"]
+        pred_rgb = results.get("rgb_fine", results["rgb_coarse"])
+        mse = jnp.mean((pred_rgb - rgbs_chunk) ** 2)
+        psnr = -10.0 * jnp.log10(mse)
         log_dict["train/psnr"] = float(psnr)
 
-        # Flatten and log gradients (unchanged)
         coarse_grads_flat = jax.tree_util.tree_leaves(grads["nerf_coarse"])
         fine_grads_flat = jax.tree_util.tree_leaves(grads["nerf_fine"])
-        # coarse_grads_mean = jnp.mean(jnp.concatenate([jnp.ravel(g) for g in coarse_grads_flat]))
-        # fine_grads_mean = jnp.mean(jnp.concatenate([jnp.ravel(g) for g in fine_grads_flat]))
-        # log_dict["train/grads_coarse_mean"] = float(coarse_grads_mean)
-        # log_dict["train/grads_fine_mean"] = float(fine_grads_mean)
+
         log_dict["train/grads_coarse_hist"] = wandb.Histogram(
             np_histogram=np.histogram(np.concatenate([g.flatten() for g in coarse_grads_flat]), bins=50)
         )
@@ -709,13 +616,7 @@ def train_step(system, state, batch, step, rng_key):
 
         if config.training.log_on_wandb:
             wandb.log(log_dict, step=step)
-        return state
-
-
-class SystemState:
-    def __init__(self, state_coarse, state_fine):
-        self.state_coarse = state_coarse
-        self.state_fine = state_fine
+        return system
 
 
 import orbax.checkpoint as ocp
@@ -729,21 +630,46 @@ import os
 import shutil
 
 
-def save_checkpoint(state: SystemState, global_step: int, rng_key: jnp.ndarray, checkpoint_dir: str, keep_last_n: int):
-    """Save SystemState, global_step, and rng_key, keeping only the last three checkpoints."""
+def save_checkpoint(
+    system: EfficientNeRFSystem, global_step: int, rng_key: jnp.ndarray, checkpoint_dir: str, keep_last_n: int
+):
     checkpoint_data = {
-        "state_coarse": state.state_coarse,
-        "state_fine": state.state_fine,
+        "system": {
+            "state_coarse": system.state_coarse,
+            "state_fine": system.state_fine,
+            "nerf_tree_base": {
+                "sigma_voxels_coarse": system.nerf_tree_base.sigma_voxels_coarse,
+                "index_voxels_coarse": system.nerf_tree_base.index_voxels_coarse,
+                "voxels_fine": system.nerf_tree_base.voxels_fine,
+                "xyz_min": jnp.array(system.nerf_tree_base.xyz_min, dtype=jnp.float32),
+                "xyz_max": jnp.array(system.nerf_tree_base.xyz_max, dtype=jnp.float32),
+                "grid_coarse": system.nerf_tree_base.grid_coarse,
+                "grid_fine": system.nerf_tree_base.grid_fine,
+                "deg": system.nerf_tree_base.deg,
+                "sigma_init": system.nerf_tree_base.sigma_init,
+                "sigma_default": system.nerf_tree_base.sigma_default,
+            },
+            "global_step": system.global_step,
+            "current_epoch": system.current_epoch,
+            # "config": system.config,
+            "in_channels_xyz": system.in_channels_xyz,
+            "in_channels_dir": system.in_channels_dir,
+            "deg": system.deg,
+            "dim_sh": system.dim_sh,
+            "sigma_init": system.sigma_init,
+            "sigma_default": system.sigma_default,
+            "near": system.near,
+            "far": system.far,
+        },
         "global_step": global_step,
         "rng_key": rng_key,
     }
     checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_{global_step}.flax")
     with jax.default_device(jax.devices("cpu")[0]):
-        serialized_data = flax_serialization.to_bytes(checkpoint_data)
+        serialized_data = serialization.to_bytes(checkpoint_data)
         with open(checkpoint_path, "wb") as f:
             f.write(serialized_data)
 
-    # Keep only the last three checkpoints
     checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_") and f.endswith(".flax")]
     if len(checkpoint_files) > keep_last_n:
         steps = sorted([int(f.split("_")[1].split(".")[0]) for f in checkpoint_files])
@@ -753,8 +679,9 @@ def save_checkpoint(state: SystemState, global_step: int, rng_key: jnp.ndarray, 
         print(f"Deleted oldest checkpoint: checkpoint_{oldest_step}.flax")
 
 
-def load_latest_checkpoint(system, checkpoint_dir: str) -> tuple[SystemState, int, jnp.ndarray] | None:
-    """Load the latest checkpoint, return (SystemState, global_step, rng_key) or None."""
+def load_latest_checkpoint(
+    checkpoint_dir: str, config: NerfConfig, rng_key: jnp.ndarray
+) -> tuple[EfficientNeRFSystem, int, jnp.ndarray] | None:
     if not os.path.exists(checkpoint_dir):
         return None
 
@@ -766,116 +693,208 @@ def load_latest_checkpoint(system, checkpoint_dir: str) -> tuple[SystemState, in
     latest_step = max(steps)
     latest_checkpoint = os.path.join(checkpoint_dir, f"checkpoint_{latest_step}.flax")
 
+    print(f"Loading checkpoint: {latest_checkpoint}")
+
     try:
         with jax.default_device(jax.devices("cpu")[0]):
             with open(latest_checkpoint, "rb") as f:
-                restored = flax_serialization.from_bytes(None, f.read())
+                restored = serialization.from_bytes(None, f.read())
 
-        # Convert restored dictionaries to TrainState
-        state_coarse = train_state.TrainState(
-            step=restored["state_coarse"]["step"],
+        system = EfficientNeRFSystem(config, rng_key)
+
+        system.state_coarse = train_state.TrainState(
+            step=restored["system"]["state_coarse"]["step"],
             apply_fn=system.nerf_coarse.apply,
-            params=restored["state_coarse"]["params"],
+            params=restored["system"]["state_coarse"]["params"],
             tx=system.state_coarse.tx,
-            opt_state=from_state_dict(system.state_coarse.opt_state, restored["state_coarse"]["opt_state"]),
+            opt_state=from_state_dict(system.state_coarse.opt_state, restored["system"]["state_coarse"]["opt_state"]),
+            # opt_state=restored["system"]["state_coarse"]["opt_state"],
         )
-        state_fine = train_state.TrainState(
-            step=restored["state_fine"]["step"],
+        system.state_fine = train_state.TrainState(
+            step=restored["system"]["state_fine"]["step"],
             apply_fn=system.nerf_fine.apply,
-            params=restored["state_fine"]["params"],
+            params=restored["system"]["state_fine"]["params"],
             tx=system.state_fine.tx,
-            opt_state=from_state_dict(system.state_fine.opt_state, restored["state_fine"]["opt_state"]),
+            opt_state=from_state_dict(system.state_fine.opt_state, restored["system"]["state_fine"]["opt_state"]),
+            # opt_state=restored["system"]["state_fine"]["opt_state"],
         )
 
-        state = SystemState(
-            state_coarse=state_coarse,
-            state_fine=state_fine,
+        # Ensure xyz_min/max are JAX arrays with shape (1, 3)
+        xyz_min = jnp.array(restored["system"]["nerf_tree_base"]["xyz_min"], dtype=jnp.float32)
+        xyz_max = jnp.array(restored["system"]["nerf_tree_base"]["xyz_max"], dtype=jnp.float32)
+        # Reshape to (1, 3) if necessary
+        if xyz_min.ndim == 2 and xyz_min.shape[0] == 1:
+            xyz_min = xyz_min
+        elif xyz_min.ndim == 1:
+            xyz_min = xyz_min.reshape(1, 3)
+        else:
+            raise ValueError(f"Unexpected xyz_min shape: {xyz_min.shape}")
+        if xyz_max.ndim == 2 and xyz_max.shape[0] == 1:
+            xyz_max = xyz_max
+        elif xyz_max.ndim == 1:
+            xyz_max = xyz_max.reshape(1, 3)
+        else:
+            raise ValueError(f"Unexpected xyz_max shape: {xyz_max.shape}")
+
+        system.nerf_tree_base = NerfTree(
+            xyz_min=xyz_min,
+            xyz_max=xyz_max,
+            grid_coarse=restored["system"]["nerf_tree_base"]["grid_coarse"],
+            grid_fine=restored["system"]["nerf_tree_base"]["grid_fine"],
+            deg=restored["system"]["nerf_tree_base"]["deg"],
+            sigma_init=restored["system"]["nerf_tree_base"]["sigma_init"],
+            sigma_default=restored["system"]["nerf_tree_base"]["sigma_default"],
         )
-        return state, restored["global_step"], restored["rng_key"]
+        system.nerf_tree_base.sigma_voxels_coarse = (
+            jnp.array(restored["system"]["nerf_tree_base"]["sigma_voxels_coarse"])
+            if restored["system"]["nerf_tree_base"]["sigma_voxels_coarse"] is not None
+            else None
+        )
+        system.nerf_tree_base.index_voxels_coarse = (
+            jnp.array(restored["system"]["nerf_tree_base"]["index_voxels_coarse"])
+            if restored["system"]["nerf_tree_base"]["index_voxels_coarse"] is not None
+            else None
+        )
+        system.nerf_tree_base.voxels_fine = (
+            jnp.array(restored["system"]["nerf_tree_base"]["voxels_fine"])
+            if restored["system"]["nerf_tree_base"]["voxels_fine"] is not None
+            else None
+        )
+
+        system.global_step = restored["system"]["global_step"]
+        system.current_epoch = restored["system"]["current_epoch"]
+        system.in_channels_xyz = restored["system"]["in_channels_xyz"]
+        system.in_channels_dir = restored["system"]["in_channels_dir"]
+        system.deg = restored["system"]["deg"]
+        system.dim_sh = restored["system"]["dim_sh"]
+        system.sigma_init = restored["system"]["sigma_init"]
+        system.sigma_default = restored["system"]["sigma_default"]
+        system.near = restored["system"]["near"]
+        system.far = restored["system"]["far"]
+
+        system.prepare_data()
+
+        def print_dict(obj, prefix="", indent=0):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    print(f"{'  ' * indent}{prefix}{key}: type={type(value)}")
+                    print_dict(value, f"{prefix}{key}.", indent + 1)
+            elif isinstance(obj, (list, tuple)):
+                for i, value in enumerate(obj):
+                    print(f"{'  ' * indent}{prefix}[{i}]: type={type(value)}")
+                    print_dict(value, f"{prefix}[{i}].", indent + 1)
+            else:
+                print(f"{'  ' * indent}{prefix}value: {repr(obj)}")
+
+        print("\n=== state_coarse opt_state contents ===")
+        print_dict(restored["system"]["state_coarse"]["opt_state"], "opt_state.")
+        print("\n=== state_fine opt_state contents ===")
+        print_dict(restored["system"]["state_fine"]["opt_state"], "opt_state.")
+
+        def check_for_strings(obj, path=""):
+            if isinstance(obj, str):
+                print(f"Found string in opt_state at {path}: {obj}")
+            elif isinstance(obj, (dict, list, tuple)):
+                for i, v in enumerate(obj) if isinstance(obj, (list, tuple)) else obj.items():
+                    check_for_strings(v, f"{path}[{i}]" if isinstance(obj, (list, tuple)) else f"{path}.{i}")
+
+        print("\nChecking for strings in opt_state:")
+        check_for_strings(restored["system"]["state_coarse"]["opt_state"], "state_coarse.opt_state")
+        check_for_strings(restored["system"]["state_fine"]["opt_state"], "state_fine.opt_state")
+
+        return system, restored["global_step"], restored["rng_key"]
     except Exception as e:
         print(f"Failed to load checkpoint {latest_checkpoint}: {e}")
         return None
 
 
 def main(config: NerfConfig):
-
     with jax.default_device(jax.devices("cpu")[0]):
         rng_key = random.PRNGKey(0)
 
     if config.training.log_on_wandb:
-        wandb.init(project="jax-nerf", config=config.__dict__, name="EfficientNeRF_400_fwd_bwd_device_lr8e-4")
+        wandb.init(project="jax-nerf", config=config.__dict__, name="EfficientNeRF_400_fwd_bwd_device_TEST")
 
     checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     with jax.default_device(jax.devices("cpu")[0]):
-        system = EfficientNeRFSystem(config, rng_key)
-        system.prepare_data()
-
-        # Initialize state and step
         if config.training.resume:
-            checkpoint_data = load_latest_checkpoint(system, checkpoint_dir)
+            checkpoint_data = load_latest_checkpoint(checkpoint_dir, config, rng_key)
             if checkpoint_data:
-                state, start_step, rng_key = checkpoint_data
-                # Run validation to log metrics
+                system, start_step, rng_key = checkpoint_data
+                print(f"Resuming from checkpoint at step {start_step}")
+                print("state_coarse type:", type(system.state_coarse))
+                print("state_coarse has params:", hasattr(system.state_coarse, "params"))
+                print("state_coarse opt_state type:", type(system.state_coarse.opt_state))
+                print("state_fine type:", type(system.state_fine))
+                print("state_fine has params:", hasattr(system.state_fine, "params"))
+                print("state_fine opt_state type:", type(system.state_fine.opt_state))
+                print(
+                    "nerf_tree_base.index_voxels_coarse shape:",
+                    system.nerf_tree_base.index_voxels_coarse.shape
+                    if system.nerf_tree_base.index_voxels_coarse is not None
+                    else None,
+                )
                 val_iter = iter(system.val_dataloader)
                 system.validation_step_outputs = []
                 for batch_idx in range(system.val_steps_per_epoch):
                     print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
                     batch = next(val_iter)
                     rng_key, subkey = random.split(rng_key)
-                    system.validation_step(state, batch, batch_idx, start_step, subkey)
+                    system.validation_step(batch, batch_idx, start_step, subkey)
                 system.on_validation_epoch_end()
             else:
                 print("Resume requested but no checkpoint found, starting from scratch")
-                state = SystemState(system.state_coarse, system.state_fine)
+                system = EfficientNeRFSystem(config, rng_key)
+                system.prepare_data()
                 start_step = 0
         else:
-            state = SystemState(system.state_coarse, system.state_fine)
+            system = EfficientNeRFSystem(config, rng_key)
+            system.prepare_data()
             start_step = 0
 
-        train_iter = iter(system.train_dataloader)
-        total_steps = config.training.epochs * system.train_steps_per_epoch
+        if config.training.val_only == False:
+            train_iter = iter(system.train_dataloader)
+            total_steps = config.training.epochs * system.train_steps_per_epoch
 
-        for epoch in range(config.training.epochs):
-            system.current_epoch = epoch
-            for step in range(system.train_steps_per_epoch):
-                global_step = epoch * system.train_steps_per_epoch + step
+            for epoch in range(config.training.epochs):
+                system.current_epoch = epoch
+                for step in range(system.train_steps_per_epoch):
+                    global_step = epoch * system.train_steps_per_epoch + step
 
-                if global_step < start_step:
+                    if global_step < start_step:
+                        batch = next(train_iter)
+                        continue
+
                     batch = next(train_iter)
-                    continue
+                    rng_key, subkey = random.split(rng_key)
 
-                batch = next(train_iter)
+                    system = train_step(system, batch, global_step, subkey)
+
+                    if global_step % config.checkpoint.save_every == 0:
+                        save_checkpoint(system, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last)
+                        print(f"Saved checkpoint at step {global_step}")
+
+                    if global_step % config.training.log_every == 199:
+                        val_iter = iter(system.val_dataloader)
+                        system.validation_step_outputs = []
+                        for batch_idx in range(system.val_steps_per_epoch):
+                            print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
+                            batch = next(val_iter)
+                            rng_key, subkey = random.split(rng_key)
+                            system.validation_step(batch, batch_idx, global_step, subkey)
+                        system.on_validation_epoch_end()
+
+            val_iter = iter(system.val_dataloader)
+            system.validation_step_outputs = []
+            for batch_idx in range(system.val_steps_per_epoch):
+                batch = next(val_iter)
                 rng_key, subkey = random.split(rng_key)
-
-                state = train_step(system, state, batch, global_step, subkey)
-
-                if global_step % config.checkpoint.save_every == 0:
-                    save_checkpoint(state, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last)
-                    print(f"Saved checkpoint at step {global_step}")
-
-                if global_step % config.training.log_every == 499:
-                    val_iter = iter(system.val_dataloader)
-                    system.validation_step_outputs = []
-                    for batch_idx in range(system.val_steps_per_epoch):
-                        print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
-                        batch = next(val_iter)
-                        rng_key, subkey = random.split(rng_key)
-                        system.validation_step(state, batch, batch_idx, global_step, subkey)
-                    system.on_validation_epoch_end()
-
-        # Final validation and checkpoint
-        val_iter = iter(system.val_dataloader)
-        system.validation_step_outputs = []
-        for batch_idx in range(system.val_steps_per_epoch):
-            batch = next(val_iter)
-            rng_key, subkey = random.split(rng_key)
-            system.validation_step(state, batch, batch_idx, total_steps, subkey)
-        system.on_validation_epoch_end()
-
-        save_checkpoint(state, total_steps, rng_key, checkpoint_dir)
-        print(f"Saved final checkpoint at step {total_steps}")
+                system.validation_step(batch, batch_idx, total_steps, subkey)
+            system.on_validation_epoch_end()
+            save_checkpoint(system, total_steps, rng_key, checkpoint_dir, config.checkpoint.keep_last)
+            print(f"Saved final checkpoint at step {total_steps}")
 
 
 if __name__ == "__main__":

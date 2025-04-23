@@ -31,7 +31,7 @@ data_loading:
 training:
   use_forge: True
   device: cpu
-  val_only: True
+  val_only: False
   epochs: 15
   loss: mse
   optimizer: radam
@@ -40,12 +40,12 @@ training:
     weight_decay: 0.0005
   warmup_multiplier: 1.0
   warmup_epochs: 0
-  log_every: 500
+  log_every: 200
   log_on_wandb: True
   cache_voxels_fine: False
-  resume: False
+  resume: True
 
 checkpoint:
-  save_dir: /proj_sw/user_dev/umales/jax_nerf_checkpoints8e4 # until I solve permission stuff
+  save_dir: /proj_sw/user_dev/umales/jax_nerf_checkpointsTEST # until I solve permission stuff
   save_every: 200
   keep_last: 3
