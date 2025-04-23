@@ -27,7 +27,7 @@ build_tt_forge_fe() {
 
 build_tt_xla() {
     echo "Building tt-xla"
-    
+
     TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     cd "$TT_XLA_HOME"
     source venv/activate
