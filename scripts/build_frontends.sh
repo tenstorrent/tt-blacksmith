@@ -17,9 +17,8 @@ install_tt_forge_fe() {
     source envs/ffe_env/bin/activate
 
     pip install -r "$TT_BLACKSMITH_HOME/envs/ffe_requirements.txt"
-    pip install -r "$TT_BLACKSMITH_HOME/requirements.txt"
+    pip install -r "$TT_BLACKSMITH_HOME/envs/requirements.txt"
     # pip install --upgrade pydantic
-    deactivate
 }
 
 build_tt_xla() {
@@ -58,17 +57,11 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-# Set the toolchain directory
-# This directory is used to store the toolchains for the different frontends
-if [ -z "$TOOLCHAIN_DIR" ]; then
-    TOOLCHAIN_DIR="$TT_BLACKSMITH_HOME/third_party/toolchains"
-fi
-
-
-
 if [ "$tt_forge_fe" = true ]; then
     install_tt_forge_fe
     export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
+    install_tt_blacksmith
+    deactivate
 fi
 
 if [ "$tt_xla" = true ]; then
@@ -90,4 +83,5 @@ if [ "$tt_xla" = true ]; then
     build_tt_xla
     export TT_BLACKSMITH_FRONTEND="tt-xla"
     install_tt_blacksmith
+    deactivate
 fi

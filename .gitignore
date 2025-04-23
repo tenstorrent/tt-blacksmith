@@ -7,3 +7,4 @@ checkpoints/
 wandb/
 results/
 envs/ffe_env
+logs/
