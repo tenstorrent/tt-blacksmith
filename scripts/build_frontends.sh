@@ -7,6 +7,7 @@
 set -eo pipefail
 
 install_tt_blacksmith() {
+    pip install -r "$TT_BLACKSMITH_HOME/envs/requirements.txt"
     pip install -e "$TT_BLACKSMITH_HOME"
 }
 
@@ -17,8 +18,6 @@ install_tt_forge_fe() {
     source envs/ffe_env/bin/activate
 
     pip install -r "$TT_BLACKSMITH_HOME/envs/ffe_requirements.txt"
-    pip install -r "$TT_BLACKSMITH_HOME/envs/requirements.txt"
-    # pip install --upgrade pydantic
 }
 
 build_tt_xla() {
@@ -49,16 +48,28 @@ export TT_BLACKSMITH_HOME="$(pwd)"
 tt_forge_fe=false
 tt_xla=false
 full_build=false
+clean=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --ffe) tt_forge_fe=true ;;
         --xla) tt_xla=true ;;
         --full) full_build=true ;;
+        --clean) clean=true ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
+
+if [ "$clean" = true ]; then
+    rm -rf "$TT_BLACKSMITH_HOME/third_party/tt-xla/build"
+
+    if [ "$full_build" = true ]; then
+        rm -rf "$TT_BLACKSMITH_HOME/third_party/tt-mlir/"
+    fi
+
+    exit 0
+fi
 
 if [ "$tt_forge_fe" = true ]; then
     install_tt_forge_fe
