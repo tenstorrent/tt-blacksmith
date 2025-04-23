@@ -8,15 +8,15 @@ from jax import random
 import wandb
 import os
 
-from thomas.tools.cli import generate_config
-from thomas.tools.jax_utils import init_device
+from blacksmith.tools.cli import generate_config
+from blacksmith.tools.jax_utils import init_device
 
 
-from thomas.datasets.mnist.dataloader import load_mnist
+from blacksmith.datasets.mnist.dataloader import load_mnist
 
-from thomas.experiments.jax.mnist.logging.wandb_utils import init_wandb
-from thomas.experiments.jax.mnist.logging.logger_config import get_default_logger_config
-from thomas.experiments.jax.mnist.configs import ExperimentConfig
+from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
+from blacksmith.experiments.jax.mnist.logging.logger_config import get_default_logger_config
+from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 from pydantic import BaseModel, Field
 

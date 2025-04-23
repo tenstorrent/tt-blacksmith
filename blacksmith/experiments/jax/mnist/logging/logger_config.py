@@ -6,7 +6,7 @@ from typing import Union
 
 from pydantic import BaseModel, Field, model_validator
 
-from thomas.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config
 
 
 class CheckpointLoggerConfig(BaseModel):

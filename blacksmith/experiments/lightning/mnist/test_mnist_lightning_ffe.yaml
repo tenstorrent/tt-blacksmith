@@ -1,4 +1,4 @@
-experiment_name: thomas-mnist
+experiment_name: blacksmith-mnist
 tags:
     - tt-forge-fe
     - model:torch

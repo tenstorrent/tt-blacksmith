@@ -11,7 +11,7 @@ The experiment is designed to run on the lightning framework.
 ## Training
 
 ```bash
-python3 thomas/experiments/lightning/nerf/test_nerf.py
+python3 blacksmith/experiments/lightning/nerf/test_nerf.py
 ```
 
 ## Data

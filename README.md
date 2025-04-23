@@ -1,4 +1,4 @@
-# tt-thomas
+# tt-blacksmith
 
 ## Prerequisites
 
