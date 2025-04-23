@@ -42,31 +42,32 @@ Current `test_llama_fine_tuning.yaml` has the recommended and tested hyperparame
 
 ### Configuration Paramaters
 
-Parameter | Description | Default Value
-dataset_id | The dataset used for fine-tuning. | "stanfordnlp/sst2"
-model_name | Name or path of the pre-trained LLaMA model. | "meta-llama/Llama-3.2-1B"
-max_length | Maximum token length for inputs. | 128
-dtype | Data type used during training. | "torch.bfloat16"
-learning_rate | Learning rate for the optimizer. | 2e-5
-batch_size | Number of samples per training batch. | 32
-gradient_accumulation_steps | Number of steps to accumulate gradients before updating. | 1
-gradient_checkpointing | Whether to use gradient checkpointing to save memory. | False
-num_epochs | Total number of training epochs. | 1
-optim | Optimizer to use for training. | "adamw_torch"
-lora_r | Rank of the LoRA adaptation matrices. | 4
-lora_alpha | Scaling factor for the LoRA updates. | 8
-lora_dropout | Dropout probability for LoRA layers. | 0.1
-lora_bias | Whether to adapt bias parameters (none, all, lora_only). | "none"
-lora_target_modules | Target modules for applying LoRA adaptation. | "all-linear"
-seed | Random seed for reproducibility. | 23
-output_dir | Directory to save model checkpoints and logs. | "experiments/results/llama32-1b"
-report_to | Backend for experiment tracking. | "wandb"
-wandb_project | Project name for Weights & Biases logging. | "llama-finetuning"
-wandb_watch_mode | Watch mode for model parameters in wandb. | "all"
-wandb_log_freq | Frequency of logging to wandb (in steps). | 1000
-save_strategy | Strategy for saving checkpoints (epoch, steps, etc.). | "epoch"
-logging_strategy | Strategy for logging (steps, epoch, etc.). | "steps"
-logging_steps | Frequency of logging (in steps). | 10
-save_total_limit | Maximum number of checkpoints to keep. | 3
-do_train | Whether to run training. | True
-do_eval | Whether to run evaluation. | True
+| Parameter | Description | Default Value|
+| --- | --- | --- |
+| `dataset_id` | The dataset used for fine-tuning. | "stanfordnlp/sst2" |
+| `model_name` | Name or path of the pre-trained LLaMA model. | "meta-llama/Llama-3.2-1B" |
+| `max_length` | Maximum token length for inputs. | 128 |
+| `dtype` | Data type used during training. | "torch.bfloat16" |
+| `learning_rate` | Learning rate for the optimizer. | 2e-5 |
+| `batch_size` | Number of samples per training batch. | 32 |
+| `gradient_accumulation_steps` | Number of steps to accumulate gradients before updating. | 1 |
+| `gradient_checkpointing` | Whether to use gradient checkpointing to save memory. | False |
+| `num_epochs` | Total number of training epochs. | 1 |
+| `optim` | Optimizer to use for training. | "adamw_torch" |
+| `lora_r` | Rank of the LoRA adaptation matrices. | 4 |
+| `lora_alpha` | Scaling factor for the LoRA updates. | 8 |
+| `lora_dropout` | Dropout probability for LoRA layers. | 0.1 |
+| `lora_bias` | Whether to adapt bias parameters (none, all, lora_only). | "none" |
+| `lora_target_modules` | Target modules for applying LoRA adaptation. | "all-linear" |
+| `seed` | Random seed for reproducibility. | 23 |
+| `output_dir` | Directory to save model checkpoints and logs. | "experiments/results/llama32-1b" |
+| `report_to` | Backend for experiment tracking. | "wandb" |
+| `wandb_project` | Project name for Weights & Biases logging. | "llama-finetuning" |
+| `wandb_watch_mode` | Watch mode for model parameters in wandb. | "all" |
+| `wandb_log_freq` | Frequency of logging to wandb (in steps). | 1000 |
+| `save_strategy` | Strategy for saving checkpoints (epoch, steps, etc.). | "epoch" |
+| `logging_strategy` | Strategy for logging (steps, epoch, etc.). | "steps" |
+| `logging_steps` | Frequency of logging (in steps). | 10 |
+| `save_total_limit` | Maximum number of checkpoints to keep. | 3 |
+| `do_train` | Whether to run training. | True |
+| `do_eval` | Whether to run evaluation. | True |
