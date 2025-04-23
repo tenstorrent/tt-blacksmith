@@ -35,7 +35,10 @@ build_tt_xla() {
 build_tt_mlir_env() {
     echo "Building tt-mlir"
 
-    git clone https://github.com/tenstorrent/tt-mlir.git "$TT_MLIR_HOME"
+    # check if tt-mlir is cloned
+    if [ ! -d "$TT_MLIR_HOME" ]; then
+        git clone https://github.com/tenstorrent/tt-mlir.git "$TT_MLIR_HOME"
+    fi
 
     cmake -B "$TT_MLIR_HOME/env/build" "$TT_MLIR_HOME/env"
     cmake --build "$TT_MLIR_HOME/env/build"
@@ -67,6 +70,12 @@ fi
 if [ "$tt_xla" = true ]; then
     export TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     export PROJECT_ROOT="$TT_XLA_HOME"
+
+    # check if TTMLIR_TOOLCHAIN_DIR is set
+    if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+    fi
+    
     # Update submodules
     git submodule update --init --recursive
     # Install ninja if not installed
