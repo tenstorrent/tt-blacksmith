@@ -477,9 +477,7 @@ class EfficientNeRFSystem:
                     "One or both nn_backward functions are None: coarse=%s, fine=%s"
                     % (nn_backward_coarse is None, nn_backward_fine is None)
                 )
-            # print("in coarse") ok ima mnooooooogo koda
             coarse_grads = nn_backward_coarse(sigma_grad_coarse, sh_grad_coarse)
-            # print("coarse grads")
             fine_grads = nn_backward_fine(sigma_grad_fine, sh_grad_fine)
             grads["nerf_coarse"] = coarse_grads
             grads["nerf_fine"] = fine_grads
@@ -805,7 +803,7 @@ def main(config: NerfConfig):
         rng_key = random.PRNGKey(0)
 
     if config.training.log_on_wandb:
-        wandb.init(project="jax-nerf", config=config.__dict__, name="EfficientNeRF_400_fwd_bwd_device")
+        wandb.init(project="jax-nerf", config=config.__dict__, name="EfficientNeRF_400_fwd_bwd_device_lr8e-4")
 
     checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
@@ -854,10 +852,10 @@ def main(config: NerfConfig):
                 state = train_step(system, state, batch, global_step, subkey)
 
                 if global_step % config.checkpoint.save_every == 0:
-                    save_checkpoint(state, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last_n)
+                    save_checkpoint(state, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last)
                     print(f"Saved checkpoint at step {global_step}")
 
-                if global_step % config.training.log_every == 10:
+                if global_step % config.training.log_every == 499:
                     val_iter = iter(system.val_dataloader)
                     system.validation_step_outputs = []
                     for batch_idx in range(system.val_steps_per_epoch):

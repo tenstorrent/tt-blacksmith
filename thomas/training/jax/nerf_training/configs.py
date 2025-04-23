@@ -29,7 +29,7 @@ class ModelConfig(BaseModel):
 
 class DataLoadingConfig(BaseModel):
     input_dir: str = "/proj_sw/training_data/tt_nerf_white"
-    img_wh: List[int] = Field(default=[200, 200])
+    img_wh: List[int] = Field(default=[400, 400])
     batch_size: int = 1024
 
 
