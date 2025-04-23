@@ -6,3 +6,4 @@ generated_modules/
 checkpoints/
 wandb/
 results/
+envs/ffe_env

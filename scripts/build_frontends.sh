@@ -8,21 +8,18 @@ set -eo pipefail
 
 install_tt_blacksmith() {
     pip install -e "$TT_BLACKSMITH_HOME"
-    pip install -r "$TT_BLACKSMITH_HOME/requirements.txt"
 }
 
-build_tt_forge_fe_env() {
-    echo "Building forge frontend environment"
-    source "$TT_FORGE_FE_HOME/env/activate"
-    cmake -B "$TT_FORGE_FE_HOME/env/build" -DTTFORGE_SKIP_BUILD_TTMLIR_ENV=ON "$TT_FORGE_FE_HOME/env"
-    cmake --build "$TT_FORGE_FE_HOME/env/build"
-}
-
-build_tt_forge_fe() {
+install_tt_forge_fe() {
     echo "Building forge frontend"
-    source "$TT_FORGE_FE_HOME/env/activate"
-    cmake -G Ninja -B "$TT_FORGE_FE_HOME/build" "$TT_FORGE_FE_HOME"
-    cmake --build "$TT_FORGE_FE_HOME/build"
+
+    python3 -m venv envs/ffe_env
+    source envs/ffe_env/bin/activate
+
+    pip install -r "$TT_BLACKSMITH_HOME/envs/ffe_requirements.txt"
+    pip install -r "$TT_BLACKSMITH_HOME/requirements.txt"
+    # pip install --upgrade pydantic
+    deactivate
 }
 
 build_tt_xla() {
@@ -67,36 +64,30 @@ if [ -z "$TOOLCHAIN_DIR" ]; then
     TOOLCHAIN_DIR="$TT_BLACKSMITH_HOME/third_party/toolchains"
 fi
 
-# Update submodules
-git submodule update --init --recursive
-# Install ninja if not installed
-if ! command -v ninja &> /dev/null; then
-    sudo apt install ninja-build
-fi
 
-# If full build build mlir env
-if [ "$full_build" = true ]; then
-    TT_MLIR_HOME="$TT_BLACKSMITH_HOME/third_party/tt-mlir"
-    build_tt_mlir_env
-fi
 
 if [ "$tt_forge_fe" = true ]; then
-    export TT_FORGE_FE_HOME="$TT_BLACKSMITH_HOME/third_party/tt-forge-fe"
-    export PROJECT_ROOT="$TT_FORGE_FE_HOME"
-
-    if [ "$full_build" = true ]; then
-        build_tt_forge_fe_env
-    fi
-    build_tt_forge_fe
+    install_tt_forge_fe
+    export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
 fi
 
 if [ "$tt_xla" = true ]; then
     export TT_XLA_HOME="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     export PROJECT_ROOT="$TT_XLA_HOME"
+    # Update submodules
+    git submodule update --init --recursive
+    # Install ninja if not installed
+    if ! command -v ninja &> /dev/null; then
+        sudo apt install ninja-build
+    fi
+
+    # If full build build mlir env
+    if [ "$full_build" = true ]; then
+        TT_MLIR_HOME="$TT_BLACKSMITH_HOME/third_party/tt-mlir"
+        build_tt_mlir_env
+    fi
 
     build_tt_xla
+    export TT_BLACKSMITH_FRONTEND="tt-xla"
+    install_tt_blacksmith
 fi
-
-# Install tt-blacksmith
-# TODO: make this better
-install_tt_blacksmith

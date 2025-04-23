@@ -43,22 +43,8 @@ if [ -z "$TOOLCHAIN_DIR" ]; then
 fi
 
 if [ "$tt_forge_fe" = true ]; then
-    echo "Activating forge frontend"
-    if [ ! -d "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" ]; then
-        echo "Forge frontend toolchain not found"
-        return 1
-    fi
-    # Unlink the ttforge-toolchain if it is a symlink
-    if [ -L "/opt/ttforge-toolchain" ]; then
-        sudo unlink "/opt/ttforge-toolchain"
-    fi
-
-    sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttmlir-toolchain" /opt/
-    if [ ! -d "/opt/ttforge-toolchain" ]; then
-        sudo ln -s "$TOOLCHAIN_DIR/tt-forge-fe/ttforge-toolchain" /opt/
-    fi
-    export PROJECT_ROOT="$TT_BLACKSMITH_HOME/third_party/tt-forge-fe"
-    source "$PROJECT_ROOT/env/activate"
+    echo "Activate forge-fe"
+    source "$TT_BLACKSMITH_HOME/envs/ffe_env/bin/activate"
 fi
 
 if [ "$tt_xla" = true ]; then
