@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 from torch import nn
-from blacksmith.models.nerf.sh import eval_sh
+from blacksmith.models.torch.nerf.sh import eval_sh
 
 
 class Embedding(nn.Module):

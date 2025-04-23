@@ -14,16 +14,21 @@ import wandb
 import os
 import time
 
-from thomas.tools.cli import generate_config
-from thomas.tools.jax_utils import init_device
+from blacksmith.tools.cli import generate_config
+from blacksmith.tools.jax_utils import init_device
 
-from thomas.models.jax.mnist.model import Models
+from blacksmith.models.jax.mnist.model import Models
 
-from thomas.datasets.mnist.dataloader import load_mnist
+from blacksmith.datasets.mnist.dataloader import load_mnist
 
-from thomas.experiments.jax.mnist.logging.shlo_ops_logging import ExportSHLO
-from thomas.experiments.jax.mnist.logging.wandb_utils import init_wandb, log_metrics, save_checkpoint, load_checkpoint
-from thomas.experiments.jax.mnist.train_utils.train_functions import (
+from blacksmith.experiments.jax.mnist.logging.shlo_ops_logging import ExportSHLO
+from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
+    init_wandb,
+    log_metrics,
+    save_checkpoint,
+    load_checkpoint,
+)
+from blacksmith.experiments.jax.mnist.train_utils.train_functions import (
     forward_pass,
     forward_and_compute_loss,
     func_optax_loss,
@@ -36,7 +41,7 @@ from thomas.experiments.jax.mnist.train_utils.train_functions import (
     accumulate_metrics,
 )
 
-from thomas.experiments.jax.mnist.configs import ExperimentConfig
+from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 
 def init_configs(config_path=None):

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from pydantic import BaseModel, Field
-from thomas.experiments.jax.mnist.logging.logger_config import LoggerConfig, get_default_logger_config
+from blacksmith.experiments.jax.mnist.logging.logger_config import LoggerConfig, get_default_logger_config
 
 
 class NetConfig(BaseModel):

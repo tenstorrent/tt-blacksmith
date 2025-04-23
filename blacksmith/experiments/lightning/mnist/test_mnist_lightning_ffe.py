@@ -5,22 +5,22 @@ from typing import List
 
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
-from thomas.tooling.forge_tooling import disable_forge_logger
-from thomas.training.tt_forge_fe.torch_lightning import (
+from blacksmith.tooling.forge_tooling import disable_forge_logger
+from blacksmith.training.tt_forge_fe.torch_lightning import (
     TTLightningModel,
     GradientCheckpoint,
     TTWandbLogger,
     SaveCheckpointArtifact,
 )
-from thomas.training.logger_config import LoggerConfig, get_default_logger_config
-from thomas.models.torch.mnist_linear import MNISTLinear, MNISTLinearConfig
-from thomas.tooling.cli import generate_config
-from thomas.tooling.data import load_dataset
+from blacksmith.training.logger_config import LoggerConfig, get_default_logger_config
+from blacksmith.models.torch.mnist_linear import MNISTLinear, MNISTLinearConfig
+from blacksmith.tooling.cli import generate_config
+from blacksmith.tooling.data import load_dataset
 from pydantic import BaseModel, Field
-from thomas.models.config import NetConfig
-from thomas.models.torch.dtypes import TorchDType
-from thomas.tooling.config import DataLoadingConfig
-from thomas.training.config import TrainingConfig
+from blacksmith.models.config import NetConfig
+from blacksmith.models.torch.dtypes import TorchDType
+from blacksmith.tooling.config import DataLoadingConfig
+from blacksmith.training.config import TrainingConfig
 
 
 class ExperimentConfig(BaseModel):
@@ -36,7 +36,7 @@ def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
     disable_forge_logger()
 
-    config: ExperimentConfig = generate_config(ExperimentConfig, "thomas/experiments/test_mnist_lightning_ffe.yaml")
+    config: ExperimentConfig = generate_config(ExperimentConfig, "blacksmith/experiments/test_mnist_lightning_ffe.yaml")
     logger_config = config.logger_config
 
     train_loader, test_loader = load_dataset(config.data_loading_config)

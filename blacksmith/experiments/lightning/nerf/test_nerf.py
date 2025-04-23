@@ -16,8 +16,8 @@ from pytorch_lightning.loggers.wandb import WandbLogger
 
 # models
 
-from blacksmith.models.nerf import Embedding, NeRF
-from blacksmith.models.nerf.nerftree import NerfTree
+from blacksmith.models.torch.nerf import Embedding, NeRF
+from blacksmith.models.torch.nerf.nerftree import NerfTree
 from blacksmith.experiments.lightning.nerf.configs import NerfConfig, load_config
 from blacksmith.experiments.lightning.nerf.utils.losses import loss_dict
 from blacksmith.experiments.lightning.nerf.utils.metrics import *
@@ -396,7 +396,7 @@ def main(config: NerfConfig):
 
     experiment_name_suffix = "_forge" if use_forge else ("_cpu" if device == "cpu" else "_gpu")
     wandb.init(
-        project="thomas-nerf",
+        project="blacksmith-nerf",
         config=config,
         name=config.experiment_name + experiment_name_suffix,
         mode="online" if not config.training.val_only else "disabled",
