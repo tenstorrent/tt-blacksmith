@@ -22,7 +22,12 @@ from blacksmith.models.jax.mnist.model import Models
 from blacksmith.datasets.mnist.dataloader import load_mnist
 
 from blacksmith.experiments.jax.mnist.logging.shlo_ops_logging import ExportSHLO
-from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb, log_metrics, save_checkpoint, load_checkpoint
+from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
+    init_wandb,
+    log_metrics,
+    save_checkpoint,
+    load_checkpoint,
+)
 from blacksmith.experiments.jax.mnist.train_utils.train_functions import (
     forward_pass,
     forward_and_compute_loss,
