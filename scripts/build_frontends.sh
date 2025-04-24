@@ -86,7 +86,7 @@ if [ "$tt_xla" = true ]; then
     if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
         export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
     fi
-    
+
     # Update submodules
     git submodule update --init --recursive
     # Install ninja if not installed
