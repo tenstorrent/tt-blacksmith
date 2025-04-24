@@ -5,8 +5,14 @@ The connection to the Tenstorrent device is established in script ```blacksmith/
 where the tt_pjrt C API plugin is dynamically loaded and registered as a PJRT backend with JAX, enabling execution on the Tenstorrent hardware. <br/>
 This is called via ```init_device()``` function, which is present in all training scripts running in JAX in this repo.
 ## Training
-To run the training script in JAX, run the command  ```python3 blacksmith/experiments/jax/mnist/test_pure_jax_mnist.py ```.
-To run the training script in Flax, run the command ```python3 blacksmith/experiments/jax/mnist/test_flax_mnist.py ```. <br/>
+To run the training script in JAX, run the command
+```
+python3 blacksmith/experiments/jax/mnist/test_pure_jax_mnist.py
+```
+To run the training script in Flax, run the command
+```
+python3 blacksmith/experiments/jax/mnist/test_flax_mnist.py
+``` <br/>
 Both should be run from project root directory (```tt-blacksmith```).
 
 ## Data
