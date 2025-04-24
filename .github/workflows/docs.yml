@@ -5,58 +5,25 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
-# Sets permissions for:
-#   - downloading docker container
-#   - allowing deployment to GitHub Pages
+# Sets permissions to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
-  packages: write
 
 jobs:
 
-  docker-build:
-    uses: ./.github/workflows/build-image.yml
-    secrets: inherit
-
   build:
-    needs: docker-build
-    strategy:
-      fail-fast: false
-      matrix:
-        build:
-          - runs-on:
-            - ubuntu-latest
-
-    runs-on: ${{ matrix.build.runs-on }}
-
-    container:
-      image: ${{ needs.docker-build.outputs.docker-image }}
+    runs-on:
+      - ubuntu-latest
 
     env:
       MDBOOK_VERSION: 0.4.36
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-          submodules: recursive
-          fetch-depth: 0 # Fetch all history and tags
-
-    - name: Set reusable strings
-      id: strings
-      shell: bash
-      run: |
-        echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
-        echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-
-    - name: Git safe dir
-      run: git config --global --add safe.directory ${{ steps.strings.outputs.work-dir }}
-
     - name: Install mdBook
       shell: bash
       run: |
-        source env/activate
         apt install cargo -y
         cargo install --version ${MDBOOK_VERSION} mdbook --locked
 
@@ -67,10 +34,11 @@ jobs:
     - name: Build Docs
       shell: bash
       run: |
-        source env/activate
         export PATH="/github/home/.cargo/bin:$PATH"
-        cmake -G Ninja -B build .
-        cmake --build build -- docs
+        mkdir -p build/docs
+        cp -r docs/* build/docs/
+        cd build/docs
+        mdbook build
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
