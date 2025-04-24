@@ -1,0 +1,59 @@
+name: Docs - Build & Deploy
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+# Sets permissions to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+
+  build:
+    runs-on:
+      - ubuntu-latest
+
+    env:
+      MDBOOK_VERSION: 0.4.36
+
+    steps:
+    - name: Install mdBook
+      shell: bash
+      run: |
+        apt install cargo -y
+        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+
+    - name: Setup Pages
+      id: pages
+      uses: actions/configure-pages@v5
+
+    - name: Build Docs
+      shell: bash
+      run: |
+        export PATH="/github/home/.cargo/bin:$PATH"
+        mkdir -p build/docs
+        cp -r docs/* build/docs/
+        cd build/docs
+        mdbook build
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./build/docs/book
+
+  # Deployment job
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
