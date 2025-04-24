@@ -6,4 +6,3 @@
 
 # User guide
 - [Experiments](./experiments.md)
-- [Tools](./tools.md)
