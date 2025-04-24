@@ -24,8 +24,8 @@ jobs:
     - name: Install mdBook
       shell: bash
       run: |
-        apt install cargo -y
-        cargo install --version ${MDBOOK_VERSION} mdbook --locked
+        sudo apt install cargo -y
+        sudo cargo install --version ${MDBOOK_VERSION} mdbook --locked
 
     - name: Setup Pages
       id: pages
