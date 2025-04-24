@@ -7,4 +7,3 @@ For more information on the project, see our documentation.
 ## Project Goals
 
 - *Demonstrations:* Practical examples and workflows showcasing how to train various ML models on Tenstorrent hardware.
-- *Training Debugging Tools:* Utilities and techniques to help developers understand and troubleshoot the training process.
