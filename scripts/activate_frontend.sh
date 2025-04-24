@@ -34,7 +34,10 @@ if [ "$tt_forge_fe" = true ]; then
 fi
 
 if [ "$tt_xla" = true ]; then
-    export TTMLIR_TOOLCHAIN_DIR="/opt/ttmlir-toolchain"
+    # check if TTMLIR_TOOLCHAIN_DIR is set
+    if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
+        export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+    fi
     export PROJECT_ROOT="$TT_BLACKSMITH_HOME/third_party/tt-xla"
     # Activate environment will create a venv folder in the pwd, need to change directory
     cd "$PROJECT_ROOT"
