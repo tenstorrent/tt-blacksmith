@@ -81,6 +81,9 @@ class NerfTree(object):  # This is only based on Pytorch implementation
         ijk_fine = self.calc_index_fine(xyz[nonzero_index_coarse])
 
         # feat
+        if len(sigma.shape) == len(sh.shape) + 1:
+            sigma = sigma.squeeze(-1)
+
         feat = torch.cat([sigma, sh], dim=-1)
 
         self.voxels_fine[index_coarse, ijk_fine[:, 0], ijk_fine[:, 1], ijk_fine[:, 2]] = feat[nonzero_index_coarse]

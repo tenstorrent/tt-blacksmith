@@ -1,2 +1,0 @@
-torchdata==0.19.8
-wandb==0.19.8
