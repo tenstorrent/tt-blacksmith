@@ -12,7 +12,7 @@ python3 blacksmith/experiments/jax/mnist/test_pure_jax_mnist.py
 To run the training script in Flax, run the command
 ```
 python3 blacksmith/experiments/jax/mnist/test_flax_mnist.py
-``` <br/>
+```
 Both should be run from project root directory (```tt-blacksmith```).
 
 ## Data
