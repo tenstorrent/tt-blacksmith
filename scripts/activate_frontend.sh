@@ -29,7 +29,7 @@ if command -v deactivate &> /dev/null; then
 fi
 
 if [ "$tt_forge_fe" = true ]; then
-    echo "Activate forge-fe"
+    echo "Activate tt-forge-fe"
     source "$TT_BLACKSMITH_HOME/envs/ffe_env/bin/activate"
 fi
 

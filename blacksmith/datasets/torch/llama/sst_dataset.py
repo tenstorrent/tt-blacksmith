@@ -6,7 +6,7 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 from blacksmith.datasets.llama.sst_utils import TRAIN_PROMPT_TEMPLATE, TEST_PROMPT_TEMPLATE, LBL2VALUE
-from blacksmith.experiments.pytorch.llama.configs import TrainingConfig
+from blacksmith.experiments.torch.llama.configs import TrainingConfig
 
 
 class SSTDataset:
