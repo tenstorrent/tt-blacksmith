@@ -19,7 +19,7 @@ from blacksmith.tools.jax_utils import init_device
 
 from blacksmith.models.jax.mnist.model import Models
 
-from blacksmith.datasets.mnist.dataloader import load_mnist_jax
+from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 
 from blacksmith.experiments.jax.mnist.logging.shlo_ops_logging import ExportSHLO
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import (

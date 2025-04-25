@@ -12,7 +12,7 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.tools.jax_utils import init_device
 
 
-from blacksmith.datasets.mnist.dataloader import load_mnist_jax
+from blacksmith.datasets.torch.mnist.dataloader import load_mnist_jax
 
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
 from blacksmith.experiments.jax.mnist.logging.logger_config import get_default_logger_config

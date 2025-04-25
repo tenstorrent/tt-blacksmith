@@ -13,7 +13,7 @@ from blacksmith.tools.torch_lightning import (
     SaveCheckpointArtifact,
 )
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.mnist.dataloader import load_mnist_torch
+from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.lightning.mnist.configs import ExperimentConfig
 
