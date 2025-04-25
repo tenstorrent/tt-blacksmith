@@ -23,7 +23,7 @@ lora_target_modules: "all-linear"
 
 # Other settings
 seed: 23
-output_dir: "blacksmith/experiments/pytorch/llama/results/llama32-1b-checkpointtest"
+output_dir: "path/to/dir"
 report_to: "wandb"
 wandb_project: "llama-finetuning"
 wandb_watch_mode: "all"
