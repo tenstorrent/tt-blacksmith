@@ -13,7 +13,7 @@ from blacksmith.tools.torch_lightning import (
     SaveCheckpointArtifact,
 )
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.mnist.dataloader import load_mnist
+from blacksmith.datasets.mnist.dataloader import load_mnist_torch
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.lightning.mnist.configs import ExperimentConfig
 
@@ -30,7 +30,7 @@ def test_training():
     )
     logger_config = config.logger_config
 
-    train_loader, test_loader = load_mnist(
+    train_loader, test_loader = load_mnist_torch(
         dtype=eval(config.data_loading_config.dtype), batch_size=config.data_loading_config.batch_size
     )
     model = MNISTLinear(**config.net_config.model_dump())
