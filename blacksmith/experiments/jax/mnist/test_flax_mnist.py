@@ -19,7 +19,7 @@ from blacksmith.tools.jax_utils import init_device
 
 from blacksmith.models.jax.mnist.model import Models
 
-from blacksmith.datasets.mnist.dataloader import load_mnist
+from blacksmith.datasets.mnist.dataloader import load_mnist_jax
 
 from blacksmith.experiments.jax.mnist.logging.shlo_ops_logging import ExportSHLO
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
@@ -80,7 +80,7 @@ def init_training(config):
             eval_labels_host,
             test_images_host,
             test_labels_host,
-        ) = load_mnist()
+        ) = load_mnist_jax()
 
         rng = random.PRNGKey(0)
         params = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
