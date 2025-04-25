@@ -1,7 +1,7 @@
 # MNIST Experiment
 ## Overview
 This directory contains the code in JAX (and in Flax) for training multilayer perceptron (MLP) on MNIST dataset, through Tenstorrent's Forge compiler with logging to [Weights&Biases](https://wandb.ai/site/).
-The connection to the Tenstorrent device is established in script ```blacksmith/tools/jax_utils.py```. For more details, refer to [tt-xla](https://github.com/tenstorrent/tt-xla).
+The connection to the Tenstorrent device is established in script ```blacksmith/tools/jax_utils.py```. For more details on connecting to Tenstorrent's hardware in JAX, please refer to [tt-xla](https://github.com/tenstorrent/tt-xla).
 ## Training
 To run the training script in JAX, run the command
 ```
