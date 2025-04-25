@@ -15,7 +15,7 @@ Both should be run from project root directory (```tt-blacksmith```).
 
 ## Data
 The [dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset) consists of 60,000 training images and 10,000 test images of handwritten digits (28x28 grayscale).
-The MNIST dataset is automatically downloaded in ```blacksmith/datasets/mnist/dataloader.py``` when you run training scripts.
+The MNIST dataset is automatically downloaded in ```blacksmith/datasets/jax/mnist/dataloader.py``` when you run training scripts.
 No manual download and preprocessing is required.
 
 ## Configuration

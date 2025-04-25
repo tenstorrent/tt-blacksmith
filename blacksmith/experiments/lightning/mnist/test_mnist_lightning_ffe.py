@@ -5,42 +5,35 @@ from typing import List
 
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
-from blacksmith.tooling.forge_tooling import disable_forge_logger
-from blacksmith.training.tt_forge_fe.torch_lightning import (
+from blacksmith.tools.forge_tooling import disable_forge_logger
+from blacksmith.tools.torch_lightning import (
     TTLightningModel,
     GradientCheckpoint,
     TTWandbLogger,
     SaveCheckpointArtifact,
 )
-from blacksmith.training.logger_config import LoggerConfig, get_default_logger_config
-from blacksmith.models.torch.mnist_linear import MNISTLinear, MNISTLinearConfig
-from blacksmith.tooling.cli import generate_config
-from blacksmith.tooling.data import load_dataset
-from pydantic import BaseModel, Field
-from blacksmith.models.config import NetConfig
-from blacksmith.models.torch.dtypes import TorchDType
-from blacksmith.tooling.config import DataLoadingConfig
-from blacksmith.training.config import TrainingConfig
+from blacksmith.tools.cli import generate_config
+from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
+from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
+from blacksmith.experiments.lightning.mnist.configs import ExperimentConfig
 
-
-class ExperimentConfig(BaseModel):
-    experiment_name: str
-    tags: List[str]
-    net_config: MNISTLinearConfig
-    training_config: TrainingConfig
-    data_loading_config: DataLoadingConfig
-    logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
+import forge
+import torch
 
 
 def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
     disable_forge_logger()
 
-    config: ExperimentConfig = generate_config(ExperimentConfig, "blacksmith/experiments/test_mnist_lightning_ffe.yaml")
+    config: ExperimentConfig = generate_config(
+        ExperimentConfig, "blacksmith/experiments/lightning/mnist/test_mnist_lightning_ffe.yaml"
+    )
     logger_config = config.logger_config
 
-    train_loader, test_loader = load_dataset(config.data_loading_config)
-    model = MNISTLinear(config.net_config)
+    train_loader, test_loader = load_mnist_torch(
+        dtype=eval(config.data_loading_config.dtype), batch_size=config.data_loading_config.batch_size
+    )
+    model = MNISTLinear(**config.net_config.model_dump())
     logger = TTWandbLogger(
         project=config.experiment_name,
         tags=config.tags,
@@ -50,10 +43,13 @@ def test_training():
         logger.experiment.config.update(config.model_dump())
 
     L_model = TTLightningModel(
-        training_config=config.training_config,
-        model_config=config.net_config,
         model=model,
-        logger_config=config.logger_config,
+        loss=eval(config.loss),
+        logger_config=logger_config,
+        input_size=config.net_config.input_size,
+        output_size=config.net_config.output_size,
+        batch_size=config.data_loading_config.batch_size,
+        lr=config.training_config.lr,
     )
 
     callbacks = []

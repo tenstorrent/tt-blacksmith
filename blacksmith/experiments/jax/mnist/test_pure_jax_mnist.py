@@ -12,7 +12,7 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.tools.jax_utils import init_device
 
 
-from blacksmith.datasets.mnist.dataloader import load_mnist
+from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
 from blacksmith.experiments.jax.mnist.logging.logger_config import get_default_logger_config
@@ -214,7 +214,7 @@ def train_mnist():
 
     with jax.default_device(jax.devices("cpu")[0]):
         key = random.PRNGKey(0)
-        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist()
+        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax()
 
     params = train_mlp(x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host, key)
 

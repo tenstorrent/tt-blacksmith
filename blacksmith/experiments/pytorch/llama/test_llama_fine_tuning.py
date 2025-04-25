@@ -11,8 +11,8 @@ from transformers import TrainingArguments, Trainer, DataCollatorForLanguageMode
 
 from blacksmith.experiments.pytorch.llama.configs import TrainingConfig
 from blacksmith.models.pytorch.hf_models import get_model
-from blacksmith.datasets.llama.sst_dataset import SSTDataset
-from blacksmith.datasets.llama.sst_utils import VALUE2LBL
+from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
+from blacksmith.datasets.torch.llama.sst_utils import VALUE2LBL
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.hf_callbacks import GradientSavingCallback, ProfilerCallback, WandbMemoryCallback
 
