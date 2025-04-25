@@ -11,7 +11,7 @@ The following table provides an overview of different model and dataset combinat
 | Lightning | MLP | MNIST | TT | [readme](https://github.com/tenstorrent/tt-blacksmith/tree/main/blacksmith/experiments/lightning/mnist/README.md) |
 | JAX | MLP | MNIST | TT | [readme](https://github.com/tenstorrent/tt-blacksmith/tree/main/blacksmith/experiments/jax/mnist) |
 | Lightning | NeRF | Blender | TT | [readme](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
-| PyTorch | Llama | SST-2 | GPU | [readme](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/pytorch/llama/README.md) |
+| PyTorch | Llama | SST-2 | GPU | [readme](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
 
 ## Navigating the Experiment Structure
 Within this repository, you'll find the following structure to help you navigate the experimental setup:
