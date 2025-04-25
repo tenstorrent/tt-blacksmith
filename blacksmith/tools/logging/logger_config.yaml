@@ -2,7 +2,7 @@ log_hyperparameters: True
 wandb_dir: ./
 checkpoint:
     log_checkpoint: True
-    checkpoint_dir: /proj_sw/training_artifacts/checkpoints/
+    checkpoint_dir: path/to/dir
     log_every_n_steps: 100
     save_top_k: -1
     save_gradients: True
