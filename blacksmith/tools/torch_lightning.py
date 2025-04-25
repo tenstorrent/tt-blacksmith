@@ -63,10 +63,9 @@ class TTLightningModel(L.LightningModule):
             torch.rand(batch_size, output_size),
         ]
         loss_inputs = to_forge_tensors(loss_inputs)
-        self.loss_on_cpu = isinstance(loss, torch.nn.modules.loss._Loss)
-
+        self.loss_on_cpu = issubclass(loss, torch.nn.modules.loss._Loss)
         if self.loss_on_cpu:
-            self.loss_module = loss
+            self.loss_module = loss()
         else:
             self.loss_module = loss(type(loss).__name__)
             self.loss_module = forge.compile(
