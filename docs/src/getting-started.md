@@ -2,18 +2,18 @@
 
 ## Setup
 
-To run experiments on Tenstorrent hardware, users must first build and activate either the Forge-FE (for PyTorch) or TT-XLA (for JAX) frontend environment using the provided scripts.
+To run experiments on Tenstorrent hardware, users must first build and activate either the TT-Forge-FE (for PyTorch) or tt-xla (for JAX) frontend environment using the provided scripts.
 
 ### Build Frontend environment
 
-#### Forge-fe
+#### TT-Forge-FE
 
-To build the `forge-fe` frontend, run:
+To build the `TT-Forge-FE` frontend, run:
 ```bash
 ./scripts/build_frontends.sh --ffe
 ```
 
-#### TT-XLA
+#### tt-xla
 
 Since `tt-xla` depends on the MLIR environment, you can set the `TTMLIR_TOOLCHAIN_DIR` to point to your toolchain directory. If not specified, it defaults to:
 ```
@@ -36,7 +36,7 @@ For subsequent builds, a regular rebuild is enough:
 
 To activate the Python environment for a specific frontend:
 
-For `forge-fe`:
+For `TT-Forge-FE`:
 ```bash
 source ./scripts/activate_frontend.sh --ffe
 ```

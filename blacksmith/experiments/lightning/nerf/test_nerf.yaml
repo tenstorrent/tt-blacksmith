@@ -24,7 +24,7 @@ model:
   warmup_step: 0
 
 data_loading:
-  input_dir: /proj_sw/training_data/tt_nerf_white
+  input_dir: path/to/dir
   img_wh: [200, 200]
   batch_size: 4096
 
@@ -41,4 +41,3 @@ training:
   warmup_multiplier: 1.0
   warmup_epochs: 0
   log_every: 5
-  # ckpt_path: /proj_sw/training_artifacts/checkpoints/nerf-epoch-5-step-019800-val_psnr-31.03.ckpt
