@@ -21,11 +21,25 @@ jobs:
       MDBOOK_VERSION: 0.4.36
 
     steps:
-    - name: Install mdBook
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install mdBook (with cache)
+      id: install_mdbook
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo
+        key: mdbook-${{ env.MDBOOK_VERSION }}
+        restore-keys: |
+          mdbook-
+
+    - name: Install mdBook (if not cached)
+      if: steps.install_mdbook.outputs.cache-hit != 'true'
       shell: bash
       run: |
+        sudo apt update
         sudo apt install cargo -y
-        sudo cargo install --version ${MDBOOK_VERSION} mdbook --locked
+        cargo install --version "${MDBOOK_VERSION}" mdbook --locked
 
     - name: Setup Pages
       id: pages
@@ -34,7 +48,7 @@ jobs:
     - name: Build Docs
       shell: bash
       run: |
-        export PATH="/github/home/.cargo/bin:$PATH"
+        export PATH="$HOME/.cargo/bin:$PATH"
         mkdir -p build/docs
         cp -r docs/* build/docs/
         cd build/docs
