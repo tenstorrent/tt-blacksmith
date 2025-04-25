@@ -1,6 +1,3 @@
-[submodule "third_party/tt-forge-fe"]
-	path = third_party/tt-forge-fe
-	url = https://github.com/tenstorrent/tt-forge-fe
 [submodule "third_party/tt-xla"]
 	path = third_party/tt-xla
 	url = https://github.com/tenstorrent/tt-xla
