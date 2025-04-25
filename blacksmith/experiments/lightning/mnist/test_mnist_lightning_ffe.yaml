@@ -3,19 +3,17 @@ tags:
     - tt-forge-fe
     - model:torch
     - lightning
-training:
+training_config:
     batch_size: 64
-    loss_config:
-        loss_name: CrossEntropyLoss
-        run_on: cpu
-    lr: 0.001
     epochs: 2
-model:
+    lr: 0.001
+net_config:
     input_size: 784
     hidden_size: 512
     output_size: 10
     bias: True
-data_loading:
+data_loading_config:
     batch_size: 64
-    dtype: float32
+    dtype: torch.float32
     pre_shuffle: True
+loss: forge.op.loss.CrossEntropyLoss

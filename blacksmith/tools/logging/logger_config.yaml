@@ -1,0 +1,15 @@
+log_hyperparameters: True
+wandb_dir: ./
+checkpoint:
+    log_checkpoint: True
+    checkpoint_dir: /proj_sw/training_artifacts/checkpoints/
+    log_every_n_steps: 100
+    save_top_k: -1
+    save_gradients: True
+    checkpoint_name: /{epoch:02d}/{step:06d}
+log_train_loss: "train/loss"
+log_gradients: "gradients/{name}"
+log_weights: "parameters/{name}"
+log_every_n_steps: 100
+log_val_loss: "val/loss"
+log_val_accuracy: "val/acc"
