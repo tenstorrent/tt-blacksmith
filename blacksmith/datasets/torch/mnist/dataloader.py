@@ -10,7 +10,6 @@ import torch
 
 
 def load_mnist_torch(dtype, batch_size):
-    dtype = dtype
     transform = transforms.Compose(
         [
             transforms.ToTensor(),
