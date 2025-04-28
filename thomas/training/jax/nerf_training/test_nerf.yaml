@@ -44,8 +44,9 @@ training:
   log_on_wandb: True
   cache_voxels_fine: False
   resume: True
+  render: True
 
 checkpoint:
-  save_dir: /proj_sw/user_dev/umales/jax_nerf_checkpointsTEST # until I solve permission stuff
+  save_dir: /proj_sw/user_dev/umales/jax_nerf_checkpoints8e4 # until I solve permission stuff
   save_every: 200
   keep_last: 3

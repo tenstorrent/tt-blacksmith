@@ -572,7 +572,7 @@ class EfficientNeRFSystem:
             )
             self.validation_step_outputs = []
 
-
+    
 def train_step(system, batch, step, rng_key):
     with jax.default_device(jax.devices("cpu")[0]):
         loss, results, grads, rays_chunk, rgbs_chunk = system.training_step(batch, step, rng_key)
@@ -897,6 +897,77 @@ def main(config: NerfConfig):
             print(f"Saved final checkpoint at step {total_steps}")
 
 
+def render(config: NerfConfig):
+    with jax.default_device(jax.devices("cpu")[0]):
+        rng_key = random.PRNGKey(0)
+        
+        # Create output directory for rendered images
+        render_output_dir = os.path.join(config.checkpoint.save_dir, "renders")
+        os.makedirs(render_output_dir, exist_ok=True)
+        
+        # Load latest checkpoint
+        checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
+        checkpoint_data = load_latest_checkpoint(checkpoint_dir, config, rng_key)
+        
+        if checkpoint_data:
+            system, loaded_step, rng_key = checkpoint_data
+            print(f"Loaded checkpoint from step {loaded_step}")
+            
+            # Run validation
+            val_iter = iter(system.val_dataloader)
+            system.validation_step_outputs = []
+            
+            for batch_idx in range(system.val_steps_per_epoch):
+                print(f"Rendering batch {batch_idx+1}/{system.val_steps_per_epoch}")
+                batch = next(val_iter)
+                rng_key, subkey = random.split(rng_key)
+                system.validation_step(batch, batch_idx, loaded_step, subkey)
+            
+            # Custom version of on_validation_epoch_end that saves images
+            save_rendered_images(system, render_output_dir)
+            
+            print(f"Rendering complete. Images saved to {render_output_dir}")
+        else:
+            print("Error: No checkpoint found to render from")
+
+def save_rendered_images(system, output_dir):
+    """Save rendered images instead of logging to wandb"""
+    with jax.default_device(jax.devices("cpu")[0]):
+        if not system.validation_step_outputs:
+            print("No validation data to render")
+            return
+
+        # Organize validation outputs by image index
+        img_dict = {}
+        for output in system.validation_step_outputs:
+            if "img" in output:
+                idx = output["idx"]
+                if idx not in img_dict:
+                    img_dict[idx] = {"pred": [], "batch_indices": []}
+                img_dict[idx]["pred"].append(output["img"])
+                img_dict[idx]["batch_indices"].append(output["batch_idx"])
+
+        # Process and save each image
+        W, H = system.config.data_loading.img_wh
+        for idx in img_dict:
+            sorted_indices = jnp.argsort(jnp.array(img_dict[idx]["batch_indices"]))
+            pred_batches = [img_dict[idx]["pred"][i] for i in sorted_indices]
+
+            pred_rays = jnp.concatenate(pred_batches, axis=0)[: W * H]
+            img = pred_rays.reshape(H, W, 3)
+
+            # Convert to numpy array, clip to [0,1] as in your code
+            img_np = np.array(img)
+            img_np = np.clip(img_np, 0.0, 1.0)
+            
+            # Save as PNG (we multiply by 255 for the PNG format)
+            img_pil = Image.fromarray((img_np * 255).astype(np.uint8))
+            img_pil.save(os.path.join(output_dir, f"render_{idx:03d}.png"))
+
+        system.validation_step_outputs = []
+
+    
+
 if __name__ == "__main__":
 
     init_device()
@@ -904,4 +975,7 @@ if __name__ == "__main__":
     config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
     config = load_config(config_file_path)
     # print(config.checkpoint.save_dir)
-    main(config)
+    if config.training.render:
+        render(config)
+    else:
+        main(config)

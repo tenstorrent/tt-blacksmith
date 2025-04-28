@@ -51,6 +51,7 @@ class TrainingConfig(BaseModel):
     log_on_wandb: bool = False
     cache_voxels_fine: bool = False
     resume: bool = False
+    render: bool = False
 
 
 class CheckpointConfig(BaseModel):
