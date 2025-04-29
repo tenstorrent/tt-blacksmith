@@ -11,7 +11,7 @@ from typing import Tuple, Dict, Any
 from functools import partial
 
 # Assuming ray_utils.py will be translated separately
-from ray_utils import get_ray_directions, get_rays
+from blacksmith.datasets.jax.nerf.ray_utils import get_ray_directions, get_rays
 
 # Transformation matrix functions
 def trans_t(t: float) -> jnp.ndarray:
