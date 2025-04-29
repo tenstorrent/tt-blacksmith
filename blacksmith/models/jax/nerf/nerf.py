@@ -7,7 +7,7 @@ from jax import random
 import flax.linen as nn
 from typing import Callable, Tuple, Any
 
-from sh import eval_sh
+from blacksmith.models.jax.nerf.sh import eval_sh
 
 
 class Embedding(nn.Module):
