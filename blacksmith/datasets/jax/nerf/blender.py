@@ -153,8 +153,8 @@ class BlenderDataset:
 
 def create_dataloader(dataset: BlenderDataset, batch_size: int, seed: int = 0):
     num_samples = len(dataset)
-    steps_per_epoch = num_samples // batch_size  
-    rng = jax.random.PRNGKey(seed) 
+    steps_per_epoch = num_samples // batch_size
+    rng = jax.random.PRNGKey(seed)
 
     def data_generator():
         nonlocal rng  # Allow updating the random key
@@ -162,10 +162,9 @@ def create_dataloader(dataset: BlenderDataset, batch_size: int, seed: int = 0):
         while True:
             # At the start of an epoch, shuffle indices
             if start_idx == 0:
-                rng, subkey = jax.random.split(rng)  
+                rng, subkey = jax.random.split(rng)
                 indices = jax.random.permutation(subkey, jnp.arange(num_samples))
 
-            
             end_idx = min(start_idx + batch_size, num_samples)
             batch_indices = indices[start_idx:end_idx]
             batch = jax.vmap(dataset.__getitem__)(batch_indices)
@@ -182,24 +181,23 @@ def create_dataloader_val(dataset: BlenderDataset, batch_size: int):
     if dataset.split != "test":
         raise ValueError("create_dataloader_val is only for test split")
 
-    num_images = len(dataset) 
-    rays_per_image = dataset.img_wh[0] * dataset.img_wh[1]  
-    batches_per_image = (rays_per_image + batch_size - 1) // batch_size 
-    steps_per_epoch = num_images * batches_per_image 
+    num_images = len(dataset)
+    rays_per_image = dataset.img_wh[0] * dataset.img_wh[1]
+    batches_per_image = (rays_per_image + batch_size - 1) // batch_size
+    steps_per_epoch = num_images * batches_per_image
 
     def data_generator():
         while True:
             for img_idx in range(num_images):
-                
-                item = dataset[img_idx]
-                rays = item["rays"]  
-                rgbs = item["rgbs"]  
 
-                
+                item = dataset[img_idx]
+                rays = item["rays"]
+                rgbs = item["rgbs"]
+
                 for start_idx in range(0, rays_per_image + batch_size, batch_size):
                     end_idx = min(start_idx + batch_size, rays_per_image)
                     if start_idx >= rays_per_image:
-                        break  
+                        break
                     batch_rays = rays[start_idx:end_idx]
                     batch_rgbs = rgbs[start_idx:end_idx]
 

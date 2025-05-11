@@ -130,7 +130,7 @@ def inference(
     xyz_to_process = jnp.concatenate([xyzs_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
     view_dir_to_process = jnp.concatenate([view_dir_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
 
-    embedded_xyz = embedding_xyz.apply({}, xyz_to_process) 
+    embedded_xyz = embedding_xyz.apply({}, xyz_to_process)
 
     # Define neural network forward pass
     @jax.jit
@@ -142,6 +142,14 @@ def inference(
         params_device = jax.device_put(params, jax.devices("tt")[0])
         embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
         (sigma_device, sh_device), nn_vjp_fn = jax.vjp(nn_forward, params_device, embedded_xyz_device)
+
+    # Define backward function
+    def nn_backward(seed_sigma, seed_sh):
+        with jax.default_device(jax.devices("tt")[0]):
+            seed_sigma_device = jax.device_put(seed_sigma, jax.devices("tt")[0])
+            seed_sh_device = jax.device_put(seed_sh, jax.devices("tt")[0])
+            grads_device = nn_vjp_fn((seed_sigma_device, seed_sh_device))
+            return jax.device_put(grads_device[0], jax.devices("cpu")[0])  # Return gradients w.r.t. params
 
     # Move outputs to CPU for downstream processing
     sigma = jax.device_put(sigma_device, jax.devices("cpu")[0])
@@ -168,14 +176,6 @@ def inference(
     weights_sum = weights.sum(axis=1)
     rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)
     rgb_final = rgb_final + (1 - weights_sum[..., None])  # White background
-
-    # Define backward function
-    def nn_backward(seed_sigma, seed_sh):
-        with jax.default_device(jax.devices("tt")[0]):
-            seed_sigma_device = jax.device_put(seed_sigma, jax.devices("tt")[0])
-            seed_sh_device = jax.device_put(seed_sh, jax.devices("tt")[0])
-            grads_device = nn_vjp_fn((seed_sigma_device, seed_sh_device))
-            return jax.device_put(grads_device[0], jax.devices("cpu")[0])  # Return gradients w.r.t. params
 
     # Return results and the backward function
     if callee == "coarse":

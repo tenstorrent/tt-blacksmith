@@ -27,7 +27,7 @@ class NerfTree:
         self.res_coarse = grid_coarse
         self.res_fine = grid_coarse * grid_fine
         self.dim_sh = 3 * (deg + 1) ** 2
-        self.device = device  
+        self.device = device
 
     def calc_index_coarse(self, xyz):
         ijk_coarse = (

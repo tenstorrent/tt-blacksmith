@@ -161,10 +161,10 @@ def calculate_fine_rendering(
     chunk_size = config.data_loading.batch_size * config.model.coarse.samples
 
     # Pick top-k weights instead of thresholding
-    k = chunk_size // fine_samples_per_coarse  
-    flat_weights = weights_coarse.reshape(-1)  
-    sorted_indices = jnp.argsort(flat_weights)[::-1]  
-    top_k_indices = sorted_indices[:k] 
+    k = chunk_size // fine_samples_per_coarse
+    flat_weights = weights_coarse.reshape(-1)
+    sorted_indices = jnp.argsort(flat_weights)[::-1]
+    top_k_indices = sorted_indices[:k]
 
     important_samples = jnp.stack(
         [top_k_indices // weights_coarse.shape[1], top_k_indices % weights_coarse.shape[1]], axis=-1
@@ -204,12 +204,12 @@ def calculate_fine_rendering(
         updated_voxels_fine = update_fine_out(
             tree_data["voxels_fine"], sample_positions, sample_densities, sample_harmonics, tree_data
         )
-        result["voxels_fine"] = updated_voxels_fine  
+        result["voxels_fine"] = updated_voxels_fine
 
     # Store results
     result["rgb_fine"] = rgb_values
-    result["sigma_fine"] = sigma_values  
-    result["sh_fine"] = spherical_harmonics  
+    result["sigma_fine"] = sigma_values
+    result["sh_fine"] = spherical_harmonics
     result["num_samples_fine"] = jnp.array([fine_indices.shape[0] / num_rays])
     result["nn_backward_fine"] = extras["nn_backward"]  # Store the neural network backward function
     result.update(extras["intermediates"])  # Include intermediates like sigma, sh, weights, alphas
@@ -228,7 +228,7 @@ def generate_ray_samples(rays, num_samples, near, far):
     z_vals = jnp.expand_dims(z_vals, 0)
 
     z_vals = jnp.repeat(z_vals, N_rays, axis=0)
-    key = random.PRNGKey(0) 
+    key = random.PRNGKey(0)
     delta_z_vals = random.uniform(key, z_vals.shape) * (distance / num_samples)
 
     z_vals = z_vals + delta_z_vals

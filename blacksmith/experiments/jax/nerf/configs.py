@@ -40,7 +40,7 @@ class TrainingConfig(BaseModel):
     epochs: int = 16
     loss: str = "mse"
     optimizer: str = "radam"
-    #optimizer_kwargs: Optional[dict] = None
+    # optimizer_kwargs: Optional[dict] = None
     lr: float = 1e-4
     betas: Tuple[float, float] = (0.9, 0.999)
     eps: float = 1e-8

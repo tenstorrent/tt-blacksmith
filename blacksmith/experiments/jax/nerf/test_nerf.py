@@ -47,7 +47,7 @@ class EfficientNeRFSystem:
     def __init__(self, config: NerfConfig, rng_key):
         self.config = config
         self.experiment_log_dir = os.path.join(config.training.log_dir, config.experiment_name)
-        self.in_channels_xyz = 3 + config.model.num_freqs * 2 * 3 
+        self.in_channels_xyz = 3 + config.model.num_freqs * 2 * 3
         self.in_channels_dir = config.model.in_channels_dir
         self.deg = config.model.deg
         self.dim_sh = 3 * (self.deg + 1) ** 2
@@ -582,7 +582,7 @@ class EfficientNeRFSystem:
             )
             self.validation_step_outputs = []
 
-    
+
 def train_step(system, batch, step, rng_key):
     with jax.default_device(jax.devices("cpu")[0]):
         loss, results, grads, rays_chunk, rgbs_chunk = system.training_step(batch, step, rng_key)
@@ -774,7 +774,7 @@ def load_latest_checkpoint(
         system.prepare_data()
 
         return system, restored["global_step"], restored["rng_key"]
-    
+
     except Exception as e:
         print(f"Failed to load checkpoint {latest_checkpoint}: {e}")
         return None
@@ -787,7 +787,7 @@ def main(config: NerfConfig):
     if config.training.log_on_wandb:
         wandb.init(project=config.project_name, config=config.__dict__, name=config.experiment_name)
 
-    try: 
+    try:
 
         checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
         os.makedirs(checkpoint_dir, exist_ok=True)
@@ -856,7 +856,7 @@ def main(config: NerfConfig):
             system.on_validation_epoch_end()
             save_checkpoint(system, total_steps, rng_key, checkpoint_dir, config.checkpoint.keep_last)
             print(f"Saved final checkpoint at step {total_steps}")
-    
+
     finally:
         if config.training.log_on_wandb:
             wandb.finish()
@@ -868,18 +868,18 @@ def render(config: NerfConfig):
 
         render_output_dir = os.path.join(config.checkpoint.render_dir, "renders")
         os.makedirs(render_output_dir, exist_ok=True)
-        
+
         # Load latest checkpoint
         checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
         checkpoint_data = load_latest_checkpoint(checkpoint_dir, config, rng_key)
-        
+
         if checkpoint_data:
             system, loaded_step, rng_key = checkpoint_data
             print(f"Loaded checkpoint from step {loaded_step}")
 
             val_iter = iter(system.val_dataloader)
             system.validation_step_outputs = []
-            
+
             for batch_idx in range(system.val_steps_per_epoch):
                 print(f"Rendering batch {batch_idx+1}/{system.val_steps_per_epoch}")
                 batch = next(val_iter)
@@ -887,10 +887,11 @@ def render(config: NerfConfig):
                 system.validation_step(batch, batch_idx, loaded_step, subkey)
 
             save_rendered_images(system, render_output_dir)
-            
+
             print(f"Rendering complete. Images saved to {render_output_dir}")
         else:
             print("Error: No checkpoint found to render from")
+
 
 def save_rendered_images(system, output_dir):
     with jax.default_device(jax.devices("cpu")[0]):
@@ -923,7 +924,7 @@ def save_rendered_images(system, output_dir):
 
         system.validation_step_outputs = []
 
-    
+
 if __name__ == "__main__":
 
     init_device()

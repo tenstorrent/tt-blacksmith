@@ -12,8 +12,8 @@ def get_optimizer(config, models: List[Any]) -> optax.GradientTransformation:
     if config.training.optimizer == "radam":
         return optax.radam(
             learning_rate=config.training.lr,
-            b1=config.training.betas[0],  
-            b2=config.training.betas[1], 
+            b1=config.training.betas[0],
+            b2=config.training.betas[1],
             eps=config.training.eps,
         )
     elif config.training.optimizer == "adam":
@@ -21,7 +21,7 @@ def get_optimizer(config, models: List[Any]) -> optax.GradientTransformation:
             learning_rate=config.training.lr,
             b1=config.training.betas[0],
             b2=config.training.betas[1],
-            eps=config.training.eps
+            eps=config.training.eps,
         )
     else:
         raise ValueError(f"Unsupported optimizer: {config.training.optimizer}")
