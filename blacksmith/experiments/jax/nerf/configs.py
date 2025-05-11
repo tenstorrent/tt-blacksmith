@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from pydantic import BaseModel, Field
 
 
@@ -40,7 +40,11 @@ class TrainingConfig(BaseModel):
     epochs: int = 16
     loss: str = "mse"
     optimizer: str = "radam"
-    optimizer_kwargs: Optional[dict] = None
+    #optimizer_kwargs: Optional[dict] = None
+    lr: float = 1e-4
+    betas: Tuple[float, float] = (0.9, 0.999)
+    eps: float = 1e-8
+    weight_decay: float = 0.0
     lr_scheduler: Optional[str] = None
     lr_scheduler_kwargs: Optional[dict] = None
     warmup_multiplier: float = 1.0
@@ -56,11 +60,13 @@ class TrainingConfig(BaseModel):
 
 class CheckpointConfig(BaseModel):
     save_dir: str = "./checkpoints"
+    render_dir: str = "./renders"
     save_every: int = 500
     keep_last: int = 3
 
 
 class NerfConfig(BaseModel):
+    project_name: str = "nerf"
     experiment_name: str = "nerf-training"
     tags: List[str] = Field(default=["nerf"])
     model: ModelConfig = ModelConfig()

@@ -155,26 +155,21 @@ def calculate_fine_rendering(
     weights_coarse,
     callee,
 ):
-    """
-    Calculates the fine rendering of NeRF using importance sampling based on top-k coarse weights.
-    """
     result = {}
     num_rays = rays_directions.shape[0]
     fine_samples_per_coarse = config.model.fine.samples
     chunk_size = config.data_loading.batch_size * config.model.coarse.samples
 
     # Pick top-k weights instead of thresholding
-    k = chunk_size // fine_samples_per_coarse  # Fixed value as in your code
-    flat_weights = weights_coarse.reshape(-1)  # Flatten to 1D for top-k
-    sorted_indices = jnp.argsort(flat_weights)[::-1]  # Sort in descending order
-    top_k_indices = sorted_indices[:k]  # Select the top k indices
+    k = chunk_size // fine_samples_per_coarse  
+    flat_weights = weights_coarse.reshape(-1)  
+    sorted_indices = jnp.argsort(flat_weights)[::-1]  
+    top_k_indices = sorted_indices[:k] 
 
-    # Convert 1D indices to 2D (ray_idx, sample_idx)
     important_samples = jnp.stack(
         [top_k_indices // weights_coarse.shape[1], top_k_indices % weights_coarse.shape[1]], axis=-1
     )
 
-    # Expand indices for fine sampling
     expanded_indices = jnp.expand_dims(important_samples, 1).repeat(fine_samples_per_coarse, axis=1)
     fine_indices = expanded_indices.copy()
     fine_indices = fine_indices.at[..., 1].set(
@@ -183,9 +178,6 @@ def calculate_fine_rendering(
     )
     fine_indices = fine_indices.reshape(-1, 2)
 
-    # print(fine_indices.shape)
-
-    # Ensure we don’t exceed chunk_size
     assert (
         fine_indices.shape[0] <= chunk_size
     ), f"fine_indices size {fine_indices.shape[0]} exceeds chunk_size {chunk_size}"
@@ -212,12 +204,12 @@ def calculate_fine_rendering(
         updated_voxels_fine = update_fine_out(
             tree_data["voxels_fine"], sample_positions, sample_densities, sample_harmonics, tree_data
         )
-        result["voxels_fine"] = updated_voxels_fine  # Return the updated voxels
+        result["voxels_fine"] = updated_voxels_fine  
 
     # Store results
     result["rgb_fine"] = rgb_values
-    result["sigma_fine"] = sigma_values  # Add sigma for gradient computation
-    result["sh_fine"] = spherical_harmonics  # Add sh for gradient computation
+    result["sigma_fine"] = sigma_values  
+    result["sh_fine"] = spherical_harmonics  
     result["num_samples_fine"] = jnp.array([fine_indices.shape[0] / num_rays])
     result["nn_backward_fine"] = extras["nn_backward"]  # Store the neural network backward function
     result.update(extras["intermediates"])  # Include intermediates like sigma, sh, weights, alphas
@@ -236,13 +228,12 @@ def generate_ray_samples(rays, num_samples, near, far):
     z_vals = jnp.expand_dims(z_vals, 0)
 
     z_vals = jnp.repeat(z_vals, N_rays, axis=0)
-    key = random.PRNGKey(0)  # Fixed seed for reproducibility
+    key = random.PRNGKey(0) 
     delta_z_vals = random.uniform(key, z_vals.shape) * (distance / num_samples)
 
     z_vals = z_vals + delta_z_vals
     xyz_sampled = rays_o[:, None, :] + rays_d[:, None, :] * z_vals[:, :, None]
 
-    # Compute deltas
     deltas = z_vals[:, 1:] - z_vals[:, :-1]
     delta_inf = 10_000 * jnp.ones_like(deltas[:, :1])
     deltas = jnp.concatenate([deltas, delta_inf], axis=-1)

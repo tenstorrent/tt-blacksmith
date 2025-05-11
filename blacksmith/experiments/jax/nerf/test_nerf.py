@@ -14,6 +14,16 @@ import random as py_random
 from jax import lax
 from PIL import Image
 
+import orbax.checkpoint as ocp
+import shutil
+
+import flax.serialization as flax_serialization
+from flax.serialization import from_state_dict, to_state_dict
+import jax
+import jax.numpy as jnp
+import os
+import shutil
+
 from blacksmith.datasets.jax.nerf.blender import BlenderDataset, create_dataloader, create_dataloader_val
 from nerf_rendering import render_rays, generate_ray_samples
 from blacksmith.models.jax.nerf.nerf import Embedding, NeRF
@@ -37,7 +47,7 @@ class EfficientNeRFSystem:
     def __init__(self, config: NerfConfig, rng_key):
         self.config = config
         self.experiment_log_dir = os.path.join(config.training.log_dir, config.experiment_name)
-        self.in_channels_xyz = 3 + config.model.num_freqs * 2 * 3
+        self.in_channels_xyz = 3 + config.model.num_freqs * 2 * 3 
         self.in_channels_dir = config.model.in_channels_dir
         self.deg = config.model.deg
         self.dim_sh = 3 * (self.deg + 1) ** 2
@@ -116,7 +126,7 @@ class EfficientNeRFSystem:
         num_padding_needed = batch_size - num_rays_in_chunk
 
         if num_padding_needed > 0:
-            key, subkey = random.split(rng_key)
+            rng_key, subkey = random.split(rng_key)
             random_indices = random.randint(subkey, (num_padding_needed,), 0, num_rays)
             padding_rays = rays[random_indices]
             rays_chunk = jnp.concatenate([rays_chunk, padding_rays], axis=0)
@@ -288,7 +298,7 @@ class EfficientNeRFSystem:
 
             nn_backward_coarse = results.pop("nn_backward_coarse", None)
             nn_backward_fine = results.pop("nn_backward_fine", None)
-            idx_render_coarse = results.get("idx_render_coarse")  # Use get to avoid KeyError
+            idx_render_coarse = results.get("idx_render_coarse")
             idx_render_fine = results.get("idx_render_fine")
 
             rgb_valid_idx = results.get("rgb_valid", None)
@@ -619,17 +629,6 @@ def train_step(system, batch, step, rng_key):
         return system
 
 
-import orbax.checkpoint as ocp
-import shutil
-
-import flax.serialization as flax_serialization
-from flax.serialization import from_state_dict, to_state_dict
-import jax
-import jax.numpy as jnp
-import os
-import shutil
-
-
 def save_checkpoint(
     system: EfficientNeRFSystem, global_step: int, rng_key: jnp.ndarray, checkpoint_dir: str, keep_last_n: int
 ):
@@ -774,35 +773,8 @@ def load_latest_checkpoint(
 
         system.prepare_data()
 
-        def print_dict(obj, prefix="", indent=0):
-            if isinstance(obj, dict):
-                for key, value in obj.items():
-                    print(f"{'  ' * indent}{prefix}{key}: type={type(value)}")
-                    print_dict(value, f"{prefix}{key}.", indent + 1)
-            elif isinstance(obj, (list, tuple)):
-                for i, value in enumerate(obj):
-                    print(f"{'  ' * indent}{prefix}[{i}]: type={type(value)}")
-                    print_dict(value, f"{prefix}[{i}].", indent + 1)
-            else:
-                print(f"{'  ' * indent}{prefix}value: {repr(obj)}")
-
-        print("\n=== state_coarse opt_state contents ===")
-        print_dict(restored["system"]["state_coarse"]["opt_state"], "opt_state.")
-        print("\n=== state_fine opt_state contents ===")
-        print_dict(restored["system"]["state_fine"]["opt_state"], "opt_state.")
-
-        def check_for_strings(obj, path=""):
-            if isinstance(obj, str):
-                print(f"Found string in opt_state at {path}: {obj}")
-            elif isinstance(obj, (dict, list, tuple)):
-                for i, v in enumerate(obj) if isinstance(obj, (list, tuple)) else obj.items():
-                    check_for_strings(v, f"{path}[{i}]" if isinstance(obj, (list, tuple)) else f"{path}.{i}")
-
-        print("\nChecking for strings in opt_state:")
-        check_for_strings(restored["system"]["state_coarse"]["opt_state"], "state_coarse.opt_state")
-        check_for_strings(restored["system"]["state_fine"]["opt_state"], "state_fine.opt_state")
-
         return system, restored["global_step"], restored["rng_key"]
+    
     except Exception as e:
         print(f"Failed to load checkpoint {latest_checkpoint}: {e}")
         return None
@@ -813,48 +785,37 @@ def main(config: NerfConfig):
         rng_key = random.PRNGKey(0)
 
     if config.training.log_on_wandb:
-        wandb.init(project="jax-nerf", config=config.__dict__, name="EfficientNeRF_400_fwd_bwd_device_TEST")
+        wandb.init(project=config.project_name, config=config.__dict__, name=config.experiment_name)
 
-    checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    try: 
 
-    with jax.default_device(jax.devices("cpu")[0]):
-        if config.training.resume:
-            checkpoint_data = load_latest_checkpoint(checkpoint_dir, config, rng_key)
-            if checkpoint_data:
-                system, start_step, rng_key = checkpoint_data
-                print(f"Resuming from checkpoint at step {start_step}")
-                print("state_coarse type:", type(system.state_coarse))
-                print("state_coarse has params:", hasattr(system.state_coarse, "params"))
-                print("state_coarse opt_state type:", type(system.state_coarse.opt_state))
-                print("state_fine type:", type(system.state_fine))
-                print("state_fine has params:", hasattr(system.state_fine, "params"))
-                print("state_fine opt_state type:", type(system.state_fine.opt_state))
-                print(
-                    "nerf_tree_base.index_voxels_coarse shape:",
-                    system.nerf_tree_base.index_voxels_coarse.shape
-                    if system.nerf_tree_base.index_voxels_coarse is not None
-                    else None,
-                )
-                val_iter = iter(system.val_dataloader)
-                system.validation_step_outputs = []
-                for batch_idx in range(system.val_steps_per_epoch):
-                    print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
-                    batch = next(val_iter)
-                    rng_key, subkey = random.split(rng_key)
-                    system.validation_step(batch, batch_idx, start_step, subkey)
-                system.on_validation_epoch_end()
+        checkpoint_dir = os.path.join(config.checkpoint.save_dir, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
+        with jax.default_device(jax.devices("cpu")[0]):
+            if config.training.resume:
+                checkpoint_data = load_latest_checkpoint(checkpoint_dir, config, rng_key)
+                if checkpoint_data:
+                    system, start_step, rng_key = checkpoint_data
+                    print(f"Resuming from checkpoint at step {start_step}")
+                    val_iter = iter(system.val_dataloader)
+                    system.validation_step_outputs = []
+                    for batch_idx in range(system.val_steps_per_epoch):
+                        print(f"Validation batch {batch_idx} of {system.val_steps_per_epoch}")
+                        batch = next(val_iter)
+                        rng_key, subkey = random.split(rng_key)
+                        system.validation_step(batch, batch_idx, start_step, subkey)
+                    system.on_validation_epoch_end()
+                else:
+                    print("Resume requested but no checkpoint found, starting from scratch")
+                    system = EfficientNeRFSystem(config, rng_key)
+                    system.prepare_data()
+                    start_step = 0
             else:
-                print("Resume requested but no checkpoint found, starting from scratch")
                 system = EfficientNeRFSystem(config, rng_key)
                 system.prepare_data()
                 start_step = 0
-        else:
-            system = EfficientNeRFSystem(config, rng_key)
-            system.prepare_data()
-            start_step = 0
 
-        if config.training.val_only == False:
             train_iter = iter(system.train_dataloader)
             total_steps = config.training.epochs * system.train_steps_per_epoch
 
@@ -876,7 +837,7 @@ def main(config: NerfConfig):
                         save_checkpoint(system, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last)
                         print(f"Saved checkpoint at step {global_step}")
 
-                    if global_step % config.training.log_every == 199:
+                    if global_step % config.training.log_every == 0 and global_step > 0:
                         val_iter = iter(system.val_dataloader)
                         system.validation_step_outputs = []
                         for batch_idx in range(system.val_steps_per_epoch):
@@ -895,14 +856,17 @@ def main(config: NerfConfig):
             system.on_validation_epoch_end()
             save_checkpoint(system, total_steps, rng_key, checkpoint_dir, config.checkpoint.keep_last)
             print(f"Saved final checkpoint at step {total_steps}")
+    
+    finally:
+        if config.training.log_on_wandb:
+            wandb.finish()
 
 
 def render(config: NerfConfig):
     with jax.default_device(jax.devices("cpu")[0]):
         rng_key = random.PRNGKey(0)
-        
-        # Create output directory for rendered images
-        render_output_dir = os.path.join(config.checkpoint.save_dir, "renders")
+
+        render_output_dir = os.path.join(config.checkpoint.render_dir, "renders")
         os.makedirs(render_output_dir, exist_ok=True)
         
         # Load latest checkpoint
@@ -912,8 +876,7 @@ def render(config: NerfConfig):
         if checkpoint_data:
             system, loaded_step, rng_key = checkpoint_data
             print(f"Loaded checkpoint from step {loaded_step}")
-            
-            # Run validation
+
             val_iter = iter(system.val_dataloader)
             system.validation_step_outputs = []
             
@@ -922,8 +885,7 @@ def render(config: NerfConfig):
                 batch = next(val_iter)
                 rng_key, subkey = random.split(rng_key)
                 system.validation_step(batch, batch_idx, loaded_step, subkey)
-            
-            # Custom version of on_validation_epoch_end that saves images
+
             save_rendered_images(system, render_output_dir)
             
             print(f"Rendering complete. Images saved to {render_output_dir}")
@@ -931,13 +893,11 @@ def render(config: NerfConfig):
             print("Error: No checkpoint found to render from")
 
 def save_rendered_images(system, output_dir):
-    """Save rendered images instead of logging to wandb"""
     with jax.default_device(jax.devices("cpu")[0]):
         if not system.validation_step_outputs:
             print("No validation data to render")
             return
 
-        # Organize validation outputs by image index
         img_dict = {}
         for output in system.validation_step_outputs:
             if "img" in output:
@@ -947,7 +907,6 @@ def save_rendered_images(system, output_dir):
                 img_dict[idx]["pred"].append(output["img"])
                 img_dict[idx]["batch_indices"].append(output["batch_idx"])
 
-        # Process and save each image
         W, H = system.config.data_loading.img_wh
         for idx in img_dict:
             sorted_indices = jnp.argsort(jnp.array(img_dict[idx]["batch_indices"]))
@@ -956,25 +915,21 @@ def save_rendered_images(system, output_dir):
             pred_rays = jnp.concatenate(pred_batches, axis=0)[: W * H]
             img = pred_rays.reshape(H, W, 3)
 
-            # Convert to numpy array, clip to [0,1] as in your code
             img_np = np.array(img)
             img_np = np.clip(img_np, 0.0, 1.0)
-            
-            # Save as PNG (we multiply by 255 for the PNG format)
+
             img_pil = Image.fromarray((img_np * 255).astype(np.uint8))
             img_pil.save(os.path.join(output_dir, f"render_{idx:03d}.png"))
 
         system.validation_step_outputs = []
 
     
-
 if __name__ == "__main__":
 
     init_device()
 
     config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
     config = load_config(config_file_path)
-    # print(config.checkpoint.save_dir)
     if config.training.render:
         render(config)
     else:

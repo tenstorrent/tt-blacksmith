@@ -75,7 +75,7 @@ class BlenderDataset:
         if self.split == "train":
             self._prepare_train_data()
         elif self.split == "test":
-            self.meta["frames"] = self.meta["frames"][::10]
+            self.meta["frames"] = self.meta["frames"][0:1]
         else:  # val
             angles = jnp.linspace(-180, 180, 1001)[:-1]
             self.pose_vis = jax.vmap(pose_spherical, in_axes=(0, None, None))(angles, -30.0, 4.0)
@@ -151,11 +151,10 @@ class BlenderDataset:
         raise ValueError(f"Unknown split: {self.split}")
 
 
-# Example dataloader for JAX (sequential version)
 def create_dataloader(dataset: BlenderDataset, batch_size: int, seed: int = 0):
     num_samples = len(dataset)
-    steps_per_epoch = num_samples // batch_size  # Integer division for full batches
-    rng = jax.random.PRNGKey(seed)  # Initialize random key for shuffling
+    steps_per_epoch = num_samples // batch_size  
+    rng = jax.random.PRNGKey(seed) 
 
     def data_generator():
         nonlocal rng  # Allow updating the random key
@@ -163,20 +162,16 @@ def create_dataloader(dataset: BlenderDataset, batch_size: int, seed: int = 0):
         while True:
             # At the start of an epoch, shuffle indices
             if start_idx == 0:
-                rng, subkey = jax.random.split(rng)  # Split key for new shuffle
+                rng, subkey = jax.random.split(rng)  
                 indices = jax.random.permutation(subkey, jnp.arange(num_samples))
 
-            # Compute the end index for the current batch
+            
             end_idx = min(start_idx + batch_size, num_samples)
-            # Get the batch indices from the shuffled array
             batch_indices = indices[start_idx:end_idx]
-            # Vectorized fetch of batch data
             batch = jax.vmap(dataset.__getitem__)(batch_indices)
             yield batch
 
-            # Update start_idx for the next batch
             start_idx = end_idx
-            # Reset to start if we've reached the end (end of epoch)
             if start_idx >= num_samples:
                 start_idx = 0
 
@@ -187,24 +182,24 @@ def create_dataloader_val(dataset: BlenderDataset, batch_size: int):
     if dataset.split != "test":
         raise ValueError("create_dataloader_val is only for test split")
 
-    num_images = len(dataset)  # 20 images
-    rays_per_image = dataset.img_wh[0] * dataset.img_wh[1]  # 40,000 rays per image
-    batches_per_image = (rays_per_image + batch_size - 1) // batch_size  # 10 batches (ceil division)
-    steps_per_epoch = num_images * batches_per_image  # 20 * 10 = 200 steps
+    num_images = len(dataset) 
+    rays_per_image = dataset.img_wh[0] * dataset.img_wh[1]  
+    batches_per_image = (rays_per_image + batch_size - 1) // batch_size 
+    steps_per_epoch = num_images * batches_per_image 
 
     def data_generator():
         while True:
             for img_idx in range(num_images):
-                # Load data for one image
+                
                 item = dataset[img_idx]
-                rays = item["rays"]  # (40,000, 6)
-                rgbs = item["rgbs"]  # (40,000, 3)
+                rays = item["rays"]  
+                rgbs = item["rgbs"]  
 
-                # Batch this image's rays, overshoot to include all rays
+                
                 for start_idx in range(0, rays_per_image + batch_size, batch_size):
                     end_idx = min(start_idx + batch_size, rays_per_image)
                     if start_idx >= rays_per_image:
-                        break  # Stop once we've covered all rays
+                        break  
                     batch_rays = rays[start_idx:end_idx]
                     batch_rgbs = rgbs[start_idx:end_idx]
 

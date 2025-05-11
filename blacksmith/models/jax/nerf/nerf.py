@@ -95,18 +95,7 @@ class NeRF(nn.Module):
             # jax.debug.print("Size of mask: {}", (mask.shape,), ordered = True)
             alphas = alphas * mask + 1 - mask
         alphas_shifted = jnp.concatenate([jnp.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], axis=-1)
-        # weights = alphas * jnp.cumprod(alphas_shifted, axis=-1)[:, :-1]
-        cumulative_prod = jnp.ones_like(alphas_shifted)
-
-        # Compute cumulative product manually along axis=-1
-        for i in range(1, alphas_shifted.shape[-1]):
-            cumulative_prod = cumulative_prod.at[:, i].set(cumulative_prod[:, i - 1] * alphas_shifted[:, i])
-
-        # We want to exclude the last value in the cumulative product
-        cumulative_prod = cumulative_prod[:, :-1]
-
-        # Calculate weights
-        weights = alphas * cumulative_prod
+        weights = alphas * jnp.cumprod(alphas_shifted, axis=-1)[:, :-1]
         # norm = jax.numpy.linalg.norm(weights)
         # print(norm)
         # jax.debug.print("Norm of weights: {}", (jax.numpy.linalg.norm(weights),), ordered = True)
@@ -131,9 +120,6 @@ def inference(
     non_one_idx = idx_render * (idx_render == -1)
     non_minus_one_mask = non_minus_one_mask.at[non_one_idx].set(0)
 
-    # import time
-    # time.sleep(1000)
-
     xyzs_flat = xyzs[idx_render[:, 0], idx_render[:, 1]].reshape(-1, 3)
     view_dir = jnp.expand_dims(dirs, 1).repeat(sample_size, axis=1)
     view_dir_flat = view_dir[idx_render[:, 0], idx_render[:, 1]]
@@ -144,7 +130,7 @@ def inference(
     xyz_to_process = jnp.concatenate([xyzs_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
     view_dir_to_process = jnp.concatenate([view_dir_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
 
-    embedded_xyz = embedding_xyz.apply({}, xyz_to_process)  # No 'params' needed
+    embedded_xyz = embedding_xyz.apply({}, xyz_to_process) 
 
     # Define neural network forward pass
     @jax.jit
@@ -152,7 +138,6 @@ def inference(
         sigma, sh = model.apply({"params": params}, embedded_xyz)
         return sigma, sh
 
-    # Compute neural network forward pass with VJP on "tt" device
     with jax.default_device(jax.devices("tt")[0]):
         params_device = jax.device_put(params, jax.devices("tt")[0])
         embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
@@ -164,7 +149,6 @@ def inference(
 
     sigma, rgb, sh = model.sh2rgb(sigma, sh, model.deg, view_dir_to_process)
 
-    # optional
     sigma = sigma[:real_chunk_size]
     rgb = rgb[:real_chunk_size]
     sh = sh[:real_chunk_size]
@@ -185,7 +169,7 @@ def inference(
     rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)
     rgb_final = rgb_final + (1 - weights_sum[..., None])  # White background
 
-    # Define neural network backward function (runs on "tt" device)
+    # Define backward function
     def nn_backward(seed_sigma, seed_sh):
         with jax.default_device(jax.devices("tt")[0]):
             seed_sigma_device = jax.device_put(seed_sigma, jax.devices("tt")[0])

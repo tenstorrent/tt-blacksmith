@@ -14,7 +14,6 @@ class NerfTree:
         """
         self.sigma_init = sigma_init
         self.sigma_default = sigma_default
-        # In JAX, we initialize arrays as jnp arrays; device handling is implicit
         self.sigma_voxels_coarse = jnp.full((grid_coarse, grid_coarse, grid_coarse), sigma_init)
         self.index_voxels_coarse = jnp.full((grid_coarse, grid_coarse, grid_coarse), 0, dtype=jnp.int32)
         self.voxels_fine = None
@@ -28,7 +27,7 @@ class NerfTree:
         self.res_coarse = grid_coarse
         self.res_fine = grid_coarse * grid_fine
         self.dim_sh = 3 * (deg + 1) ** 2
-        self.device = device  # JAX manages devices internally; this is mostly for compatibility
+        self.device = device  
 
     def calc_index_coarse(self, xyz):
         ijk_coarse = (
@@ -41,17 +40,12 @@ class NerfTree:
     def update_coarse(self, sigma_voxels_coarse, xyz, sigma, beta):
         """
         Updates sigma_voxels_coarse and returns the new version.
-        xyz: (N, 3)
-        sigma: (N,)
         """
         ijk_coarse = self.calc_index_coarse(xyz)
         # print(ijk_coarse)
-        # In JAX, use .at[].set() for immutable updates
         updated_sigma_voxels = sigma_voxels_coarse.at[ijk_coarse[:, 0], ijk_coarse[:, 1], ijk_coarse[:, 2]].set(
             (1 - beta) * sigma_voxels_coarse[ijk_coarse[:, 0], ijk_coarse[:, 1], ijk_coarse[:, 2]] + beta * sigma
         )
-        # not_30 = jnp.any(updated_sigma_voxels != 30.0)
-        # print(not_30)
         return updated_sigma_voxels
 
     def create_voxels_fine(self, sigma_voxels_coarse, index_voxels_coarse):
