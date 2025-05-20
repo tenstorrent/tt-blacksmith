@@ -36,10 +36,7 @@ class SSTDataset:
         """Tokenize input and create labels with masked prompt tokens."""
 
         tokenized_batch = self.tokenizer(
-            example["text"],
-            padding="max_length",
-            truncation=True,
-            max_length=self.config.max_length
+            example["text"], padding="max_length", truncation=True, max_length=self.config.max_length
         )
 
         if mode == "test":
@@ -52,15 +49,12 @@ class SSTDataset:
             return tokenized_batch
 
         prompt_encodings = self.tokenizer(
-            example["prompt"],
-            padding="max_length",
-            truncation=True,
-            max_length=self.config.max_length
+            example["prompt"], padding="max_length", truncation=True, max_length=self.config.max_length
         )
 
         input_ids = torch.tensor(tokenized_batch["input_ids"])
         prompt_ids = torch.tensor(prompt_encodings["input_ids"])
-        
+
         labels = input_ids.clone()
         prompt_len = (prompt_ids[0] != self.tokenizer.pad_token_id).sum()
         mask = torch.arange(input_ids.size(1)) < prompt_len
@@ -72,7 +66,7 @@ class SSTDataset:
     def load_tokenized_data(self) -> Tuple[Any, Any]:
         print(f"Loading dataset ({self.config.dataset_id})...")
         dataset = load_dataset(self.config.dataset_id)
-        
+
         # Labels are just expected values (0 or 1)
         train_set = dataset["train"].map(self._apply_template, fn_kwargs={"mode": "train"})
         tokenized_train_set = train_set.map(self._tokenize_function, fn_kwargs={"mode": "train"}, batched=True)

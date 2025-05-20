@@ -20,16 +20,12 @@ from blacksmith.datasets.torch.llama.sst_utils import VALUE2LBL
 
 
 def train(config, model, train_data_loader):
-    run = wandb.init(
-        project=config.wandb_project,
-        name=config.wandb_run_name,
-        config=vars(config),
-        save_code=True
-    )
+    run = wandb.init(project=config.wandb_project, name=config.wandb_run_name, config=vars(config), save_code=True)
     run.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
 
     if config.use_tt:
         import forge
+
         tt_optimizer = forge.optimizers.AdamW()
         sample_inputs = [torch.randint(0, model.config.vocab_size, (config.batch_size, config.max_length))]
         compiled_model = forge.compile(model, sample_inputs, optimizer=tt_optimizer, training=True)
@@ -99,11 +95,7 @@ def train(config, model, train_data_loader):
         traceback_str = traceback.format_exc()
         print(error_msg)
         print(traceback_str)
-        run.alert(
-            title="Training Failed",
-            text=error_msg,
-            level=wandb.AlertLevel.ERROR
-        )
+        run.alert(title="Training Failed", text=error_msg, level=wandb.AlertLevel.ERROR)
         run.log({"error": error_msg, "traceback": traceback_str})
         raise
     finally:
