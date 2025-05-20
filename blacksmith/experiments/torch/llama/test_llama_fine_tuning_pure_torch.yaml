@@ -30,5 +30,5 @@ wandb_watch_mode: "all"
 wandb_log_freq: 10
 save_strategy: "epoch"
 logging_steps: 10
-eval_frequency: 1
+do_train: True
 use_tt: False
