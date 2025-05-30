@@ -28,7 +28,7 @@ For more information on the project, see our [documentation](https://docs.tensto
 -----
 # What is this Repo?
 
-tt-blacksmith shows demonstrations of models using the tt-forge compiler stack. The repo contains a collection of optimized training examples that show developers how to train machine learning models on Tenstorrent hardware using popular frameworks like PyTorch and JAX via thet tt-forge compiler. 
+tt-blacksmith shows demonstrations of models using the tt-forge compiler stack. The repo contains a collection of optimized training examples that show developers how to train machine learning models on Tenstorrent hardware using popular frameworks like PyTorch and JAX via thet tt-forge compiler.
 
 -----
 # Project Goals
