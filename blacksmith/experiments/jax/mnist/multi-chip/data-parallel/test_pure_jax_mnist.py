@@ -24,12 +24,14 @@ from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
 
+
 class ShardingConfig:
     def __init__(self):
         self.mesh = Mesh(np.array(jax.devices("tt")), axis_names=("dp",))
         self.data_sharding = NamedSharding(self.mesh, PartitionSpec("dp"))
         self.param_sharding = NamedSharding(self.mesh, PartitionSpec(None))
         self.scalar_sharding = NamedSharding(self.mesh, PartitionSpec())
+
 
 def train_mnist():
     init_device()
@@ -50,8 +52,9 @@ def train_mnist():
         logits = jnp.dot(h2, w3) + b3
         return logits
 
-
-    def init_mlp_params(key, input_size=net_config.input_size, hidden_size=net_config.hidden_size, output_size=net_config.output_size):
+    def init_mlp_params(
+        key, input_size=net_config.input_size, hidden_size=net_config.hidden_size, output_size=net_config.output_size
+    ):
         w1_shape = (input_size, hidden_size)
         b1_shape = (hidden_size,)
         w2_shape = (hidden_size, hidden_size)
@@ -71,7 +74,6 @@ def train_mnist():
 
         return (w1, b1, w2, b2, w3, b3)
 
-
     def mse_loss(logits, y):
         return -jnp.mean(jnp.sum(y * jax.nn.log_softmax(logits), axis=-1))
 
@@ -79,17 +81,17 @@ def train_mnist():
         def loss_fn(p):
             logits = mlp_model(p, x_batch)
             return mse_loss(logits, y_batch), logits
-        
+
         (loss, logits), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)
 
         def gather_mean_grad(g):
-            gathered = lax.all_gather(g, axis_name="dp")  
+            gathered = lax.all_gather(g, axis_name="dp")
             return jnp.mean(gathered, axis=0)
-        
+
         grads = tree_util.tree_map(gather_mean_grad, grads)
-        
-        gathered_loss = lax.all_gather(loss, axis_name="dp")  
-        loss = jnp.mean(gathered_loss)  
+
+        gathered_loss = lax.all_gather(loss, axis_name="dp")
+        loss = jnp.mean(gathered_loss)
 
         logits = lax.all_gather(logits, axis_name="dp")
 
@@ -110,7 +112,6 @@ def train_mnist():
         return updated_params
 
     def validation_loss(params, x_batch, y_batch):
-
         def loss_fn(p):
             logits = mlp_model(p, x_batch)
             return logits, mse_loss(logits, y_batch)
@@ -120,7 +121,7 @@ def train_mnist():
         gathered_loss = lax.all_gather(loss, axis_name="dp")  # Shape: (num_devices,)
         loss = jnp.mean(gathered_loss)  # Scalar, replicated
 
-        logits = lax.all_gather(logits, axis_name="dp") 
+        logits = lax.all_gather(logits, axis_name="dp")
 
         return logits, loss
 
@@ -136,7 +137,6 @@ def train_mnist():
         true_labels = argmax_on_cpu(y)
         correct = jnp.mean(predictions == true_labels)
         return correct
-
 
     def train_mlp(
         x_train_host,
@@ -179,11 +179,16 @@ def train_mnist():
                 check_rep=False,
             )(params, x_batch, y_batch, lr)
 
-        learning_rate = jax.device_put(
-            training_config.lr, sharding_config.scalar_sharding
-        )
+        learning_rate = jax.device_put(training_config.lr, sharding_config.scalar_sharding)
 
-        training_step_jit = jax.jit(training_step, out_shardings=(sharding_config.scalar_sharding, sharding_config.param_sharding, sharding_config.param_sharding))
+        training_step_jit = jax.jit(
+            training_step,
+            out_shardings=(
+                sharding_config.scalar_sharding,
+                sharding_config.param_sharding,
+                sharding_config.param_sharding,
+            ),
+        )
 
         config = init_wandb(
             project_name="DP - Pure JAX MLP training",
@@ -207,18 +212,14 @@ def train_mnist():
                 x_batch = jax.device_put(x_batch_host, sharding_config.data_sharding)
                 y_batch = jax.device_put(y_batch_host, sharding_config.data_sharding)
 
-                loss, grads, logits = training_step_jit(
-                    params, x_batch, y_batch, learning_rate
-                )
+                loss, grads, logits = training_step_jit(params, x_batch, y_batch, learning_rate)
 
                 params_host = jax.device_put(params, jax.devices("cpu")[0])
                 grads_host = jax.device_put(grads, jax.devices("cpu")[0])
                 learning_rate_host = jax.device_put(learning_rate, jax.devices("cpu")[0])
 
                 # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
-                params_host_updated = update(
-                    params_host, grads_host, learning_rate_host
-                )
+                params_host_updated = update(params_host, grads_host, learning_rate_host)
 
                 params = jax.device_put(params_host_updated, sharding_config.param_sharding)
 
@@ -242,9 +243,7 @@ def train_mnist():
             val_loss, val_accuracy = evaluate(params, x_val_host, y_val_host, sharding_config)
             wandb.log({"validation loss": val_loss, "validation accuracy": val_accuracy})
 
-        test_loss, test_accuracy = evaluate(
-            params, x_test_host, y_test_host, sharding_config
-        )
+        test_loss, test_accuracy = evaluate(params, x_test_host, y_test_host, sharding_config)
         wandb.log({"test loss": test_loss, "test accuracy": test_accuracy})
 
         wandb.finish()
@@ -264,8 +263,10 @@ def train_mnist():
                 out_specs=(PartitionSpec(None), PartitionSpec()),
                 check_rep=False,
             )(params, x_batch, y_batch)
-            
-        validation_step_jit = jax.jit(validation_step, out_shardings=(sharding_config.param_sharding, sharding_config.scalar_sharding)) 
+
+        validation_step_jit = jax.jit(
+            validation_step, out_shardings=(sharding_config.param_sharding, sharding_config.scalar_sharding)
+        )
 
         for i in range(0, len(x_test), batch_size):
 
@@ -291,14 +292,13 @@ def train_mnist():
         avg_accuracy = correct_predictions / num_samples
 
         return avg_loss, avg_accuracy
-    
+
     with jax.default_device(jax.devices("cpu")[0]):
         key = random.PRNGKey(0)
         x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax()
 
-    train_mlp(
-        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host, key, sharding_config
-    )
+    train_mlp(x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host, key, sharding_config)
+
 
 if __name__ == "__main__":
     train_mnist()
