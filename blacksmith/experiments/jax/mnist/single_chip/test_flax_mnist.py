@@ -28,7 +28,7 @@ from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
     save_checkpoint,
     load_checkpoint,
 )
-from blacksmith.experiments.jax.mnist.train_utils.train_functions import (
+from blacksmith.experiments.jax.mnist.single_chip.train_utils.train_functions import (
     forward_pass,
     forward_and_compute_loss,
     func_optax_loss,
@@ -46,7 +46,7 @@ from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 def init_configs(config_path=None):
     if config_path is None:
-        config_path = os.path.join(os.path.dirname(__file__), "test_mnist.yaml")
+        config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
 
     config = generate_config(ExperimentConfig, config_path)
 
