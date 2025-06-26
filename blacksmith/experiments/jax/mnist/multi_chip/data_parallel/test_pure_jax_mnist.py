@@ -7,14 +7,11 @@ from jax import random
 from jax.sharding import Mesh, PartitionSpec, NamedSharding
 from jax.experimental import shard_map
 import jax.lax as lax
-import torchvision
 import numpy as np
 
 import wandb
 import os
-import sys
 
-import jax._src.xla_bridge as xb
 import jax.tree_util as tree_util
 
 from blacksmith.tools.cli import generate_config
@@ -43,6 +40,7 @@ def train_mnist():
     training_config = config.training_config
     net_config = config.net_config
     logger_config = config.logger_config
+    early_stopping_config = config.early_stopping
     sharding_config = ShardingConfig()
 
     def mlp_model(params, x):
@@ -74,13 +72,13 @@ def train_mnist():
 
         return (w1, b1, w2, b2, w3, b3)
 
-    def mse_loss(logits, y):
+    def cross_entropy(logits, y):
         return -jnp.mean(jnp.sum(y * jax.nn.log_softmax(logits), axis=-1))
 
     def compute_loss_grads_logits(params, x_batch, y_batch, lr):
         def loss_fn(p):
             logits = mlp_model(p, x_batch)
-            return mse_loss(logits, y_batch), logits
+            return cross_entropy(logits, y_batch), logits
 
         (loss, logits), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)
 
@@ -114,7 +112,7 @@ def train_mnist():
     def validation_loss(params, x_batch, y_batch):
         def loss_fn(p):
             logits = mlp_model(p, x_batch)
-            return logits, mse_loss(logits, y_batch)
+            return logits, cross_entropy(logits, y_batch)
 
         logits, loss = loss_fn(params)
 
@@ -150,6 +148,7 @@ def train_mnist():
         num_epochs=training_config.epochs,
         batch_size=training_config.batch_size,
         learning_rate=training_config.lr,
+        early_stopping_config=early_stopping_config,
     ):
 
         input_size = net_config.input_size
@@ -195,6 +194,10 @@ def train_mnist():
             job_type="DP - Pure JAX MLP training",
             dir_path=logger_config.checkpoint.checkpoint_dir,
         )
+
+        best_val_loss = 1000.0
+        epochs_no_improvement = 0
+        early_stop_triggered = False
 
         for epoch in range(num_epochs):
             batch_loss_accum = 0.0
@@ -242,6 +245,20 @@ def train_mnist():
 
             val_loss, val_accuracy = evaluate(params, x_val_host, y_val_host, sharding_config)
             wandb.log({"validation loss": val_loss, "validation accuracy": val_accuracy})
+
+            if val_loss < best_val_loss - early_stopping_config.min_delta:
+                best_val_loss = val_loss
+                epochs_no_improvement = 0
+                best_params = params
+            else:
+                epochs_no_improvement += 1
+
+            if epochs_no_improvement >= early_stopping_config.patience:
+                early_stop_triggered = True
+                break
+
+        if early_stop_triggered:
+            params = best_params
 
         test_loss, test_accuracy = evaluate(params, x_test_host, y_test_host, sharding_config)
         wandb.log({"test loss": test_loss, "test accuracy": test_accuracy})
