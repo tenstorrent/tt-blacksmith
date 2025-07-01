@@ -19,59 +19,80 @@ class SSTDataset:
 
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
-    def _apply_template(self, example: Dict[str, Any], mode: str = "train") -> Dict[str, Any]:
+    def _apply_template(self, example: Dict[str, Any]) -> Dict[str, Any]:
         """Apply prompt template to dataset examples."""
 
         prompt = PROMPT_TEMPLATE.substitute(input=example["sentence"])
-        if mode == "train":
-            response = RESPONSE_TEMPLATE.substitute(label=LBL2VALUE[example["label"]])
-            example["text"] = prompt + response
-            example["prompt"] = prompt
-        else:
-            example["text"] = prompt
+        response = RESPONSE_TEMPLATE.substitute(label=LBL2VALUE[example["label"]])
+        example["text"] = prompt + response
+        example["prompt"] = prompt
 
         return example
 
-    def _tokenize_function(self, example: Dict[str, Any], mode: str = "train") -> Dict[str, Any]:
+    def _tokenize_function(self, examples: Dict[str, Any], mode: str = "train") -> Dict[str, Any]:
         """Tokenize input and create labels with masked prompt tokens."""
 
         tokenized_batch = self.tokenizer(
-            example["text"], padding="max_length", truncation=True, max_length=self.config.max_length
+            examples["text"], padding="max_length", truncation=True, max_length=self.config.max_length
         )
-
-        if mode == "test":
-            example["label"] = [LBL2VALUE[lbl] for lbl in example["label"]]
-            tokenized_lbls = self.tokenizer(
-                example["label"], padding="max_length", max_length=self.config.max_length, truncation=True
-            )
-            tokenized_batch["labels"] = tokenized_lbls["input_ids"]
-
-            return tokenized_batch
 
         prompt_encodings = self.tokenizer(
-            example["prompt"], padding="max_length", truncation=True, max_length=self.config.max_length
+            examples["prompt"], padding="max_length", truncation=True, max_length=self.config.max_length
         )
 
-        input_ids = torch.tensor(tokenized_batch["input_ids"])
-        prompt_ids = torch.tensor(prompt_encodings["input_ids"])
+        labels = []
+        for input_ids, prompt_ids in zip(tokenized_batch["input_ids"], prompt_encodings["input_ids"]):
+            label = input_ids.copy()
+            for idx, prompt_id in enumerate(prompt_ids):
+                if prompt_id != self.tokenizer.pad_token_id:
+                    label[idx] = -100  # mask prompt
+                else:
+                    break  # no need to mask padding or response
+            # Also mask padding in the label
+            label = [l if l != self.tokenizer.pad_token_id else -100 for l in label]
+            labels.append(label)
 
-        labels = input_ids.clone()
-        prompt_len = (prompt_ids[0] != self.tokenizer.pad_token_id).sum()
-        mask = torch.arange(input_ids.size(1)) < prompt_len
-        labels[:, mask] = -100
-        tokenized_batch["labels"] = list(labels.unbind(0))
+        tokenized_batch["labels"] = labels
 
         return tokenized_batch
+
+    def _filter_by_token_length(self, example: Dict[str, Any], max_tokens: int = 58) -> bool:
+        """Filter examples by token length. Returns True if example should be kept."""
+        
+        # Tokenize the text to get token count
+        tokens = self.tokenizer(example["text"], add_special_tokens=True)
+        token_count = len(tokens["input_ids"])
+        
+        # Return True if within limit, False if too long
+        return token_count <= max_tokens
 
     def load_tokenized_data(self) -> Tuple[Any, Any]:
         print(f"Loading dataset ({self.config.dataset_id})...")
         dataset = load_dataset(self.config.dataset_id)
 
-        # Labels are just expected values (0 or 1)
-        train_set = dataset["train"].map(self._apply_template, fn_kwargs={"mode": "train"})
-        tokenized_train_set = train_set.map(self._tokenize_function, fn_kwargs={"mode": "train"}, batched=True)
+        train_set = dataset["train"].map(self._apply_template)
+        train_set = train_set.filter(self._filter_by_token_length)
+        tokenized_train_set = train_set.map(self._tokenize_function, batched=True)
         tokenized_train_set.set_format("torch", columns=self.required_columns)
 
-        eval_set = dataset["validation"].map(self._apply_template, fn_kwargs={"mode": "test"})
+        # breakpoint()
+        # self.tokenizer.decode(tokenized_train_set[0]["input_ids"])
+        # self.tokenizer.decode([token if token != -100 else 0  for token in tokenized_train_set[0]["labels"]])
 
-        return tokenized_train_set, eval_set
+        validation_set = dataset["validation"].map(self._apply_template)
+        validation_set = validation_set.filter(self._filter_by_token_length)
+        tokenized_validation_set = validation_set.map(self._tokenize_function, batched=True)
+        tokenized_validation_set.set_format("torch", columns=self.required_columns)
+
+        return tokenized_train_set, tokenized_validation_set
+
+#     def load_test_data(self):
+#         print(f"Loading test dataset ({self.config.dataset_id})...")
+#         dataset = load_dataset(self.config.dataset_id, split="test")
+# 
+#         test_set = dataset.map(self._apply_template)
+#         test_set = test_set.filter(self._filter_by_token_length)
+#         tokenized_test_set = test_set.map(self._tokenize_function, batched=True)
+#         tokenized_test_set.set_format("torch", columns=self.required_columns)
+# 
+#         return tokenized_test_set
