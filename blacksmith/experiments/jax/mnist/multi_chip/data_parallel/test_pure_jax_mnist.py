@@ -61,7 +61,7 @@ def train_mnist():
         b3_shape = (output_size,)
 
         key, key1, key2, key3 = random.split(key, 4)
-        
+
         # Lecun normal
         w1 = random.normal(key1, w1_shape) * jnp.sqrt(1.0 / w1_shape[0])
         w1 = w1.astype(jnp.float32)
