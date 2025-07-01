@@ -26,7 +26,7 @@ class ShardingConfig:
     def __init__(self):
         self.mesh = Mesh(np.array(jax.devices("tt")), axis_names=("dp",))
         self.data_sharding = NamedSharding(self.mesh, PartitionSpec("dp"))
-        self.param_sharding = NamedSharding(self.mesh, PartitionSpec(None))
+        self.param_sharding = NamedSharding(self.mesh, PartitionSpec())
         self.scalar_sharding = NamedSharding(self.mesh, PartitionSpec())
 
 
@@ -34,7 +34,7 @@ def train_mnist():
     init_device()
     jax.config.update("jax_use_shardy_partitioner", True)
 
-    config_path = os.path.join(os.path.dirname(__file__), "../..", "test_mnist.yaml")
+    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "test_mnist.yaml")
     config = generate_config(ExperimentConfig, config_path)
 
     training_config = config.training_config
@@ -60,13 +60,16 @@ def train_mnist():
         w3_shape = (hidden_size, output_size)
         b3_shape = (output_size,)
 
-        w1 = random.normal(key, w1_shape) * jnp.sqrt(2.0 / w1_shape[0])
+        key, key1, key2, key3 = random.split(key, 4)
+        
+        # Lecun normal
+        w1 = random.normal(key1, w1_shape) * jnp.sqrt(1.0 / w1_shape[0])
         w1 = w1.astype(jnp.float32)
         b1 = jnp.zeros(b1_shape, dtype=jnp.float32)
-        w2 = random.normal(key, w2_shape) * jnp.sqrt(2.0 / w2_shape[0])
+        w2 = random.normal(key2, w2_shape) * jnp.sqrt(1.0 / w2_shape[0])
         w2 = w2.astype(jnp.float32)
         b2 = jnp.zeros(b2_shape, dtype=jnp.float32)
-        w3 = random.normal(key, w3_shape) * jnp.sqrt(2.0 / w3_shape[0])
+        w3 = random.normal(key3, w3_shape) * jnp.sqrt(1.0 / w3_shape[0])
         w3 = w3.astype(jnp.float32)
         b3 = jnp.zeros(b3_shape, dtype=jnp.float32)
 
@@ -83,17 +86,17 @@ def train_mnist():
         (loss, logits), grads = jax.value_and_grad(loss_fn, has_aux=True)(params)
 
         def gather_mean_grad(g):
-            gathered = lax.all_gather(g, axis_name="dp")
-            return jnp.mean(gathered, axis=0)
+            gathered_grads = lax.all_gather(g, axis_name="dp")
+            return jnp.mean(gathered_grads, axis=0)
 
-        grads = tree_util.tree_map(gather_mean_grad, grads)
+        gathered_grads = tree_util.tree_map(gather_mean_grad, grads)
 
         gathered_loss = lax.all_gather(loss, axis_name="dp")
         loss = jnp.mean(gathered_loss)
 
-        logits = lax.all_gather(logits, axis_name="dp")
+        gathered_logits = lax.all_gather(logits, axis_name="dp")
 
-        return loss, grads, logits
+        return loss, gathered_grads, gathered_logits
 
     @jax.jit
     def update(params, grads, learning_rate):
@@ -119,14 +122,13 @@ def train_mnist():
         gathered_loss = lax.all_gather(loss, axis_name="dp")  # Shape: (num_devices,)
         loss = jnp.mean(gathered_loss)  # Scalar, replicated
 
-        logits = lax.all_gather(logits, axis_name="dp")
+        gathered_logits = lax.all_gather(logits, axis_name="dp")
 
-        return logits, loss
+        return gathered_logits, loss
 
     def argmax_on_cpu(array):
-        array_cpu = jax.device_put(array, jax.devices("cpu")[0])
         with jax.default_device(jax.devices("cpu")[0]):
-            argmax_result = jnp.argmax(array_cpu, axis=-1)
+            argmax_result = jnp.argmax(array, axis=-1)
             argmax_result = argmax_result.astype(jnp.uint32)
         return argmax_result
 
@@ -169,12 +171,12 @@ def train_mnist():
                 lambda p, x, y, lr: compute_loss_grads_logits(p, x, y, lr),
                 mesh=sharding_config.mesh,
                 in_specs=(
-                    PartitionSpec(None),
+                    PartitionSpec(),
                     PartitionSpec("dp"),
                     PartitionSpec("dp"),
                     PartitionSpec(),
                 ),
-                out_specs=(PartitionSpec(), PartitionSpec(None), PartitionSpec(None)),
+                out_specs=(PartitionSpec(), PartitionSpec(), PartitionSpec()),
                 check_rep=False,
             )(params, x_batch, y_batch, lr)
 
@@ -230,9 +232,9 @@ def train_mnist():
                 batch_loss_accum += loss_host
 
                 logits_host = jax.device_put(logits, jax.devices("cpu")[0])
-                # reshape logits_host from (2, 64, 10) to (128, 10)
+                # reshape logits_host from (num_devices, batch_size, num_classes) to (num_devices * batch_size, num_classes)
                 logits_host = logits_host.reshape(-1, y_batch_host.shape[1])
-                # Accuracy calculation is done on CPU, as argmax is not supported on device (https://github.com/tenstorrent/tt-metal/issues/20570)
+                # Accuracy calculation is done on CPU, as argmax is not supported on multi-device (https://github.com/tenstorrent/tt-mlir/issues/3963)
                 accuracy = compute_accuracy(logits_host, y_batch_host)
 
                 batch_accuracy_accum += accuracy
@@ -276,8 +278,8 @@ def train_mnist():
             return shard_map.shard_map(
                 lambda params, local_x, local_y: validation_loss(params, local_x, local_y),
                 mesh=sharding_config.mesh,
-                in_specs=(PartitionSpec(None), PartitionSpec("dp"), PartitionSpec("dp")),
-                out_specs=(PartitionSpec(None), PartitionSpec()),
+                in_specs=(PartitionSpec(), PartitionSpec("dp"), PartitionSpec("dp")),
+                out_specs=(PartitionSpec(), PartitionSpec()),
                 check_rep=False,
             )(params, x_batch, y_batch)
 
@@ -301,10 +303,9 @@ def train_mnist():
             logits_host = logits_host.reshape(-1, y_test.shape[1])
             batch_accuracy = compute_accuracy(logits_host, y_batch_host)
 
-            total_loss += batch_loss * 1.0
-            correct_predictions += batch_accuracy * 1.0
+            total_loss += batch_loss
+            correct_predictions += batch_accuracy
 
-        num_samples = num_samples * 1.0
         avg_loss = total_loss / num_samples
         avg_accuracy = correct_predictions / num_samples
 
