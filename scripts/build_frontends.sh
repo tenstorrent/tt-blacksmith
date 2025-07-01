@@ -85,6 +85,8 @@ if [ "$tt_xla" = true ]; then
     # check if TTMLIR_TOOLCHAIN_DIR is set
     if [ -z "$TTMLIR_TOOLCHAIN_DIR" ]; then
         export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+        sudo mkdir -p /opt/ttmlir-toolchain
+        sudo chown -R $USER /opt/ttmlir-toolchain
     fi
 
     # Update submodules
