@@ -37,7 +37,7 @@ def model_memory_size(model, input_dtype=torch.float32):
     total_memory_bytes = (total_params + total_grads + total_buffers) * element_size
 
     # Convert bytes to gigabytes
-    total_memory_gb = total_memory_bytes / (1024**3)
+    total_memory_gb = total_memory_bytes / 1e9
 
     print(f"Input dtype: {input_dtype}")
     print(f"Model size: {total_memory_gb:.2f} GB")
