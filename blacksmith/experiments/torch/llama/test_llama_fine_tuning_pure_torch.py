@@ -24,25 +24,25 @@ def validate(model, val_data_loader, loss_fn, device, config):
     model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
-    
+
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation", leave=False):
             input_ids = batch["input_ids"]
             expected_output = batch["labels"]
-            
+
             input_ids = input_ids.to(device)
             attention_mask = batch["attention_mask"].to(device)
             expected_output = expected_output.to(device)
-            
+
             # Forward pass
             outputs = model(input_ids, attention_mask=attention_mask)
             logits = outputs.logits
-            
+
             # Calculate loss
             loss = loss_fn(logits.view(-1, model.config.vocab_size), expected_output.view(-1))
             total_val_loss += loss.item()
             num_val_batches += 1
-    
+
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     return avg_val_loss
 
@@ -67,9 +67,9 @@ def train(config, model, train_data_loader, val_data_loader=None):
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
 
     # Variables for tracking best validation loss
-    best_val_loss = float('inf')
+    best_val_loss = float("inf")
     epochs_without_improvement = 0
-    
+
     try:
         global_step = 0
         running_loss = 0.0
@@ -77,7 +77,7 @@ def train(config, model, train_data_loader, val_data_loader=None):
 
         for epoch in range(config.num_epochs):
             print(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
-            
+
             # Training phase
             model.train()
             epoch_train_loss = 0.0
@@ -106,7 +106,7 @@ def train(config, model, train_data_loader, val_data_loader=None):
 
                 # Backward pass
                 loss.backward()
-                
+
                 # Optimizer step
                 if config.use_tt:
                     compiled_model.backward()
@@ -116,7 +116,7 @@ def train(config, model, train_data_loader, val_data_loader=None):
                     torch_optimizer.zero_grad()
 
                 global_step += 1
-                
+
                 # Log training loss at specified intervals
                 if global_step % log_every_n_steps == 0:
                     avg_loss = running_loss / log_every_n_steps
@@ -126,15 +126,17 @@ def train(config, model, train_data_loader, val_data_loader=None):
                     # Validation phase
                     print("Running validation...")
                     avg_val_loss = validate(model, val_data_loader, loss_fn, device, config)
-                    
+
                     # Log validation loss
-                    run.log({
-                        "epoch": epoch + 1,
-                        "train/epoch_loss": avg_loss,
-                        "val/epoch_loss": avg_val_loss,
-                        "step": global_step
-                    })
-                    
+                    run.log(
+                        {
+                            "epoch": epoch + 1,
+                            "train/epoch_loss": avg_loss,
+                            "val/epoch_loss": avg_val_loss,
+                            "step": global_step,
+                        }
+                    )
+
                     print(f"Epoch {epoch + 1} - Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
 
             # Calculate average training loss for the epoch
@@ -144,15 +146,15 @@ def train(config, model, train_data_loader, val_data_loader=None):
             if config.save_strategy == "epoch":
                 checkpoint_path = os.path.join(config.output_dir, "checkpoints", f"checkpoint-{epoch+1}.pth")
                 torch.save(model.state_dict(), checkpoint_path)
-                
+
                 # Save additional training state for resuming
                 training_state = {
-                    'epoch': epoch + 1,
-                    'global_step': global_step,
-                    'best_val_loss': best_val_loss,
-                    'optimizer_state_dict': torch_optimizer.state_dict() if not config.use_tt else None,
-                    'model_state_dict': model.state_dict(),
-                    'config': vars(config)
+                    "epoch": epoch + 1,
+                    "global_step": global_step,
+                    "best_val_loss": best_val_loss,
+                    "optimizer_state_dict": torch_optimizer.state_dict() if not config.use_tt else None,
+                    "model_state_dict": model.state_dict(),
+                    "config": vars(config),
                 }
                 training_state_path = os.path.join(config.output_dir, "checkpoints", f"training_state-{epoch+1}.pth")
                 torch.save(training_state, training_state_path)
@@ -163,15 +165,15 @@ def train(config, model, train_data_loader, val_data_loader=None):
 
         # Final summary
         if avg_val_loss is not None:
-            run.summary['final_train_loss'] = avg_train_loss
-            run.summary['final_val_loss'] = avg_val_loss
-            run.summary['best_val_loss'] = best_val_loss
+            run.summary["final_train_loss"] = avg_train_loss
+            run.summary["final_val_loss"] = avg_val_loss
+            run.summary["best_val_loss"] = best_val_loss
             print(f"\nTraining Complete!")
             print(f"Final Train Loss: {avg_train_loss:.4f}")
             print(f"Final Val Loss: {avg_val_loss:.4f}")
             print(f"Best Val Loss: {best_val_loss:.4f}")
         else:
-            run.summary['final_train_loss'] = avg_train_loss
+            run.summary["final_train_loss"] = avg_train_loss
             print(f"\nTraining Complete! Final Train Loss: {avg_train_loss:.4f}")
 
         artifact = wandb.Artifact("final_model", type="model")

@@ -63,7 +63,7 @@ class SSTDataset:
         """Filter examples by token length. Returns True if example should be kept."""
         tokens = self.tokenizer(example["text"], add_special_tokens=True)
         token_count = len(tokens["input_ids"])
-        
+
         return token_count <= max_tokens
 
     def load_tokenized_data(self) -> Tuple[Any, Any]:

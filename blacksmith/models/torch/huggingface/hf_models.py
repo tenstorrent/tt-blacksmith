@@ -13,7 +13,7 @@ def get_model(config: TrainingConfig):
         config.model_name, torch_dtype=eval(config.dtype), use_cache=config.gradient_checkpointing
     )
 
-    ltt = range(model.config.num_hidden_layers//2, model.config.num_hidden_layers)
+    ltt = range(model.config.num_hidden_layers // 2, model.config.num_hidden_layers)
     lora_config = LoraConfig(
         r=config.lora_r,
         lora_alpha=config.lora_alpha,
