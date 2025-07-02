@@ -29,7 +29,7 @@ class SSTDataset:
 
         return example
 
-    def _tokenize_function(self, examples: Dict[str, Any], mode: str = "train") -> Dict[str, Any]:
+    def _tokenize_function(self, examples: Dict[str, Any]) -> Dict[str, Any]:
         """Tokenize input and create labels with masked prompt tokens."""
 
         tokenized_batch = self.tokenizer(
