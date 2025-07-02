@@ -3,15 +3,20 @@
 This directory contains the code in JAX (and in Flax) for training multilayer perceptron (MLP) on MNIST dataset, through Tenstorrent's Forge compiler with logging to [Weights&Biases](https://wandb.ai/site/).
 The connection to the Tenstorrent device is established in script ```blacksmith/tools/jax_utils.py```. For more details on connecting to Tenstorrent's hardware in JAX, please refer to [tt-xla](https://github.com/tenstorrent/tt-xla).
 ## Training
-To run the training script in JAX, run the command
+To run the single chip training script in JAX, run the command
 ```
-python3 blacksmith/experiments/jax/mnist/test_pure_jax_mnist.py
+python3 blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py
 ```
-To run the training script in Flax, run the command
+To run the single chip training script in Flax, run the command
 ```
-python3 blacksmith/experiments/jax/mnist/test_flax_mnist.py
+python3 blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py
 ```
-Both should be run from project root directory (```tt-blacksmith```).
+To run the multi chip training script, run the command
+```
+python3 blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py
+```
+For now, only data parallel strategy is supported in multi chip case while other strategies are work in progress.
+All commands should be run from project root directory (```tt-blacksmith```).
 
 ## Data
 The [dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset) consists of 60,000 training images and 10,000 test images of handwritten digits (28x28 grayscale).

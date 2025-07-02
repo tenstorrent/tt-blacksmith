@@ -6,13 +6,11 @@ import jax.numpy as jnp
 from jax import random
 
 from flax.training import train_state
-from flax.serialization import to_state_dict, msgpack_serialize, from_bytes
 
 import optax
 
 import wandb
 import os
-import time
 
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.jax_utils import init_device
@@ -29,14 +27,11 @@ from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
     load_checkpoint,
 )
 from blacksmith.experiments.jax.mnist.single_chip.train_utils.train_functions import (
-    forward_pass,
-    forward_and_compute_loss,
     func_optax_loss,
-    compute_loss_and_backward_pass,
+    forward_pass,
     update_params,
-    train_step,
     eval_step,
-    calculate_metrics_train,
+    compute_loss_grads_and_logits,
     calculate_metrics_val,
     accumulate_metrics,
 )
@@ -83,7 +78,9 @@ def init_training(config):
         ) = load_mnist_jax()
 
         rng = random.PRNGKey(0)
-        params = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
+        params_host = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
+
+    params = jax.device_put(params_host, current_device)
 
     tx = optax.sgd(learning_rate=config.training_config.lr)
     state = train_state.TrainState.create(apply_fn=pred_model.model.apply, params=params, tx=tx)
@@ -126,6 +123,8 @@ def train(config_path=None):
     batch_size = training_config.batch_size
     epochs = training_config.epochs
 
+    early_stopping_config = config.early_stopping
+
     train_images_host = training_data["train_images"]
     train_labels_host = training_data["train_labels"]
     eval_images_host = training_data["eval_images"]
@@ -150,15 +149,20 @@ def train(config_path=None):
             batch_images = jax.device_put(batch_images_host, current_device)
             batch_labels = jax.device_put(batch_labels_host, current_device)
 
-            state, loss, grads = train_step(state, batch_images, batch_labels)
-            logits = eval_step(state.params, batch_images)
+            loss, grads, logits = compute_loss_grads_and_logits(state.params, batch_images, batch_labels)
 
+            grads_host = jax.device_put(grads, cpu_device)
             logits_host = jax.device_put(logits, cpu_device)
             batch_labels_host = jax.device_put(batch_labels, cpu_device)
 
             # Accuracy calculation is done on CPU, as argmax is not supported on device (https://github.com/tenstorrent/tt-metal/issues/20570)
             with jax.default_device(cpu_device):
                 accuracy_host = jnp.mean(jnp.argmax(logits_host, 1) == jnp.argmax(batch_labels_host, 1))
+
+            params_host = jax.device_put(state.params, cpu_device)
+            with jax.default_device(cpu_device):
+                params_host_updated = update_params(params_host, grads_host, training_config.lr)
+            state = state.replace(params=jax.device_put(params_host_updated, current_device))
 
             accuracy = jax.device_put(accuracy_host, current_device)
             metrics = {"loss": loss, "accuracy": accuracy}
@@ -175,7 +179,7 @@ def train(config_path=None):
             batch_images = jax.device_put(batch_images_host, current_device)
             batch_labels = jax.device_put(batch_labels_host, current_device)
 
-            logits = eval_step(state.params, batch_images)
+            loss, logits = eval_step(state.params, batch_images, batch_labels)
 
             logits_host = jax.device_put(logits, cpu_device)
             batch_labels_host = jax.device_put(batch_labels, cpu_device)
@@ -191,10 +195,6 @@ def train(config_path=None):
             eval_batch_metrics.append(metrics)
 
         eval_batch_metrics_avg = accumulate_metrics(eval_batch_metrics)
-
-        if eval_batch_metrics_avg["loss"] < best_val_loss:
-            best_val_loss = eval_batch_metrics_avg["loss"]
-            best_epoch = epoch
 
         log_metrics(
             grads,
@@ -213,11 +213,22 @@ def train(config_path=None):
         checkpoint_file_path = os.path.join(checkpoint_dir, checkpoint_file_name)
         save_checkpoint(checkpoint_file_path, state, epoch)
 
+        if eval_batch_metrics_avg["loss"] < best_val_loss - early_stopping_config.min_delta:
+            best_val_loss = eval_batch_metrics_avg["loss"]
+            best_epoch = epoch
+            epochs_no_improvement = 0
+
+        else:
+            epochs_no_improvement += 1
+
+        if epochs_no_improvement >= early_stopping_config.patience:
+            break
+
     if training_config.run_test:
         ckpt_file = os.path.join(base_checkpoint_dir, f"epoch={best_epoch:02d}", checkpoint_file_name)
         restored_state = load_checkpoint(ckpt_file, state, best_epoch)
-        logits = eval_step(restored_state.params, test_images_host)
-        metrics = calculate_metrics_val(logits, test_labels_host)
+        loss, logits = eval_step(restored_state.params, test_images_host, test_labels_host)
+        metrics = calculate_metrics_val(logits, loss, test_labels_host)
         wandb.log({"Test Loss": metrics["loss"], "Test Accuracy": metrics["accuracy"]})
 
     wandb.finish()
