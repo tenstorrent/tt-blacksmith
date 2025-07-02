@@ -159,6 +159,7 @@ def train(config_path=None):
             with jax.default_device(cpu_device):
                 accuracy_host = jnp.mean(jnp.argmax(logits_host, 1) == jnp.argmax(batch_labels_host, 1))
 
+            # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
             params_host = jax.device_put(state.params, cpu_device)
             with jax.default_device(cpu_device):
                 params_host_updated = update_params(params_host, grads_host, training_config.lr)
