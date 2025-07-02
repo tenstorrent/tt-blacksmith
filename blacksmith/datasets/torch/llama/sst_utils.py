@@ -4,16 +4,16 @@
 from string import Template
 
 
-# PROMPT_TEMPLATE = Template(
-#     """
-# Your task is to perform binary sentiment analysis and determine whether the sentiment of the review is negative or positive.
-# Output should be in the valid json format: {'label': sentiment_value}.
-# 
-# Review: $input
-# 
-# Output:
-# """
-# )
+LONG_PROMPT_TEMPLATE = Template(
+    """
+Your task is to perform binary sentiment analysis and determine whether the sentiment of the review is negative or positive.
+Output should be in the valid json format: {'label': sentiment_value}.
+
+Review: $input
+
+Output:
+"""
+)
 
 PROMPT_TEMPLATE = Template("""Review: $input\nOutput:""")
 

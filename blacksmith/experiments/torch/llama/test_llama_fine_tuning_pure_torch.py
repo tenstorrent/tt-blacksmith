@@ -136,27 +136,6 @@ def train(config, model, train_data_loader, val_data_loader=None):
                     })
                     
                     print(f"Epoch {epoch + 1} - Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
-                    
-                    # Early stopping logic
-                    if avg_val_loss < best_val_loss:
-                        best_val_loss = avg_val_loss
-                        epochs_without_improvement = 0
-
-                        # Save best model
-                        best_model_path = os.path.join(config.output_dir, "checkpoints", "best_model.pth")
-                        torch.save(model.state_dict(), best_model_path)
-                        print(f"New best validation loss: {best_val_loss:.4f} - Model saved")
-                    else:
-                        epochs_without_improvement += 1
-                        print(f"No improvement for {epochs_without_improvement} epochs")
-                        
-                        if epochs_without_improvement >= 3:
-                            print(f"Early stopping triggered after no improvement")
-                            break
-
-                    # testing
-                    if avg_loss < 0.1:
-                        break
 
             # Calculate average training loss for the epoch
             avg_train_loss = epoch_train_loss / num_train_batches if num_train_batches > 0 else 0.0
@@ -178,11 +157,6 @@ def train(config, model, train_data_loader, val_data_loader=None):
                 training_state_path = os.path.join(config.output_dir, "checkpoints", f"training_state-{epoch+1}.pth")
                 torch.save(training_state, training_state_path)
 
-                # Log to wandb
-                # artifact = wandb.Artifact(f"checkpoint-{epoch+1}", type="model")
-                # artifact.add_file(checkpoint_path)
-                # run.log_artifact(artifact)
-
         # Save final model
         final_model_path = os.path.join(config.output_dir, "checkpoints", "final_model.pth")
         torch.save(model.state_dict(), final_model_path)
@@ -200,9 +174,9 @@ def train(config, model, train_data_loader, val_data_loader=None):
             run.summary['final_train_loss'] = avg_train_loss
             print(f"\nTraining Complete! Final Train Loss: {avg_train_loss:.4f}")
 
-        # artifact = wandb.Artifact("final_model", type="model")
-        # artifact.add_file(final_model_path)
-        # run.log_artifact(artifact)
+        artifact = wandb.Artifact("final_model", type="model")
+        artifact.add_file(final_model_path)
+        run.log_artifact(artifact)
 
     except Exception as e:
         error_msg = f"Training failed with error: {str(e)}"
@@ -228,9 +202,6 @@ if __name__ == "__main__":
     train_set, eval_set = dataset.load_tokenized_data()
     train_data_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, drop_last=True)
     eval_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
-
-    # print(dataset.tokenizer.decode(train_set[0]["labels"], skip_special_tokens=True))
-    # target_text = dataset.tokenizer.decode([token if token != -100 else dataset.tokenizer.pad_token_id for token in train_set[22]["labels"]])
 
     if config.do_train:
         train(config, model, train_data_loader, eval_data_loader)
