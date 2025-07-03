@@ -43,13 +43,13 @@ extensions = [
     "sphinxcontrib.email",
     "sphinx.ext.mathjax",
     "sphinx_sitemap",
-    "myst_parser"
+    "myst_parser",
 ]
 
 sitemap_locales = [None]
 sitemap_url_scheme = "{link}"
 
-source_suffix = ['.rst', '.md']
+source_suffix = [".rst", ".md"]
 
 # Napoleon settings
 napoleon_google_docstring = False
@@ -92,9 +92,8 @@ html_last_updated_fmt = "%b %d, %Y"
 
 html_baseurl = f"https://docs.tenstorrent.com/{project}"
 
-html_context = {
-    "logo_link_url": os.environ.get("homepage")
-}
+html_context = {"logo_link_url": os.environ.get("homepage")}
+
 
 def setup(app):
     app.add_css_file("tt_theme.css")
