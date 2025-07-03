@@ -45,6 +45,8 @@ logger.disable("")
 
 torch.manual_seed(0)
 
+torch.set_default_device('cpu')
+
 
 def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
@@ -110,7 +112,24 @@ class EfficientNeRFSystem(LightningModule):
         if config.training.use_forge:
             import forge
 
-            max_input = config.data_loading.batch_size * config.model.coarse.samples
+            self.loss_coarse_op = forge.op.loss.MSELoss(name="mse_loss_coarse")
+            self.loss_fine_op = forge.op.loss.MSELoss(name="mse_loss_fine")
+
+            batch_size = self.config.data_loading.batch_size
+
+            self.loss_coarse_forge = forge.compile(
+                self.loss_coarse_op,
+                sample_inputs=forge.tensor.to_forge_tensors([torch.randn(batch_size, 3).requires_grad_(True), torch.randn(batch_size, 3).requires_grad_(True)]),
+                training=True,
+            )
+
+            self.loss_fine_forge = forge.compile(
+                self.loss_fine_op,
+                sample_inputs=forge.tensor.to_forge_tensors([torch.randn(batch_size, 3).requires_grad_(True), torch.randn(batch_size, 3).requires_grad_(True)]),
+                training=True,
+            )
+
+            max_input = batch_size * config.model.coarse.samples
             self.nerf_coarse_forge = forge.compile(
                 self.nerf_coarse,
                 sample_inputs=[torch.randn(max_input, self.in_channels_xyz)],
@@ -232,7 +251,6 @@ class EfficientNeRFSystem(LightningModule):
             num_workers=8,
             batch_size=self.config.data_loading.batch_size,
             worker_init_fn=seed_worker,
-            pin_memory=True,
         )
 
     def val_dataloader(self):
@@ -242,7 +260,6 @@ class EfficientNeRFSystem(LightningModule):
             num_workers=4,
             worker_init_fn=seed_worker,
             batch_size=1,
-            pin_memory=True,
         )
 
     def training_step(self, batch: int, batch_idx: int) -> torch.Tensor:
@@ -254,18 +271,41 @@ class EfficientNeRFSystem(LightningModule):
             self.nerf_tree.create_voxels_fine()
         results = self(rays)
 
-        loss_total = loss_rgb = self.loss(results, rgbs)
+        if self.config.training.use_forge:
+            loss_total = 0.0
+            if "rgb_coarse" in results:
+                results["rgb_coarse"].requires_grad_(True).retain_grad()
+                loss_coarse = self.loss_coarse_forge(results["rgb_coarse"], rgbs)[0]
+                loss_coarse.retain_grad()
+                loss_total += loss_coarse
+            if "rgb_fine" in results:
+                results["rgb_fine"].requires_grad_(True).retain_grad()
+                loss_fine = self.loss_fine_forge(results["rgb_fine"], rgbs)[0]
+                loss_fine.retain_grad()
+                loss_total += loss_fine
+            loss_rgb = loss_total
+        else:
+            loss_total = loss_rgb = self.loss(results, rgbs)
         log_training_metrics(self.log, rgbs, results, loss_rgb, loss_total)
 
+        self.results = results
         if self.device.type.startswith("cuda"):
             torch.cuda.empty_cache()
         return loss_total
 
     def backward(self, loss, *args, **kwargs):
-        loss.backward(*args, **kwargs)
         if self.config.training.use_forge:
-            self.nerf_coarse_forge.backward()
-            self.nerf_fine_forge.backward()
+            if "rgb_coarse" in self.results:
+                self.loss_coarse_forge.backward()
+                torch.autograd.backward(tensors=[self.results["rgb_coarse"]], grad_tensors=[self.loss_coarse_forge.gradient_outputs[0].to_torch()])
+                self.nerf_coarse_forge.backward()
+            if "rgb_fine" in self.results:
+                self.loss_fine_forge.backward()
+                torch.autograd.backward(tensors=[self.results["rgb_fine"]], grad_tensors=[self.loss_fine_forge.gradient_outputs[0].to_torch()])
+                self.nerf_fine_forge.backward()
+        else:
+            loss.backward(*args, **kwargs)
+        
         log_gradients(self.log, self.nerf_coarse.sigma, self.nerf_fine.sigma)
 
     def configure_optimizers(self):

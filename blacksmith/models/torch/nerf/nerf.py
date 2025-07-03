@@ -137,20 +137,26 @@ def inference(
         dim=0,
     )
 
+    if not hasattr(model, "out_sigma"):
+        out_rgb = torch.ones((batch_size, sample_size, 3), device=device).requires_grad_()  # Only use ones where needed
+        out_sigma = torch.full((batch_size, sample_size, 1), sigma_default, device=device).requires_grad_()
+        out_sh = torch.zeros((batch_size, sample_size, 27), device=device).requires_grad_()
+        model.out_sigma = out_sigma
+        model.out_rgb = out_rgb
+        model.out_sh = out_sh
+        model.temps = []
+
     embedded_xyz = embedding_xyz(xyz_to_process)
     sigma, sh = model(embedded_xyz)
+    
+    sigma.retain_grad()
+    sh.retain_grad()
+    model.temps.append([sigma, sh])
+
     sigma, rgb, sh = model.sh2rgb(sigma, sh, model.deg, view_dir_to_process)
     sigma = sigma[:real_chunk_size]
     rgb = rgb[:real_chunk_size]
     sh = sh[:real_chunk_size]
-
-    if not hasattr(model, "out_sigma"):
-        out_rgb = torch.ones((batch_size, sample_size, 3), device=device)  # Only use ones where needed
-        out_sigma = torch.full((batch_size, sample_size, 1), sigma_default, device=device)
-        out_sh = torch.zeros((batch_size, sample_size, 27), device=device)
-        model.out_sigma = out_sigma
-        model.out_rgb = out_rgb
-        model.out_sh = out_sh
 
     out_sigma = model.out_sigma.detach()
     out_rgb = model.out_rgb.detach()
