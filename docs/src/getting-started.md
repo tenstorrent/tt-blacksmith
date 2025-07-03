@@ -1,4 +1,4 @@
-# Getting Started
+# Getting Started w tt-blacksmith
 
 ## Setup
 
@@ -54,3 +54,7 @@ This section guides you through the process of running experiments included in t
 - **Understand Experiment Details:** Before running an experiment, review its dedicated README file for high-level description and specific instructions.
 - **Execute the Experiment:** Follow the detailed steps outlined in the experiment's README file to run it successfully.
 - **Experiment with Configurations:** Feel free to modify the experiment configurations (e.g., parameters) as described in the README to observe their impact on the results.
+
+## Visual Demo: 3D Reconstruction with NeRF
+
+<img src="./docs/src/imgs/nerf_demo.gif" alt="nerf demo" height="230"/>

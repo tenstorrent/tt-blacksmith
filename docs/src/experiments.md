@@ -2,7 +2,7 @@
 
 This page provides an overview of the experiments included in this repository, detailing their organization.
 
-## Available experiments
+## Available Experiments
 
 The following table provides an overview of different model and dataset combinations within various frameworks explored in this project.
 

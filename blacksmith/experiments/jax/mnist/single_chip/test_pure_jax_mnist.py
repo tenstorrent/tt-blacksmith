@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 def train_mnist():
 
-    config_path = os.path.join(os.path.dirname(__file__), "test_mnist.yaml")
+    config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
     config = generate_config(ExperimentConfig, config_path)
 
     training_config = config.training_config
@@ -32,7 +32,6 @@ def train_mnist():
 
     init_device()
 
-    @jax.jit
     def mlp_model(params, x):
         w1, b1, w2, b2, w3, b3 = params
         h1 = jnp.maximum(jnp.dot(x, w1) + b1, 0.0)
@@ -67,7 +66,6 @@ def train_mnist():
 
         return (w1, b1, w2, b2, w3, b3)
 
-    @jax.jit
     def mse_loss(params, x, y):
         logits = mlp_model(params, x)
         loss = jnp.mean((logits - y) ** 2)

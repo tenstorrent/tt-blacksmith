@@ -3,8 +3,11 @@ net_config:
     hidden_size: 128
     output_size: 10
 training_config:
-    batch_size: 1
+    batch_size: 256
     lr: 0.001
-    epochs: 10
+    epochs: 50
     run_test: true
     export_shlo: false
+early_stopping:
+    patience: 1
+    min_delta: 0.001
