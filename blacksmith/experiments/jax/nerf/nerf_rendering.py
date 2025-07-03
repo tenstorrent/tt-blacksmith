@@ -4,17 +4,12 @@
 import jax
 import jax.numpy as jnp
 from jax import random
-from blacksmith.models.jax.nerf.nerf import inference  # Importing from nerf.py
+from blacksmith.models.jax.nerf.nerf import inference
 from blacksmith.models.jax.nerf.nerftree import (  # Import the standalone functions
     query_coarse_out,
     update_coarse_out,
-    calc_index_coarse_out,
-    create_voxels_fine_out,
-    calc_index_fine_out,
     update_fine_out,
-    query_fine_out,
 )
-from blacksmith.models.jax.nerf.nerftree import NerfTree
 
 
 def render_rays(
@@ -134,13 +129,6 @@ def calculate_coarse_rendering(
     result["weights_coarse"] = weights
 
     return result
-
-
-import jax
-import jax.numpy as jnp
-from jax import random
-from blacksmith.models.jax.nerf.nerf import inference  # Importing from nerf.py
-from blacksmith.models.jax.nerf.nerftree import update_fine_out
 
 
 def calculate_fine_rendering(

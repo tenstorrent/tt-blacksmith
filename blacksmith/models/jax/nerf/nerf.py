@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
-from jax import random
 import flax.linen as nn
-from typing import Callable, Tuple, Any
+from typing import Tuple, Any
 
 from blacksmith.models.jax.nerf.sh import eval_sh
 
@@ -43,7 +42,6 @@ class NeRFHead(nn.Module):
 
 
 class NeRFEncoding(nn.Module):
-    in_dim: int
     W: int
     out_dim: int
 
@@ -58,8 +56,6 @@ class NeRFEncoding(nn.Module):
 class NeRF(nn.Module):
     depth: int = 8
     width: int = 256
-    in_channels_xyz: int = 63
-    in_channels_dir: int = 27
     deg: int = 2
 
     @nn.compact
@@ -67,9 +63,9 @@ class NeRF(nn.Module):
         xyz_ = x
         for i in range(self.depth):
             if i == 0:
-                xyz_ = NeRFEncoding(self.in_channels_xyz, self.width, self.width)(xyz_)
+                xyz_ = NeRFEncoding(self.width, self.width)(xyz_)
             else:
-                xyz_ = NeRFEncoding(self.width, self.width, self.width)(xyz_)
+                xyz_ = NeRFEncoding(self.width, self.width)(xyz_)
 
         sigma = NeRFHead(self.width, 1)(xyz_)
         sh = NeRFHead(self.width, 27)(xyz_)
@@ -82,23 +78,15 @@ class NeRF(nn.Module):
         rgb = jax.nn.sigmoid(rgb)
         return sigma, rgb, sh
 
-    def sigma2weights(self, deltas, sigmas, mask=None):
-        """Compute weights and alphas from sigmas and deltas."""
-        sigmas2 = sigmas.squeeze(-1)
-        noise = jnp.zeros(sigmas.shape[:2])
-        sigmas2 = sigmas2 + noise
+    def sigma2weights(self, deltas, sigma_values, mask=None):
+        sigmas = sigma_values.squeeze(-1)
 
-        alphas = 1 - jnp.exp(-deltas * jax.nn.softplus(sigmas2))
+        alphas = 1 - jnp.exp(-deltas * jax.nn.softplus(sigmas))
         if mask is not None:
             mask = mask.squeeze(-1)
-            # jax.debug.print("Sum of mask: {}", (mask.sum(),), ordered = True)
-            # jax.debug.print("Size of mask: {}", (mask.shape,), ordered = True)
             alphas = alphas * mask + 1 - mask
         alphas_shifted = jnp.concatenate([jnp.ones_like(alphas[:, :1]), 1 - alphas + 1e-10], axis=-1)
         weights = alphas * jnp.cumprod(alphas_shifted, axis=-1)[:, :-1]
-        # norm = jax.numpy.linalg.norm(weights)
-        # print(norm)
-        # jax.debug.print("Norm of weights: {}", (jax.numpy.linalg.norm(weights),), ordered = True)
         return weights, alphas
 
 
@@ -114,84 +102,153 @@ def inference(
     chunk: int = 1024,
     callee: str = "coarse",
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    batch_size, sample_size = xyzs.shape[0], xyzs.shape[1]
+    """
+    Perform NeRF inference with gradient computation support.
 
-    non_minus_one_mask = jnp.ones((batch_size, sample_size))
-    non_one_idx = idx_render * (idx_render == -1)
-    non_minus_one_mask = non_minus_one_mask.at[non_one_idx].set(0)
+    Args:
+        model: NeRF neural network model
+        params: Model parameters
+        embedding_xyz: Positional embedding function for 3D coordinates
+        xyzs: 3D sample points [batch_size, sample_size, 3]
+        dirs: View directions [batch_size, 3]
+        deltas: Ray segment lengths for volume rendering
+        idx_render: Indices of points to render [N, 2]
+        sigma_default: Default density value for non-rendered points
+        chunk: Batch size for processing (memory optimization)
+        callee: "coarse" or "fine" to track rendering stage
 
-    xyzs_flat = xyzs[idx_render[:, 0], idx_render[:, 1]].reshape(-1, 3)
-    view_dir = jnp.expand_dims(dirs, 1).repeat(sample_size, axis=1)
-    view_dir_flat = view_dir[idx_render[:, 0], idx_render[:, 1]]
+    Returns:
+        rgb_final: Final rendered RGB colors
+        out_sigma: Density values for all sample points
+        out_sh: Spherical harmonics coefficients
+        dict: Contains intermediates and backward function
+    """
+    batch_size, num_samples_per_ray = xyzs.shape[0], xyzs.shape[1]
 
-    # Pad to chunk size
-    real_chunk_size = xyzs_flat.shape[0]
+    # Extract only the points that need to be rendered (sparse sampling optimization)
+    points_to_render = xyzs[idx_render[:, 0], idx_render[:, 1]].reshape(-1, 3)
 
-    xyz_to_process = jnp.concatenate([xyzs_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
-    view_dir_to_process = jnp.concatenate([view_dir_flat, jnp.zeros((chunk - real_chunk_size, 3))], axis=0)
+    # Expand view directions to match sample points
+    view_dirs_expanded = jnp.expand_dims(dirs, 1).repeat(num_samples_per_ray, axis=1)
+    view_dirs_for_points = view_dirs_expanded[idx_render[:, 0], idx_render[:, 1]]
 
-    embedded_xyz = embedding_xyz.apply({}, xyz_to_process)
+    # Pad to chunk size for efficient batch processing
+    actual_points_count = points_to_render.shape[0]
+
+    # Zero-pad to fill the chunk for vectorized processing
+    points_padded = jnp.concatenate([points_to_render, jnp.zeros((chunk - actual_points_count, 3))], axis=0)
+    view_dirs_padded = jnp.concatenate([view_dirs_for_points, jnp.zeros((chunk - actual_points_count, 3))], axis=0)
+
+    # Apply positional encoding to 3D coordinates
+    embedded_points = embedding_xyz.apply({}, points_padded)
+
+    # VJP (Vector-Jacobian Product) Explanation:
+    # VJP computes gradients efficiently by doing forward pass + preparing backward pass
+    # - Forward: f(x) -> y (normal function evaluation)
+    # - VJP returns: (output, vjp_fn) where vjp_fn(dy) -> dx (gradients w.r.t. inputs)
 
     # Define neural network forward pass
     @jax.jit
-    def nn_forward(params, embedded_xyz):
-        sigma, sh = model.apply({"params": params}, embedded_xyz)
-        return sigma, sh
+    def network_forward(model_params, embedded_coordinates):
+        """Forward pass through NeRF network"""
+        density, spherical_harmonics = model.apply({"params": model_params}, embedded_coordinates)
+        return density, spherical_harmonics
 
+    # Execute forward pass on accelerator device with VJP for gradient computation
     with jax.default_device(jax.devices("tt")[0]):
-        params_device = jax.device_put(params, jax.devices("tt")[0])
-        embedded_xyz_device = jax.device_put(embedded_xyz, jax.devices("tt")[0])
-        (sigma_device, sh_device), nn_vjp_fn = jax.vjp(nn_forward, params_device, embedded_xyz_device)
+        params_on_device = jax.device_put(params, jax.devices("tt")[0])
+        embedded_points_on_device = jax.device_put(embedded_points, jax.devices("tt")[0])
 
-    # Define backward function
-    def nn_backward(seed_sigma, seed_sh):
+        # VJP returns both forward pass results and a function for computing gradients
+        (density_on_device, sh_on_device), vjp_backward_fn = jax.vjp(
+            network_forward, params_on_device, embedded_points_on_device
+        )
+
+    # Define backward function for gradient computation during training
+    def compute_gradients(gradient_seed_density, gradient_seed_sh):
+        """
+        Compute gradients w.r.t. model parameters using VJP.
+
+        Args:
+            gradient_seed_density: Upstream gradients w.r.t. density
+            gradient_seed_sh: Upstream gradients w.r.t. spherical harmonics
+
+        Returns:
+            Gradients w.r.t. model parameters
+        """
         with jax.default_device(jax.devices("tt")[0]):
-            seed_sigma_device = jax.device_put(seed_sigma, jax.devices("tt")[0])
-            seed_sh_device = jax.device_put(seed_sh, jax.devices("tt")[0])
-            grads_device = nn_vjp_fn((seed_sigma_device, seed_sh_device))
-            return jax.device_put(grads_device[0], jax.devices("cpu")[0])  # Return gradients w.r.t. params
+            grad_density_on_device = jax.device_put(gradient_seed_density, jax.devices("tt")[0])
+            grad_sh_on_device = jax.device_put(gradient_seed_sh, jax.devices("tt")[0])
 
-    # Move outputs to CPU for downstream processing
-    sigma = jax.device_put(sigma_device, jax.devices("cpu")[0])
-    sh = jax.device_put(sh_device, jax.devices("cpu")[0])
+            # VJP function computes gradients w.r.t. all inputs (params and embedded_points)
+            param_gradients_on_device, _ = vjp_backward_fn((grad_density_on_device, grad_sh_on_device))
 
-    sigma, rgb, sh = model.sh2rgb(sigma, sh, model.deg, view_dir_to_process)
+            # Return only parameter gradients, moved back to CPU
+            return jax.device_put(param_gradients_on_device, jax.devices("cpu")[0])
 
-    sigma = sigma[:real_chunk_size]
-    rgb = rgb[:real_chunk_size]
-    sh = sh[:real_chunk_size]
+    # Move network outputs back to CPU for downstream processing
+    density_values = jax.device_put(density_on_device, jax.devices("cpu")[0])
+    sh_coefficients = jax.device_put(sh_on_device, jax.devices("cpu")[0])
 
-    out_rgb = jnp.ones((batch_size, sample_size, 3))
-    out_sigma = jnp.full((batch_size, sample_size, 1), sigma_default)
-    out_sh = jnp.zeros((batch_size, sample_size, 27))
+    # Convert spherical harmonics to RGB colors based on view direction
+    density_processed, rgb_colors, sh_processed = model.sh2rgb(
+        density_values, sh_coefficients, model.deg, view_dirs_padded
+    )
 
-    out_sigma = out_sigma.at[idx_render[:, 0], idx_render[:, 1]].set(sigma)
-    out_rgb = out_rgb.at[idx_render[:, 0], idx_render[:, 1]].set(rgb)
-    out_sh = out_sh.at[idx_render[:, 0], idx_render[:, 1]].set(sh)
+    # Remove padding to get actual results
+    density_processed = density_processed[:actual_points_count]
+    rgb_colors = rgb_colors[:actual_points_count]
+    sh_processed = sh_processed[:actual_points_count]
 
-    non_minus_one_mask = jnp.expand_dims(non_minus_one_mask, axis=-1)
-    out_sigma = out_sigma * non_minus_one_mask
+    # Initialize output arrays with default values
+    final_rgb = jnp.ones((batch_size, num_samples_per_ray, 3))  # Default white
+    final_density = jnp.full((batch_size, num_samples_per_ray, 1), sigma_default)  # Default density
+    final_sh = jnp.zeros((batch_size, num_samples_per_ray, 27))  # Default SH coefficients
 
-    weights, alphas = model.sigma2weights(deltas, out_sigma, non_minus_one_mask)
-    weights_sum = weights.sum(axis=1)
-    rgb_final = jnp.sum(weights[..., None] * out_rgb, axis=-2)
-    rgb_final = rgb_final + (1 - weights_sum[..., None])  # White background
+    # Scatter processed values back to their original positions
+    final_density = final_density.at[idx_render[:, 0], idx_render[:, 1]].set(density_processed)
+    final_rgb = final_rgb.at[idx_render[:, 0], idx_render[:, 1]].set(rgb_colors)
+    final_sh = final_sh.at[idx_render[:, 0], idx_render[:, 1]].set(sh_processed)
 
-    # Return results and the backward function
+    # Create mask for valid (non-empty) sample points
+    valid_points_mask = jnp.ones((batch_size, num_samples_per_ray))
+    empty_point_indices = idx_render * (idx_render == -1)  # Find empty points marked with -1
+    valid_points_mask = valid_points_mask.at[empty_point_indices].set(0)
+
+    # Apply mask to density values (zero out invalid points)
+    valid_points_mask_expanded = jnp.expand_dims(valid_points_mask, axis=-1)
+    final_density = final_density * valid_points_mask_expanded
+
+    # Perform volume rendering: convert density to weights and compute final RGB
+    rendering_weights, alpha_values = model.sigma2weights(deltas, final_density, valid_points_mask_expanded)
+    total_weight_per_ray = rendering_weights.sum(axis=1)
+
+    # Weighted sum of RGB values along each ray
+    rendered_rgb = jnp.sum(rendering_weights[..., None] * final_rgb, axis=-2)
+
+    # Add white background for areas with low accumulated weight
+    rendered_rgb = rendered_rgb + (1 - total_weight_per_ray[..., None])
+
     if callee == "coarse":
-        intermediates = {
-            "sigma_coarse_immediate": sigma,
-            "sh_coarse_immediate": sh,
-            "weights": weights,
-            "alphas": alphas,
+        intermediate_results = {
+            "sigma_coarse_immediate": density_processed,
+            "sh_coarse_immediate": sh_processed,
+            "weights": rendering_weights,
+            "alphas": alpha_values,
             "idx_render_coarse": idx_render,
         }
     else:
-        intermediates = {
-            "sigma_fine_immediate": sigma,
-            "sh_fine_immediate": sh,
-            "weights": weights,
-            "alphas": alphas,
+        intermediate_results = {
+            "sigma_fine_immediate": density_processed,
+            "sh_fine_immediate": sh_processed,
+            "weights": rendering_weights,
+            "alphas": alpha_values,
             "idx_render_fine": idx_render,
         }
-    return rgb_final, out_sigma, out_sh, {"intermediates": intermediates, "nn_backward": nn_backward}
+
+    return (
+        rendered_rgb,
+        final_density,
+        final_sh,
+        {"intermediates": intermediate_results, "nn_backward": compute_gradients},
+    )

@@ -18,9 +18,10 @@ def mse(
     Returns:
         MSE value (scalar if reduction="mean", array otherwise)
     """
-    value = (image_pred - image_gt) ** 2
     if valid_mask is not None:
-        value = value[valid_mask]
+        image_pred = image_pred[valid_mask]
+        image_gt = image_gt[valid_mask]
+    value = (image_pred - image_gt) ** 2
     if reduction == "mean":
         return jnp.mean(value)
     return value

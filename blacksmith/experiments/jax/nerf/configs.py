@@ -28,7 +28,7 @@ class ModelConfig(BaseModel):
 
 
 class DataLoadingConfig(BaseModel):
-    input_dir: str = "/proj_sw/training_data/tt_nerf_white"
+    dataset_name: str = "Tenstorrent/tt-nerf-p150-white"
     img_wh: List[int] = Field(default=[400, 400])
     batch_size: int = 1024
 
@@ -40,7 +40,6 @@ class TrainingConfig(BaseModel):
     epochs: int = 16
     loss: str = "mse"
     optimizer: str = "radam"
-    # optimizer_kwargs: Optional[dict] = None
     lr: float = 1e-4
     betas: Tuple[float, float] = (0.9, 0.999)
     eps: float = 1e-8
@@ -73,11 +72,3 @@ class NerfConfig(BaseModel):
     data_loading: DataLoadingConfig = DataLoadingConfig()
     training: TrainingConfig = TrainingConfig()
     checkpoint: CheckpointConfig = CheckpointConfig()
-
-
-def load_config(path: str) -> NerfConfig:
-    import yaml
-
-    with open(path, "r") as f:
-        config = yaml.safe_load(f)
-    return NerfConfig(**config)

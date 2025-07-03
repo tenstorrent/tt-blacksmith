@@ -6,39 +6,29 @@ import os
 import jax
 import jax.numpy as jnp
 from jax import random
-import flax.linen as nn
 from flax.training import train_state
-import optax
 import numpy as np
-import random as py_random
-from jax import lax
 from PIL import Image
 
-import orbax.checkpoint as ocp
-import shutil
 
-import flax.serialization as flax_serialization
-from flax.serialization import from_state_dict, to_state_dict
+from flax.serialization import from_state_dict
 import jax
 import jax.numpy as jnp
 import os
-import shutil
+
+from blacksmith.tools.cli import generate_config
 
 from blacksmith.datasets.jax.nerf.blender import BlenderDataset, create_dataloader, create_dataloader_val
 from nerf_rendering import render_rays, generate_ray_samples
 from blacksmith.models.jax.nerf.nerf import Embedding, NeRF
 from blacksmith.models.jax.nerf.nerftree import NerfTree
-from configs import NerfConfig, load_config
+from configs import NerfConfig
 from blacksmith.experiments.jax.nerf.utils.optimizers import get_optimizer
 
 import wandb
 
-import time
 from blacksmith.tools.jax_utils import init_device
 
-from functools import partial
-
-import orbax.checkpoint as ocp
 from flax import serialization
 from typing import Callable
 
@@ -58,15 +48,11 @@ class EfficientNeRFSystem:
         self.nerf_coarse = NeRF(
             depth=config.model.coarse.depth,
             width=config.model.coarse.width,
-            in_channels_xyz=self.in_channels_xyz,
-            in_channels_dir=self.in_channels_dir,
             deg=self.deg,
         )
         self.nerf_fine = NeRF(
             depth=config.model.fine.depth,
             width=config.model.fine.width,
-            in_channels_xyz=self.in_channels_xyz,
-            in_channels_dir=self.in_channels_dir,
             deg=self.deg,
         )
 
@@ -104,7 +90,7 @@ class EfficientNeRFSystem:
 
     def prepare_data(self):
         dataset_kwargs = {
-            "root_dir": self.config.data_loading.input_dir,
+            "dataset_name": self.config.data_loading.dataset_name,
             "img_wh": tuple(self.config.data_loading.img_wh),
         }
         self.train_dataset = BlenderDataset(split="train", **dataset_kwargs)
@@ -837,7 +823,7 @@ def main(config: NerfConfig):
                         save_checkpoint(system, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last)
                         print(f"Saved checkpoint at step {global_step}")
 
-                    if global_step % config.training.log_every == 0 and global_step > 0:
+                    if global_step % config.training.log_every == 0:
                         val_iter = iter(system.val_dataloader)
                         system.validation_step_outputs = []
                         for batch_idx in range(system.val_steps_per_epoch):
@@ -928,9 +914,8 @@ def save_rendered_images(system, output_dir):
 if __name__ == "__main__":
 
     init_device()
-
     config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
-    config = load_config(config_file_path)
+    config = generate_config(NerfConfig, config_file_path)
     if config.training.render:
         render(config)
     else:
