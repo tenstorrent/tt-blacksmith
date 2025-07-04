@@ -156,7 +156,6 @@ def train(config_path=None):
             loss, grads, logits = compute_loss_grads_and_logits(state.params, batch_images, batch_labels)
 
             grads_host = jax.device_put(grads, cpu_device)
-            batch_labels_host = jax.device_put(batch_labels, cpu_device)
 
             accuracy = jnp.mean(jnp.argmax(logits, 1) == jnp.argmax(batch_labels, 1))
 
