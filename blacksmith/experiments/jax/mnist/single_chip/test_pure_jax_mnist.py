@@ -10,15 +10,9 @@ import os
 
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.jax_utils import init_device
-
-
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
-
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
-from blacksmith.experiments.jax.mnist.logging.logger_config import get_default_logger_config
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
-
-from pydantic import BaseModel, Field
 
 
 def train_mnist():
@@ -29,6 +23,7 @@ def train_mnist():
     training_config = config.training_config
     net_config = config.net_config
     logger_config = config.logger_config
+    early_stopping_config = config.early_stopping
 
     init_device()
 
@@ -51,32 +46,34 @@ def train_mnist():
         w3_shape = (hidden_size, output_size)
         b3_shape = (output_size,)
 
-        # He initialization for weights
-        w1 = random.normal(key, w1_shape) * jnp.sqrt(2.0 / w1_shape[0])
+        key1, key2, key3 = random.split(key, 3)
+
+        # Lecun normal
+        w1 = random.normal(key1, w1_shape) * jnp.sqrt(1.0 / w1_shape[0])
         w1 = w1.astype(jnp.float32)
         b1 = jnp.zeros(b1_shape, dtype=jnp.float32)
-
-        w2 = random.normal(key, w2_shape) * jnp.sqrt(2.0 / w2_shape[0])
+        w2 = random.normal(key2, w2_shape) * jnp.sqrt(1.0 / w2_shape[0])
         w2 = w2.astype(jnp.float32)
         b2 = jnp.zeros(b2_shape, dtype=jnp.float32)
-
-        w3 = random.normal(key, w3_shape) * jnp.sqrt(2.0 / w3_shape[0])
+        w3 = random.normal(key3, w3_shape) * jnp.sqrt(1.0 / w3_shape[0])
         w3 = w3.astype(jnp.float32)
         b3 = jnp.zeros(b3_shape, dtype=jnp.float32)
 
         return (w1, b1, w2, b2, w3, b3)
 
-    def mse_loss(params, x, y):
-        logits = mlp_model(params, x)
-        loss = jnp.mean((logits - y) ** 2)
-        return loss, logits
+    def cross_entropy(logits, y):
+        return -jnp.mean(jnp.sum(y * jax.nn.log_softmax(logits), axis=-1))
 
     @jax.jit
-    def compute_loss_grads_logits(params, x, y):
-        (loss, logits), grads = jax.value_and_grad(mse_loss, argnums=0, has_aux=True)(params, x, y)
+    def compute_loss_grads_logits(params, x_batch, y_batch):
+        def loss_fn(p):
+            logits = mlp_model(p, x_batch)
+            return cross_entropy(logits, y_batch), logits
+
+        (loss, logits), grads = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)(params)
+
         return loss, grads, logits
 
-    # Gradient descent update rule (simple SGD)
     @jax.jit
     def update(params, grads, learning_rate):
         w1, b1, w2, b2, w3, b3 = params
@@ -92,23 +89,18 @@ def train_mnist():
 
         return updated_params
 
-    # Done on CPU.
-    def argmax_on_cpu(array):
-        array_cpu = jax.device_put(array, jax.devices("cpu")[0])
+    @jax.jit
+    def validation_loss(params, x_val, y_val):
+        def loss_fn(p):
+            logits = mlp_model(p, x_val)
+            return cross_entropy(logits, y_val), logits
 
-        with jax.default_device(jax.devices("cpu")[0]):
-            argmax_result = jnp.argmax(array_cpu, axis=-1)
-            argmax_result = argmax_result.astype(jnp.uint32)
+        loss, logits = loss_fn(params)
+        return loss, logits
 
-        return argmax_result
-
-    # Done on CPU.
+    @jax.jit
     def compute_accuracy(logits, y):
-        predictions = argmax_on_cpu(logits)
-        true_labels = argmax_on_cpu(y)
-
-        correct = jnp.mean(predictions == true_labels)
-
+        correct = jnp.mean(jnp.argmax(logits, 1) == jnp.argmax(y, 1))
         return correct
 
     # Training loop
@@ -123,12 +115,16 @@ def train_mnist():
         num_epochs=training_config.epochs,
         batch_size=training_config.batch_size,
         learning_rate=training_config.lr,
+        early_stopping_config=early_stopping_config,
+        logger_config=logger_config,
     ):
         input_size = net_config.input_size
         hidden_size = net_config.hidden_size
         output_size = net_config.output_size
         current_device = jax.devices()[0]
-        # Initialize model parameters
+
+        # Initializing model parameters on CPU, since Jax random number generator
+        # is currently not supported on device (https://github.com/tenstorrent/tt-xla/issues/420).
         with jax.default_device(jax.devices("cpu")[0]):
             params_host = init_mlp_params(key, input_size, hidden_size, output_size)
 
@@ -136,11 +132,16 @@ def train_mnist():
 
         num_batches = x_train_host.shape[0] // batch_size
 
-        config = init_wandb(
-            project_name="Pure JAX MLP training",
-            job_type="Pure JAX MLP training",
-            dir_path=logger_config.checkpoint.checkpoint_dir,
-        )
+        if logger_config.log_on_wandb:
+            config = init_wandb(
+                project_name="Pure JAX MLP training",
+                job_type="Pure JAX MLP training",
+                dir_path=logger_config.checkpoint.checkpoint_dir,
+            )
+
+        best_val_loss = 1000.0
+        epochs_no_improvement = 0
+        early_stop_triggered = False
 
         for epoch in range(num_epochs):
 
@@ -148,6 +149,8 @@ def train_mnist():
             batch_accuracy_accum = 0.0
 
             for i in range(num_batches):
+
+                # Batch creation is done on CPU (https://github.com/tenstorrent/tt-mlir/issues/2309)
                 with jax.default_device(jax.devices("cpu")[0]):
                     x_batch_host, y_batch_host = (
                         x_train_host[i * batch_size : (i + 1) * batch_size],
@@ -159,8 +162,13 @@ def train_mnist():
 
                 batch_loss, grads, logits = compute_loss_grads_logits(params, x_batch, y_batch)
 
-                w1, b1, w2, b2, w3, b3 = update(params, grads, learning_rate)
-                params = (w1, b1, w2, b2, w3, b3)
+                params_host = jax.device_put(params, jax.devices("cpu")[0])
+                grads_host = jax.device_put(grads, jax.devices("cpu")[0])
+                learning_rate_host = jax.device_put(learning_rate, jax.devices("cpu")[0])
+
+                # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
+                params_host_updated = update(params_host, grads_host, learning_rate_host)
+                params = jax.device_put(params_host_updated, current_device)
 
                 batch_accuracy = compute_accuracy(logits, y_batch)
 
@@ -170,17 +178,41 @@ def train_mnist():
                 if (i + 1) % logger_config.log_every_n_steps == 0:
                     avg_loss = batch_loss_accum / logger_config.log_every_n_steps
                     avg_accuracy = batch_accuracy_accum / logger_config.log_every_n_steps
-                    wandb.log({"train loss": avg_loss, "train accuracy": avg_accuracy})
+                    if logger_config.log_on_wandb:
+                        wandb.log({"train loss": avg_loss, "train accuracy": avg_accuracy})
+                    else:
+                        print(f"Epoch {epoch + 1}, Step {i + 1}, Loss: {avg_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
                     batch_loss_accum = 0.0
                     batch_accuracy_accum = 0.0
 
             val_loss, val_accuracy = evaluate(params, x_val_host, y_val_host)
-            wandb.log({"validation loss": val_loss, "validation accuracy": val_accuracy})
+            if logger_config.log_on_wandb:
+                wandb.log({"validation loss": val_loss, "validation accuracy": val_accuracy})
+            else:
+                print(f"Epoch {epoch + 1}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
+
+            if val_loss < best_val_loss - early_stopping_config.min_delta:
+                best_val_loss = val_loss
+                epochs_no_improvement = 0
+                best_params = params
+            else:
+                epochs_no_improvement += 1
+
+            if epochs_no_improvement >= early_stopping_config.patience:
+                early_stop_triggered = True
+                break
+
+        if early_stop_triggered:
+            params = best_params
 
         test_loss, test_accuracy = evaluate(params, x_test_host, y_test_host)
-        wandb.log({"test loss": test_loss, "test accuracy": test_accuracy})
 
-        wandb.finish()
+        if logger_config.log_on_wandb:
+            wandb.log({"test loss": test_loss, "test accuracy": test_accuracy})
+            wandb.finish()
+
+        else:
+            print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
 
         return params
 
@@ -197,14 +229,13 @@ def train_mnist():
             x_batch = jax.device_put(x_batch_host, jax.devices()[0])
             y_batch = jax.device_put(y_batch_host, jax.devices()[0])
 
-            batch_loss, logits = mse_loss(params, x_batch, y_batch)
+            batch_loss, logits = validation_loss(params, x_batch, y_batch)
+
             batch_accuracy = compute_accuracy(logits, y_batch)
 
-            total_loss += batch_loss * 1.0
-            correct_predictions += batch_accuracy * 1.0
+            total_loss += batch_loss
+            correct_predictions += batch_accuracy
 
-        # Calculate average loss and accuracy over the entire test set
-        num_samples = num_samples * 1.0
         avg_loss = total_loss / num_samples
         avg_accuracy = correct_predictions / num_samples
 

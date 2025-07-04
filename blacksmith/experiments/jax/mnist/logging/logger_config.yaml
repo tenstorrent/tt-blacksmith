@@ -1,6 +1,8 @@
 log_hyperparameters: True
 experiment_name: "Flax mnist mlp training"
 wandb_dir: path/to/dir
+log_on_wandb: True
+run_name: "flax_mnist_mlp_training"
 checkpoint:
     log_checkpoint: True
     checkpoint_dir: path/to/dir

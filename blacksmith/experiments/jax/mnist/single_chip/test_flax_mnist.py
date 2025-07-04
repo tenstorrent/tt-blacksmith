@@ -6,13 +6,11 @@ import jax.numpy as jnp
 from jax import random
 
 from flax.training import train_state
-from flax.serialization import to_state_dict, msgpack_serialize, from_bytes
 
 import optax
 
 import wandb
 import os
-import time
 
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.jax_utils import init_device
@@ -29,14 +27,11 @@ from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
     load_checkpoint,
 )
 from blacksmith.experiments.jax.mnist.single_chip.train_utils.train_functions import (
+    cross_entropy,
     forward_pass,
-    forward_and_compute_loss,
-    func_optax_loss,
-    compute_loss_and_backward_pass,
     update_params,
-    train_step,
     eval_step,
-    calculate_metrics_train,
+    compute_loss_grads_and_logits,
     calculate_metrics_val,
     accumulate_metrics,
 )
@@ -50,13 +45,17 @@ def init_configs(config_path=None):
 
     config = generate_config(ExperimentConfig, config_path)
 
-    config_wandb = init_wandb(
-        project_name=config.logger_config.experiment_name,
-        job_type=config.logger_config.experiment_name,
-        dir_path=config.logger_config.wandb_dir,
-    )
+    if config.logger_config.log_on_wandb:
+        config_wandb = init_wandb(
+            project_name=config.logger_config.experiment_name,
+            job_type=config.logger_config.experiment_name,
+            dir_path=config.logger_config.wandb_dir,
+        )
+        run_name = wandb.run.name
+    else:
+        run_name = config.logger_config.run_name
 
-    base_checkpoint_dir = f"{config.logger_config.checkpoint.checkpoint_dir}{wandb.run.name}"
+    base_checkpoint_dir = f"{config.logger_config.checkpoint.checkpoint_dir}{run_name}"
     os.makedirs(base_checkpoint_dir, exist_ok=True)
 
     return config, base_checkpoint_dir
@@ -83,7 +82,9 @@ def init_training(config):
         ) = load_mnist_jax()
 
         rng = random.PRNGKey(0)
-        params = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
+        params_host = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
+
+    params = jax.device_put(params_host, current_device)
 
     tx = optax.sgd(learning_rate=config.training_config.lr)
     state = train_state.TrainState.create(apply_fn=pred_model.model.apply, params=params, tx=tx)
@@ -126,6 +127,8 @@ def train(config_path=None):
     batch_size = training_config.batch_size
     epochs = training_config.epochs
 
+    early_stopping_config = config.early_stopping
+
     train_images_host = training_data["train_images"]
     train_labels_host = training_data["train_labels"]
     eval_images_host = training_data["eval_images"]
@@ -150,17 +153,18 @@ def train(config_path=None):
             batch_images = jax.device_put(batch_images_host, current_device)
             batch_labels = jax.device_put(batch_labels_host, current_device)
 
-            state, loss, grads = train_step(state, batch_images, batch_labels)
-            logits = eval_step(state.params, batch_images)
+            loss, grads, logits = compute_loss_grads_and_logits(state.params, batch_images, batch_labels)
 
-            logits_host = jax.device_put(logits, cpu_device)
-            batch_labels_host = jax.device_put(batch_labels, cpu_device)
+            grads_host = jax.device_put(grads, cpu_device)
 
-            # Accuracy calculation is done on CPU, as argmax is not supported on device (https://github.com/tenstorrent/tt-metal/issues/20570)
+            accuracy = jnp.mean(jnp.argmax(logits, 1) == jnp.argmax(batch_labels, 1))
+
+            # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
+            params_host = jax.device_put(state.params, cpu_device)
             with jax.default_device(cpu_device):
-                accuracy_host = jnp.mean(jnp.argmax(logits_host, 1) == jnp.argmax(batch_labels_host, 1))
+                params_host_updated = update_params(params_host, grads_host, training_config.lr)
+            state = state.replace(params=jax.device_put(params_host_updated, current_device))
 
-            accuracy = jax.device_put(accuracy_host, current_device)
             metrics = {"loss": loss, "accuracy": accuracy}
             train_batch_metrics.append(metrics)
 
@@ -175,52 +179,72 @@ def train(config_path=None):
             batch_images = jax.device_put(batch_images_host, current_device)
             batch_labels = jax.device_put(batch_labels_host, current_device)
 
-            logits = eval_step(state.params, batch_images)
+            loss, logits = eval_step(state.params, batch_images, batch_labels)
 
-            logits_host = jax.device_put(logits, cpu_device)
-            batch_labels_host = jax.device_put(batch_labels, cpu_device)
+            accuracy = jnp.mean(jnp.argmax(logits, 1) == jnp.argmax(batch_labels, 1))
 
-            with jax.default_device(cpu_device):
-                accuracy_host = jnp.mean(jnp.argmax(logits_host, 1) == jnp.argmax(batch_labels_host, 1))
-
-            accuracy = jax.device_put(accuracy_host, current_device)
             metrics = {
-                "loss": func_optax_loss(logits, batch_labels),
+                "loss": cross_entropy(logits, batch_labels),
                 "accuracy": accuracy,
             }
             eval_batch_metrics.append(metrics)
 
         eval_batch_metrics_avg = accumulate_metrics(eval_batch_metrics)
 
-        if eval_batch_metrics_avg["loss"] < best_val_loss:
-            best_val_loss = eval_batch_metrics_avg["loss"]
-            best_epoch = epoch
-
-        log_metrics(
-            grads,
-            state,
-            train_batch_metrics_avg["loss"],
-            train_batch_metrics_avg["accuracy"],
-            eval_batch_metrics_avg["loss"],
-            eval_batch_metrics_avg["accuracy"],
-            epoch,
-        )
+        if config.logger_config.log_on_wandb:
+            log_metrics(
+                grads,
+                state,
+                train_batch_metrics_avg["loss"],
+                train_batch_metrics_avg["accuracy"],
+                eval_batch_metrics_avg["loss"],
+                eval_batch_metrics_avg["accuracy"],
+                epoch,
+            )
+        else:
+            print(
+                f"Epoch {epoch + 1}/{epochs} - "
+                f"Train Loss: {train_batch_metrics_avg['loss']:.4f}, "
+                f"Train Accuracy: {train_batch_metrics_avg['accuracy']:.4f}, "
+                f"Eval Loss: {eval_batch_metrics_avg['loss']:.4f}, "
+                f"Eval Accuracy: {eval_batch_metrics_avg['accuracy']:.4f}"
+            )
 
         epoch_dir = f"epoch={epoch:02d}"
         checkpoint_dir = os.path.join(base_checkpoint_dir, epoch_dir)
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_file_name = "checkpoint.msgpack"
         checkpoint_file_path = os.path.join(checkpoint_dir, checkpoint_file_name)
-        save_checkpoint(checkpoint_file_path, state, epoch)
+        save_checkpoint(checkpoint_file_path, state, epoch, config.logger_config.log_on_wandb)
+
+        if eval_batch_metrics_avg["loss"] < best_val_loss - early_stopping_config.min_delta:
+            best_val_loss = eval_batch_metrics_avg["loss"]
+            best_epoch = epoch
+            epochs_no_improvement = 0
+
+        else:
+            epochs_no_improvement += 1
+
+        if epochs_no_improvement >= early_stopping_config.patience:
+            break
 
     if training_config.run_test:
         ckpt_file = os.path.join(base_checkpoint_dir, f"epoch={best_epoch:02d}", checkpoint_file_name)
-        restored_state = load_checkpoint(ckpt_file, state, best_epoch)
-        logits = eval_step(restored_state.params, test_images_host)
-        metrics = calculate_metrics_val(logits, test_labels_host)
-        wandb.log({"Test Loss": metrics["loss"], "Test Accuracy": metrics["accuracy"]})
+        restored_state = load_checkpoint(ckpt_file, state, best_epoch, config.logger_config.log_on_wandb)
+        test_labels = jax.device_put(test_labels_host, current_device)
+        test_images = jax.device_put(test_images_host, current_device)
+        loss, logits = eval_step(restored_state.params, test_images, test_labels)
+        metrics = calculate_metrics_val(logits, loss, test_labels)
+        if config.logger_config.log_on_wandb:
+            wandb.log({"Test Loss": metrics["loss"], "Test Accuracy": metrics["accuracy"]})
+        else:
+            print(
+                f"Test Loss: {metrics['loss']:.4f}, "
+                f"Test Accuracy: {metrics['accuracy']:.4f} (best epoch: {best_epoch + 1})"
+            )
 
-    wandb.finish()
+    if config.logger_config.log_on_wandb:
+        wandb.finish()
 
     if training_config.export_shlo:
         export_it = ExportSHLO()
@@ -231,7 +255,7 @@ def train(config_path=None):
             eval_step, state, training_components["shapes"]["input"], print_stablehlo=False
         )
         export_it.export_loss_to_StableHLO_and_get_ops(
-            func_optax_loss, training_components["shapes"]["output"], print_stablehlo=False
+            cross_entropy, training_components["shapes"]["output"], print_stablehlo=False
         )
         export_it.export_optimizer_to_StableHLO_and_get_ops(update_params, state, grads, print_stablehlo=False)
 
