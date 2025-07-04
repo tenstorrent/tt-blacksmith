@@ -147,7 +147,7 @@ def inference(
 
     embedded_xyz = embedding_xyz(xyz_to_process)
     sigma, sh = model(embedded_xyz)
-    
+
     sigma.retain_grad()
     sh.retain_grad()
 

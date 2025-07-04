@@ -45,8 +45,6 @@ logger.disable("")
 
 torch.manual_seed(0)
 
-torch.set_default_device('cpu')
-
 
 def seed_worker(worker_id):
     worker_seed = torch.initial_seed() % 2**32
@@ -119,13 +117,23 @@ class EfficientNeRFSystem(LightningModule):
 
             self.loss_coarse_forge = forge.compile(
                 self.loss_coarse_op,
-                sample_inputs=forge.tensor.to_forge_tensors([torch.randn(self.batch_size, 3).requires_grad_(True), torch.randn(self.batch_size, 3).requires_grad_(True)]),
+                sample_inputs=forge.tensor.to_forge_tensors(
+                    [
+                        torch.randn(self.batch_size, 3).requires_grad_(True),
+                        torch.randn(self.batch_size, 3).requires_grad_(True),
+                    ]
+                ),
                 training=True,
             )
 
             self.loss_fine_forge = forge.compile(
                 self.loss_fine_op,
-                sample_inputs=forge.tensor.to_forge_tensors([torch.randn(self.batch_size, 3).requires_grad_(True), torch.randn(self.batch_size, 3).requires_grad_(True)]),
+                sample_inputs=forge.tensor.to_forge_tensors(
+                    [
+                        torch.randn(self.batch_size, 3).requires_grad_(True),
+                        torch.randn(self.batch_size, 3).requires_grad_(True),
+                    ]
+                ),
                 training=True,
             )
 
@@ -276,7 +284,9 @@ class EfficientNeRFSystem(LightningModule):
                 rgb_coarse = results["rgb_coarse"]
                 rgb_coarse.requires_grad_(True)
                 # pad with zeros to match (batch_size, 3)
-                rgb_coarse = torch.cat([rgb_coarse, torch.zeros((abs(self.batch_size - rgb_coarse.shape[0]), 3))], dim=0)
+                rgb_coarse = torch.cat(
+                    [rgb_coarse, torch.zeros((abs(self.batch_size - rgb_coarse.shape[0]), 3))], dim=0
+                )
                 results["rgb_coarse"] = rgb_coarse
                 rgbs = torch.cat([rgbs, torch.zeros((abs(self.batch_size - rgbs.shape[0]), 3))], dim=0)
                 loss_coarse = self.loss_coarse_forge(rgb_coarse, rgbs)[0]
@@ -308,21 +318,21 @@ class EfficientNeRFSystem(LightningModule):
                 # forward pass: input -> neural nets (device) -> postprocessing (host) -> loss (device)
                 # backward pass: loss backward (device) -> autograd of postprocessing (host) -> neural nets (device)
                 torch.autograd.backward(
-                    tensors=[self.results["rgb_coarse"]], 
+                    tensors=[self.results["rgb_coarse"]],
                     # gradient_outputs contains grads for predictions and for labels, first being predictions
-                    grad_tensors=[-self.loss_coarse_forge.gradient_outputs[0].to_torch()]
+                    grad_tensors=[-self.loss_coarse_forge.gradient_outputs[0].to_torch()],
                 )
                 self.nerf_coarse_forge.backward()
             if "rgb_fine" in self.results:
                 self.loss_fine_forge.backward()
                 torch.autograd.backward(
-                    tensors=[self.results["rgb_fine"]], 
-                    grad_tensors=[-self.loss_fine_forge.gradient_outputs[0].to_torch()]
+                    tensors=[self.results["rgb_fine"]],
+                    grad_tensors=[-self.loss_fine_forge.gradient_outputs[0].to_torch()],
                 )
                 self.nerf_fine_forge.backward()
         else:
             loss.backward(*args, **kwargs)
-        
+
         del self.results
         log_gradients(self.log, self.nerf_coarse.sigma, self.nerf_fine.sigma)
 
