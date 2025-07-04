@@ -31,3 +31,8 @@ No manual download and preprocessing is required.
 ### Training flags
 - ```run_test``` runs the best model.
 - ```export_shlo``` extracts [StableHLO](https://openxla.org/stablehlo) ops used in various training functions of interest (optimizer, forward pass...).
+### Logging
+- By default, weights, gradients and metrics are logged to [Weights&Biases](https://wandb.ai/site/). This can be turned off via ```log_on_wandb``` flag in ```logger_config.yaml```.
+- Checkpointing directory is specified in ```logger_config.yaml``` as well, and user should change it's default path (```path/to/dir```) to the desired custom path. Additionally,
+if ```log_on_wandb``` is ```True```, the subdirectory for that run will be automatically named after ```wandb.run.name``` - if the ```log_on_wandb``` is ```False``` user must specify
+the name of the checkpointing subdirectory via ```run_name``` in ```logger_config.yaml```.

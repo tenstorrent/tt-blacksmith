@@ -1,9 +1,11 @@
 log_hyperparameters: True
 experiment_name: "Flax mnist mlp training"
-wandb_dir: /proj_sw/training_artifacts/
+wandb_dir: path/to/dir
+log_on_wandb: True
+run_name: "flax_mnist_mlp_training"
 checkpoint:
     log_checkpoint: True
-    checkpoint_dir: /proj_sw/training_artifacts/
+    checkpoint_dir: path/to/dir
     log_every_n_steps: 100
     save_top_k: -1
     save_gradients: True

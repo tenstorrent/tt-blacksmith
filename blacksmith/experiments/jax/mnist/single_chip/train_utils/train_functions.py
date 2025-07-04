@@ -9,7 +9,7 @@ import optax
 from blacksmith.models.jax.mnist.model import MLP
 
 
-def func_optax_loss(logits, labels):
+def cross_entropy(logits, labels):
     return optax.softmax_cross_entropy(logits, labels).mean()
 
 
@@ -20,7 +20,7 @@ def forward_pass(params, x):
 
 def forward_and_compute_loss_and_logits(params, x, y):
     logits = forward_pass(params, x)
-    loss = func_optax_loss(logits, y)
+    loss = cross_entropy(logits, y)
     return loss, logits
 
 
@@ -38,7 +38,7 @@ def update_params(params, grads, learning_rate):
 @jax.jit
 def eval_step(params, x, y):
     logits = forward_pass(params, x)
-    loss = func_optax_loss(logits, y)
+    loss = cross_entropy(logits, y)
     return loss, logits
 
 

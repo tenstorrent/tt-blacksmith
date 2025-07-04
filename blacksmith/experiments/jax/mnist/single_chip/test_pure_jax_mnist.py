@@ -98,16 +98,9 @@ def train_mnist():
         loss, logits = loss_fn(params)
         return loss, logits
 
-    def argmax_on_cpu(array):
-        with jax.default_device(jax.devices("cpu")[0]):
-            argmax_result = jnp.argmax(array, axis=-1)
-            argmax_result = argmax_result.astype(jnp.uint32)
-        return argmax_result
-
+    @jax.jit
     def compute_accuracy(logits, y):
-        predictions = argmax_on_cpu(logits)
-        true_labels = argmax_on_cpu(y)
-        correct = jnp.mean(predictions == true_labels)
+        correct = jnp.mean(jnp.argmax(logits, 1) == jnp.argmax(y, 1))
         return correct
 
     # Training loop
@@ -123,6 +116,7 @@ def train_mnist():
         batch_size=training_config.batch_size,
         learning_rate=training_config.lr,
         early_stopping_config=early_stopping_config,
+        logger_config=logger_config,
     ):
         input_size = net_config.input_size
         hidden_size = net_config.hidden_size
@@ -138,11 +132,12 @@ def train_mnist():
 
         num_batches = x_train_host.shape[0] // batch_size
 
-        config = init_wandb(
-            project_name="Pure JAX MLP training",
-            job_type="Pure JAX MLP training",
-            dir_path=logger_config.checkpoint.checkpoint_dir,
-        )
+        if logger_config.log_on_wandb:
+            config = init_wandb(
+                project_name="Pure JAX MLP training",
+                job_type="Pure JAX MLP training",
+                dir_path=logger_config.checkpoint.checkpoint_dir,
+            )
 
         best_val_loss = 1000.0
         epochs_no_improvement = 0
@@ -173,12 +168,9 @@ def train_mnist():
 
                 # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
                 params_host_updated = update(params_host, grads_host, learning_rate_host)
-
                 params = jax.device_put(params_host_updated, current_device)
 
-                logits_host = jax.device_put(logits, jax.devices("cpu")[0])
-                # Accuracy calculation is done on CPU, as argmax is not supported on multi-device (https://github.com/tenstorrent/tt-mlir/issues/3963)
-                batch_accuracy = compute_accuracy(logits_host, y_batch_host)
+                batch_accuracy = compute_accuracy(logits, y_batch)
 
                 batch_loss_accum += batch_loss
                 batch_accuracy_accum += batch_accuracy
@@ -186,12 +178,18 @@ def train_mnist():
                 if (i + 1) % logger_config.log_every_n_steps == 0:
                     avg_loss = batch_loss_accum / logger_config.log_every_n_steps
                     avg_accuracy = batch_accuracy_accum / logger_config.log_every_n_steps
-                    wandb.log({"train loss": avg_loss, "train accuracy": avg_accuracy})
+                    if logger_config.log_on_wandb:
+                        wandb.log({"train loss": avg_loss, "train accuracy": avg_accuracy})
+                    else:
+                        print(f"Epoch {epoch + 1}, Step {i + 1}, Loss: {avg_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
                     batch_loss_accum = 0.0
                     batch_accuracy_accum = 0.0
 
             val_loss, val_accuracy = evaluate(params, x_val_host, y_val_host)
-            wandb.log({"validation loss": val_loss, "validation accuracy": val_accuracy})
+            if logger_config.log_on_wandb:
+                wandb.log({"validation loss": val_loss, "validation accuracy": val_accuracy})
+            else:
+                print(f"Epoch {epoch + 1}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
 
             if val_loss < best_val_loss - early_stopping_config.min_delta:
                 best_val_loss = val_loss
@@ -208,9 +206,13 @@ def train_mnist():
             params = best_params
 
         test_loss, test_accuracy = evaluate(params, x_test_host, y_test_host)
-        wandb.log({"test loss": test_loss, "test accuracy": test_accuracy})
 
-        wandb.finish()
+        if logger_config.log_on_wandb:
+            wandb.log({"test loss": test_loss, "test accuracy": test_accuracy})
+            wandb.finish()
+
+        else:
+            print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
 
         return params
 
@@ -229,8 +231,7 @@ def train_mnist():
 
             batch_loss, logits = validation_loss(params, x_batch, y_batch)
 
-            logits_host = jax.device_put(logits, jax.devices("cpu")[0])
-            batch_accuracy = compute_accuracy(logits_host, y_batch_host)
+            batch_accuracy = compute_accuracy(logits, y_batch)
 
             total_loss += batch_loss
             correct_predictions += batch_accuracy
