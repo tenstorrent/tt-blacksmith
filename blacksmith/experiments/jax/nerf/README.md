@@ -53,7 +53,7 @@ Current `test_nerf.yaml` has the recommended and tested hyperparameters for the 
 | --- | --- | --- |
 | `project_name` | The name of the wandb project where experiments are logged. | "jax-nerf" |
 |  **Data Loading** |
-| `data_loading.input_dir` | Input directory for dataset. | "./data/nerf_synthetic/lego" |
+| `data_loading.dataset_name` | Hugging Face dataset name. | "Tenstorrent/tt-nerf-p150-white" |
 | `data_loading.batch_size` | The batch size (# rays) for the data loader. | 4096 |
 | `data_loading.img_wh` | Image width and height | 400 |
 |  **Training** |
@@ -86,7 +86,7 @@ Current `test_nerf.yaml` has the recommended and tested hyperparameters for the 
 | `model.in_channels_dir` | Number of channels for direction tensor | 32 |
 | `model.in_channels_xyz` | Number of channels for position tensor | 63 |
 |  **Checkpoint** |
-| `checkpoint.save_dir` | Name of directory where checkpoints are saved. | /proj_sw/training_artifacts/checkpoints/jax_nerf_checkpoints |
-| `checkpoint.render_dir` | Name of directory where rendered images are saved. | /proj_sw/training_artifacts/rendered_images |
+| `checkpoint.save_dir` | Name of directory where checkpoints are saved. | path/to/dir (change to desired custom path) |
+| `checkpoint.render_dir` | Name of directory where rendered images are saved. | path/to/dir (change to desired custom path) |
 | `checkpoint.save_every` | Number of training steps after which checkpoints are saved. | 200 |
 | `checkpoint.keep_last` | Number of most recent checkpoints that are kept. | 3 |

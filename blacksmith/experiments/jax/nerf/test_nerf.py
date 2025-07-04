@@ -819,11 +819,11 @@ def main(config: NerfConfig):
 
                     system = train_step(system, batch, global_step, subkey)
 
-                    if global_step % config.checkpoint.save_every == 0:
+                    if (global_step + 1) % config.checkpoint.save_every == 0:
                         save_checkpoint(system, global_step, rng_key, checkpoint_dir, config.checkpoint.keep_last)
                         print(f"Saved checkpoint at step {global_step}")
 
-                    if global_step % config.training.log_every == 0:
+                    if (global_step + 1) % config.training.log_every == 0:
                         val_iter = iter(system.val_dataloader)
                         system.validation_step_outputs = []
                         for batch_idx in range(system.val_steps_per_epoch):

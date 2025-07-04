@@ -53,6 +53,11 @@ class BlenderDataset:
         # Load the Hugging Face dataset
         self.dataset = load_dataset(dataset_name, split=split)
 
+        self.image_map = {}
+        for item in self.dataset:
+            if "image" in item and hasattr(item["image"], "filename"):
+                self.image_map[os.path.basename(item["image"].filename)] = item["image"]
+
         # Load metadata (transforms_train.json or transforms_test.json)
         json_file = f"transforms_{split}.json"
         try:
@@ -98,24 +103,19 @@ class BlenderDataset:
         file_path = frame["file_path"] + ".png"  # Append .png to match image file
 
         image_name = os.path.basename(file_path)
-        image_data = None
-        for item in self.dataset:
-            if os.path.basename(item["image"].filename) == image_name:
-                image_data = item["image"]
-                break
+        image_data = self.image_map.get(image_name)
         if image_data is None:
             raise ValueError(f"Image {image_name} not found in dataset {self.dataset_name}")
 
         # Load and process image
-        img = image_data
-        if self.img_wh[0] != img.size[0] or self.img_wh[1] != img.size[1]:
-            img = img.resize(self.img_wh, Image.Resampling.LANCZOS)
-        img = jnp.array(img, dtype=jnp.float32) / 255.0  # (h, w, 4)
+        if self.img_wh[0] != image_data.size[0] or self.img_wh[1] != image_data.size[1]:
+            image_data = image_data.resize(self.img_wh, Image.Resampling.LANCZOS)
+        image_data = jnp.array(image_data, dtype=jnp.float32) / 255.0  # (h, w, 4)
 
-        valid_mask = (img[..., -1] > 0).flatten() if return_valid_mask else None
+        valid_mask = (image_data[..., -1] > 0).flatten() if return_valid_mask else None
 
         # Blend RGBA to RGB with white background
-        rgb = img[..., :3] * img[..., -1:] + (1 - img[..., -1:])
+        rgb = image_data[..., :3] * image_data[..., -1:] + (1 - image_data[..., -1:])
         rgb = rgb.reshape(-1, 3)  # (h*w, 3)
 
         rays_o, rays_d = get_rays(self.directions, pose)
