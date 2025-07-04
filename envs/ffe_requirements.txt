@@ -1,3 +1,3 @@
-tvm @ https://github.com/tenstorrent/tt-forge/releases/download/20250406060139.nightly/tvm-20250406060139.nightly-cp310-cp310-linux_x86_64.whl
-forge @ https://github.com/tenstorrent/tt-forge/releases/download/20250406060139.nightly/forge-20250406060139.nightly-cp310-cp310-linux_x86_64.whl
+tt-tvm @ https://github.com/tenstorrent/tt-forge-fe/releases/download/0.1.0/tt_tvm-0.1.0-cp310-cp310-linux_x86_64.whl
+tt-forge-fe @ https://github.com/tenstorrent/tt-forge-fe/releases/download/0.1.0/tt_forge_fe-0.1.0-cp310-cp310-linux_x86_64.whl
 peft
