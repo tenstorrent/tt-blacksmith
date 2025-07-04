@@ -144,14 +144,12 @@ def inference(
         model.out_sigma = out_sigma
         model.out_rgb = out_rgb
         model.out_sh = out_sh
-        model.temps = []
 
     embedded_xyz = embedding_xyz(xyz_to_process)
     sigma, sh = model(embedded_xyz)
     
     sigma.retain_grad()
     sh.retain_grad()
-    model.temps.append([sigma, sh])
 
     sigma, rgb, sh = model.sh2rgb(sigma, sh, model.deg, view_dir_to_process)
     sigma = sigma[:real_chunk_size]
