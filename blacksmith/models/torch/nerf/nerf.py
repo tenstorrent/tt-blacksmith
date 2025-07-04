@@ -31,28 +31,41 @@ class Embedding(nn.Module):
 class NeRFHead(nn.Module):
     def __init__(self, W, out_dim, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.layer1 = nn.Linear(W, W)
+        self.layer1 = nn.Linear(W, W, bias=False)
+        # make sure bias is always 2d
+        bias_shape_1 = (1, W)
+        self.layer1_bias = nn.Parameter(torch.zeros(bias_shape_1))
         self.relu1 = nn.ReLU(False)
-        self.layer2 = nn.Linear(W, out_dim)
+        self.layer2 = nn.Linear(W, out_dim, bias=False)
+        # make sure bias is always 2d
+        bias_shape_2 = (1, out_dim)
+        self.layer2_bias = nn.Parameter(torch.zeros(bias_shape_2))
 
     def forward(self, x):
-        x = self.layer1(x)
+        x = self.layer1(x) + self.layer1_bias
         x = self.relu1(x)
-        x = self.layer2(x)
+        x = self.layer2(x) + self.layer2_bias
         return x
 
 
 class NeRFEncoding(nn.Module):
     def __init__(self, in_dim, W, out_dim, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.layer1 = nn.Linear(in_dim, W)
+
+        self.layer1 = nn.Linear(in_dim, W, bias=False)
+        # make sure bias is always 2d
+        bias_shape_1 = (1, W)
+        self.layer1_bias = nn.Parameter(torch.zeros(bias_shape_1))
         self.relu1 = nn.ReLU(False)
-        self.layer2 = nn.Linear(W, out_dim)
+        self.layer2 = nn.Linear(W, out_dim, bias=False)
+        # make sure bias is always 2d
+        bias_shape_2 = (1, out_dim)
+        self.layer2_bias = nn.Parameter(torch.zeros(bias_shape_2))
 
     def forward(self, x):
-        x = self.layer1(x)
+        x = self.layer1(x) + self.layer1_bias
         x = self.relu1(x)
-        x = self.layer2(x)
+        x = self.layer2(x) + self.layer2_bias
         return x
 
 

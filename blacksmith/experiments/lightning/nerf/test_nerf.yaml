@@ -1,4 +1,4 @@
-experiment_name: nerf_bh_yaml_200
+experiment_name: nerf_bh_yaml_device_200
 tags:
   - tt-forge-fe
   - model:torch

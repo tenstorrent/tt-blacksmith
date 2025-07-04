@@ -108,6 +108,7 @@ class EfficientNeRFSystem(LightningModule):
         self.framework_models = [self.nerf_coarse, self.nerf_fine]
 
         self.optimizer = get_optimizer(config, self.framework_models)
+        self.did_sanity = False
 
         if config.training.use_forge:
             import forge
@@ -136,12 +137,19 @@ class EfficientNeRFSystem(LightningModule):
                 ),
                 training=True,
             )
+            learning_rate = config.training.optimizer_kwargs["lr"]
+            self.tt_optimizer_coarse = forge.optimizers.RAdam(
+                learning_rate=learning_rate,
+            )
+            self.tt_optimizer_fine = forge.optimizers.RAdam(
+                learning_rate=learning_rate,
+            )
 
             max_input = self.batch_size * config.model.coarse.samples
             self.nerf_coarse_forge = forge.compile(
                 self.nerf_coarse,
                 sample_inputs=[torch.randn(max_input, self.in_channels_xyz)],
-                optimizer=self.optimizer,
+                optimizer=self.tt_optimizer_coarse,
                 training=True,
                 module_name="nerf_coarse_sigma",
             )
@@ -151,7 +159,7 @@ class EfficientNeRFSystem(LightningModule):
             self.nerf_fine_forge = forge.compile(
                 self.nerf_fine,
                 sample_inputs=[torch.randn(max_input, self.in_channels_xyz)],
-                optimizer=self.optimizer,
+                optimizer=self.tt_optimizer_fine,
                 training=True,
                 module_name="nerf_fine_sigma",
             )
@@ -162,6 +170,8 @@ class EfficientNeRFSystem(LightningModule):
         torch.manual_seed(0)
         seed_everything(0, workers=True)
         np.random.seed(0)
+
+        self.automatic_optimization = False
 
         coord_scope = config.model.coord_scope
         self.nerf_tree = NerfTree(
@@ -308,9 +318,15 @@ class EfficientNeRFSystem(LightningModule):
         self.results = results
         if self.device.type.startswith("cuda"):
             torch.cuda.empty_cache()
+
+        self.backward(loss_total)
+        self.optimizer_step(self.current_epoch, batch_idx, self.optimizer)
+        
         return loss_total
 
     def backward(self, loss, *args, **kwargs):
+        if not self.did_sanity:
+            return
         if self.config.training.use_forge:
             if "rgb_coarse" in self.results:
                 self.loss_coarse_forge.backward()
@@ -340,8 +356,11 @@ class EfficientNeRFSystem(LightningModule):
         return self.optimizer
 
     def optimizer_step(self, epoch, batch_idx, optimizer, optimizer_closure=None):
-        self.optimizer.step(optimizer_closure)
-        super().optimizer_step(epoch, batch_idx, optimizer, optimizer_closure)
+        if not self.did_sanity:
+            self.did_sanity = True
+            return
+        self.tt_optimizer_coarse.step()
+        self.tt_optimizer_fine.step()
 
     def validation_step(self, batch, batch_idx):
         rays, rgbs = batch["rays"], batch["rgbs"]
@@ -431,6 +450,7 @@ class EfficientNeRFSystem(LightningModule):
         self.nerf_tree.voxels_fine = to_device(nerf_tree_state["voxels_fine"])
 
         # Load models
+        import pdb; pdb.set_trace()
         if self.config.training.use_forge:
             self.nerf_coarse_forge.framework_module.module.load_state_dict(state_dict.pop("nerf_coarse"))
             self.nerf_fine_forge.framework_module.module.load_state_dict(state_dict.pop("nerf_fine"))
