@@ -444,7 +444,6 @@ class EfficientNeRFSystem(LightningModule):
         self.nerf_tree.voxels_fine = to_device(nerf_tree_state["voxels_fine"])
 
         # Load models
-        import pdb; pdb.set_trace()
         if self.config.training.use_forge:
             self.nerf_coarse_forge.framework_module.module.load_state_dict(state_dict.pop("nerf_coarse"))
             self.nerf_fine_forge.framework_module.module.load_state_dict(state_dict.pop("nerf_fine"))
