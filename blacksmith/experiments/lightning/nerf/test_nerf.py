@@ -108,7 +108,6 @@ class EfficientNeRFSystem(LightningModule):
         self.framework_models = [self.nerf_coarse, self.nerf_fine]
 
         self.optimizer = get_optimizer(config, self.framework_models)
-        self.did_sanity = False
 
         if config.training.use_forge:
             import forge
@@ -325,8 +324,6 @@ class EfficientNeRFSystem(LightningModule):
         return loss_total
 
     def backward(self, loss, *args, **kwargs):
-        if not self.did_sanity:
-            return
         if self.config.training.use_forge:
             if "rgb_coarse" in self.results:
                 self.loss_coarse_forge.backward()
@@ -356,9 +353,6 @@ class EfficientNeRFSystem(LightningModule):
         return self.optimizer
 
     def optimizer_step(self, epoch, batch_idx, optimizer, optimizer_closure=None):
-        if not self.did_sanity:
-            self.did_sanity = True
-            return
         self.tt_optimizer_coarse.step()
         self.tt_optimizer_fine.step()
 
