@@ -1,0 +1,46 @@
+project_name: jax-nerf
+experiment_name: EfficientNeRF_device_400
+
+model:
+  deg: 2
+  in_channels_dir: 32
+  num_freqs: 10
+  coarse:
+    depth: 4
+    width: 128
+    samples: 64
+  fine:
+    depth: 4
+    width: 192
+    samples: 8
+  coord_scope: 3.0
+  sigma_init: 30.0
+  weight_threshold: 0.00001
+  uniform_ration: 0.01
+  beta: 0.1
+  warmup_step: 0
+
+data_loading:
+  dataset_name: "Tenstorrent/tt-nerf-p150-white"
+  img_wh: [400, 400]
+  batch_size: 4096
+
+training:
+  epochs: 15
+  loss: mse
+  optimizer: radam
+  lr: 0.0008
+  betas: [0.9, 0.999]
+  weight_decay: 0.0005
+  eps: 1e-8
+  log_every: 200
+  log_on_wandb: True
+  cache_voxels_fine: False
+  resume: False
+  render: False
+
+checkpoint:
+  save_dir: path/to/dir
+  render_dir: path/to/dir
+  save_every: 200
+  keep_last: 3

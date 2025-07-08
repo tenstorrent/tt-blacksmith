@@ -62,25 +62,33 @@ def log_optimizer_state(opt_state, params, epoch, prefix=""):
         wandb.log({f"Optimizer State/{prefix}": wandb.Histogram(opt_state.flatten(), num_bins=100)}, step=epoch)
 
 
-def save_checkpoint(ckpt_path, state, epoch):
+def save_checkpoint(ckpt_path, state, epoch, log_on_wandb=True):
+
     with open(ckpt_path, "wb") as outfile:
         outfile.write(msgpack_serialize(to_state_dict(state)))
 
-    artifact = wandb.Artifact(f"{wandb.run.name}-checkpoint-epoch-{epoch}", type="dataset")
-    print(f"Uploading checkpoint to {ckpt_path}")
-    artifact.add_reference(f"file://{ckpt_path}")
+    if log_on_wandb:
+        artifact = wandb.Artifact(f"{wandb.run.name}-checkpoint-epoch-{epoch}", type="dataset")
+        print(f"Uploading checkpoint to {ckpt_path}")
+        artifact.add_reference(f"file://{ckpt_path}")
 
-    wandb.log_artifact(artifact, aliases=[f"epoch_{epoch}", "latest"])
-    artifact.wait()
+        wandb.log_artifact(artifact, aliases=[f"epoch_{epoch}", "latest"])
+        artifact.wait()
 
 
-def load_checkpoint(ckpt_file, state, epoch):
-    artifact = wandb.use_artifact(
-        f"{wandb.run.name}-checkpoint-epoch-{epoch}:latest"
-    )  # Reference to the specific epoch
-    artifact_dir = artifact.download()
+def load_checkpoint(ckpt_file, state, epoch, log_on_wandb=True):
 
-    ckpt_path = os.path.join(artifact_dir, ckpt_file)
+    if log_on_wandb:
+        artifact = wandb.use_artifact(
+            f"{wandb.run.name}-checkpoint-epoch-{epoch}:latest"
+        )  # Reference to the specific epoch
+        artifact_dir = artifact.download()
+
+        ckpt_path = os.path.join(artifact_dir, ckpt_file)
+
+    else:
+        ckpt_path = os.path.join(os.getcwd(), ckpt_file)
+
     with open(ckpt_path, "rb") as data_file:
         byte_data = data_file.read()
 

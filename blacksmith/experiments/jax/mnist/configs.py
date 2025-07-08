@@ -24,7 +24,13 @@ class TrainingConfig(BaseModel):
     export_shlo: bool = False
 
 
+class EarlyStoppingConfig(BaseModel):
+    patience: int = 1
+    min_delta: float = 0.001
+
+
 class ExperimentConfig(BaseModel):
     net_config: MNISTLinearConfig
     training_config: TrainingConfig
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
+    early_stopping: EarlyStoppingConfig

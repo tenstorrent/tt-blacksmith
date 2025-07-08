@@ -30,6 +30,9 @@ class LoggerConfig(BaseModel):
     log_hyperparameters: bool
     experiment_name: str
     wandb_dir: str
+    log_on_wandb: bool
+    run_name: str
+
     log_train_loss: Union[None, str] = Field(default=None)
     log_train_accuracy: Union[None, str] = Field(default=None)
     log_gradients: Union[None, str] = Field(default=None)
