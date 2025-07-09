@@ -36,12 +36,15 @@ jobs:
       uses: actions/configure-pages@v5
 
     - name: Build Docs
-      run: make docs
+      run: |
+        cd docs
+        make docs
+        cd ..
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: ./output
+        path: ./docs/output
 
   # Deployment job
   deploy:
