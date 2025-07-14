@@ -38,7 +38,7 @@ jobs:
     - name: Build Docs
       run: |
         cd docs
-        make docs
+        make build
         cd ..
 
     - name: Upload artifact
