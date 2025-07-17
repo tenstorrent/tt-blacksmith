@@ -92,7 +92,7 @@ html_last_updated_fmt = "%b %d, %Y"
 
 html_baseurl = f"https://docs.tenstorrent.com/{project}"
 
-html_context = {"logo_link_url": os.environ.get("homepage")}
+html_context = {"logo_link_url": "https://docs.tenstorrent.com/"}
 
 
 def setup(app):
