@@ -111,41 +111,40 @@ def calculate_coarse_rendering(
     sigmas = nerf_tree.query_coarse(xyz_coarse.reshape(-1, 3), type="sigma").reshape(num_rays, samples_per_ray)
 
     # Handle tree updates during coarse training phase
-    if nerf_tree.voxels_fine is None:
-        with torch.no_grad():
-            # Apply uniform sampling
-            torch.manual_seed(0)
-            uniform_mask = torch.rand_like(sigmas[:, 0]) < config.model.uniform_ratio
-            sigmas[uniform_mask] = config.model.sigma_init
+    with torch.no_grad():
+        # Apply uniform sampling
+        torch.manual_seed(0)
+        uniform_mask = torch.rand_like(sigmas[:, 0]) < config.model.uniform_ratio
+        sigmas[uniform_mask] = config.model.sigma_init
 
-            if config.model.warmup_step > 0 and global_step <= config.model.warmup_step:
-                # During warmup phase, consider all points valid
-                valid_sample_indices = torch.nonzero(sigmas >= -1e10).detach()
-            else:
-                # After warmup, only consider points with positive density
-                valid_sample_indices = torch.nonzero(sigmas > 0.0).detach()
+        if config.model.warmup_step > 0 and global_step <= config.model.warmup_step:
+            # During warmup phase, consider all points valid
+            valid_sample_indices = torch.nonzero(sigmas >= -1e10).detach()
+        else:
+            # After warmup, only consider points with positive density
+            valid_sample_indices = torch.nonzero(sigmas > 0.0).detach()
 
-        # Compute RGB values and updated densities for valid samples
-        rgb_values, updated_sigmas, spherical_harmonics = inference(
-            model_coarse,
-            embedding_xyz,
-            xyz_coarse,
-            rays_directions,
-            deltas_coarse,
-            valid_sample_indices,
-            config.model.sigma_default,
-            chunk=chunk_size,
-        )
+    # Compute RGB values and updated densities for valid samples
+    rgb_values, updated_sigmas, spherical_harmonics = inference(
+        model_coarse,
+        embedding_xyz,
+        xyz_coarse,
+        rays_directions,
+        deltas_coarse,
+        valid_sample_indices,
+        config.model.sigma_default,
+        chunk=chunk_size,
+    )
 
-        result["rgb_coarse"] = rgb_values
-        result["sigma_coarse"] = updated_sigmas
+    result["rgb_coarse"] = rgb_values
+    result["sigma_coarse"] = updated_sigmas
 
-        # Update tree
-        sample_positions = xyz_coarse[valid_sample_indices[:, 0], valid_sample_indices[:, 1]]
-        sample_densities = (
-            updated_sigmas.detach().squeeze().clone()[valid_sample_indices[:, 0], valid_sample_indices[:, 1]]
-        )
-        nerf_tree.update_coarse(sample_positions, sample_densities, config.model.beta)
+    # Update tree
+    sample_positions = xyz_coarse[valid_sample_indices[:, 0], valid_sample_indices[:, 1]]
+    sample_densities = (
+        updated_sigmas.detach().squeeze().clone()[valid_sample_indices[:, 0], valid_sample_indices[:, 1]]
+    )
+    nerf_tree.update_coarse(sample_positions, sample_densities, config.model.beta)
 
     # Calculate weights
     with torch.no_grad():
