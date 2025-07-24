@@ -38,7 +38,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for exa
 | `net_config.bias` | Whether to include bias terms in the layers. | True |
 |  **Data Loading** |
 | `data_loading_config.batch_size` | Batch size used during data loading. | 64 |
-| `data_loading_config.dtype` | Data type used for input tensors. | torch.float32 |
+| `data_loading_config.dtype` | Data type used for input tensors. | torch.bfloat16 |
 |  **Loss Function** |
 | `loss` | The loss function used for training. | torch.nn.MSELoss |
 
