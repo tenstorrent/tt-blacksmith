@@ -29,7 +29,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for exa
 |  **Training** |
 | `training_config.train_ratio` | Training/Validation dataset ratio. | 0.8 |
 | `training_config.batch_size` | Number of samples per training batch. | 64 |
-| `training_config.epochs` | Total number of training epochs. | 2 |
+| `training_config.epochs` | Total number of training epochs. | 5 |
 | `training_config.lr` | Learning rate used by the optimizer. | 0.001 |
 |  **Model (Net Config)** |
 | `net_config.input_size` | Number of input features (e.g., flattened image size). | 784 |
