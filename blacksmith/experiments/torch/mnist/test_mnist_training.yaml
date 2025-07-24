@@ -1,0 +1,20 @@
+experiment_name: blacksmith-mnist-training
+tags:
+  - tt-xla
+  - model:torch
+  - plugin
+  - wandb
+training_config:
+  batch_size: 64
+  epochs: 5
+  lr: 0.001
+net_config:
+  input_size: 784
+  hidden_size: 512
+  output_size: 10
+  bias: True
+data_loading_config:
+  batch_size: 64
+  dtype: torch.bfloat16
+  pre_shuffle: True
+loss: torch.nn.MSELoss
