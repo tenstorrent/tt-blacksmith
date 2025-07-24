@@ -17,30 +17,25 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
+from blacksmith.experiments.torch.mnist.configs import TTPjrtPlugin
+import os
 
 # --------------------------------
 # Plugin registration
 # --------------------------------
-os.environ["PJRT_DEVICE"] = "TT"
-os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
-
-class TTPjrtPlugin(plugins.DevicePlugin):
-    def library_path(self):
-        return "/localdev/abogdanovic/tt-xla/build/src/tt/pjrt_plugin_tt.so"
-
-
-plugins.register_plugin("TT", TTPjrtPlugin())
+# Load device configuration 
+config: ExperimentConfig = generate_config(
+    ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
+)
+if config.device == "TT":
+    plugins.register_plugin("TT", TTPjrtPlugin())
 torch_xla.sync(True)
-
 
 # --------------------------------
 # Training loop
 # --------------------------------
 def test_training():
-    config: ExperimentConfig = generate_config(
-        ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
-    )
     logger_config = config.logger_config
 
     wandb_run = wandb.init(
@@ -64,7 +59,7 @@ def test_training():
     dataset = torchvision.datasets.MNIST(
         root="./data", train=True, transform=transform, download=True
     )
-    train_size = int(0.8 * len(dataset))
+    train_size = int(config.training_config.train_ratio * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
 

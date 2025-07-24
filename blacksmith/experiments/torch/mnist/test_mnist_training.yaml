@@ -4,7 +4,9 @@ tags:
   - model:torch
   - plugin
   - wandb
+device: "TT"
 training_config:
+  train_ratio: 0.8
   batch_size: 64
   epochs: 5
   lr: 0.001
