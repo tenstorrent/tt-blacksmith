@@ -79,10 +79,15 @@ def mnist_train():
         transforms.Normalize((0.5,), (0.5,))
     ])
 
-    # Load MNIST dataset. 
-    train_dataset = torchvision.datasets.MNIST(
-        root="./data", train=True, transform=transform, download=True)
+    # Load MNIST dataset and split into training and validation sets.
+    dataset = torchvision.datasets.MNIST(root="./data", train=True, transform=transform, download=True)
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+
+    # Create data loaders for training and validation.
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, drop_last=False)
 
     # Define loss function and optimizer.
     print("Define loss function and optimizer...")
@@ -120,6 +125,23 @@ def mnist_train():
             # Run optimizer step on host.
             xm.optimizer_step(optimizer)
             torch_xla.sync(True)
+        
+        # Validation loop
+        model.eval()
+        val_loss = 0
+        with torch.no_grad():
+            for inputs, targets in val_loader:
+                inputs = inputs.view(inputs.size(0), -1)
+                targets = targets.view(targets.size(0), -1)
+                inputs, targets = inputs.to(device, dtype=torch.bfloat16), targets.to(device, dtype=torch.bfloat16)
+
+                outputs = model(inputs)
+                loss = loss_fn(outputs, targets)
+                val_loss += loss.item()
+
+        avg_val_loss = val_loss / len(val_loader)
+        print(f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {avg_val_loss}")
+        model.train()
 
 # --------------------------------
 # main
