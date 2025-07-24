@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 import torch_xla
-import wandb
 
 # --------------------------------
 # Plugin registration
@@ -66,9 +65,6 @@ def mnist():
 
 def mnist_train():
 
-    # Enable online mode for wandb
-    run = wandb.init(mode="online", project="mnist_training", name="mnist_training")
-
     # Instantiate model.
     print("Initializing MNIST model...")
     model: torch.nn.Module = MNISTLinear(input_size=784, hidden_size=512, output_size=10).to(dtype=torch.bfloat16)
@@ -100,7 +96,7 @@ def mnist_train():
     # Move model to device.
     model = model.to(device)
 
-    # Create optimizer 
+    # Create optimizer. 
     optimizer = torch.optim.SGD(model.parameters(), lr=0.001)
     optimizer.zero_grad()
     xm.optimizer_step(optimizer)
@@ -122,7 +118,7 @@ def mnist_train():
             loss = loss_fn(outputs, targets)
             loss.backward()
 
-            # Run optimizer step on host.
+            # Run optimizer step
             xm.optimizer_step(optimizer)
             torch_xla.sync(True)
         
