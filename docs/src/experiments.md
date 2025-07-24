@@ -26,4 +26,4 @@ Within this repository, you'll find the following structure to help you navigate
     - The Python script responsible for running the experiment using the defined configurations (e.g. `test_pure_jax_mnist.py`), which may be located within subdirectories which specify the compute environment or sharding strategy:
         - `single_chip/`: Contains experiments designed to run on a single chip.
         - `multi_chip/`: Contains experiments designed to run across multiple chips, further organized in subdirectories by sharding strategy (e.g. data-parallel or tensor-parallel). For example, full path of data-parallel MNIST training is `blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py`.
-    If sharding strategy isn't specified, the single chip configuration is assumed for now.
+        - If sharding strategy isn't specified, the single chip configuration is assumed for now.
