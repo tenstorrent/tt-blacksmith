@@ -17,20 +17,19 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
-from blacksmith.experiments.torch.mnist.configs import TTPjrtPlugin
+from blacksmith.tools.torch_xla_utils import init_device
 import os
 
 # --------------------------------
-# Plugin registration
+# Load device configuration
 # --------------------------------
 
-# Load device configuration 
 config: ExperimentConfig = generate_config(
     ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
 )
-if config.device == "TT":
-    plugins.register_plugin("TT", TTPjrtPlugin())
-torch_xla.sync(True)
+
+init_device(config.pjrt_plugin_path)
+torch_xla.sync(wait=True)
 
 # --------------------------------
 # Training loop
@@ -45,36 +44,22 @@ def test_training():
         tags=config.tags,
         dir=logger_config.wandb_dir,
     )
+
     if logger_config.log_hyperparameters:
         wandb_run.config.update(config.model_dump())
 
     # Model
-    model = MNISTLinear(**config.net_config.model_dump()).to(dtype=torch.bfloat16)
+    model = MNISTLinear(**config.net_config.model_dump()).to(dtype=getattr(torch, config.data_loading_config.dtype))
 
     # Dataset
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
-    ])
-    dataset = torchvision.datasets.MNIST(
-        root="./data", train=True, transform=transform, download=True
-    )
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+    dataset = torchvision.datasets.MNIST(root="./data", train=True, transform=transform, download=True)
     train_size = int(config.training_config.train_ratio * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config.training_config.batch_size,
-        shuffle=True,
-        drop_last=True
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.training_config.batch_size,
-        shuffle=False,
-        drop_last=False
-    )
+    train_loader = DataLoader(train_dataset, batch_size=config.training_config.batch_size, shuffle=True, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=config.training_config.batch_size, shuffle=False, drop_last=False)
 
     # Device
     device = xm.xla_device()
@@ -102,7 +87,7 @@ def test_training():
             train_loss += loss.cpu().item()
 
             xm.optimizer_step(optimizer)
-            torch_xla.sync(True)
+            torch_xla.sync(wait=True)
 
         avg_train_loss = train_loss / len(train_loader)
         wandb.log({"train_loss": avg_train_loss, "epoch": epoch + 1})

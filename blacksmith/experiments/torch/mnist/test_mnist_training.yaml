@@ -1,4 +1,5 @@
 experiment_name: blacksmith-mnist-training
+pjrt_plugin_path: "third_party/tt-xla/build/src/tt/pjrt_plugin_tt.so"
 tags:
   - tt-xla
   - model:torch
@@ -17,6 +18,6 @@ net_config:
   bias: True
 data_loading_config:
   batch_size: 64
-  dtype: torch.bfloat16
+  dtype: bfloat16
   pre_shuffle: True
 loss: torch.nn.MSELoss
