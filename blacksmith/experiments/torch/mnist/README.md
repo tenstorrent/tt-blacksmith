@@ -5,7 +5,7 @@ Linear model is from *tt-blacksmith/blacksmith/models/torch/mnist/mnist_linear.p
 
 ## Setup
 
-Activate the environment from `tt-xla`.
+Activate `tt-xla` environment using the provided scripts from `tt-blacksmith` documentation.
 
 ## Training
 

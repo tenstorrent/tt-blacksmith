@@ -14,12 +14,21 @@ os.environ["PJRT_DEVICE"] = "TT"
 os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
 
+class TTPjrtPlugin(plugins.DevicePlugin):
+    def __init__(self, plugin_path: str) -> None:
+        self._plugin_path = plugin_path
+        super().__init__()
+
+    def library_path(self):
+        return self._plugin_path
+
+
 def init_device(plugin_path: str):
     backend = "TT"
     path = os.path.join(os.getcwd(), plugin_path)
     if not os.path.exists(path):
         raise FileNotFoundError(f"Could not find tt_pjrt C API plugin at {path}")
 
-    plugin = plugins.DevicePlugin(library_path=path)
+    plugin = TTPjrtPlugin(path)
     plugins.register_plugin(backend, plugin)
     print("Loaded", file=sys.stderr)
