@@ -3,43 +3,40 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import traceback
-import re
-import json
 
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
 import wandb
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model
+from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.llama.sst_utils import VALUE2LBL
 
 
-def validate(model, val_data_loader, loss_fn, device, config):
-    """Run validation and return average validation loss."""
-    model.eval()
+def validate(model, val_data_loader, loss_fn, device, config, vocab_size):
     total_val_loss = 0.0
     num_val_batches = 0
 
     with torch.no_grad():
-        for batch in tqdm(val_data_loader, desc="Validation", leave=False):
+        for batch in tqdm(val_data_loader, desc="Validation"):
             input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
             expected_output = batch["labels"]
 
-            input_ids = input_ids.to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            expected_output = expected_output.to(device)
-
             # Forward pass
-            outputs = model(input_ids, attention_mask=attention_mask)
-            logits = outputs.logits
+            if config.use_tt:
+                inputs = [input_ids, attention_mask]
+                logits = model(*inputs)[0]
+            else:
+                input_ids = input_ids.to(device)
+                attention_mask = attention_mask.to(device)
+                outputs = model(input_ids, attention_mask=attention_mask)
+                logits = outputs.logits
 
             # Calculate loss
-            loss = loss_fn(logits.view(-1, model.config.vocab_size), expected_output.view(-1))
+            loss = loss_fn(logits.view(-1, vocab_size), expected_output.view(-1))
             total_val_loss += loss.item()
             num_val_batches += 1
 
@@ -47,18 +44,49 @@ def validate(model, val_data_loader, loss_fn, device, config):
     return avg_val_loss
 
 
-def train(config, model, train_data_loader, val_data_loader=None):
+def train(config, model, tokenizer, train_data_loader, val_data_loader):
     run = wandb.init(project=config.wandb_project, name=config.wandb_run_name, config=vars(config), save_code=True)
     run.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
+    device = None
+
+    torch_optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
     if config.use_tt:
         import forge
+        from forge.config import CompilerConfig
+        from forge._C import DataFormat
+        from forge._C.runtime.experimental import configure_devices, DeviceSettings
 
-        tt_optimizer = forge.optimizers.AdamW()
-        sample_inputs = [torch.randint(0, model.config.vocab_size, (config.batch_size, config.max_length))]
-        compiled_model = forge.compile(model, sample_inputs, optimizer=tt_optimizer, training=True)
+        compiler_cfg = CompilerConfig()
+        if config.dtype == "torch.bfloat16":
+            compiler_cfg.default_df_override = DataFormat.Float16
+
+        # Enable program cache on all devices
+        settings = DeviceSettings()
+        settings.enable_program_cache = True
+        configure_devices(device_settings=settings)
+
+        # Create a sample input for compilation
+        input_prompt = "Hey how are you doing today?"
+        inputs = tokenizer(
+            input_prompt,
+            return_tensors="pt",
+            max_length=config.max_length,
+            padding="max_length",
+            truncation=True,
+        )
+
+        input_ids = inputs["input_ids"]
+        input_ids = input_ids.repeat(config.batch_size, 1)
+        attn_mask = inputs["attention_mask"]
+        attn_mask = attn_mask.repeat(config.batch_size, 1)
+        sample_inputs = [input_ids, attn_mask]
+
+        framework_model = TextModelWrapper(model=model, text_embedding=model.model.model.embed_tokens)
+        compiled_model = forge.compile(
+            framework_model, sample_inputs, optimizer=torch_optimizer, training=True, compiler_cfg=compiler_cfg
+        )
     else:
-        torch_optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
         device = torch.device("cuda")
         model.to(device)
 
@@ -66,119 +94,77 @@ def train(config, model, train_data_loader, val_data_loader=None):
     # Can be changed when https://github.com/tenstorrent/tt-metal/issues/18997 resolved
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
 
-    # Variables for tracking best validation loss
-    best_val_loss = float("inf")
-    epochs_without_improvement = 0
-
+    global_step = 0
+    running_loss = 0.0
+    vocab_size = model.model.config.vocab_size
     try:
-        global_step = 0
-        running_loss = 0.0
-        log_every_n_steps = config.logging_steps
-
         for epoch in range(config.num_epochs):
             print(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
-
-            # Training phase
             model.train()
-            epoch_train_loss = 0.0
-            num_train_batches = 0
 
             for batch in tqdm(train_data_loader, desc="Training"):
                 input_ids = batch["input_ids"]
+                attention_mask = batch["attention_mask"]
                 expected_output = batch["labels"]
 
+                # Forward pass
                 if config.use_tt:
-                    logits = compiled_model(input_ids)[0]
+                    inputs = [input_ids, attention_mask]
+                    logits = compiled_model(*inputs)[0]
                 else:
                     input_ids = input_ids.to(device)
-                    attention_mask = batch["attention_mask"].to(device)
+                    attention_mask = attention_mask.to(device)
                     expected_output = expected_output.to(device)
-
-                    # Forward pass
                     outputs = model(input_ids, attention_mask=attention_mask)
                     logits = outputs.logits
 
                 # Calculate loss
-                loss = loss_fn(logits.view(-1, model.config.vocab_size), expected_output.view(-1))
+                loss = loss_fn(logits.view(-1, vocab_size), expected_output.view(-1))
                 running_loss += loss.item()
-                epoch_train_loss += loss.item()
-                num_train_batches += 1
 
                 # Backward pass
                 loss.backward()
 
-                # Optimizer step
                 if config.use_tt:
                     compiled_model.backward()
-                    tt_optimizer.step()
-                else:
-                    torch_optimizer.step()
-                    torch_optimizer.zero_grad()
+
+                torch_optimizer.step()
+                torch_optimizer.zero_grad()
 
                 global_step += 1
 
                 # Log training loss at specified intervals
-                if global_step % log_every_n_steps == 0:
-                    avg_loss = running_loss / log_every_n_steps
+                if global_step % config.logging_steps == 0:
+                    avg_loss = running_loss / config.logging_steps
                     run.log({"train/loss": avg_loss, "step": global_step})
                     running_loss = 0.0
 
                     # Validation phase
-                    print("Running validation...")
-                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config)
+                    if config.use_tt:
+                        avg_val_loss = validate(compiled_model, val_data_loader, loss_fn, device, config, vocab_size)
+                    else:
+                        model.eval()
+                        avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, vocab_size)
+                    run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
 
-                    # Log validation loss
-                    run.log(
-                        {
-                            "epoch": epoch + 1,
-                            "train/epoch_loss": avg_loss,
-                            "val/epoch_loss": avg_val_loss,
-                            "step": global_step,
-                        }
-                    )
+                    if config.save_strategy == "steps":
+                        checkpoint_path = os.path.join(
+                            config.output_dir, "checkpoints", f"checkpoint-{global_step}.pth"
+                        )
+                        torch.save(model.state_dict(), checkpoint_path)
 
-                    print(f"Epoch {epoch + 1} - Train Loss: {avg_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
-
-            # Calculate average training loss for the epoch
-            avg_train_loss = epoch_train_loss / num_train_batches if num_train_batches > 0 else 0.0
-
-            # Save checkpoint at the end of each epoch
             if config.save_strategy == "epoch":
                 checkpoint_path = os.path.join(config.output_dir, "checkpoints", f"checkpoint-{epoch+1}.pth")
                 torch.save(model.state_dict(), checkpoint_path)
-
-                # Save additional training state for resuming
-                training_state = {
-                    "epoch": epoch + 1,
-                    "global_step": global_step,
-                    "best_val_loss": best_val_loss,
-                    "optimizer_state_dict": torch_optimizer.state_dict() if not config.use_tt else None,
-                    "model_state_dict": model.state_dict(),
-                    "config": vars(config),
-                }
-                training_state_path = os.path.join(config.output_dir, "checkpoints", f"training_state-{epoch+1}.pth")
-                torch.save(training_state, training_state_path)
 
         # Save final model
         final_model_path = os.path.join(config.output_dir, "checkpoints", "final_model.pth")
         torch.save(model.state_dict(), final_model_path)
 
-        # Final summary
-        if avg_val_loss is not None:
-            run.summary["final_train_loss"] = avg_train_loss
-            run.summary["final_val_loss"] = avg_val_loss
-            run.summary["best_val_loss"] = best_val_loss
-            print(f"\nTraining Complete!")
-            print(f"Final Train Loss: {avg_train_loss:.4f}")
-            print(f"Final Val Loss: {avg_val_loss:.4f}")
-            print(f"Best Val Loss: {best_val_loss:.4f}")
-        else:
-            run.summary["final_train_loss"] = avg_train_loss
-            print(f"\nTraining Complete! Final Train Loss: {avg_train_loss:.4f}")
-
-        artifact = wandb.Artifact("final_model", type="model")
-        artifact.add_file(final_model_path)
-        run.log_artifact(artifact)
+        if config.model_to_wandb:
+            artifact = wandb.Artifact("final_model", type="model")
+            artifact.add_file(final_model_path)
+            run.log_artifact(artifact)
 
     except Exception as e:
         error_msg = f"Training failed with error: {str(e)}"
@@ -206,4 +192,4 @@ if __name__ == "__main__":
     eval_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
 
     if config.do_train:
-        train(config, model, train_data_loader, eval_data_loader)
+        train(config, model, dataset.tokenizer, train_data_loader, eval_data_loader)

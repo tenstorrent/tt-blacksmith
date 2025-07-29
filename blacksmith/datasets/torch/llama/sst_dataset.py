@@ -20,8 +20,6 @@ class SSTDataset:
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
     def _apply_template(self, example: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply prompt template to dataset examples."""
-
         prompt = PROMPT_TEMPLATE.substitute(input=example["sentence"])
         response = RESPONSE_TEMPLATE.substitute(label=LBL2VALUE[example["label"]])
         example["text"] = prompt + response
@@ -30,8 +28,6 @@ class SSTDataset:
         return example
 
     def _tokenize_function(self, examples: Dict[str, Any]) -> Dict[str, Any]:
-        """Tokenize input and create labels with masked prompt tokens."""
-
         tokenized_batch = self.tokenizer(
             examples["text"], padding="max_length", truncation=True, max_length=self.config.max_length
         )
@@ -44,7 +40,6 @@ class SSTDataset:
         labels = []
         for input_ids, prompt_ids in zip(tokenized_batch["input_ids"], prompt_encodings["input_ids"]):
             label = input_ids.copy()
-            # Mask the prompt tokens in the label
             for idx, prompt_id in enumerate(prompt_ids):
                 if prompt_id != self.tokenizer.pad_token_id:
                     label[idx] = -100
@@ -59,24 +54,15 @@ class SSTDataset:
 
         return tokenized_batch
 
-    def _filter_by_token_length(self, example: Dict[str, Any], max_tokens: int = 58) -> bool:
-        """Filter examples by token length. Returns True if example should be kept."""
-        tokens = self.tokenizer(example["text"], add_special_tokens=True)
-        token_count = len(tokens["input_ids"])
-
-        return token_count <= max_tokens
-
     def load_tokenized_data(self) -> Tuple[Any, Any]:
         print(f"Loading dataset ({self.config.dataset_id})...")
         dataset = load_dataset(self.config.dataset_id)
 
         train_set = dataset["train"].map(self._apply_template)
-        train_set = train_set.filter(self._filter_by_token_length)
         tokenized_train_set = train_set.map(self._tokenize_function, batched=True)
         tokenized_train_set.set_format("torch", columns=self.required_columns)
 
         validation_set = dataset["validation"].map(self._apply_template)
-        validation_set = validation_set.filter(self._filter_by_token_length)
         tokenized_validation_set = validation_set.map(self._tokenize_function, batched=True)
         tokenized_validation_set.set_format("torch", columns=self.required_columns)
 

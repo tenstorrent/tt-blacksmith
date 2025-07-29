@@ -24,9 +24,8 @@ class TrainingConfig(BaseModel):
     # LoRA setup
     lora_r: int = Field(default=4, gt=0)
     lora_alpha: int = Field(default=8, gt=0)
-    lora_dropout: float = Field(default=0.1, ge=0, le=1)
-    lora_bias: str = Field(default="none")
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
+    lora_task_type: str = Field(default="CAUSAL_LM")
 
     # Other settings
     seed: int = Field(default=23)
@@ -36,6 +35,7 @@ class TrainingConfig(BaseModel):
     wandb_run_name: str = Field(default="llama-finetuning_pure_torch")
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
+    model_to_wandb: bool = Field(default=False)
     save_strategy: str = Field(default="epoch")
     logging_strategy: str = Field(default="steps")
     logging_steps: int = Field(default=10, gt=0)
