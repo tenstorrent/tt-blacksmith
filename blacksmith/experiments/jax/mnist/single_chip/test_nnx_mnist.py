@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import wandb
 
 from flax import nnx
-from typing import Dict, Optional, Tuple, Callable, Any, Union
+from typing import Dict, Optional, Tuple, Callable, Any
 
 from blacksmith.tools.jax_utils import init_device
 from blacksmith.tools.cli import generate_config
@@ -180,7 +180,7 @@ def run_validation(
     process_metrics_to_logs(metrics, "val", epoch_logs)
 
 
-def log_to_wandb(wandb_run: Any, data_dict: Dict[str, Any], step: Optional[int] = None) -> None:
+def log_to_wandb(data_dict: Dict[str, Any], step: Optional[int] = None) -> None:
     """Helper function to log data to wandb."""
     wandb.log(data_dict, step=step)
 
