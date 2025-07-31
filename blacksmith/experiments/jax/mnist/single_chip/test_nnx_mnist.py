@@ -16,7 +16,7 @@ from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 
-def init_configs(config_path=None):
+def init_configs(config_path: Optional[str] = None):
     if config_path is None:
         config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
 
