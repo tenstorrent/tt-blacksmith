@@ -8,7 +8,7 @@ import optax
 import jax.numpy as jnp
 
 from flax import nnx
-from typing import Dict
+from typing import Dict, Optional
 
 from blacksmith.tools.jax_utils import init_device
 from blacksmith.tools.cli import generate_config
