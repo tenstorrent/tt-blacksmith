@@ -247,7 +247,7 @@ def run_final_test(
 
     final_test_results = final_test_metrics.compute()
     final_test_logs = {f"final_test/{metric}": float(value) for metric, value in final_test_results.items()}
-    log_to_wandb(wandb_run, final_test_logs, global_step)
+    log_to_wandb(final_test_logs, global_step)
 
 
 def train() -> None:
@@ -295,7 +295,7 @@ def train() -> None:
         epoch_logs = {"epoch": epoch + 1}
         process_metrics_to_logs(metrics, "train", epoch_logs)
         run_validation(model, eval_step, metrics, val_images, val_labels, batch_size, cpu_device, tt_device, epoch_logs)
-        log_to_wandb(wandb_run, epoch_logs, global_step - 1)
+        log_to_wandb(epoch_logs, global_step - 1)
 
     run_final_test(
         model, eval_step, test_images, test_labels, batch_size, cpu_device, tt_device, wandb_run, global_step
