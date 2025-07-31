@@ -30,7 +30,6 @@ class DataLoadingConfig(BaseModel):
 
 
 class ExperimentConfig(BaseModel):
-    pjrt_plugin_path: str = "third_party/tt-xla/build/src/tt/pjrt_plugin_tt.so"
     device: str = "TT"
     experiment_name: str = "blacksmith-mnist"
     tags: List[str] = ["tt-xla", "model:torch", "plugin", "wandb"]

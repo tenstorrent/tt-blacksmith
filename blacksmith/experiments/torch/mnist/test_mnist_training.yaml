@@ -1,5 +1,4 @@
 experiment_name: blacksmith-mnist-training
-pjrt_plugin_path: "third_party/tt-xla/build/src/tt/pjrt_plugin_tt.so"
 tags:
   - tt-xla
   - model:torch

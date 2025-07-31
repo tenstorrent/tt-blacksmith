@@ -6,7 +6,6 @@ import os
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
-from torch_xla.experimental import plugins
 from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms
@@ -14,27 +13,23 @@ from torchvision import transforms
 import wandb
 
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
 from blacksmith.tools.torch_xla_utils import init_device
 import os
 
 # --------------------------------
-# Load device configuration
-# --------------------------------
-
-config: ExperimentConfig = generate_config(
-    ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
-)
-
-init_device(config.pjrt_plugin_path)
-torch_xla.sync(wait=True)
-
-# --------------------------------
 # Training loop
 # --------------------------------
 def test_training():
+
+    config: ExperimentConfig = generate_config(
+        ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
+    )
+
+    init_device()
+    torch_xla.sync(wait=True)
+
     logger_config = config.logger_config
 
     wandb_run = wandb.init(
@@ -65,7 +60,7 @@ def test_training():
     device = xm.xla_device()
     model = model.to(device)
 
-    # Optimizer & Loss
+    # Optimizer and Loss
     optimizer = torch.optim.SGD(model.parameters(), lr=config.training_config.lr)
     loss_fn = eval(config.loss)()
 
