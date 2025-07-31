@@ -43,7 +43,7 @@ class MLP(nnx.Module):
         self.linear2 = nnx.Linear(hidden_size, hidden_size, rngs=rngs)
         self.linear3 = nnx.Linear(hidden_size, output_size, rngs=rngs)
 
-    def __call__(self, x):
+    def __call__(self, x: jnp.ndarray):
         x = x.reshape(x.shape[0], -1)
         x = nnx.relu(self.linear1(x))
         x = nnx.relu(self.linear2(x))
@@ -51,7 +51,7 @@ class MLP(nnx.Module):
         return x
 
 
-def loss_fn(model: MLP, batch: Dict[str, jnp.ndarray], cpu_device, tt_device):
+def loss_fn(model: MLP, batch: Dict[str, jnp.ndarray], cpu_device: jax.Device, tt_device: jax.Device):
     """Compute the loss and logits for a batch."""
     logits = model(batch["image"])
 
@@ -64,7 +64,7 @@ def loss_fn(model: MLP, batch: Dict[str, jnp.ndarray], cpu_device, tt_device):
     return loss, logits
 
 
-def create_train_step(cpu_device, tt_device):
+def create_train_step(cpu_device: jax.Device, tt_device: jax.Device):
     @nnx.jit
     def train_step(model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray]):
         """Train for a single step."""
@@ -77,7 +77,7 @@ def create_train_step(cpu_device, tt_device):
     return train_step
 
 
-def create_eval_step(cpu_device, tt_device):
+def create_eval_step(cpu_device: jax.Device, tt_device: jax.Device):
     @nnx.jit
     def eval_step(model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray]):
         """Evaluate the model on a batch."""
