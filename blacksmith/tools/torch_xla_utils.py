@@ -13,6 +13,8 @@ import sys
 os.environ["PJRT_DEVICE"] = "TT"
 os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
+DEFAULT_PJRT_PATH = "third_party/tt-xla/build/src/tt/pjrt_plugin_tt.so"
+
 
 class TTPjrtPlugin(plugins.DevicePlugin):
     def __init__(self, plugin_path: str) -> None:
@@ -23,7 +25,7 @@ class TTPjrtPlugin(plugins.DevicePlugin):
         return self._plugin_path
 
 
-def init_device(plugin_path: str):
+def init_device(plugin_path: str = DEFAULT_PJRT_PATH):
     backend = "TT"
     path = os.path.join(os.getcwd(), plugin_path)
     if not os.path.exists(path):
