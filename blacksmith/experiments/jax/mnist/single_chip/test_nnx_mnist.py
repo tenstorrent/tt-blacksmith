@@ -6,17 +6,26 @@ import os
 import jax
 import optax
 import jax.numpy as jnp
+import wandb
 
 from flax import nnx
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, Callable, Any, Union
 
 from blacksmith.tools.jax_utils import init_device
 from blacksmith.tools.cli import generate_config
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
+NUM_CLASSES = 10
+DEFAULT_MOMENTUM = 0.9
+DEFAULT_GRAD_CLIP_NORM = 1.0
 
-def init_configs(config_path: Optional[str] = None):
+DEFAULT_EXPERIMENT_NAME = "NNX-MNIST"
+DEFAULT_RUN_NAME = "test-run"
+DEFAULT_WANDB_DIR = "./wandb_logs"
+
+
+def init_configs(config_path: Optional[str] = None) -> ExperimentConfig:
     if config_path is None:
         config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
 
@@ -24,7 +33,7 @@ def init_configs(config_path: Optional[str] = None):
     return config
 
 
-def get_dataset():
+def get_dataset() -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Returns the MNIST dataset with integer labels (not one-hot)."""
     train_images, train_labels, val_images, val_labels, test_images, test_labels = load_mnist_jax()
 
@@ -35,15 +44,29 @@ def get_dataset():
     return train_images, train_labels, val_images, val_labels, test_images, test_labels
 
 
+def create_batch(
+    images: jnp.ndarray, labels: jnp.ndarray, start: int, end: int, cpu_device: jax.Device, tt_device: jax.Device
+) -> Dict[str, jnp.ndarray]:
+    """Create a batch and move it to appropriate devices."""
+    with jax.default_device(cpu_device):
+        x_batch_host = images[start:end]
+        y_batch_host = labels[start:end]
+
+    x_batch = jax.device_put(x_batch_host, tt_device)
+    y_batch = jax.device_put(y_batch_host, tt_device)
+
+    return {"image": x_batch, "label": y_batch}
+
+
 class MLP(nnx.Module):
     """A simple MLP model."""
 
-    def __init__(self, *, rngs: nnx.Rngs, input_size: int = 784, hidden_size: int = 256, output_size: int = 10):
+    def __init__(self, *, rngs: nnx.Rngs, input_size: int = 784, hidden_size: int = 256, output_size: int = 10) -> None:
         self.linear1 = nnx.Linear(input_size, hidden_size, rngs=rngs)
         self.linear2 = nnx.Linear(hidden_size, hidden_size, rngs=rngs)
         self.linear3 = nnx.Linear(hidden_size, output_size, rngs=rngs)
 
-    def __call__(self, x: jnp.ndarray):
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
         x = x.reshape(x.shape[0], -1)
         x = nnx.relu(self.linear1(x))
         x = nnx.relu(self.linear2(x))
@@ -51,12 +74,14 @@ class MLP(nnx.Module):
         return x
 
 
-def loss_fn(model: MLP, batch: Dict[str, jnp.ndarray], cpu_device: jax.Device, tt_device: jax.Device):
+def loss_fn(
+    model: MLP, batch: Dict[str, jnp.ndarray], cpu_device: jax.Device, tt_device: jax.Device
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the loss and logits for a batch."""
     logits = model(batch["image"])
 
     with jax.default_device(cpu_device):
-        one_hot_labels = jax.nn.one_hot(batch["label"].astype(jnp.int32), num_classes=10)
+        one_hot_labels = jax.nn.one_hot(batch["label"].astype(jnp.int32), num_classes=NUM_CLASSES)
     one_hot_labels = jax.device_put(one_hot_labels, tt_device)
     log_probs = jax.nn.log_softmax(logits)
     loss = -jnp.sum(log_probs * one_hot_labels, axis=-1).mean()
@@ -64,7 +89,7 @@ def loss_fn(model: MLP, batch: Dict[str, jnp.ndarray], cpu_device: jax.Device, t
     return loss, logits
 
 
-def create_train_step(cpu_device: jax.Device, tt_device: jax.Device):
+def create_train_step(cpu_device: jax.Device, tt_device: jax.Device) -> Callable:
     @nnx.jit
     def train_step(model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray]):
         """Train for a single step."""
@@ -77,7 +102,7 @@ def create_train_step(cpu_device: jax.Device, tt_device: jax.Device):
     return train_step
 
 
-def create_eval_step(cpu_device: jax.Device, tt_device: jax.Device):
+def create_eval_step(cpu_device: jax.Device, tt_device: jax.Device) -> Callable:
     @nnx.jit
     def eval_step(model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray]):
         """Evaluate the model on a batch."""
@@ -88,20 +113,11 @@ def create_eval_step(cpu_device: jax.Device, tt_device: jax.Device):
     return eval_step
 
 
-def train():
-    """Main training function."""
-
-    config = init_configs()
-
-    init_device()
-    cpu_device = jax.devices("cpu")[0]
-    tt_device = jax.devices("tt")[0]
-
-    train_step = create_train_step(cpu_device, tt_device)
-    eval_step = create_eval_step(cpu_device, tt_device)
-
+def setup_model_and_optimizer(
+    config: ExperimentConfig, cpu_device: jax.Device, tt_device: jax.Device
+) -> Tuple[nnx.Module, nnx.Optimizer]:
+    """Initialize model and optimizer."""
     with jax.default_device(cpu_device):
-        train_images, train_labels, val_images, val_labels, test_images, test_labels = get_dataset()
         rngs_host = nnx.Rngs(0)
         model = MLP(
             rngs=rngs_host,
@@ -110,11 +126,7 @@ def train():
             output_size=config.net_config.output_size,
         )
 
-    momentum = 0.9
-    batch_size = config.training_config.batch_size
     learning_rate = config.training_config.lr
-    train_steps = len(train_images) // batch_size
-    epochs = config.training_config.epochs
 
     # Initializing model parameters on CPU, since Jax random number generator
     # is currently not supported on device (https://github.com/tenstorrent/tt-xla/issues/420).
@@ -122,83 +134,175 @@ def train():
     state_on_device = jax.device_put(state, tt_device)
     model = nnx.merge(graphdef, state_on_device)
 
-    y = model(jnp.ones((1, 28, 28, 1)))
+    _ = model(jnp.ones((1, 28, 28, 1)))
+
+    with jax.default_device(cpu_device):
+        graphdef, state_tt = nnx.split(model)
+        state_cpu = jax.device_put(state_tt, cpu_device)
+        model_cpu = nnx.merge(graphdef, state_cpu)
+        optimizer_fn = optax.chain(
+            optax.clip_by_global_norm(DEFAULT_GRAD_CLIP_NORM), optax.adamw(learning_rate, DEFAULT_MOMENTUM)
+        )
+        optimizer = nnx.Optimizer(model_cpu, optimizer_fn)
+
+    return model, optimizer
+
+
+def process_metrics_to_logs(metrics: nnx.MultiMetric, prefix: str, epoch_logs: Dict[str, Any]) -> None:
+    """Process metrics and add to epoch logs with given prefix."""
+    for metric, value in metrics.compute().items():
+        if metric == "loss":
+            epoch_logs[f"{prefix}/loss"] = float(value)
+        elif metric == "accuracy":
+            epoch_logs[f"{prefix}/accuracy"] = float(value)
+    metrics.reset()
+
+
+def run_validation(
+    model: MLP,
+    eval_step: Callable,
+    metrics: nnx.MultiMetric,
+    val_images: jnp.ndarray,
+    val_labels: jnp.ndarray,
+    batch_size: int,
+    cpu_device: jax.Device,
+    tt_device: jax.Device,
+    epoch_logs: Dict[str, Any],
+) -> None:
+    """Run validation and add results to epoch logs."""
+    val_steps = len(val_images) // batch_size
+    for i in range(val_steps):
+        start = i * batch_size
+        end = start + batch_size
+        val_batch = create_batch(val_images, val_labels, start, end, cpu_device, tt_device)
+        eval_step(model, metrics, val_batch)
+
+    process_metrics_to_logs(metrics, "val", epoch_logs)
+
+
+def log_to_wandb(wandb_run: Any, data_dict: Dict[str, Any], step: Optional[int] = None) -> None:
+    """Helper function to log data to wandb."""
+    wandb.log(data_dict, step=step)
+
+
+def setup_wandb(config: ExperimentConfig) -> Any:
+    """Setup wandb with error handling."""
+    wandb_run = wandb.init(
+        project=DEFAULT_EXPERIMENT_NAME,
+        name=DEFAULT_RUN_NAME,
+        dir=DEFAULT_WANDB_DIR,
+        config=config.model_dump(),
+    )
+    print(f"Started wandb run: {wandb_run.name}")
+    return wandb_run
+
+
+def update_model_with_optimizer(
+    model: nnx.Module,
+    optimizer: nnx.Optimizer,
+    grads: Dict[str, jnp.ndarray],
+    cpu_device: jax.Device,
+    tt_device: jax.Device,
+) -> nnx.Module:
+    """Apply optimizer update and return updated model."""
+
+    # Optimizer step is done on CPU because TT device doesn't support optimizer state operations
+    # See: https://github.com/tenstorrent/tt-xla/issues/342
+    with jax.default_device(cpu_device):
+        grads_cpu = jax.device_put(grads, cpu_device)
+        graphdef, state_tt = nnx.split(model)
+        state_cpu = jax.device_put(state_tt, cpu_device)
+
+        optimizer.model = nnx.merge(graphdef, state_cpu)
+        optimizer.update(grads_cpu)
+
+        graphdef_cpu, updated_state_cpu = nnx.split(optimizer.model)
+        updated_state_tt = jax.device_put(updated_state_cpu, tt_device)
+        return nnx.merge(graphdef_cpu, updated_state_tt)
+
+
+def run_final_test(
+    model: nnx.Module,
+    eval_step: Callable,
+    test_images: jnp.ndarray,
+    test_labels: jnp.ndarray,
+    batch_size: int,
+    cpu_device: jax.Device,
+    tt_device: jax.Device,
+    wandb_run: Any,
+    global_step: int,
+) -> None:
+    """Run final test evaluation and log results."""
+    test_steps = len(test_images) // batch_size
+    final_test_metrics = nnx.MultiMetric(
+        accuracy=nnx.metrics.Accuracy(),
+        loss=nnx.metrics.Average("loss"),
+    )
+
+    for i in range(test_steps):
+        start = i * batch_size
+        end = start + batch_size
+        test_batch = create_batch(test_images, test_labels, start, end, cpu_device, tt_device)
+        eval_step(model, final_test_metrics, test_batch)
+
+    final_test_results = final_test_metrics.compute()
+    final_test_logs = {f"final_test/{metric}": float(value) for metric, value in final_test_results.items()}
+    log_to_wandb(wandb_run, final_test_logs, global_step)
+
+
+def train() -> None:
+    """Main training function."""
+
+    config = init_configs()
+    wandb_run = setup_wandb(config)
+
+    init_device()
+    cpu_device = jax.devices("cpu")[0]
+    tt_device = jax.devices("tt")[0]
+
+    train_step = create_train_step(cpu_device, tt_device)
+    eval_step = create_eval_step(cpu_device, tt_device)
+
+    # Load dataset on CPU because TT device has dtype restrictions (int16 not supported)
+    # and one_hot encoding operations are not supported on TT device.
+    with jax.default_device(cpu_device):
+        train_images, train_labels, val_images, val_labels, test_images, test_labels = get_dataset()
+
+    model, optimizer = setup_model_and_optimizer(config, cpu_device, tt_device)
+
+    batch_size = config.training_config.batch_size
+    train_steps = len(train_images) // batch_size
+    epochs = config.training_config.epochs
 
     metrics = nnx.MultiMetric(
         accuracy=nnx.metrics.Accuracy(),
         loss=nnx.metrics.Average("loss"),
     )
 
-    metrics_history = {
-        "train_loss": [],
-        "train_accuracy": [],
-        "test_loss": [],
-        "test_accuracy": [],
-    }
-
+    global_step = 0
     for epoch in range(epochs):
-        print(f"Epoch {epoch + 1}/{epochs}")
-
         for step in range(train_steps):
             start = step * batch_size
             end = start + batch_size
 
-            # Batch creation is done on CPU (https://github.com/tenstorrent/tt-mlir/issues/2309)
-            with jax.default_device(cpu_device):
-                x_batch_host = train_images[start:end]
-                y_batch_host = train_labels[start:end]
-
-            x_batch = jax.device_put(x_batch_host, tt_device)
-            y_batch = jax.device_put(y_batch_host, tt_device)
-
-            batch = {"image": x_batch, "label": y_batch}
+            batch = create_batch(train_images, train_labels, start, end, cpu_device, tt_device)
 
             grads, loss, logits = train_step(model, metrics, batch)
+            model = update_model_with_optimizer(model, optimizer, grads, cpu_device, tt_device)
 
-            # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
-            with jax.default_device(cpu_device):
-                grads_cpu = jax.device_put(grads, cpu_device)
-                graphdef, state_tt = nnx.split(model)
-                state_cpu = jax.device_put(state_tt, cpu_device)
-                model_cpu = nnx.merge(graphdef, state_cpu)
+            global_step += 1
 
-                optimizer_cpu = nnx.Optimizer(model_cpu, optax.adamw(learning_rate, momentum))
-                optimizer_cpu.update(grads_cpu)
+        epoch_logs = {"epoch": epoch + 1}
+        process_metrics_to_logs(metrics, "train", epoch_logs)
+        run_validation(model, eval_step, metrics, val_images, val_labels, batch_size, cpu_device, tt_device, epoch_logs)
+        log_to_wandb(wandb_run, epoch_logs, global_step - 1)
 
-                graphdef_cpu, updated_state_cpu = nnx.split(optimizer_cpu.model)
-                updated_state_tt = jax.device_put(updated_state_cpu, tt_device)
-                model = nnx.merge(graphdef_cpu, updated_state_tt)
+    run_final_test(
+        model, eval_step, test_images, test_labels, batch_size, cpu_device, tt_device, wandb_run, global_step
+    )
 
-        for metric, value in metrics.compute().items():
-            metrics_history[f"train_{metric}"].append(value)
-        metrics.reset()
-
-        test_steps = len(test_images) // batch_size
-        for i in range(test_steps):
-            start = i * batch_size
-            end = start + batch_size
-
-            with jax.default_device(cpu_device):
-                x_batch_host = test_images[start:end]
-                y_batch_host = test_labels[start:end]
-
-            x_batch = jax.device_put(x_batch_host, tt_device)
-            y_batch = jax.device_put(y_batch_host, tt_device)
-
-            test_batch = {"image": x_batch, "label": y_batch}
-            eval_step(model, metrics, test_batch)
-
-        for metric, value in metrics.compute().items():
-            metrics_history[f"test_{metric}"].append(value)
-        metrics.reset()
-
-        print(f"Epoch {epoch + 1} Results:")
-        print(
-            f"  Train Loss: {metrics_history['train_loss'][-1]:.4f}, Train Accuracy: {metrics_history['train_accuracy'][-1]:.4f}"
-        )
-        print(
-            f"  Test Loss:  {metrics_history['test_loss'][-1]:.4f}, Test Accuracy:  {metrics_history['test_accuracy'][-1]:.4f}"
-        )
+    wandb.finish()
+    print("Finished wandb run")
 
 
 if __name__ == "__main__":
