@@ -18,7 +18,6 @@ import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import torch_xla.distributed.parallel_loader as pl
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
 from blacksmith.tools.torch_xla_utils import init_device
@@ -27,17 +26,15 @@ import os
 import wandb
 
 
-
 os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
 
 # --------------------------------
 # Load device configuration
 # --------------------------------
 
-config: ExperimentConfig = generate_config(
-    ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
-)
+
 # torch_xla.sync(wait=True)
+
 
 def setup_tt_environment():
     """Setup TensorTrent environment and plugin."""
@@ -50,6 +47,7 @@ def setup_tt_environment():
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
     from torch_xla.experimental import plugins
+
     # TODO: Replace with init device when available
 
     class TTPjrtPlugin(plugins.DevicePlugin):
@@ -65,7 +63,33 @@ def setup_tt_environment():
     torch_xla.sync(wait=True)
 
 
+def get_loader(data_loader, num_steps, batch_size, input_sharding):
+    data_iterator = iter(data_loader)
+    inputs = []
+    targets = []
+    for _ in range(min(num_steps, len(data_loader))):
+        input, target = next(data_iterator)
+        inputs.append(input.to(torch.bfloat16))
+        targets.append(target)
+
+    inputs = torch.cat(inputs, dim=0)
+    targets = torch.cat(targets, dim=0)
+    dataset = torch.utils.data.TensorDataset(inputs, targets)
+    loader = DataLoader(dataset, batch_size=num_steps * batch_size, shuffle=False)
+
+    return pl.MpDeviceLoader(
+        loader,
+        torch_xla.device(),
+        input_sharding=input_sharding,
+    )
+
+
 def training_on_multiple_devices():
+
+    config: ExperimentConfig = generate_config(
+        ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
+    )
+
     logger_config = config.logger_config
 
     wandb_run = wandb.init(
@@ -85,45 +109,33 @@ def training_on_multiple_devices():
     torch.manual_seed(1)
 
     # Model
-    model = MNISTLinear(784, 512,10, bias=True).to(torch.bfloat16)
-    model = model.train()
+    model = MNISTLinear(784, 512, 10, bias=True).to(torch.bfloat16)
 
-    inputs_and_targets = []
+    # Dataset
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-    test_dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
+    mnist_dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
+    train_size = int(0.8 * len(mnist_dataset))
+    val_size = len(mnist_dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(mnist_dataset, [train_size, val_size])
 
-    dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
-    data_iterator = iter(dataloader)
-    inputs = []
-    targets = []
-    for _ in range(num_steps):
-        test_input, target = next(data_iterator)
-        print(f"Test input shape: {test_input.shape}, Target shape: {target.shape}")
-        test_input = test_input.to(torch.bfloat16)
-        inputs.append(test_input)
-        targets.append(target)
-        inputs_and_targets.append((test_input, target))
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
 
-    # xr.use_spmd(True)
+    # Define mesh for multi-device training
     num_devices = xr.global_runtime_device_count()
-    print(f"Running on {num_devices} devices")
     mesh_shape = (num_devices, 1, 1, 1)
     axis_names = ("data", "c", "h", "w")
     device_ids = np.arange(num_devices).reshape(mesh_shape)
     mesh = Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
-    print(f"Mesh shape: {mesh_shape}, Device IDs: {device_ids}")
-
-    inputs = torch.cat(inputs, dim=0)
-    targets = torch.cat(targets, dim=0)
-    dataset = torch.utils.data.TensorDataset(inputs, targets)
-    loader = DataLoader(dataset, batch_size=num_steps * batch_size, shuffle=True)
-
     input_sharding = xs.ShardingSpec(mesh, ("data", None, None, None))
-    train_device_loader = pl.MpDeviceLoader(
-        loader,
-        torch_xla.device(),
-        input_sharding=input_sharding,
+
+    train_device_loader = get_loader(
+        data_loader=train_dataloader, num_steps=num_steps, batch_size=batch_size, input_sharding=input_sharding
     )
+    val_device_loader = get_loader(
+        data_loader=val_dataloader, num_steps=num_steps, batch_size=batch_size, input_sharding=input_sharding
+    )
+
     # Device
     device = torch_xla.device()
     model = model.to(device)
@@ -133,7 +145,7 @@ def training_on_multiple_devices():
     loss_fn = nn.NLLLoss()
 
     # Training
-    for epoch in range(20):  # Using 2 epochs for demonstration
+    for epoch in range(20):
         model.train()
         train_loss = 0.0
         for step, (inputs, targets) in enumerate(train_device_loader):
@@ -150,16 +162,36 @@ def training_on_multiple_devices():
             loss = loss_fn(outputs, targets)
             loss.backward()
 
-            xm.optimizer_step(optimizer)
-            torch_xla.sync(wait=True)
+            xm.optimizer_step(optimizer, barrier=True)
+            # torch_xla.sync(wait=True)
             train_loss += loss.cpu().item()
 
         avg_train_loss = train_loss / len(train_device_loader)
         print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.4f}")
         wandb.log({"train_loss": avg_train_loss, "epoch": epoch + 1})
 
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for step, (val_inputs, val_targets) in enumerate(val_device_loader):
+                val_inputs = val_inputs.view(val_inputs.size(0), -1)
+
+                val_inputs = val_inputs.to(device, dtype=torch.bfloat16)
+                val_targets = val_targets.to(device)
+
+                xs.mark_sharding(val_targets, mesh, ("data",))
+
+                outputs = model(val_inputs)
+                loss = loss_fn(outputs, val_targets)
+                val_loss += loss.item()
+
+        avg_val_loss = val_loss / len(val_device_loader)
+        print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+        wandb.log({"val_loss": avg_val_loss}, step=epoch + 1)
+
     print("Training complete. Saving model parameters.")
-    
- 
+
+
 def test_mnist_ttxla():
     training_on_multiple_devices()
