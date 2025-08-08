@@ -8,7 +8,7 @@ dtype: "torch.bfloat16"
 
 # Training hyperparameters
 learning_rate: 2e-5
-batch_size: 32
+batch_size: 16
 gradient_accumulation_steps: 1
 gradient_checkpointing: False
 num_epochs: 1
