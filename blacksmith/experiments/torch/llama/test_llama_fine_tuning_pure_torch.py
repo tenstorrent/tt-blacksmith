@@ -37,24 +37,24 @@ def show_examples(examples, tokenizer):
         target_tokens = valid_targets[:show_len].tolist()
         pred_tokens = valid_preds[:show_len].tolist()
         
-        print(f"  Target IDs:  {target_tokens}")
-        print(f"  Pred IDs:    {pred_tokens}")
+        print(f"Target IDs:  {target_tokens}")
+        print(f"Pred IDs:    {pred_tokens}")
         
         try:
             target_text = tokenizer.decode(target_tokens, skip_special_tokens=False)
             pred_text = tokenizer.decode(pred_tokens, skip_special_tokens=False)
             input_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-            print(f"  Input text:  '{input_text}'")
-            print(f"  Target text: '{target_text}'")
-            print(f"  Pred text:   '{pred_text}'")
+            print(f"Input text:  '{input_text}'")
+            print(f"Target text: '{target_text}'")
+            print(f"Pred text:   '{pred_text}'")
         except Exception as e:
             print(f"  (Could not decode text: {e})")
         
         correct = (valid_targets == valid_preds).float().mean()
-        print(f"  Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
+        print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
 
 
-def validate(model, val_data_loader, loss_fn, device, config, vocab_size, tokenizer=None):
+def validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype, tokenizer=None):
     print(f"\n=== Starting Validation ===")
     total_val_loss = 0.0
     num_val_batches = 0
@@ -71,7 +71,8 @@ def validate(model, val_data_loader, loss_fn, device, config, vocab_size, tokeni
             if config.use_tt:
                 inputs = [input_ids, attention_mask]
                 logits = model(*inputs)[0]  # logits is [V, N]
-                loss = loss_fn(logits.t().contiguous(), expected_output.view(-1))
+                labels_for_loss = prepare_labels(expected_output, vocab_size, dtype)
+                loss = loss_fn(logits, labels_for_loss)[0]
                 predictions = logits.t().contiguous().argmax(dim=-1)  # [N]
                 predictions = predictions.view(expected_output.shape)  # [B, T]
             else:
@@ -195,8 +196,6 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
     else:
         loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
 
-    val_loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
-
     global_step = 0
     running_loss = 0.0
     try:
@@ -209,29 +208,33 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
                 attention_mask = batch["attention_mask"]
                 expected_output = batch["labels"]
 
-                # Forward pass
                 if config.use_tt:
                     inputs = [input_ids, attention_mask]
+                    # Forward pass
                     logits = compiled_model(*inputs)[0]
+                    labels_for_loss = prepare_labels(expected_output, vocab_size, model.dtype)
+                    # Loss
+                    loss = tt_loss(logits, labels_for_loss)[0]
+                    running_loss += loss.item()
+                    print(f"Loss: {loss}")
+                    # Backward pass
+                    tt_loss.backward()
+                    # Optimizer step
+                    tt_optimizer.step()
                 else:
                     input_ids = input_ids.to(device)
                     attention_mask = attention_mask.to(device)
                     expected_output = expected_output.to(device)
+                    # Forward pass
                     outputs = model(input_ids, attention_mask=attention_mask)
                     logits = outputs.logits
-
-                # Loss + Backward pass
-                if config.use_tt:
-                    labels_for_loss = prepare_labels(expected_output, vocab_size, dtype)
-                    loss = tt_loss(logits, labels_for_loss)[0]
-                    running_loss += loss.item()
-                    print(f"Loss: {loss}")
-                    tt_loss.backward()
-                    tt_optimizer.step()
-                else:
+                    # Loss
                     loss = loss_fn(logits.view(-1, vocab_size), expected_output.view(-1))
                     running_loss += loss.item()
+                    print(f"Loss: {loss}")
+                    # Backward pass
                     loss.backward()
+                    # Optimizer step
                     torch_optimizer.step()
                     torch_optimizer.zero_grad()
 
@@ -245,10 +248,10 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
                     # Validation phase
                     if config.use_tt:
-                        avg_val_loss = validate(compiled_model, val_data_loader, val_loss_fn, device, config, vocab_size, tokenizer)
+                        avg_val_loss = validate(compiled_model, val_data_loader, tt_loss, device, config, vocab_size, dtype, tokenizer)
                     else:
                         model.eval()
-                        avg_val_loss = validate(model, val_data_loader, val_loss_fn, device, config, vocab_size, tokenizer)
+                        avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype, tokenizer)
                     run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
 
                     if config.save_strategy == "steps":
