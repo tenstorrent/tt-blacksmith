@@ -98,7 +98,6 @@ def train_mnist():
 
         return loss, gathered_grads, gathered_logits
 
-    # @jax.jit
     def update(params, grads, learning_rate):
         w1, b1, w2, b2, w3, b3 = params
         dw1, db1, dw2, db2, dw3, db3 = grads
