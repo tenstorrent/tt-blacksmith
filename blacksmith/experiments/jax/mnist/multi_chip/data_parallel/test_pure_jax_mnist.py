@@ -98,7 +98,7 @@ def train_mnist():
 
         return loss, gathered_grads, gathered_logits
 
-    @jax.jit
+    # @jax.jit
     def update(params, grads, learning_rate):
         w1, b1, w2, b2, w3, b3 = params
         dw1, db1, dw2, db2, dw3, db3 = grads
@@ -191,6 +191,20 @@ def train_mnist():
             ),
         )
 
+        def optimizer_step(params, grads, learning_rate):
+            return shard_map.shard_map(
+                lambda p, g, lr: update(p, g, lr),
+                mesh=sharding_config.mesh,
+                in_specs=(PartitionSpec(), PartitionSpec(), PartitionSpec()),
+                out_specs=PartitionSpec(),
+                check_rep=False,
+            )(params, grads, learning_rate)
+
+        optimizer_step_jit = jax.jit(
+            optimizer_step,
+            out_shardings=sharding_config.param_sharding,
+        )
+
         config = init_wandb(
             project_name="DP - Pure JAX MLP training",
             job_type="DP - Pure JAX MLP training",
@@ -219,14 +233,7 @@ def train_mnist():
 
                 loss, grads, logits = training_step_jit(params, x_batch, y_batch, learning_rate)
 
-                params_host = jax.device_put(params, jax.devices("cpu")[0])
-                grads_host = jax.device_put(grads, jax.devices("cpu")[0])
-                learning_rate_host = jax.device_put(learning_rate, jax.devices("cpu")[0])
-
-                # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
-                params_host_updated = update(params_host, grads_host, learning_rate_host)
-
-                params = jax.device_put(params_host_updated, sharding_config.param_sharding)
+                params = optimizer_step_jit(params, grads, learning_rate)
 
                 loss_host = jax.device_put(loss, jax.devices("cpu")[0])
                 batch_loss_accum += loss_host

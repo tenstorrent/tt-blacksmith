@@ -162,13 +162,7 @@ def train_mnist():
 
                 batch_loss, grads, logits = compute_loss_grads_logits(params, x_batch, y_batch)
 
-                params_host = jax.device_put(params, jax.devices("cpu")[0])
-                grads_host = jax.device_put(grads, jax.devices("cpu")[0])
-                learning_rate_host = jax.device_put(learning_rate, jax.devices("cpu")[0])
-
-                # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
-                params_host_updated = update(params_host, grads_host, learning_rate_host)
-                params = jax.device_put(params_host_updated, current_device)
+                params = update(params, grads, learning_rate)
 
                 batch_accuracy = compute_accuracy(logits, y_batch)
 

@@ -31,8 +31,8 @@ def compute_loss_grads_and_logits(params, x, y):
 
 
 @jax.jit
-def update_params(params, grads, learning_rate):
-    return jax.tree_util.tree_map(lambda p, g: p - learning_rate * g, params, grads)
+def optimizer_step(state, grads):
+    return state.apply_gradients(grads=grads)
 
 
 @jax.jit

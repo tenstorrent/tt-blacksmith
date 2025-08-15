@@ -29,7 +29,7 @@ from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
 from blacksmith.experiments.jax.mnist.single_chip.train_utils.train_functions import (
     cross_entropy,
     forward_pass,
-    update_params,
+    optimizer_step,
     eval_step,
     compute_loss_grads_and_logits,
     calculate_metrics_val,
@@ -155,16 +155,9 @@ def train(config_path=None):
 
             loss, grads, logits = compute_loss_grads_and_logits(state.params, batch_images, batch_labels)
 
-            grads_host = jax.device_put(grads, cpu_device)
+            state = optimizer_step(state, grads)
 
             accuracy = jnp.mean(jnp.argmax(logits, 1) == jnp.argmax(batch_labels, 1))
-
-            # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-xla/issues/342)
-            params_host = jax.device_put(state.params, cpu_device)
-            with jax.default_device(cpu_device):
-                params_host_updated = update_params(params_host, grads_host, training_config.lr)
-            state = state.replace(params=jax.device_put(params_host_updated, current_device))
-
             metrics = {"loss": loss, "accuracy": accuracy}
             train_batch_metrics.append(metrics)
 
