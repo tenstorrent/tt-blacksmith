@@ -89,28 +89,26 @@ def loss_fn(
     return loss, logits
 
 
-def create_train_step(cpu_device: jax.Device, tt_device: jax.Device) -> Callable:
-    @nnx.jit
-    def train_step(model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray]):
-        """Train for a single step."""
-        grad_fn = nnx.value_and_grad(lambda m, b: loss_fn(m, b, cpu_device, tt_device), has_aux=True)
-        (loss, logits), grads = grad_fn(model, batch)
-        labels = batch["label"].astype(jnp.int32)
-        metrics.update(loss=loss, logits=logits, labels=labels)
-        return grads, loss, logits
+@nnx.jit(static_argnames=["cpu_device", "tt_device"])
+def training_step(
+    model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray], cpu_device: jax.Device, tt_device: jax.Device
+):
+    """Train for a single step."""
+    grad_fn = nnx.value_and_grad(lambda m, b: loss_fn(m, b, cpu_device, tt_device), has_aux=True)
+    (loss, logits), grads = grad_fn(model, batch)
+    labels = batch["label"].astype(jnp.int32)
+    metrics.update(loss=loss, logits=logits, labels=labels)
+    return grads, loss, logits
 
-    return train_step
 
-
-def create_eval_step(cpu_device: jax.Device, tt_device: jax.Device) -> Callable:
-    @nnx.jit
-    def eval_step(model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray]):
-        """Evaluate the model on a batch."""
-        loss, logits = loss_fn(model, batch, cpu_device, tt_device)
-        labels = batch["label"].astype(jnp.int32)
-        metrics.update(loss=loss, logits=logits, labels=labels)
-
-    return eval_step
+@nnx.jit(static_argnames=["cpu_device", "tt_device"])
+def evaluation_step(
+    model: MLP, metrics: nnx.MultiMetric, batch: Dict[str, jnp.ndarray], cpu_device: jax.Device, tt_device: jax.Device
+):
+    """Evaluate the model on a batch."""
+    loss, logits = loss_fn(model, batch, cpu_device, tt_device)
+    labels = batch["label"].astype(jnp.int32)
+    metrics.update(loss=loss, logits=logits, labels=labels)
 
 
 def setup_model_and_optimizer(
@@ -160,7 +158,6 @@ def process_metrics_to_logs(metrics: nnx.MultiMetric, prefix: str, epoch_logs: D
 
 def run_validation(
     model: MLP,
-    eval_step: Callable,
     metrics: nnx.MultiMetric,
     val_images: jnp.ndarray,
     val_labels: jnp.ndarray,
@@ -175,7 +172,7 @@ def run_validation(
         start = i * batch_size
         end = start + batch_size
         val_batch = create_batch(val_images, val_labels, start, end, cpu_device, tt_device)
-        eval_step(model, metrics, val_batch)
+        evaluation_step(model, metrics, val_batch, cpu_device, tt_device)
 
     process_metrics_to_logs(metrics, "val", epoch_logs)
 
@@ -197,33 +194,29 @@ def setup_wandb(config: ExperimentConfig) -> Any:
     return wandb_run
 
 
+@nnx.jit
 def update_model_with_optimizer(
-    model: nnx.Module,
+    graphdef: nnx.GraphDef,
+    state_cpu: nnx.State,
     optimizer: nnx.Optimizer,
-    grads: Dict[str, jnp.ndarray],
-    cpu_device: jax.Device,
-    tt_device: jax.Device,
-) -> nnx.Module:
-    """Apply optimizer update and return updated model."""
+    grads_cpu: Dict[str, jnp.ndarray],
+) -> nnx.State:
+    """Apply optimizer update and return updated model state.
 
+    All inputs and outputs are on CPU device. Device transfers done outside.
+    Pure function that can be JIT compiled.
+    """
     # Optimizer step is done on CPU because TT device doesn't support optimizer state operations
     # See: https://github.com/tenstorrent/tt-xla/issues/342
-    with jax.default_device(cpu_device):
-        grads_cpu = jax.device_put(grads, cpu_device)
-        graphdef, state_tt = nnx.split(model)
-        state_cpu = jax.device_put(state_tt, cpu_device)
+    optimizer.model = nnx.merge(graphdef, state_cpu)
+    optimizer.update(grads_cpu)
 
-        optimizer.model = nnx.merge(graphdef, state_cpu)
-        optimizer.update(grads_cpu)
-
-        graphdef_cpu, updated_state_cpu = nnx.split(optimizer.model)
-        updated_state_tt = jax.device_put(updated_state_cpu, tt_device)
-        return nnx.merge(graphdef_cpu, updated_state_tt)
+    _, updated_state_cpu = nnx.split(optimizer.model)
+    return updated_state_cpu
 
 
 def run_final_test(
     model: nnx.Module,
-    eval_step: Callable,
     test_images: jnp.ndarray,
     test_labels: jnp.ndarray,
     batch_size: int,
@@ -243,7 +236,7 @@ def run_final_test(
         start = i * batch_size
         end = start + batch_size
         test_batch = create_batch(test_images, test_labels, start, end, cpu_device, tt_device)
-        eval_step(model, final_test_metrics, test_batch)
+        evaluation_step(model, final_test_metrics, test_batch, cpu_device, tt_device)
 
     final_test_results = final_test_metrics.compute()
     final_test_logs = {f"final_test/{metric}": float(value) for metric, value in final_test_results.items()}
@@ -256,53 +249,61 @@ def train() -> None:
     config = init_configs()
     wandb_run = setup_wandb(config)
 
-    init_device()
-    cpu_device = jax.devices("cpu")[0]
-    tt_device = jax.devices("tt")[0]
+    try:
+        init_device()
+        cpu_device = jax.devices("cpu")[0]
+        tt_device = jax.devices("tt")[0]
 
-    train_step = create_train_step(cpu_device, tt_device)
-    eval_step = create_eval_step(cpu_device, tt_device)
+        # Load dataset on CPU because TT device has dtype restrictions (int16 not supported)
+        # and one_hot encoding operations are not supported on TT device.
+        with jax.default_device(cpu_device):
+            train_images, train_labels, val_images, val_labels, test_images, test_labels = get_dataset()
 
-    # Load dataset on CPU because TT device has dtype restrictions (int16 not supported)
-    # and one_hot encoding operations are not supported on TT device.
-    with jax.default_device(cpu_device):
-        train_images, train_labels, val_images, val_labels, test_images, test_labels = get_dataset()
+        model, optimizer = setup_model_and_optimizer(config, cpu_device, tt_device)
 
-    model, optimizer = setup_model_and_optimizer(config, cpu_device, tt_device)
+        batch_size = config.training_config.batch_size
+        train_steps = len(train_images) // batch_size
+        epochs = config.training_config.epochs
 
-    batch_size = config.training_config.batch_size
-    train_steps = len(train_images) // batch_size
-    epochs = config.training_config.epochs
+        metrics = nnx.MultiMetric(
+            accuracy=nnx.metrics.Accuracy(),
+            loss=nnx.metrics.Average("loss"),
+        )
 
-    metrics = nnx.MultiMetric(
-        accuracy=nnx.metrics.Accuracy(),
-        loss=nnx.metrics.Average("loss"),
-    )
+        global_step = 0
+        for epoch in range(epochs):
+            for step in range(train_steps):
+                start = step * batch_size
+                end = start + batch_size
 
-    global_step = 0
-    for epoch in range(epochs):
-        for step in range(train_steps):
-            start = step * batch_size
-            end = start + batch_size
+                batch = create_batch(train_images, train_labels, start, end, cpu_device, tt_device)
 
-            batch = create_batch(train_images, train_labels, start, end, cpu_device, tt_device)
+                grads, loss, logits = training_step(model, metrics, batch, cpu_device, tt_device)
 
-            grads, loss, logits = train_step(model, metrics, batch)
-            model = update_model_with_optimizer(model, optimizer, grads, cpu_device, tt_device)
+                # Transfer everything to CPU before optimizer update
+                grads_cpu = jax.device_put(grads, cpu_device)
+                graphdef, state_tt = nnx.split(model)
+                state_cpu = jax.device_put(state_tt, cpu_device)
 
-            global_step += 1
+                # Pure optimizer update on CPU (JIT compiled)
+                updated_state_cpu = update_model_with_optimizer(graphdef, state_cpu, optimizer, grads_cpu)
 
-        epoch_logs = {"epoch": epoch + 1}
-        process_metrics_to_logs(metrics, "train", epoch_logs)
-        run_validation(model, eval_step, metrics, val_images, val_labels, batch_size, cpu_device, tt_device, epoch_logs)
-        log_to_wandb(epoch_logs, global_step - 1)
+                # Transfer updated state back to TT device
+                updated_state_tt = jax.device_put(updated_state_cpu, tt_device)
+                model = nnx.merge(graphdef, updated_state_tt)
 
-    run_final_test(
-        model, eval_step, test_images, test_labels, batch_size, cpu_device, tt_device, wandb_run, global_step
-    )
+                global_step += 1
 
-    wandb.finish()
-    print("Finished wandb run")
+            epoch_logs = {"epoch": epoch + 1}
+            process_metrics_to_logs(metrics, "train", epoch_logs)
+            run_validation(model, metrics, val_images, val_labels, batch_size, cpu_device, tt_device, epoch_logs)
+            log_to_wandb(epoch_logs, global_step - 1)
+
+        run_final_test(model, test_images, test_labels, batch_size, cpu_device, tt_device, wandb_run, global_step)
+
+    finally:
+        wandb.finish()
+        print("Finished wandb run")
 
 
 if __name__ == "__main__":
