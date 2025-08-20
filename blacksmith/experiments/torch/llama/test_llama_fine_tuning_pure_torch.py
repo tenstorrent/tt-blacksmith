@@ -135,13 +135,14 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
         compiler_cfg = CompilerConfig()
         if config.dtype == "torch.bfloat16":
+            forge_dtype = DataFormat.Float16_b
             compiler_cfg.default_df_override = DataFormat.Float16_b
             dtype = torch.bfloat16
         elif config.dtype == "torch.float32":
+            forge_dtype = DataFormat.Float32
             dtype = torch.float32
         else:
             raise ValueError(f"Invalid dtype: {config.dtype}")
-        compiler_cfg.enable_consteval = False
 
         # Enable program cache on all devices
         settings = DeviceSettings()
@@ -178,7 +179,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
     if config.use_tt:
         from blacksmith.experiments.torch.llama.loss import CrossEntropyLoss
-        loss_tt = CrossEntropyLoss(name="cross_entropy_loss")
+        loss_tt = CrossEntropyLoss(name="cross_entropy_loss", dtype=forge_dtype)
 
         seq_len_sample = config.max_length
         N_sample = config.batch_size * seq_len_sample

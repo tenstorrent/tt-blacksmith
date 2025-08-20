@@ -1,4 +1,5 @@
 import torch
+from forge._C import DataFormat
 from forge.module import ForgeModule
 from forge.op.reduce import ReduceAvg, ReduceSum
 from forge.op.eltwise_unary import Log, Cast
@@ -15,9 +16,10 @@ class CrossEntropyLoss(ForgeModule):
     loss = reduce_avg(-1 * sum(labels * log(softmax(predictions)), dim=-1), dim=0)
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, dtype=DataFormat.Float32):
         super().__init__(name)
         self.is_loss = True
+        self.dtype = dtype
 
     def forward(self, predictions, labels):
         softmax = Softmax("softmax", predictions, dim=0)
@@ -26,8 +28,7 @@ class CrossEntropyLoss(ForgeModule):
         product = Multiply("products", labels, log_softmax)
         log_loss = ReduceSum("log_loss", product, dim=0)
 
-        negative_one_constant = Constant("negative_one_const", constant=-1.0)
-        negative_one_constant = Cast("negative_one_cast", negative_one_constant, dtype=torch.bfloat16)
+        negative_one_constant = Constant("negative_one_const", constant=-1.0, dtype=self.dtype)
         negative_log_loss = Multiply(
             "negative_log_loss",
             log_loss,
