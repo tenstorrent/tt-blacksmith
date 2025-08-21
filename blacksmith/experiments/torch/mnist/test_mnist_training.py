@@ -44,7 +44,7 @@ def test_training():
         wandb_run.config.update(config.model_dump())
 
     # Model
-    model = MNISTLinear(**config.net_config.model_dump()).to(dtype=getattr(torch, config.data_loading_config.dtype))
+    model = MNISTLinear(**config.net_config.model_dump()).to(dtype=getattr(torch, config.data_loading_dtype))
 
     # Dataset
     transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
