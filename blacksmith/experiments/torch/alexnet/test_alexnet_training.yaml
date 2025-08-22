@@ -1,0 +1,40 @@
+# Dataset settings
+dataset_name: "tiny-imagenet"
+data_path: "tiny-imagenet-200"
+
+# Model settings
+model_variant: "alexnet"
+num_classes: 200
+image_size: 64
+dtype: "torch.float32"
+
+# Training hyperparameters
+learning_rate: 0.01
+batch_size: 256
+momentum: 0.9
+weight_decay: 1e-4
+num_epochs: 5
+optim: "sgd"
+
+# Learning rate scheduler
+lr_scheduler: "step"
+lr_step_size: 7
+lr_gamma: 0.1
+
+# Data loading
+num_workers: 8
+eval_split: 0.1
+
+# Other settings
+seed: 42
+output_dir: "experiments/results/alexnet"
+report_to: "wandb"
+wandb_project: "alexnet-training"
+wandb_watch_mode: "gradients"
+wandb_log_freq: 50
+save_strategy: "epoch"
+logging_strategy: "steps"
+logging_steps: 50
+save_total_limit: 3
+do_train: True
+do_eval: True 
