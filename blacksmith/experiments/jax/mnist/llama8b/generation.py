@@ -19,6 +19,59 @@ class LLaMA(struct.PyTreeNode):
     tokenizer: AutoTokenizer = struct.field(pytree_node=False)
     mesh: Optional[Mesh] = struct.field(pytree_node=False, default=None)
 
+    def generate_logits_only(
+        self,
+        tokens: jnp.ndarray,
+        max_gen_len: int,
+        temperature: float = 0.0,
+        top_p: float = 1,
+    ) -> jnp.ndarray:
+        """
+        Generate tokens using logits-only approach, bypassing Transformers generation pipeline
+        """
+        print(f"🎯 Starting logits-only generation...")
+        print(f"   Input tokens shape: {tokens.shape}")
+        print(f"   Max gen length: {max_gen_len}")
+
+        batch_size, seq_len = tokens.shape
+        generated_tokens = tokens.copy()  # Start with input tokens
+
+        # Generate tokens one by one
+        for step in range(max_gen_len):
+            print(f"   Step {step + 1}/{max_gen_len}: Getting logits...")
+
+            # Get logits for current sequence within mesh context
+            with self.mesh:
+                # Forward pass through model - just get logits
+                model_outputs = self.model(
+                    input_ids=generated_tokens,
+                    params=self.params,
+                )
+
+                # Get logits for next token (last position)
+                logits = model_outputs.logits[:, -1, :]  # Shape: [batch, vocab_size]
+                print(f"   Got logits shape: {logits.shape}")
+
+                # Simple greedy sampling (take argmax)
+                if temperature == 0.0:
+                    next_token = jnp.argmax(logits, axis=-1, keepdims=True)
+                else:
+                    # TODO: Implement temperature sampling if needed
+                    next_token = jnp.argmax(logits, axis=-1, keepdims=True)
+
+                print(f"   Next token: {next_token}")
+
+                # Append next token to sequence
+                generated_tokens = jnp.concatenate([generated_tokens, next_token], axis=1)
+
+                # Stop if we hit EOS token
+                if next_token[0, 0] == self.tokenizer.eos_token_id:
+                    print(f"   Hit EOS token, stopping generation")
+                    break
+
+        print(f"✅ Logits-only generation complete! Final shape: {generated_tokens.shape}")
+        return generated_tokens
+
     def generate(
         self,
         tokens: jnp.ndarray,
@@ -28,28 +81,8 @@ class LLaMA(struct.PyTreeNode):
         top_p: float = 1,
         do_sample: bool = False,
     ) -> jnp.ndarray:
-
-        with jax.default_device(jax.devices("cpu")[0]):
-            prng_key = jax.random.PRNGKey(0)
-
-        # Ensure generation runs within mesh context for tensor parallel ops
-        with self.mesh:
-            generations = self.model.generate(
-                input_ids=tokens,
-                attention_mask=attention_mask,
-                params=self.params,
-                prng_key=prng_key,
-                generation_config=GenerationConfig(
-                    num_beams=1,
-                    do_sample=do_sample,
-                    max_length=max_gen_len + tokens.shape[1],
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    temperature=temperature,
-                    top_p=top_p,
-                ),
-            )
-        return generations.sequences
+        # Use logits-only generation instead of Transformers pipeline
+        return self.generate_logits_only(tokens, max_gen_len, temperature, top_p)
 
     def generate_from_str(
         self,

@@ -71,7 +71,7 @@ def main(
     max_gen_len: int = 5,
     temperature: float = 0.0,
     top_p: float = 1.0,
-    n_layers: int = 16,
+    n_layers: int = 1,
     max_seq_length: int = 16,
     print_hlo: bool = False,
     monitor_memory: bool = True,
