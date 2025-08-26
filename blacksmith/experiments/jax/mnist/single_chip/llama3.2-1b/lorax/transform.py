@@ -117,7 +117,10 @@ def eval_lora_transpose(arg: LoraWeight, *, permutation):
 
 
 @quax.register(lax.convert_element_type_p)
-def eval_lora_convert_element_type(arg: LoraWeight, *, new_dtype, **params):
-    result = jax.tree.map(lambda x: jax.lax.convert_element_type(x, new_dtype), arg)
-    result.dtype = new_dtype
-    return result
+def eval_lora_convert_element_type(arg: LoraWeight, *, new_dtype, **_):
+    return LoraWeight(
+        w=jax.lax.convert_element_type(arg.w, new_dtype),
+        a=jax.lax.convert_element_type(arg.a, new_dtype),
+        b=jax.lax.convert_element_type(arg.b, new_dtype),
+        alpha=arg.alpha,  # leave alpha as a Python float
+    )

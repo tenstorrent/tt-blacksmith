@@ -9,18 +9,20 @@ Focuses on MLP layers only as originally requested.
 NOW RUNNING ON TT DEVICE! 🚀
 """
 import warnings
-from jax_utils import init_device
 
-init_device()
 import jax
 import jax.numpy as jnp
 import optax
 import numpy as np
-from transformers import FlaxGPT2LMHeadModel, AutoTokenizer
+from transformers import FlaxAutoModelForCausalLM, AutoTokenizer, AutoConfig
+
 from datasets import load_dataset
 
 import lorax
 from lorax import LORA_FULL, LORA_FREEZE
+
+
+MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
 
 
 def load_tinystories_data(tokenizer, max_length=128, num_samples=1000):
@@ -77,9 +79,17 @@ def main():
     print("🤖 Loading GPT-2 model...")
     # Force model init and PRNG ops to CPU to avoid unsupported TT PRNG ops
     with jax.default_device(cpu_device):
-        model = FlaxGPT2LMHeadModel.from_pretrained("gpt2")
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    tokenizer.pad_token = tokenizer.eos_token
+        config = AutoConfig.from_pretrained(MODEL_NAME)
+        # Training doesn't need KV cache; turn it off to save memory
+        config.use_cache = False
+        # (Optional) if you still hit OOM, clamp the context a bit more:
+        # config.max_position_embeddings = 8192  # or 16384, etc.
+
+        model = FlaxAutoModelForCausalLM.from_pretrained(MODEL_NAME, config=config, from_pt=False)
+
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
     # Move model params to TT device
     model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), model.params)
 
@@ -91,14 +101,14 @@ def main():
     # LoRA spec: ONLY MLP layers (as originally requested!)
     def decision_fn(path, param):
         path_str = ".".join(str(k.key) if hasattr(k, "key") else str(k) for k in path)
-
-        # Only apply LoRA to MLP layers
-        if ".mlp." in path_str and ("c_fc.kernel" in path_str or "c_proj.kernel" in path_str):
-            rank = 16  # LoRA rank
-            print(f"✅ Applying LoRA rank {rank} to MLP layer: {path_str}")
+        # Llama MLP params use gate/up/down proj, no bias
+        if ".mlp." in path_str and (
+            ".gate_proj.kernel" in path_str or ".up_proj.kernel" in path_str or ".down_proj.kernel" in path_str
+        ):
+            rank = 16
+            print(f"✅ Applying LoRA rank {rank} to: {path_str}")
             return rank
         else:
-            # Freeze everything else (attention, embeddings, etc.)
             return LORA_FREEZE
 
     # Create LoRA spec and parameters
@@ -130,11 +140,14 @@ def main():
 
         # Cross-entropy loss
         logprobs = jax.nn.log_softmax(logits, axis=-1)
-        target_logprobs = jnp.take_along_axis(logprobs, targets[..., None], axis=-1)
+        # === replace take_along_axis with one-hot dot === ISSUE ISSUE ISSUE ISSUE ISSUE ISSUE ISSUE ISSUE
+        one_hot = jax.nn.one_hot(targets, num_classes=logprobs.shape[-1], dtype=logprobs.dtype)
+        target_logprobs = jnp.sum(logprobs * one_hot, axis=-1)  # (B, T)
+        # ===============================================
 
         # Mask padding tokens (assuming tokenizer.pad_token_id is the pad token)
         pad_mask = (targets != tokenizer.pad_token_id).astype(jnp.float32)
-        loss = -jnp.sum(target_logprobs.squeeze(-1) * pad_mask) / jnp.sum(pad_mask)
+        loss = -(target_logprobs * pad_mask).sum() / pad_mask.sum()
 
         return loss
 
@@ -142,6 +155,7 @@ def main():
     @jax.jit
     def train_step(lora_params, opt_state, batch):
         loss, grads = jax.value_and_grad(loss_fn)(lora_params, batch)
+        # TODO: on cpu
         updates, new_opt_state = optimizer.update(grads, opt_state, lora_params)
         new_params = optax.apply_updates(lora_params, updates)
         return new_params, new_opt_state, loss
@@ -153,6 +167,7 @@ def main():
 
         for batch_idx, batch in enumerate(train_batches[:20]):  # Train on first 20 batches
             lora_params, opt_state, loss = train_step(lora_params, opt_state, batch)
+
             epoch_losses.append(float(loss))
 
             if batch_idx % 5 == 0:
