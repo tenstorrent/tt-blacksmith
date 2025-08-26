@@ -9,8 +9,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-os.environ["WANDB_START_METHOD"] = "fork"
-
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
@@ -20,10 +18,10 @@ from blacksmith.tools.cli import generate_config
 def show_examples(examples, tokenizer):
     for i, example in enumerate(examples):
         print(f"\nExample {i+1} (from batch {example['batch_num']}):")
-        
-        input_ids = example['input_ids']
-        expected = example['expected']
-        predicted = example['predicted']
+
+        input_ids = example["input_ids"]
+        expected = example["expected"]
+        predicted = example["predicted"]
 
         valid_mask = expected != -100
         if not valid_mask.any():
@@ -32,14 +30,14 @@ def show_examples(examples, tokenizer):
 
         valid_targets = expected[valid_mask]
         valid_preds = predicted[valid_mask]
-        
+
         show_len = min(10, len(valid_targets))
         target_tokens = valid_targets[:show_len].tolist()
         pred_tokens = valid_preds[:show_len].tolist()
-        
+
         print(f"Target IDs:  {target_tokens}")
         print(f"Pred IDs:    {pred_tokens}")
-        
+
         try:
             target_text = tokenizer.decode(target_tokens, skip_special_tokens=False)
             pred_text = tokenizer.decode(pred_tokens, skip_special_tokens=False)
@@ -49,7 +47,7 @@ def show_examples(examples, tokenizer):
             print(f"Pred text:   '{pred_text}'")
         except Exception as e:
             print(f"  (Could not decode text: {e})")
-        
+
         correct = (valid_targets == valid_preds).float().mean()
         print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
 
@@ -82,22 +80,27 @@ def validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype,
                 logits = outputs.logits
                 loss = loss_fn(logits.view(-1, vocab_size), expected_output.view(-1))
                 predictions = logits.argmax(dim=-1)  # [B, T]
-            
+
             total_val_loss += loss.item()
             num_val_batches += 1
-            
+
             if len(collected_examples) < max_examples:
                 batch_size = expected_output.shape[0]
                 import random
-                sample_indices = random.sample(range(batch_size), min(batch_size, max_examples - len(collected_examples)))
-                
+
+                sample_indices = random.sample(
+                    range(batch_size), min(batch_size, max_examples - len(collected_examples))
+                )
+
                 for idx in sample_indices:
-                    collected_examples.append({
-                        'input_ids': input_ids[idx],
-                        'expected': expected_output[idx],
-                        'predicted': predictions[idx],
-                        'batch_num': num_val_batches
-                    })
+                    collected_examples.append(
+                        {
+                            "input_ids": input_ids[idx],
+                            "expected": expected_output[idx],
+                            "predicted": predictions[idx],
+                            "batch_num": num_val_batches,
+                        }
+                    )
 
     print(f"\n=== Validation Examples (Random samples) ===")
     show_examples(collected_examples, tokenizer)
@@ -113,19 +116,16 @@ def prepare_labels(expected_output: torch.Tensor, vocab_size: int, dtype: torch.
 
     labels_rows = torch.zeros(N, vocab_size, dtype=dtype, device=expected_output_flat.device)
     if mask.any():
-        labels_rows[mask] = torch.nn.functional.one_hot(
-            expected_output_flat[mask], num_classes=vocab_size
-        ).to(dtype)
+        labels_rows[mask] = torch.nn.functional.one_hot(expected_output_flat[mask], num_classes=vocab_size).to(dtype)
 
     labels_for_loss = labels_rows.transpose(0, 1).contiguous().to(dtype)
-    return labels_for_loss    
+    return labels_for_loss
 
 
 def train(config, model, tokenizer, train_data_loader, val_data_loader):
     run = wandb.init(project=config.wandb_project, name=config.wandb_run_name, config=vars(config), save_code=True)
     run.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
     device = None
-
 
     if config.use_tt:
         import forge
@@ -178,11 +178,12 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
     vocab_size = model.model.config.vocab_size
 
     if config.use_tt:
+        # TODO: Remove this once softmax is fixed
         from blacksmith.experiments.torch.llama.loss import CrossEntropyLoss
+
         loss_tt = CrossEntropyLoss(name="cross_entropy_loss", dtype=forge_dtype)
 
-        seq_len_sample = config.max_length
-        N_sample = config.batch_size * seq_len_sample
+        N_sample = config.batch_size * config.max_length
         loss_predictions_sample = torch.rand(vocab_size, N_sample, dtype=dtype).requires_grad_(True)
         loss_labels_sample = torch.zeros(vocab_size, N_sample, dtype=dtype)
         loss_inputs = [loss_predictions_sample, loss_labels_sample]
@@ -249,10 +250,14 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
                     # Validation phase
                     if config.use_tt:
-                        avg_val_loss = validate(compiled_model, val_data_loader, tt_loss, device, config, vocab_size, dtype, tokenizer)
+                        avg_val_loss = validate(
+                            compiled_model, val_data_loader, tt_loss, device, config, vocab_size, dtype, tokenizer
+                        )
                     else:
                         model.eval()
-                        avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype, tokenizer)
+                        avg_val_loss = validate(
+                            model, val_data_loader, loss_fn, device, config, vocab_size, dtype, tokenizer
+                        )
                     run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
 
                     if config.save_strategy == "steps":
