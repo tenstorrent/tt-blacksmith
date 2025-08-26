@@ -111,12 +111,14 @@ def split_lora_params(params, spec):
 
 def wrap_optimizer(optimizer: optax.GradientTransformation, spec, scalar_frozen_grads=False):
     """
-    Wrap the optimizer to freeze the 'w' component of LoraWeight objects.
-    Only the 'a' and 'b' matrices should be trainable in LoRA.
+    Wrap the optimizer to freeze parameters according to the LoRA spec.
+    - LoraWeight objects: freeze 'w' and 'alpha', allow 'a' and 'b' to update
+    - Regular parameters with spec=0 (LORA_FREEZE): completely frozen
+    - Regular parameters with spec!=0: trainable
     """
 
-    def freeze_lora_weights(updates):
-        def freeze_if_lora(update):
+    def freeze_weights(updates):
+        def freeze_by_spec(update, spec_value):
             if isinstance(update, LoraWeight):
                 # For LoraWeight: freeze 'w' and 'alpha', allow 'a' and 'b' to update
                 return LoraWeight(
@@ -126,16 +128,19 @@ def wrap_optimizer(optimizer: optax.GradientTransformation, spec, scalar_frozen_
                     alpha=0.0,  # Freeze alpha
                 )
             else:
-                # Keep updates for regular parameters
-                return update
+                # For regular parameters: freeze if spec says LORA_FREEZE (0)
+                if spec_value == 0:  # LORA_FREEZE
+                    return jnp.zeros_like(update)  # Zero out gradients completely
+                else:
+                    return update  # Keep updates for non-frozen regular params
 
-        return jax.tree.map(freeze_if_lora, updates, is_leaf=lambda x: isinstance(x, LoraWeight))
+        return jax.tree.map(freeze_by_spec, updates, spec, is_leaf=lambda x: isinstance(x, LoraWeight))
 
     # Chain the freezing with the original optimizer
     return optax.chain(
         optax.GradientTransformation(
             init=lambda params: {},
-            update=lambda updates, state, params: (freeze_lora_weights(updates), state),
+            update=lambda updates, state, params: (freeze_weights(updates), state),
         ),
         optimizer,
     )

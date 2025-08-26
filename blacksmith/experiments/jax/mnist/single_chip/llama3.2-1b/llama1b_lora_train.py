@@ -17,7 +17,7 @@ import numpy as np
 from transformers import FlaxAutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from datasets import load_dataset
-
+from split_and_merge import split_trainable_frozen, merge_trainable_frozen
 import lorax
 from lorax import LORA_FULL, LORA_FREEZE
 
@@ -94,7 +94,7 @@ def main():
     model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), model.params)
 
     # Load real story data
-    text_data = load_tinystories_data(tokenizer, max_length=128, num_samples=500)
+    text_data = load_tinystories_data(tokenizer, max_length=64, num_samples=100)
     train_batches = create_batches(text_data, batch_size=4)
     print(f"📦 Created {len(train_batches)} training batches")
 
@@ -120,10 +120,13 @@ def main():
     # Move LoRA params to TT device
     lora_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), lora_params)
 
-    # Setup optimizer with proper parameter freezing
+    # Split into trainable and frozen pytrees
+    print("🔄 Splitting parameters into trainable and frozen pytrees...")
+    trainable_params, frozen_params = split_trainable_frozen(lora_params, lora_spec)
+
+    # Setup optimizer ONLY for trainable parameters (much more efficient!)
     optimizer = optax.adamw(learning_rate=1e-4, weight_decay=0.01)
-    optimizer = lorax.wrap_optimizer(optimizer, lora_spec)
-    opt_state = optimizer.init(lora_params)
+    opt_state = optimizer.init(trainable_params)
     # Ensure optimizer state is on TT device
     opt_state = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), opt_state)
 
@@ -131,12 +134,15 @@ def main():
     lora_model = lorax.lora(model)
 
     # Training loss function (next-token prediction)
-    def loss_fn(lora_params, batch):
+    def loss_fn(trainable_params, frozen_params, batch):
+        # Merge trainable and frozen params for forward pass
+        merged_params = merge_trainable_frozen(trainable_params, frozen_params)
+
         input_ids = batch[:, :-1]  # Input: all tokens except last
         targets = batch[:, 1:]  # Target: all tokens except first
 
-        # Forward pass
-        logits = lora_model(input_ids, params=lora_params).logits
+        # Forward pass with merged parameters
+        logits = lora_model(input_ids, params=merged_params).logits
 
         # Cross-entropy loss
         logprobs = jax.nn.log_softmax(logits, axis=-1)
@@ -153,36 +159,62 @@ def main():
 
     # JIT compiled training step
     @jax.jit
-    def train_step(lora_params, opt_state, batch):
-        loss, grads = jax.value_and_grad(loss_fn)(lora_params, batch)
+    def train_step(trainable_params, frozen_params, opt_state, batch):
+        # razdovjim na freeze i ne freeze ( 2 pytree)
+        loss, grads = jax.value_and_grad(loss_fn, argnums=0)(trainable_params, frozen_params, batch)
         # TODO: on cpu
-        updates, new_opt_state = optimizer.update(grads, opt_state, lora_params)
-        new_params = optax.apply_updates(lora_params, updates)
+        updates, new_opt_state = optimizer.update(grads, opt_state, trainable_params)
+        new_params = optax.apply_updates(trainable_params, updates)
         return new_params, new_opt_state, loss
 
     # Training loop
     print("🎯 Starting training on real text data...")
-    for epoch in range(10):  # Train for 3 epochs
+    for epoch in range(5):  # Train for 10 epochs
         epoch_losses = []
 
         for batch_idx, batch in enumerate(train_batches[:20]):  # Train on first 20 batches
-            lora_params, opt_state, loss = train_step(lora_params, opt_state, batch)
+            trainable_params, opt_state, loss = train_step(trainable_params, frozen_params, opt_state, batch)
 
             epoch_losses.append(float(loss))
 
-            if batch_idx % 5 == 0:
-                print(f"Epoch {epoch+1}, Batch {batch_idx:2d}: Loss = {loss:.4f}")
+            print(f"Epoch {epoch+1}, Batch {batch_idx:2d}: Loss = {loss:.4f}")
+            if epoch == 0:
+                import os
+
+                os.makedirs("trainable_params", exist_ok=True)
+                import json
+
+                # save trainable params to file in folder trainable_params in json format
+                with open(f"trainable_params/trainable_params_{epoch+1}_{batch_idx}.json", "w") as f:
+                    json.dump(trainable_params, f)
+                # save frozen params to file in folder frozen_params in json format
+                os.makedirs("frozen_params", exist_ok=True)
+                with open(f"frozen_params/frozen_params_{epoch+1}_{batch_idx}.json", "w") as f:
+                    json.dump(frozen_params, f)
 
         avg_loss = np.mean(epoch_losses)
         print(f"📊 Epoch {epoch+1} Average Loss: {avg_loss:.4f}")
 
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
+    print("TRAINING COMPLETED")
     # Test generation
     print("\n🔮 Testing story generation...")
     test_prompt = "Once upon a time, there was a little"
     test_tokens = tokenizer.encode(test_prompt, return_tensors="np")
 
+    # Merge parameters for generation
+    final_lora_params = merge_trainable_frozen(trainable_params, frozen_params)
+
     # Generate a few tokens
-    generated_logits = lora_model(test_tokens, params=lora_params).logits
+    generated_logits = lora_model(test_tokens, params=final_lora_params).logits
     next_token_id = jnp.argmax(generated_logits[0, -1])
     next_token = tokenizer.decode([next_token_id])
 
@@ -191,11 +223,11 @@ def main():
 
     # Merge LoRA back into regular weights
     print("\n🔄 Merging LoRA parameters...")
-    merged_params = lorax.merge_params(lora_params)
+    merged_params = lorax.merge_params(final_lora_params)
 
     # Verify merge works
     orig_logits = model(test_tokens, params=merged_params).logits
-    lora_logits = lora_model(test_tokens, params=lora_params).logits
+    lora_logits = lora_model(test_tokens, params=final_lora_params).logits
     merge_error = jnp.max(jnp.abs(orig_logits - lora_logits))
 
     print(f"✅ LoRA merge verification - Max error: {merge_error:.2e}")
