@@ -13,8 +13,16 @@ NOTE:  LLaMA fine-tuning currently utilizes GPUs. We are actively working on ena
 
 ## Training
 
+Run the default LoRA configuration:
+
 ```bash
-python3 blacksmith/experiments/pytorch/llama/test_llama_fine_tuning.py
+python3 blacksmith/experiments/torch/llama/test_llama_fine_tuning.py
+```
+
+To fine-tune using DoRA, provide the DoRA config file:
+
+```bash
+python3 blacksmith/experiments/torch/llama/test_llama_fine_tuning.py --config test_llama_fine_tuning_dora.yaml
 ```
 
 ## Data

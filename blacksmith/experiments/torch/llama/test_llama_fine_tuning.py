@@ -4,6 +4,7 @@
 import os
 import re
 import json
+import argparse
 import torch
 import wandb
 from tqdm import tqdm
@@ -129,7 +130,11 @@ def evaluate(model, tokenizer, eval_set):
 
 
 if __name__ == "__main__":
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning.yaml")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default="test_llama_fine_tuning.yaml")
+    args = parser.parse_args()
+
+    config_file_path = os.path.join(os.path.dirname(__file__), args.config)
     config = generate_config(TrainingConfig, config_file_path)
 
     model = get_model(config)

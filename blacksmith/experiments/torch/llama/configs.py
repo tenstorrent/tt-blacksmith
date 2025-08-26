@@ -26,6 +26,7 @@ class TrainingConfig(BaseModel):
     lora_alpha: int = Field(default=8, gt=0)
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
     lora_task_type: str = Field(default="CAUSAL_LM")
+    use_dora: bool = Field(default=False)
 
     # Other settings
     seed: int = Field(default=23)

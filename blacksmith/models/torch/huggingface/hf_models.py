@@ -39,6 +39,7 @@ def get_model(config: TrainingConfig):
         target_modules=config.lora_target_modules,
         layers_to_transform=ltt,
         task_type=config.lora_task_type,
+        use_dora=config.use_dora,
     )
     model = get_peft_model(model, lora_config)
     model.to(eval(config.dtype))
