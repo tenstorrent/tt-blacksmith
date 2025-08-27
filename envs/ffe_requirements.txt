@@ -1,3 +1,3 @@
-tt-tvm @ https://github.com/tenstorrent/tt-forge-fe/releases/download/0.1.0/tt_tvm-0.1.0-cp310-cp310-linux_x86_64.whl
-tt-forge-fe @ https://github.com/tenstorrent/tt-forge-fe/releases/download/0.1.0/tt_forge_fe-0.1.0-cp310-cp310-linux_x86_64.whl
+tt-tvm @ https://github.com/tenstorrent/tt-forge-fe/releases/download/0.4.0.dev20250827/tt_tvm-0.4.0.dev20250827-cp310-cp310-linux_x86_64.whl
+tt-forge-fe @ https://github.com/tenstorrent/tt-forge-fe/releases/download/0.4.0.dev20250827/tt_forge_fe-0.4.0.dev20250827-cp310-cp310-linux_x86_64.whl
 peft

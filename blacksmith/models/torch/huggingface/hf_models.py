@@ -22,9 +22,10 @@ class TextModelWrapper(torch.nn.Module):
             causal_attention_mask = _prepare_4d_causal_attention_mask(
                 attention_mask, input_ids.shape, inputs_embeds, past_key_values_length
             )
-            logits = self.model(attention_mask=causal_attention_mask, inputs_embeds=inputs_embeds).logits
+            logits = self.model(attention_mask=causal_attention_mask, inputs_embeds=inputs_embeds).logits  # [B, T, V]
         else:
-            logits = self.model(input_ids=input_ids).logits
+            logits = self.model(input_ids=input_ids).logits  # [B, T, V]
+        logits = logits.view(-1, logits.shape[-1]).t()  # [Batch * Seq len, Vocab size]
         return logits
 
 
