@@ -3,8 +3,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Real LoRA training on GPT-2 with TinyStories dataset.
-Fun, engaging stories instead of boring Wikipedia!
+Real LoRA training on Llama with WikiText-2 dataset.
+Using standard Wikipedia articles for more stable training.
 Focuses on MLP layers only as originally requested.
 NOW RUNNING ON TT DEVICE! 🚀
 """
@@ -25,22 +25,37 @@ from lorax import LORA_FULL, LORA_FREEZE
 MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
 
 
-def load_tinystories_data(tokenizer, max_length=128, num_samples=1000):
-    """Load and tokenize TinyStories data - much more engaging than Wikipedia!"""
-    print("📚 Loading TinyStories dataset...")
+def load_wikitext_data(tokenizer, max_length=128, num_samples=1000):
+    """Load and tokenize WikiText-2 data - more stable and standard dataset."""
+    import random
 
-    # Load dataset - these are simple, fun stories!
-    dataset = load_dataset("roneneldan/TinyStories", split="train")
+    print("📚 Loading WikiText-2 dataset...")
 
-    # Get story texts
-    texts = [item["text"] for item in dataset if len(item["text"].strip()) > 100]
-    texts = texts[:num_samples]  # Limit for demo
+    # Load WikiText-2 dataset
+    dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
 
-    print(f"📊 Loaded {len(texts)} story samples")
-    print(f"📝 Sample story: {texts[0][:300]}...")
+    # Get article texts and filter out short ones
+    texts = []
+    for item in dataset:
+        text = item["text"].strip()
+        # Skip empty lines, headers, and very short texts
+        if len(text) > 64 and not text.startswith("=") and not text.startswith("@"):
+            texts.append(text)
+        if len(texts) >= num_samples * 3:  # Get more samples for better shuffling
+            break
 
-    # Tokenize
-    print("🔤 Tokenizing stories...")
+    # Shuffle the texts for better training diversity
+    print(f"🔀 Shuffling {len(texts)} texts...")
+    random.shuffle(texts)
+
+    # Take the requested number of samples after shuffling
+    texts = texts[:num_samples]
+
+    print(f"📊 Loaded {len(texts)} shuffled Wikipedia article samples")
+    print(f"📝 Sample text: {texts[0][:2560]}...")
+
+    # Tokenize with better settings
+    print("🔤 Tokenizing Wikipedia articles...")
     tokenized = tokenizer(
         texts,
         max_length=max_length,
@@ -101,11 +116,6 @@ def main():
     # Force model init and PRNG ops to CPU to avoid unsupported TT PRNG ops
     with jax.default_device(cpu_device):
         config = AutoConfig.from_pretrained(MODEL_NAME)
-        # Training doesn't need KV cache; turn it off to save memory
-        config.use_cache = False
-        config.num_hidden_layers = 16
-        # (Optional) if you still hit OOM, clamp the context a bit more:
-        # config.max_position_embeddings = 8192  # or 16384, etc.
 
         model = FlaxAutoModelForCausalLM.from_pretrained(MODEL_NAME, config=config, from_pt=False)
 
@@ -115,9 +125,9 @@ def main():
     # Move model params to TT device
     model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), model.params)
 
-    # Load real story data
-    text_data = load_tinystories_data(tokenizer, max_length=64, num_samples=100)
-    train_batches = create_batches(text_data, batch_size=4)
+    # Load real Wikipedia data
+    text_data = load_wikitext_data(tokenizer, max_length=256, num_samples=640)
+    train_batches = create_batches(text_data, batch_size=64)
     print(f"📦 Created {len(train_batches)} training batches")
 
     # LoRA spec: ONLY MLP layers (as originally requested!)
@@ -146,7 +156,8 @@ def main():
     print("🔄 Splitting parameters into trainable and frozen pytrees...")
     trainable_params, frozen_params = split_trainable_frozen(lora_params, lora_spec)
     with jax.default_device(cpu_device):
-        optimizer = optax.adamw(learning_rate=1e-4, weight_decay=0.01)
+        # Lower learning rate for more stable training with larger batches
+        optimizer = optax.adamw(learning_rate=2e-4, weight_decay=0.01)
         # Move trainable_params to CPU for optimizer init
         trainable_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), trainable_params)
         opt_state = optimizer.init(trainable_params_cpu)
@@ -179,9 +190,20 @@ def main():
 
         return loss
 
-    @jax.jit
+    # Non-JIT function to handle device placement then call JIT gradient computation
     def compute_grads_tt(trainable_params_tt, frozen_params_tt, batch_tt):
-        loss, grads = jax.value_and_grad(loss_fn, argnums=0)(trainable_params_tt, frozen_params_tt, batch_tt)
+        # Move inputs to CPU for computation (outside JIT)
+        trainable_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), trainable_params_tt)
+        frozen_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), frozen_params_tt)
+        batch_cpu = jax.device_put(batch_tt, cpu_device)
+
+        # Call JIT function with CPU inputs
+        return compute_grads_cpu_jit(trainable_params_cpu, frozen_params_cpu, batch_cpu)
+
+    # JIT compiled gradient computation on CPU
+    @jax.jit
+    def compute_grads_cpu_jit(trainable_params_cpu, frozen_params_cpu, batch_cpu):
+        loss, grads = jax.value_and_grad(loss_fn, argnums=0)(trainable_params_cpu, frozen_params_cpu, batch_cpu)
         return loss, grads
 
     # JIT compiled training step
@@ -241,18 +263,24 @@ def main():
 
     # Training loop
     print("🎯 Starting training on real text data...")
-    for epoch in range(5):  # Train for 10 epochs
+    loss_history = []
+    for epoch in range(50):  # Train for 10 epochs
         epoch_losses = []
 
         for batch_idx, batch in enumerate(train_batches[:20]):  # Train on first 20 batches
             # trainable_params, opt_state, loss = train_step(trainable_params, frozen_params, opt_state, batch)
 
             # Merge trainable, frozen, and batch into one structure in specified order
-            combined_data = {"trainable_params": trainable_params, "frozen_params": frozen_params, "batch": batch}
-            save_tensors(combined_data)
+            """combined_data = {
+                "trainable_params": trainable_params,
+                "frozen_params": frozen_params,
+                "batch": batch
+            }"""
+            # save_tensors(combined_data)
 
             loss, grads = compute_grads_tt(trainable_params, frozen_params, batch)
-            print(f"grads: {grads}")
+            loss_history.append(loss)
+            # print(f"grads: {grads}")
             # Move grads to CPU for fully CPU optimizer
             with jax.default_device(cpu_device):
                 grads_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), grads)
@@ -268,21 +296,24 @@ def main():
             epoch_losses.append(float(loss))
             print(f"train step {batch_idx} done")
             print(f"Epoch {epoch+1}, Batch {batch_idx:2d}: Loss = {loss:.4f}")
-            if epoch == 0:
+            """if epoch == 0:
                 import os
-
                 os.makedirs("trainable_params", exist_ok=True)
                 import json
-
-                # save trainable params to file in folder trainable_params in json format
+                #save trainable params to file in folder trainable_params in json format
                 with open(f"trainable_params/trainable_params_{epoch+1}_{batch_idx}.json", "w") as f:
                     json.dump(jax_to_json_serializable(trainable_params, cpu_device), f)
-                # save frozen params to file in folder frozen_params in json format
+                #save frozen params to file in folder frozen_params in json format
                 os.makedirs("frozen_params", exist_ok=True)
                 with open(f"frozen_params/frozen_params_{epoch+1}_{batch_idx}.json", "w") as f:
                     json.dump(jax_to_json_serializable(frozen_params, cpu_device), f)
-                print("trainable_params saved")
+                print("trainable_params saved")"""
 
+        print(f"loss history: {loss_history}")
+        # save losses to file
+        with open("loss_history.txt", "w") as f:
+            for loss in loss_history:
+                f.write(f"{loss}\n")
         avg_loss = np.mean(epoch_losses)
         print(f"📊 Epoch {epoch+1} Average Loss: {avg_loss:.4f}")
 
@@ -297,8 +328,8 @@ def main():
     print("TRAINING COMPLETED")
     print("TRAINING COMPLETED")
     # Test generation
-    print("\n🔮 Testing story generation...")
-    test_prompt = "Once upon a time, there was a little"
+    print("\n🔮 Testing text generation...")
+    test_prompt = "The history of artificial intelligence began in"
     test_tokens = tokenizer.encode(test_prompt, return_tensors="np")
 
     # Merge parameters for generation
