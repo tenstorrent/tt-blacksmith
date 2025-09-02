@@ -133,7 +133,7 @@ def main():
             num_train_epochs=config.num_epochs,
             per_device_train_batch_size=config.batch_size,
             per_device_eval_batch_size=config.batch_size,
-            logging_steps=1,
+            logging_steps=config.logging_steps,
             learning_rate=config.learning_rate,
             gradient_accumulation_steps=8,  # Effective batch size = 8 × 8 = 64
             eval_strategy="epoch", 
