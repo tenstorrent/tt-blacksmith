@@ -64,7 +64,7 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `wandb_run_name` | Project run name for Weights & Biases logging. | "tt-llama" |
 | `wandb_watch_mode` | Watch mode for model parameters in wandb. | "all" |
 | `wandb_log_freq` | Frequency of logging to wandb (in steps). | 1000 |
-| `model_to_wandb` | Weather to store model to wandb. | False |
+| `model_to_wandb` | Whether to store model to wandb. | False |
 | `save_strategy` | Strategy for saving checkpoints (epoch, steps, etc.). | "epoch" |
 | `logging_steps` | Frequency of logging (in steps). | 10 |
 | `do_train` | Whether to run training. | True |
