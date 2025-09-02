@@ -9,12 +9,10 @@ Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 The LLaMA fine-tuning experiment applies the LoRA technique to adapt a pre-trained LLaMA model on the SST sentiment analysis dataset.
 The experiment is designed to run on the Huggingface framework.
 
-NOTE:  LLaMA fine-tuning currently utilizes GPUs. We are actively working on enabling training on Tenstorrent hardware.
-
 ## Training
 
 ```bash
-python3 blacksmith/experiments/pytorch/llama/test_llama_fine_tuning.py
+python3 blacksmith/experiments/torch/llama/test_llama_fine_tuning_pure_torch.py
 ```
 
 ## Data
@@ -38,9 +36,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_llama_fine_tuning.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `test_llama_fine_tuning_pure_torch.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_llama_fine_tuning.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 
@@ -58,18 +56,16 @@ Current `test_llama_fine_tuning.yaml` has the recommended and tested hyperparame
 | `optim` | Optimizer to use for training. | "adamw_torch" |
 | `lora_r` | Rank of the LoRA adaptation matrices. | 4 |
 | `lora_alpha` | Scaling factor for the LoRA updates. | 8 |
-| `lora_dropout` | Dropout probability for LoRA layers. | 0.1 |
-| `lora_bias` | Whether to adapt bias parameters (none, all, lora_only). | "none" |
 | `lora_target_modules` | Target modules for applying LoRA adaptation. | "all-linear" |
+| `lora_task_type` | Target training task. | "CAUSAL_LM" |
 | `seed` | Random seed for reproducibility. | 23 |
 | `output_dir` | Directory to save model checkpoints and logs. | "experiments/results/llama32-1b" |
-| `report_to` | Backend for experiment tracking. | "wandb" |
 | `wandb_project` | Project name for Weights & Biases logging. | "llama-finetuning" |
+| `wandb_run_name` | Project run name for Weights & Biases logging. | "tt-llama" |
 | `wandb_watch_mode` | Watch mode for model parameters in wandb. | "all" |
 | `wandb_log_freq` | Frequency of logging to wandb (in steps). | 1000 |
+| `model_to_wandb` | Weather to store model to wandb. | False |
 | `save_strategy` | Strategy for saving checkpoints (epoch, steps, etc.). | "epoch" |
-| `logging_strategy` | Strategy for logging (steps, epoch, etc.). | "steps" |
 | `logging_steps` | Frequency of logging (in steps). | 10 |
-| `save_total_limit` | Maximum number of checkpoints to keep. | 3 |
 | `do_train` | Whether to run training. | True |
-| `do_eval` | Whether to run evaluation. | True |
+| `use_tt` | Whether to run on TT device (or GPU otherwise). | True |
