@@ -38,8 +38,8 @@ def setup_wandb(config: TrainingConfig):
             "learning_rate": config.learning_rate,
             "batch_size": config.batch_size,
             "num_epochs": config.num_epochs,
-            "lora_r": 16,  # Updated to match your spec
-            "lora_alpha": 32,  # Typically 2x the rank
+            "lora_r": 4,  # Updated to match your spec
+            "lora_alpha": 8,  # Typically 2x the rank
             "target_modules": ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"],
             "device": str(device),
             "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU",
@@ -133,7 +133,7 @@ def main():
             num_train_epochs=config.num_epochs,
             per_device_train_batch_size=config.batch_size,
             per_device_eval_batch_size=config.batch_size,
-            logging_steps=config.logging_steps,
+            logging_steps=1,
             learning_rate=config.learning_rate,
             gradient_accumulation_steps=8,  # Effective batch size = 8 × 8 = 64
             eval_strategy="epoch", 
