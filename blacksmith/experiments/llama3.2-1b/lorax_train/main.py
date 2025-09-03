@@ -98,7 +98,7 @@ def main():
         dataset_id="stanfordnlp/sst2",
         max_length=512,
         learning_rate=1e-4,  # Much lower learning rate for LoRA
-        batch_size=8,  # Reduce to fit in GPU memory
+        batch_size=4,  # Reduce to fit in GPU memory
         num_epochs=1  # Just 1 epoch for testing
     )
     
@@ -129,13 +129,13 @@ def main():
         
         # Training arguments - optimized for GPU with wandb integration (no local logging)
         training_args = TrainingArguments(
-            output_dir="/opt/dlami/nvme/temp_trainer",  # Required by trainer class but won't be used
+            output_dir="/localdev/upantelic/tt-blacksmith/blacksmith/experiments/llama3.2-1b/lorax_train",  # Required by trainer class but won't be used
             num_train_epochs=config.num_epochs,
             per_device_train_batch_size=config.batch_size,
             per_device_eval_batch_size=config.batch_size,
             logging_steps=config.logging_steps,
             learning_rate=config.learning_rate,
-            gradient_accumulation_steps=8,  # Effective batch size = 8 × 8 = 64
+            gradient_accumulation_steps=1,  # Effective batch size = 8 × 8 = 64
             eval_strategy="epoch", 
             save_strategy="no",  # Explicitly no saving - this prevents all saves
             save_only_model=False,  # Don't save model

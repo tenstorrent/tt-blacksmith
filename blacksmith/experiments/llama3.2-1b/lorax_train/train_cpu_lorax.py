@@ -94,8 +94,9 @@ def main():
     config = AutoConfig.from_pretrained(MODEL_NAME)
     config.use_cache = False
     config.num_hidden_layers = 16
+    config.dtype = jnp.bfloat16
 
-    model = FlaxAutoModelForCausalLM.from_pretrained(MODEL_NAME, config=config, from_pt=False)
+    model = FlaxAutoModelForCausalLM.from_pretrained(MODEL_NAME, config=config, from_pt=False, dtype=jnp.bfloat16)
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     if tokenizer.pad_token is None:
@@ -106,8 +107,8 @@ def main():
         model_name=MODEL_NAME,
         dataset_id="stanfordnlp/sst2",
         max_length=128,
-        learning_rate=2e-5,
-        batch_size=32,
+        learning_rate=1e-4,
+        batch_size=4,
         num_epochs=5
     )
     
@@ -167,7 +168,7 @@ def main():
     # Split into trainable and frozen pytrees
     print("🔄 Splitting parameters into trainable and frozen pytrees...")
     trainable_params, frozen_params = lorax.split_trainable_frozen(lora_params, lora_spec)
-    optimizer = optax.adamw(learning_rate=5e-4, weight_decay=0.01)
+    optimizer = optax.adamw(learning_rate=1e-4, weight_decay=0.01)
     opt_state = optimizer.init(trainable_params)
 
     # Wrapped model
