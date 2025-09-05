@@ -1,0 +1,244 @@
+🏗️ Base Model Configuration (LoRAx):
+   Model: Erland/Llama-3.2-1B-JAX
+   Hidden layers: 16
+   Hidden size: 2048
+   Vocab size: 128256
+   Intermediate size: 8192
+   Max position embeddings: 32768
+   Attention heads: 32
+   Key-value heads: 8
+   RMS norm eps: 1e-05
+   Rope theta: 500000.0
+   JAX dtype: <class 'jax.numpy.bfloat16'>
+   Use cache: False
+   Model type: llama
+   Tie word embeddings: True
+📊 Base Model Parameters: 1,498,482,688
+🔍 Detailed Parameter Breakdown (LoRAx):
+   lm_head.kernel: (2048, 128256) = 262,668,288 params
+   model.embed_tokens.embedding: (128256, 2048) = 262,668,288 params
+   model.layers.0.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.0.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.0.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.0.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.0.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.0.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.0.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.0.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.0.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.1.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.1.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.1.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.1.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.1.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.1.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.1.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.1.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.1.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.10.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.10.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.10.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.10.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.10.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.10.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.10.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.10.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.10.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.11.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.11.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.11.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.11.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.11.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.11.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.11.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.11.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.11.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.12.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.12.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.12.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.12.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.12.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.12.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.12.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.12.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.12.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.13.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.13.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.13.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.13.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.13.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.13.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.13.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.13.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.13.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.14.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.14.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.14.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.14.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.14.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.14.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.14.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.14.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.14.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.15.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.15.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.15.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.15.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.15.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.15.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.15.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.15.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.15.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.2.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.2.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.2.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.2.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.2.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.2.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.2.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.2.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.2.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.3.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.3.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.3.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.3.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.3.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.3.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.3.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.3.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.3.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.4.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.4.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.4.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.4.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.4.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.4.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.4.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.4.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.4.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.5.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.5.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.5.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.5.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.5.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.5.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.5.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.5.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.5.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.6.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.6.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.6.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.6.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.6.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.6.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.6.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.6.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.6.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.7.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.7.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.7.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.7.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.7.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.7.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.7.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.7.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.7.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.8.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.8.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.8.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.8.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.8.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.8.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.8.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.8.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.8.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.9.input_layernorm.weight: (2048,) = 2,048 params
+   model.layers.9.mlp.down_proj.kernel: (8192, 2048) = 16,777,216 params
+   model.layers.9.mlp.gate_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.9.mlp.up_proj.kernel: (2048, 8192) = 16,777,216 params
+   model.layers.9.post_attention_layernorm.weight: (2048,) = 2,048 params
+   model.layers.9.self_attn.k_proj.kernel: (2048, 512) = 1,048,576 params
+   model.layers.9.self_attn.o_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.9.self_attn.q_proj.kernel: (2048, 2048) = 4,194,304 params
+   model.layers.9.self_attn.v_proj.kernel: (2048, 512) = 1,048,576 params
+   model.norm.weight: (2048,) = 2,048 params
+📈 Parameter Summary by Type (LoRAx):
+   Embeddings: 262,668,288
+   Attention: 167,772,160
+   MLP: 805,306,368
+   LayerNorm: 67,584
+   LM Head: 262,668,288
+   TOTAL: 1,498,482,688
+
+wandb: Currently logged in as: upantelic (tenstorrent-ml) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.21.3
+wandb: Run data is saved locally in /localdev/upantelic/tt-blacksmith/blacksmith/experiments/llama3.2-1b/lorax_train/wandb/run-20250904_121948-2z1jf9bu
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run llama-3.2-1b-sst2-cpu-lorax
+wandb: ⭐️ View project at https://wandb.ai/tenstorrent-ml/Llama-CPU-LoRA-Training
+wandb: 🚀 View run at https://wandb.ai/tenstorrent-ml/Llama-CPU-LoRA-Training/runs/2z1jf9bu
+🔗 Started wandb run: llama-3.2-1b-sst2-cpu-lorax
+📚 Loading SST dataset...
+Loading dataset (stanfordnlp/sst2)...
+📊 Dataset sizes:
+   Training: 67349 samples
+   Validation: 872 samples
+🔄 Converting training data to JAX arrays...
+/localdev/upantelic/tt-blacksmith/blacksmith/experiments/llama3.2-1b/lorax_train/train_cpu_lorax.py:198: DeprecationWarning: __array__ implementation doesn't accept a copy keyword, so passing copy=False failed. __array__ must implement 'dtype' and 'copy' keyword arguments.
+  train_input_ids.append(np.array(item['input_ids']))
+/localdev/upantelic/tt-blacksmith/blacksmith/experiments/llama3.2-1b/lorax_train/train_cpu_lorax.py:199: DeprecationWarning: __array__ implementation doesn't accept a copy keyword, so passing copy=False failed. __array__ must implement 'dtype' and 'copy' keyword arguments.
+  train_attention_mask.append(np.array(item['attention_mask']))
+/localdev/upantelic/tt-blacksmith/blacksmith/experiments/llama3.2-1b/lorax_train/train_cpu_lorax.py:200: DeprecationWarning: __array__ implementation doesn't accept a copy keyword, so passing copy=False failed. __array__ must implement 'dtype' and 'copy' keyword arguments.
+  train_labels.append(np.array(item['labels']))
+✅ Data shapes: input_ids=(67349, 128), attention_mask=(67349, 128), labels=(67349, 128)
+📦 Created 16837 training batches
+⚙️ Setting up LoRA configuration...
+✅ Applying LoRA rank 4 to: model.layers.0.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.0.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.0.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.1.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.1.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.1.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.10.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.10.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.10.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.11.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.11.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.11.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.12.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.12.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.12.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.13.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.13.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.13.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.14.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.14.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.14.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.15.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.15.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.15.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.2.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.2.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.2.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.3.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.3.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.3.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.4.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.4.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.4.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.5.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.5.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.5.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.6.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.6.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.6.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.7.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.7.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.7.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.8.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.8.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.8.mlp.up_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.9.mlp.down_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.9.mlp.gate_proj.kernel
+✅ Applying LoRA rank 4 to: model.layers.9.mlp.up_proj.kernel
+🔄 Splitting parameters into trainable and frozen pytrees...

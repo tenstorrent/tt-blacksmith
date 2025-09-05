@@ -11,6 +11,7 @@ NOW RUNNING ON TT DEVICE! 🚀
 import warnings
 
 import jax
+jax.config.update("jax_platforms", "tt,cpu")
 import jax.numpy as jnp
 import optax
 import numpy as np
@@ -29,7 +30,6 @@ import wandb
 
 
 MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
-jax.config.update("jax_platforms", "tt,cpu")
 
 # Wandb configuration
 DEFAULT_EXPERIMENT_NAME = "Llama-TT-LoRA-Training"

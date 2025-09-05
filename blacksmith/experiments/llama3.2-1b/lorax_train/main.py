@@ -96,7 +96,7 @@ def main():
     config = TrainingConfig(
         model_name="meta-llama/Llama-3.2-1B",
         dataset_id="stanfordnlp/sst2",
-        max_length=512,
+        max_length=128,
         learning_rate=1e-4,  # Much lower learning rate for LoRA
         batch_size=4,  # Reduce to fit in GPU memory
         num_epochs=1  # Just 1 epoch for testing
@@ -115,6 +115,42 @@ def main():
             torch_dtype=torch.float16,  # Use full precision
         )
 
+        # 🔍 Check if embeddings and LM head are actually tied
+        print(f"🔍 Weight Tying Analysis (PEFT):")
+        print(f"   Tie word embeddings config: {getattr(model.config, 'tie_word_embeddings', 'N/A')}")
+        
+        # Check if they share the same memory location
+        embed_weights = model.model.embed_tokens.weight
+        if hasattr(model, 'lm_head') and model.lm_head.weight is not None:
+            lm_head_weights = model.lm_head.weight
+            same_memory = embed_weights.data_ptr() == lm_head_weights.data_ptr()
+            print(f"   Same memory location: {same_memory}")
+            print(f"   Embed shape: {embed_weights.shape}")
+            print(f"   LM head shape: {lm_head_weights.shape}")
+            if same_memory:
+                print(f"   ✅ True weight sharing (PEFT style)")
+            else:
+                print(f"   ⚠️ Separate storage (Erland style)")
+        else:
+            print(f"   ✅ No separate LM head - using embeddings directly")
+        
+        total_params = sum(p.numel() for p in model.parameters())
+        print(f"📊 Total Parameters: {total_params:,}")
+        
+        # 🔧 OPTION: Force separate LM head storage to match Erland model
+        # Uncomment this block if you want to match Erland's parameter count:
+        
+        if hasattr(model, 'lm_head') and model.lm_head.weight.data_ptr() == embed_weights.data_ptr():
+            print("🔧 Creating separate LM head storage to match Erland...")
+            # Create a separate copy of embedding weights for LM head
+            with torch.no_grad():
+                model.lm_head.weight = torch.nn.Parameter(embed_weights.clone())
+            print(f"✅ LM head now has separate storage")
+            new_total = sum(p.numel() for p in model.parameters())
+            print(f"📊 New Total Parameters: {new_total:,} (+{new_total - total_params:,})")
+        
+        print()
+
         # Add padding token if it doesn't exist
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -129,12 +165,12 @@ def main():
         
         # Training arguments - optimized for GPU with wandb integration (no local logging)
         training_args = TrainingArguments(
-            output_dir="/localdev/upantelic/tt-blacksmith/blacksmith/experiments/llama3.2-1b/lorax_train",  # Required by trainer class but won't be used
+            output_dir="/Users/upantelic/Documents/mitke/tt-blacksmith/blacksmith/experiments/llama3.2-1b",  # Required by trainer class but won't be used
             num_train_epochs=config.num_epochs,
-            per_device_train_batch_size=config.batch_size,
-            per_device_eval_batch_size=config.batch_size,
-            logging_steps=config.logging_steps,
-            learning_rate=config.learning_rate,
+            per_device_train_batch_size=4,
+            per_device_eval_batch_size=4,
+            logging_steps=1,
+            learning_rate=1e-4,
             gradient_accumulation_steps=1,  # Effective batch size = 8 × 8 = 64
             eval_strategy="epoch", 
             save_strategy="no",  # Explicitly no saving - this prevents all saves
@@ -148,8 +184,8 @@ def main():
 
         # LoRA configuration - targeting ONLY MLP layers with rank 16
         lora_config = LoraConfig(
-            r=8,  # Rank 16 as specified
-            lora_alpha=16,  # Typically 2x the rank
+            r=4,  # Rank 16 as specified
+            lora_alpha=4,  # Typically 2x the rank
             target_modules=target_modules,  # Dynamically determined MLP modules
             bias="none",
             task_type="CAUSAL_LM",

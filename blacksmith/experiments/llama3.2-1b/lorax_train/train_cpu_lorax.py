@@ -108,7 +108,7 @@ def main():
         dataset_id="stanfordnlp/sst2",
         max_length=128,
         learning_rate=1e-4,
-        batch_size=4,
+        batch_size=32,
         num_epochs=5
     )
     
