@@ -11,7 +11,6 @@ import wandb
 from flax import nnx
 from typing import Dict, Optional, Tuple, Callable, Any
 
-from blacksmith.tools.jax_utils import init_device
 from blacksmith.tools.cli import generate_config
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
@@ -250,7 +249,6 @@ def train() -> None:
     wandb_run = setup_wandb(config)
 
     try:
-        init_device()
         cpu_device = jax.devices("cpu")[0]
         tt_device = jax.devices("tt")[0]
 
