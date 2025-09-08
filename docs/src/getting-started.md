@@ -1,4 +1,4 @@
-# Getting Started w tt-blacksmith
+# Getting Started w TT-Blacksmith
 
 ## Setup
 
