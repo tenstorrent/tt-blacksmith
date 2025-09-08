@@ -9,7 +9,6 @@ import wandb
 import os
 
 from blacksmith.tools.cli import generate_config
-from blacksmith.tools.jax_utils import init_device
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
@@ -24,8 +23,6 @@ def train_mnist():
     net_config = config.net_config
     logger_config = config.logger_config
     early_stopping_config = config.early_stopping
-
-    init_device()
 
     def mlp_model(params, x):
         w1, b1, w2, b2, w3, b3 = params

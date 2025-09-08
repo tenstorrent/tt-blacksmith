@@ -13,7 +13,6 @@ import wandb
 import os
 
 from blacksmith.tools.cli import generate_config
-from blacksmith.tools.jax_utils import init_device
 
 from blacksmith.models.jax.mnist.model import Models
 
@@ -256,5 +255,4 @@ def train(config_path=None):
 
 
 if __name__ == "__main__":
-    init_device()
     train()

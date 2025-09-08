@@ -27,8 +27,6 @@ from blacksmith.experiments.jax.nerf.utils.optimizers import get_optimizer
 
 import wandb
 
-from blacksmith.tools.jax_utils import init_device
-
 from flax import serialization
 from typing import Callable
 
@@ -913,7 +911,6 @@ def save_rendered_images(system, output_dir):
 
 if __name__ == "__main__":
 
-    init_device()
     config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
     config = generate_config(NerfConfig, config_file_path)
     if config.training.render:

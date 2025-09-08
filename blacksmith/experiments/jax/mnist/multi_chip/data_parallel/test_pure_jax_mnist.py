@@ -15,7 +15,6 @@ import os
 import jax.tree_util as tree_util
 
 from blacksmith.tools.cli import generate_config
-from blacksmith.tools.jax_utils import init_device
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
@@ -31,7 +30,6 @@ class ShardingConfig:
 
 
 def train_mnist():
-    init_device()
     jax.config.update("jax_use_shardy_partitioner", True)
 
     config_path = os.path.join(os.path.dirname(__file__), "..", "..", "test_mnist.yaml")
