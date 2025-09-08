@@ -2,7 +2,7 @@
 
 ## Setup
 
-To run experiments on Tenstorrent hardware, users must first build and activate either the TT-Forge-FE (for PyTorch) or tt-xla (for JAX) frontend environment using the provided scripts.
+To run experiments on Tenstorrent hardware, users must first build and activate either the TT-Forge-FE (for PyTorch) or TT-XLA (for JAX) frontend environment using the provided scripts.
 
 ### Build Frontend environment
 
@@ -13,9 +13,9 @@ To build the `TT-Forge-FE` frontend, run:
 ./scripts/build_frontends.sh --ffe
 ```
 
-#### tt-xla
+#### TT-XLA
 
-Since `tt-xla` depends on the MLIR environment, you can set the `TTMLIR_TOOLCHAIN_DIR` to point to your toolchain directory. If not specified, it defaults to:
+Since `TT-XLA` depends on the MLIR environment, you can set the `TTMLIR_TOOLCHAIN_DIR` to point to your toolchain directory. If not specified, it defaults to:
 ```
 /opt/ttmlir-toolchain
 ```
@@ -41,7 +41,7 @@ For `TT-Forge-FE`:
 source ./scripts/activate_frontend.sh --ffe
 ```
 
-For `tt-xla`:
+For `TT-XLA`:
 ```bash
 source ./scripts/activate_frontend.sh --xla
 ```
@@ -57,4 +57,4 @@ This section guides you through the process of running experiments included in t
 
 ## Visual Demo: 3D Reconstruction with NeRF
 
-<img src="./docs/src/imgs/nerf_demo.gif" alt="nerf demo" height="230"/>
+<img src="imgs/nerf_demo.gif" alt="nerf demo" height="230"/>

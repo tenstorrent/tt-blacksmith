@@ -13,22 +13,22 @@
 <br>
 
 -----
-# tt-blacksmith
+# TT-Blacksmith
 
-The **tt-blacksmith** project contains optimized training recipes for a variety of machine learning models on [Tenstorrent](https://tenstorrent.com/) hardware, powered by the [TT-Forge](https://github.com/tenstorrent/tt-forge) compiler stack. Showcasing the compiler's flexibility, it enables the use of popular [AI frameworks](https://github.com/tenstorrent/tt-forge?tab=readme-ov-file#current-ai-framework-front-end-projects) like PyTorch and JAX for training workflows.
+The **TT-Blacksmith** project contains optimized training recipes for a variety of machine learning models on [Tenstorrent](https://tenstorrent.com/) hardware, powered by the [TT-Forge](https://github.com/tenstorrent/tt-forge) compiler stack. Showcasing the compiler's flexibility, it enables the use of popular [AI frameworks](https://github.com/tenstorrent/tt-forge?tab=readme-ov-file#current-ai-framework-front-end-projects) like PyTorch and JAX for training workflows.
 
 For more information on the project, see our [documentation](https://docs.tenstorrent.com/tt-blacksmith/).
 
 -----
 # Quick Links
 
-- [Getting Started](https://docs.tenstorrent.com/tt-blacksmith/getting-started.html)
-- [Experiments](https://docs.tenstorrent.com/tt-blacksmith/experiments.html)
+- [Getting Started](https://docs.tenstorrent.com/tt-blacksmith/src/getting-started.html)
+- [Experiments](https://docs.tenstorrent.com/tt-blacksmith/src/experiments.html)
 
 -----
 # What is this Repo?
 
-tt-blacksmith shows demonstrations of models using the tt-forge compiler stack. The repo contains a collection of optimized training examples that show developers how to train machine learning models on Tenstorrent hardware using popular frameworks like PyTorch and JAX via thet tt-forge compiler.
+TT-Blacksmith shows demonstrations of models using the TT-Forge compiler stack. The repo contains a collection of optimized training examples that show developers how to train machine learning models on Tenstorrent hardware using popular frameworks like PyTorch and JAX via thet TT-Forge compiler.
 
 -----
 # Project Goals
@@ -37,12 +37,12 @@ tt-blacksmith shows demonstrations of models using the tt-forge compiler stack. 
 
 -----
 # Related Tenstorrent Projects
-- [tt-forge-fe](https://github.com/tenstorrent/tt-forge-fe)
-- [tt-xla](https://github.com/tenstorrent/tt-xla)
-- [tt-torch](https://github.com/tenstorrent/tt-torch)
-- [tt-mlir](https://github.com/tenstorrent/tt-mlir)
-- [tt-metalium](https://github.com/tenstorrent/tt-metal)
-- [tt-tvm](https://github.com/tenstorrent/tt-tvm)
+- [TT-Forge-FE](https://github.com/tenstorrent/tt-forge-fe)
+- [TT-XLA](https://github.com/tenstorrent/tt-xla)
+- [TT-Torch](https://github.com/tenstorrent/tt-torch)
+- [TT-MLIR](https://github.com/tenstorrent/tt-mlir)
+- [TT-Metalium](https://github.com/tenstorrent/tt-metal)
+- [TT-TVM](https://github.com/tenstorrent/tt-tvm)
 
 -----
 # Tenstorrent Bounty Program Terms and Conditions
