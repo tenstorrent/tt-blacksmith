@@ -2,30 +2,36 @@
 
 ## Setup
 
-To run experiments on Tenstorrent hardware, users must first build and activate either the TT-Forge-FE (for PyTorch) or TT-XLA (for JAX) frontend environment using the provided scripts.
+In order to make use of TT-Blacksmith experiements, you need to clone GitHub repository first:
+
+```bash
+git clone https://github.com/tenstorrent/tt-blacksmith.git
+```
+
+After cloning the repository you must build and activate one of the Python frontend environments (for TT-Forge-FE or TT-XLA) in order to make use of Tenstorrent hardware. In the following sections we will provide step by step instructions on how to build and activate your frontend environments.
 
 ### Build Frontend environment
 
 #### TT-Forge-FE
 
-To build the `TT-Forge-FE` frontend, run:
+To build the `TT-Forge-FE` frontend, you need to run:
 ```bash
 ./scripts/build_frontends.sh --ffe
 ```
 
 #### TT-XLA
 
-Since `TT-XLA` depends on the MLIR environment, you can set the `TTMLIR_TOOLCHAIN_DIR` to point to your toolchain directory. If not specified, it defaults to:
+Since `TT-XLA` frontend depends on the MLIR environment, link to your toolchain directory needs to be stored in `TTMLIR_TOOLCHAIN_DIR`. If you do not specify toolchain directory, scripts will default to:
 ```
 /opt/ttmlir-toolchain
 ```
 
-If you're setting up for the first time (or don't have the MLIR environment installed), do a full build:
+If you're setting up for the first time (or don't have the MLIR environment installed), you need to perform a full build:
 ```bash
 ./scripts/build_frontends.sh --xla --full
 ```
 
-For subsequent builds, a regular rebuild is enough:
+For subsequent any builds, a regular rebuild is enough:
 ```bash
 ./scripts/build_frontends.sh --xla
 ```
@@ -34,17 +40,26 @@ For subsequent builds, a regular rebuild is enough:
 
 ### Activating Frontend Environment
 
-To activate the Python environment for a specific frontend:
+To activate the previously built Python environments for specific frontends, you need to run:
 
-For `TT-Forge-FE`:
+#### TT-Forge-FE:
 ```bash
 source ./scripts/activate_frontend.sh --ffe
 ```
 
-For `TT-XLA`:
+#### TT-XLA:
 ```bash
 source ./scripts/activate_frontend.sh --xla
 ```
+
+### Cleaning Build Files
+
+If at run into problems with building TT-XLA environment, try cleaning the previous build with:
+ ```bash
+source ./scripts/activate_frontend.sh --clean [--full]
+```
+
+Second parameter `--full` is optional and defines if you would like to remove TT-MLIR third party repository, so that the next build can start with fetching latest version of TT-MLIR and building it from scratch.
 
 ## Running Experiments
 
