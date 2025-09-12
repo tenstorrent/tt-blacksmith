@@ -18,7 +18,7 @@ The following table provides an overview of different model and dataset combinat
 Within this repository, you'll find the following structure to help you navigate the experimental setup:
 
 - `datasets/`: The dataset loaders for specific model training are defined in this directory and organized by the framework they utilize. For example, the loader for the MNIST dataset in PyTorch can be found at `datasets/torch/mnist/`.
-- `models/`: This directory is organized by framework. Within it, you'll find subdirectories (e.g., `jax/`, `pytorch/`) containing the model implementations or loader scripts specific to that framework. For instance, the JAX implementation of a model for MNIST training would be located in `models/jax/mnist/`.
+- `models/`: This directory is organized by framework. Within it, you'll find subdirectories (e.g., `jax/`, `torch/`) containing the model implementations or loader scripts specific to that framework. For instance, the JAX implementation of a model for MNIST training would be located in `models/jax/mnist/`.
 - `experiments/`: Experiments are organized first by the framework they utilize, and then by the specific model or task. For example, the JAX-based MNIST experiment can be found under `experiments/jax/mnist/`. Within each experiment directory, you will typically find the following files:
 
     - A Python file defining the configuration structure for the experiment (e.g. `configs.py`).
