@@ -9,3 +9,10 @@ results/
 envs/ffe_env
 logs/
 docs/output
+
+# Python env
+env/*
+!env/activate
+!env/ffe_requirements.txt
+!env/xla_requirements.txt
+!env/requirements.txt

@@ -1,0 +1,41 @@
+TT_BLACKSMITH_HOME=$(pwd)
+
+tt_forge_fe=false
+tt_xla=false
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --ffe) tt_forge_fe=true ;;
+        --xla) tt_xla=true ;;
+        *) echo "Unknown parameter passed: $1"; return 1 ;;
+    esac
+    shift
+done
+
+# if both are false, set both to true
+if [ "$tt_forge_fe" = false ] && [ "$tt_xla" = false ]; then
+    tt_forge_fe=true
+    tt_xla=true
+fi
+
+export TTBLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env
+if [ -d $TTBLACKSMITH_ENV_DIR/bin ]; then
+    [ -f $TTBLACKSMITH_ENV_DIR/bin/activate ] && source $TTBLACKSMITH_ENV_DIR/bin/activate
+    exit 0
+fi
+
+echo "Creating virtual environment in $TTBLACKSMITH_ENV_DIR"
+python3.10 -m venv $TTBLACKSMITH_ENV_DIR
+source $TTBLACKSMITH_ENV_DIR/bin/activate
+pip install --upgrade pip
+
+if [ "$tt_forge_fe" = true ]; then
+    pip install -r env/ffe_requirements.txt
+fi
+
+if [ "$tt_xla" = true ]; then
+    pip install -r env/xla_requirements.txt
+fi
+
+pip install -r env/requirements.txt
+pip install -e $TT_BLACKSMITH_HOME

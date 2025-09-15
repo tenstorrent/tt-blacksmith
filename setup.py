@@ -8,27 +8,25 @@ import os
 
 # Frontends can be tt-forge-fe or tt-xla
 FRONTEND = os.environ.get("TT_BLACKSMITH_FRONTEND", "")
-if not FRONTEND:
-    print("Error: TT_BLACKSMITH_FRONTEND environment variable not set.")
-    exit(1)
-
 
 exclude_keywords = defaultdict(
     list,
     {
         "tt-forge-fe": ["jax"],
-        "tt-xla": ["forge", "torch", "lightning", "torchvision"],
+        "tt-xla": ["forge"],
     },
 )
 
 
 all_packages = find_packages(include=["blacksmith*"])
 excluded_packages = []
-for pkg in all_packages:
-    for keyword in exclude_keywords[FRONTEND]:
-        if re.search(keyword, pkg):
-            excluded_packages.append(pkg)
-            break
+
+if FRONTEND != "":
+    for pkg in all_packages:
+        for keyword in exclude_keywords[FRONTEND]:
+            if re.search(keyword, pkg):
+                excluded_packages.append(pkg)
+                break
 
 setup(
     name="blacksmith",

@@ -2,41 +2,14 @@
 
 ## Setup
 
-In order to make use of TT-Blacksmith experiements, you need to clone GitHub repository first:
+To run experiments on Tenstorrent hardware, users must first activate correct environment, on the first activation script will install all dependencies
 
-```bash
-git clone https://github.com/tenstorrent/tt-blacksmith.git
-```
-
-After cloning the repository you must build and activate one of the Python frontend environments (for TT-Forge-FE or TT-XLA) in order to make use of Tenstorrent hardware. In the following sections we will provide step by step instructions on how to build and activate your frontend environments.
-
-### Build Frontend environment
-
-#### TT-Forge-FE
-
-To build the `TT-Forge-FE` frontend, you need to run:
-```bash
-./scripts/build_frontends.sh --ffe
-```
-
-#### TT-XLA
-
-Since `TT-XLA` frontend depends on the MLIR environment, link to your toolchain directory needs to be stored in `TTMLIR_TOOLCHAIN_DIR`. If you do not specify toolchain directory, scripts will default to:
-```
-/opt/ttmlir-toolchain
-```
-
-If you're setting up for the first time (or don't have the MLIR environment installed), you need to perform a full build:
-```bash
-./scripts/build_frontends.sh --xla --full
-```
-
-For subsequent any builds, a regular rebuild is enough:
-```bash
-./scripts/build_frontends.sh --xla
-```
-
----
+> Note:
+> In case you cancel installation process it is recommended to
+> ```
+> rm -r ./env
+> git restore env
+> ```
 
 ### Activating Frontend Environment
 
@@ -44,12 +17,12 @@ To activate the previously built Python environments for specific frontends, you
 
 #### TT-Forge-FE:
 ```bash
-source ./scripts/activate_frontend.sh --ffe
+source env/activate --ffe
 ```
 
 #### TT-XLA:
 ```bash
-source ./scripts/activate_frontend.sh --xla
+source env/activate --xla
 ```
 
 ### Cleaning Build Files

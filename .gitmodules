@@ -1,3 +1,0 @@
-[submodule "third_party/tt-xla"]
-	path = third_party/tt-xla
-	url = https://github.com/tenstorrent/tt-xla
