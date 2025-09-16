@@ -4,12 +4,16 @@
 
 import wandb
 import os
+import sys
 from typing import Dict, Any, Optional
-from logger_config import LoggerConfig
+
+# Import the actual LoggingConfig from configs.py
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from configs import LoggingConfig
 
 
 def init_wandb(
-    config: LoggerConfig,
+    config: LoggingConfig,
     job_type: str = "training",
     dir_path: Optional[str] = None,
 ) -> wandb.Config:

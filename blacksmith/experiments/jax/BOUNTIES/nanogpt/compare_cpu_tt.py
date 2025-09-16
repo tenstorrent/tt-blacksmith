@@ -27,7 +27,7 @@ from utils.training_utils import (
     create_optimizer, create_train_state, training_step, 
     estimate_loss, get_lr
 )
-from logging.wandb_utils import init_wandb, log_metrics, finish_wandb
+from wandb_logging.wandb_utils import init_wandb, log_metrics, finish_wandb
 
 
 def run_training(config, device_name, max_steps=100):
