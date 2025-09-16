@@ -5,7 +5,7 @@
 import wandb
 import os
 from typing import Dict, Any, Optional
-from .logger_config import LoggerConfig
+from logger_config import LoggerConfig
 
 
 def init_wandb(
