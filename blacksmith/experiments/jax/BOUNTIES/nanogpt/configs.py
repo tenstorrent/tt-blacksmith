@@ -106,12 +106,12 @@ class EarlyStoppingConfig(BaseModel):
 
 class ExperimentConfig(BaseModel):
     """Main experiment configuration combining all configs."""
-    model_config: ModelConfig = Field(default_factory=ModelConfig)
-    data_config: DataConfig = Field(default_factory=DataConfig)
-    training_config: TrainingConfig = Field(default_factory=TrainingConfig)
-    device_config: DeviceConfig = Field(default_factory=DeviceConfig)
-    logging_config: LoggingConfig = Field(default_factory=LoggingConfig)
-    early_stopping: EarlyStoppingConfig = Field(default_factory=EarlyStoppingConfig)
+    model_config: ModelConfig = ModelConfig()
+    data_config: DataConfig = DataConfig()
+    training_config: TrainingConfig = TrainingConfig()
+    device_config: DeviceConfig = DeviceConfig()
+    logging_config: LoggingConfig = LoggingConfig()
+    early_stopping: EarlyStoppingConfig = EarlyStoppingConfig()
     
     # Experiment metadata
     experiment_name: str = "nanogpt-jax"
