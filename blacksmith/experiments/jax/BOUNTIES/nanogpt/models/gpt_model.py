@@ -181,15 +181,15 @@ class GPT(nn.Module):
 
 def create_model(config) -> GPT:
     """Create a GPT model from configuration."""
-    logger.info(f"Creating GPT model with config: {config.model_config}")
+    logger.info(f"Creating GPT model with config: {config}")
     model = GPT(
-        vocab_size=config.model_config.vocab_size,
-        block_size=config.model_config.block_size,
-        n_layer=config.model_config.n_layer,
-        n_head=config.model_config.n_head,
-        n_embd=config.model_config.n_embd,
-        dropout=config.model_config.dropout,
-        bias=config.model_config.bias
+        vocab_size=config.vocab_size,
+        block_size=config.block_size,
+        n_layer=config.n_layer,
+        n_head=config.n_head,
+        n_embd=config.n_embd,
+        dropout=config.dropout,
+        bias=config.bias
     )
     logger.info("GPT model created successfully")
     return model
