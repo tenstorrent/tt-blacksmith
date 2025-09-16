@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Core JAX dependencies
+jax>=0.4.0
+jaxlib>=0.4.0
+flax>=0.7.0
+optax>=0.1.0
+
+# Data processing
+numpy>=1.21.0
+requests>=2.25.0
+tqdm>=4.60.0
+
+# Configuration and logging
+pydantic>=1.10.0
+pyyaml>=6.0
+wandb>=0.15.0
+
+# Visualization (for comparison plots)
+matplotlib>=3.5.0
+
+# Development and testing
+pytest>=7.0.0

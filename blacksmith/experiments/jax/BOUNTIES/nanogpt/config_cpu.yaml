@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# CPU Configuration for NanoGPT Training
+# This configuration is optimized for CPU training as a baseline
+
+model_config:
+  n_layer: 6  # Smaller model for CPU
+  n_head: 6
+  n_embd: 384
+  block_size: 512  # Smaller context length for CPU
+  vocab_size: 50304
+  dropout: 0.0
+  bias: false
+
+data_config:
+  dataset: "shakespeare"  # Use smaller dataset for CPU
+  data_dir: "data"
+  batch_size: 4  # Smaller batch size for CPU
+  block_size: 512
+  num_workers: 2
+  pin_memory: false
+
+training_config:
+  learning_rate: 3e-4  # Lower learning rate for CPU
+  max_iters: 1000  # Fewer iterations for demo
+  weight_decay: 1e-1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+  decay_lr: true
+  warmup_iters: 100
+  lr_decay_iters: 1000
+  min_lr: 3e-5
+  eval_interval: 100
+  eval_iters: 20
+  log_interval: 1
+  always_save_checkpoint: true
+  device: "cpu"
+  compile: false  # Disable compilation for CPU
+  dtype: "float32"
+
+device_config:
+  primary_device: "cpu"
+  enable_fallback: true
+  fallback_device: "cpu"
+  cpu_batch_size: 4
+  tt_batch_size: 12
+
+logging_config:
+  log_on_wandb: true
+  wandb_project: "nanogpt-jax-cpu"
+  wandb_run_name: "nanogpt-cpu-baseline"
+  checkpoint_dir: "checkpoints_cpu"
+  save_interval: 200
+  max_checkpoints: 3
+  log_every_n_steps: 10
+  log_metrics: true
+  log_gradients: false
+
+early_stopping:
+  enabled: false
+  patience: 10
+  min_delta: 0.001
+  monitor: "val_loss"
+
+# Experiment metadata
+experiment_name: "nanogpt-jax-cpu"
+seed: 42
+resume: false
+resume_from_checkpoint: null
