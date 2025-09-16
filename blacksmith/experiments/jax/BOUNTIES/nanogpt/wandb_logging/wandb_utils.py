@@ -5,7 +5,7 @@
 import wandb
 import os
 from typing import Dict, Any, Optional
-from wandb_logging.logger_config import LoggerConfig
+from logger_config import LoggerConfig
 
 
 def init_wandb(
@@ -19,17 +19,17 @@ def init_wandb(
     
     # Set up wandb directory
     if dir_path is None:
-        dir_path = config.checkpoint.checkpoint_dir
+        dir_path = config.checkpoint_dir
     
     os.makedirs(dir_path, exist_ok=True)
     
     # Initialize wandb run
     wandb.init(
-        project=config.wandb_config.project,
-        entity=config.wandb_config.entity,
-        name=config.wandb_config.run_name,
-        tags=config.wandb_config.tags,
-        notes=config.wandb_config.notes,
+        project=config.wandb_project,
+        entity=None,  # Not in the config structure
+        name=config.wandb_run_name,
+        tags=[],  # Not in the config structure
+        notes=None,  # Not in the config structure
         job_type=job_type,
         dir=dir_path,
         resume="allow",

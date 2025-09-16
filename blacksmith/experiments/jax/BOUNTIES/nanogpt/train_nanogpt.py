@@ -148,9 +148,9 @@ def train_epoch(
                 }, step=step)
         
         # Checkpointing
-        if step % config.logging_config.checkpoint.save_interval == 0 and step > 0:
+        if step % config.logging_config.save_interval == 0 and step > 0:
             checkpoint_path = os.path.join(
-                config.logging_config.checkpoint.checkpoint_dir,
+                config.logging_config.checkpoint_dir,
                 f"checkpoint_step_{step}.pkl"
             )
             save_checkpoint(train_state, checkpoint_path, step)
@@ -219,7 +219,7 @@ def main():
             logger.info(f"Resumed from checkpoint: {args.resume}")
         
         # Create checkpoint directory
-        os.makedirs(config.logging_config.checkpoint.checkpoint_dir, exist_ok=True)
+        os.makedirs(config.logging_config.checkpoint_dir, exist_ok=True)
         
         # Training loop
         logger.info("Starting training loop")
@@ -251,7 +251,7 @@ def main():
         
         # Save final checkpoint
         final_checkpoint_path = os.path.join(
-            config.logging_config.checkpoint.checkpoint_dir,
+            config.logging_config.checkpoint_dir,
             "final_checkpoint.pkl"
         )
         save_checkpoint(train_state, final_checkpoint_path, train_state.step)
