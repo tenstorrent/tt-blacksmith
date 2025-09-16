@@ -40,7 +40,7 @@ def run_training(config, device_name, max_steps=100):
     
     # Initialize model
     key = jax.random.PRNGKey(config.seed)
-    dummy_input = jnp.ones((1, config.model_config.block_size), dtype=jnp.int32)
+    dummy_input = jnp.ones((1, config.model.block_size), dtype=jnp.int32)
     
     with device_manager.with_device("cpu"):
         params = model.init(key, dummy_input, training=False)

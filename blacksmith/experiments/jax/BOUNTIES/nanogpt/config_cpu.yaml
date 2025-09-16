@@ -5,7 +5,7 @@
 # CPU Configuration for NanoGPT Training
 # This configuration is optimized for CPU training as a baseline
 
-model_config:
+model:
   n_layer: 6  # Smaller model for CPU
   n_head: 6
   n_embd: 384
@@ -14,7 +14,7 @@ model_config:
   dropout: 0.0
   bias: false
 
-data_config:
+data:
   dataset: "shakespeare"  # Use smaller dataset for CPU
   data_dir: "data"
   batch_size: 4  # Smaller batch size for CPU
@@ -22,7 +22,7 @@ data_config:
   num_workers: 2
   pin_memory: false
 
-training_config:
+training:
   learning_rate: 3e-4  # Lower learning rate for CPU
   max_iters: 1000  # Fewer iterations for demo
   weight_decay: 1e-1
@@ -41,14 +41,14 @@ training_config:
   compile: false  # Disable compilation for CPU
   dtype: "float32"
 
-device_config:
+device:
   primary_device: "cpu"
   enable_fallback: true
   fallback_device: "cpu"
   cpu_batch_size: 4
   tt_batch_size: 12
 
-logging_config:
+logging:
   log_on_wandb: true
   wandb_project: "nanogpt-jax-cpu"
   wandb_run_name: "nanogpt-cpu-baseline"

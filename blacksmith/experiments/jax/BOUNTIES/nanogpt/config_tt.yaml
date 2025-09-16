@@ -5,7 +5,7 @@
 # TT-N150 Configuration for NanoGPT Training
 # This configuration is optimized for TT-N150 hardware
 
-model_config:
+model:
   n_layer: 12  # Full model size
   n_head: 12
   n_embd: 768
@@ -14,7 +14,7 @@ model_config:
   dropout: 0.0
   bias: false
 
-data_config:
+data:
   dataset: "openwebtext"  # Full dataset
   data_dir: "data"
   batch_size: 12  # Larger batch size for TT
@@ -22,7 +22,7 @@ data_config:
   num_workers: 4
   pin_memory: true
 
-training_config:
+training:
   learning_rate: 6e-4  # Standard learning rate
   max_iters: 600000  # Full training
   weight_decay: 1e-1
@@ -41,14 +41,14 @@ training_config:
   compile: true  # Enable compilation for TT
   dtype: "float32"
 
-device_config:
+device:
   primary_device: "tt"
   enable_fallback: true
   fallback_device: "cpu"
   cpu_batch_size: 8
   tt_batch_size: 12
 
-logging_config:
+logging:
   log_on_wandb: true
   wandb_project: "nanogpt-jax-tt"
   wandb_run_name: "nanogpt-tt-n150"

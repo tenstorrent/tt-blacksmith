@@ -175,12 +175,12 @@ class TextDataset:
 def load_text_dataset(config) -> TextDataset:
     """Load text dataset from configuration."""
     dataset = TextDataset(
-        data_dir=config.data_config.data_dir,
-        block_size=config.data_config.block_size,
-        vocab_size=config.model_config.vocab_size
+        data_dir=config.data.data_dir,
+        block_size=config.data.block_size,
+        vocab_size=config.model.vocab_size
     )
     
-    dataset.prepare_data(config.data_config.dataset)
+    dataset.prepare_data(config.data.dataset)
     return dataset
 
 
@@ -190,9 +190,9 @@ def create_dataloader(dataset: TextDataset, config, device: Optional[jax.Device]
         def _get_batch():
             if device is not None and device.platform == 'tt':
                 # Use CPU fallback for TT device data loading
-                return dataset.get_batch_cpu(split, config.data_config.batch_size)
+                return dataset.get_batch_cpu(split, config.data.batch_size)
             else:
-                return dataset.get_batch(split, config.data_config.batch_size, device)
+                return dataset.get_batch(split, config.data.batch_size, device)
         return _get_batch
     
     return {

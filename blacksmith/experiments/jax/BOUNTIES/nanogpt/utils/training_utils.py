@@ -28,27 +28,27 @@ def create_optimizer(config) -> optax.GradientTransformation:
     """Create optimizer from configuration."""
     # Learning rate schedule
     def lr_schedule(step: int) -> float:
-        if step < config.training_config.warmup_iters:
+        if step < config.training.warmup_iters:
             # Linear warmup
-            return config.training_config.learning_rate * step / config.training_config.warmup_iters
-        elif step > config.training_config.lr_decay_iters:
+            return config.training.learning_rate * step / config.training.warmup_iters
+        elif step > config.training.lr_decay_iters:
             # Linear decay
-            return config.training_config.min_lr
+            return config.training.min_lr
         else:
             # Cosine decay
-            decay_ratio = (step - config.training_config.warmup_iters) / (config.training_config.lr_decay_iters - config.training_config.warmup_iters)
+            decay_ratio = (step - config.training.warmup_iters) / (config.training.lr_decay_iters - config.training.warmup_iters)
             assert 0 <= decay_ratio <= 1
             coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
-            return config.training_config.min_lr + coeff * (config.training_config.learning_rate - config.training_config.min_lr)
+            return config.training.min_lr + coeff * (config.training.learning_rate - config.training.min_lr)
     
     # Create optimizer
     optimizer = optax.chain(
-        optax.clip_by_global_norm(config.training_config.grad_clip),
+        optax.clip_by_global_norm(config.training.grad_clip),
         optax.adamw(
             learning_rate=lr_schedule,
-            b1=config.training_config.beta1,
-            b2=config.training_config.beta2,
-            weight_decay=config.training_config.weight_decay,
+            b1=config.training.beta1,
+            b2=config.training.beta2,
+            weight_decay=config.training.weight_decay,
             eps=1e-8
         )
     )
@@ -135,14 +135,14 @@ def estimate_loss(
 
 def get_lr(step: int, config) -> float:
     """Get current learning rate."""
-    if step < config.training_config.warmup_iters:
-        return config.training_config.learning_rate * step / config.training_config.warmup_iters
-    elif step > config.training_config.lr_decay_iters:
-        return config.training_config.min_lr
+    if step < config.training.warmup_iters:
+        return config.training.learning_rate * step / config.training.warmup_iters
+    elif step > config.training.lr_decay_iters:
+        return config.training.min_lr
     else:
-        decay_ratio = (step - config.training_config.warmup_iters) / (config.training_config.lr_decay_iters - config.training_config.warmup_iters)
+        decay_ratio = (step - config.training.warmup_iters) / (config.training.lr_decay_iters - config.training.warmup_iters)
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
-        return config.training_config.min_lr + coeff * (config.training_config.learning_rate - config.training_config.min_lr)
+        return config.training.min_lr + coeff * (config.training.learning_rate - config.training.min_lr)
 
 
 def create_train_state(

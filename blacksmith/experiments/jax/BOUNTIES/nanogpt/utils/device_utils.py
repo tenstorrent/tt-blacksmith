@@ -173,8 +173,8 @@ def memory_efficient_forward(
 def create_device_manager(config) -> DeviceManager:
     """Create device manager from configuration."""
     return DeviceManager(
-        primary_device=config.device_config.primary_device,
-        fallback_device=config.device_config.fallback_device
+        primary_device=config.device.primary_device,
+        fallback_device=config.device.fallback_device
     )
 
 

@@ -52,12 +52,12 @@ def initialize_model_and_data(config: ExperimentConfig, device_manager, logger):
     """Initialize model, data, and optimizer."""
     
     # Create model
-    model = create_model(config.model_config)
-    logger.info(f"Created model with config: {config.model_config}")
+    model = create_model(config.model)
+    logger.info(f"Created model with config: {config.model}")
     
     # Initialize model parameters
     key = random.PRNGKey(config.seed)
-    dummy_input = jnp.ones((1, config.model_config.block_size), dtype=jnp.int32)
+    dummy_input = jnp.ones((1, config.model.block_size), dtype=jnp.int32)
     
     # Initialize on CPU first (following existing patterns)
     with device_manager.with_device("cpu"):
@@ -68,7 +68,7 @@ def initialize_model_and_data(config: ExperimentConfig, device_manager, logger):
     # Load dataset
     dataset = load_text_dataset(config)
     dataloader = create_dataloader(dataset, config, device_manager.current_device)
-    logger.info(f"Loaded dataset: {config.data_config.dataset}")
+    logger.info(f"Loaded dataset: {config.data.dataset}")
     
     # Create optimizer
     optimizer = create_optimizer(config)
@@ -97,7 +97,7 @@ def train_epoch(
     
     # Calculate number of batches per epoch
     # For simplicity, we'll use a fixed number of iterations
-    max_iters = min(config.training_config.max_iters, 1000)  # Limit for demo
+    max_iters = min(config.training.max_iters, 1000)  # Limit for demo
     
     for step in range(max_iters):
         # Get batch
@@ -118,7 +118,7 @@ def train_epoch(
         num_batches += 1
         
         # Logging
-        if step % config.logging_config.log_every_n_steps == 0:
+        if step % config.logging.log_every_n_steps == 0:
             current_lr = get_lr(train_state.step, config)
             avg_loss = total_loss / num_batches
             
@@ -133,10 +133,10 @@ def train_epoch(
                 }, step=step)
         
         # Validation
-        if step % config.training_config.eval_interval == 0 and step > 0:
+        if step % config.training.eval_interval == 0 and step > 0:
             val_loss = estimate_loss(
                 model, train_state.params, dataloader['val'], 
-                config.training_config.eval_iters, device_manager
+                config.training.eval_iters, device_manager
             )
             
             logger.info(f"Validation loss at step {step}: {val_loss:.4f}")
@@ -148,9 +148,9 @@ def train_epoch(
                 }, step=step)
         
         # Checkpointing
-        if step % config.logging_config.save_interval == 0 and step > 0:
+        if step % config.logging.save_interval == 0 and step > 0:
             checkpoint_path = os.path.join(
-                config.logging_config.checkpoint_dir,
+                config.logging.checkpoint_dir,
                 f"checkpoint_step_{step}.pkl"
             )
             save_checkpoint(train_state, checkpoint_path, step)
@@ -187,9 +187,14 @@ def main():
         else:
             config = ExperimentConfig()
     
+    # Debug: Check config type
+    print(f"Config type: {type(config)}")
+    print(f"Model config type: {type(config.model)}")
+    print(f"Model config: {config.model}")
+    
     # Override device setting if specified
     if args.device != "auto":
-        config.device_config.primary_device = args.device
+        config.device.primary_device = args.device
     
     logger.info(f"Using configuration: {config}")
     
@@ -199,11 +204,11 @@ def main():
     
     # Initialize WandB if enabled
     wandb_config = None
-    if config.logging_config.log_on_wandb:
+    if config.logging.log_on_wandb:
         wandb_config = init_wandb(
-            config.logging_config,
+            config.logging,
             job_type="training",
-            dir_path=config.logging_config.checkpoint_dir
+            dir_path=config.logging.checkpoint_dir
         )
         logger.info("Initialized WandB logging")
     
@@ -219,7 +224,7 @@ def main():
             logger.info(f"Resumed from checkpoint: {args.resume}")
         
         # Create checkpoint directory
-        os.makedirs(config.logging_config.checkpoint_dir, exist_ok=True)
+        os.makedirs(config.logging.checkpoint_dir, exist_ok=True)
         
         # Training loop
         logger.info("Starting training loop")
@@ -237,7 +242,7 @@ def main():
         # Final evaluation
         final_val_loss = estimate_loss(
             model, train_state.params, dataloader['val'],
-            config.training_config.eval_iters, device_manager
+            config.training.eval_iters, device_manager
         )
         
         logger.info(f"Final validation loss: {final_val_loss:.4f}")
@@ -251,7 +256,7 @@ def main():
         
         # Save final checkpoint
         final_checkpoint_path = os.path.join(
-            config.logging_config.checkpoint_dir,
+            config.logging.checkpoint_dir,
             "final_checkpoint.pkl"
         )
         save_checkpoint(train_state, final_checkpoint_path, train_state.step)

@@ -32,7 +32,7 @@ def test_model_creation():
     
     # Test model initialization
     key = jax.random.PRNGKey(42)
-    dummy_input = jnp.ones((1, config.model_config.block_size), dtype=jnp.int32)
+    dummy_input = jnp.ones((1, config.model.block_size), dtype=jnp.int32)
     
     params = model.init(key, dummy_input, training=False)
     print(f"✓ Model created successfully with {model.get_num_params(params)} parameters")

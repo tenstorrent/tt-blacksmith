@@ -106,12 +106,12 @@ class EarlyStoppingConfig(BaseModel):
 
 class ExperimentConfig(BaseModel):
     """Main experiment configuration combining all configs."""
-    model_config: ModelConfig = ModelConfig()
-    data_config: DataConfig = DataConfig()
-    training_config: TrainingConfig = TrainingConfig()
-    device_config: DeviceConfig = DeviceConfig()
-    logging_config: LoggingConfig = LoggingConfig()
-    early_stopping: EarlyStoppingConfig = EarlyStoppingConfig()
+    model: ModelConfig
+    data: DataConfig
+    training: TrainingConfig
+    device: DeviceConfig
+    logging: LoggingConfig
+    early_stopping: EarlyStoppingConfig
     
     # Experiment metadata
     experiment_name: str = "nanogpt-jax"
@@ -128,18 +128,18 @@ def get_default_config() -> ExperimentConfig:
 def get_cpu_config() -> ExperimentConfig:
     """Get configuration optimized for CPU training."""
     config = get_default_config()
-    config.device_config.primary_device = "cpu"
-    config.training_config.batch_size = 4  # Smaller batch size for CPU
-    config.training_config.learning_rate = 3e-4  # Lower learning rate for CPU
-    config.training_config.compile = False  # Disable compilation for CPU
+    config.device.primary_device = "cpu"
+    config.training.batch_size = 4  # Smaller batch size for CPU
+    config.training.learning_rate = 3e-4  # Lower learning rate for CPU
+    config.training.compile = False  # Disable compilation for CPU
     return config
 
 
 def get_tt_config() -> ExperimentConfig:
     """Get configuration optimized for TT-N150 training."""
     config = get_default_config()
-    config.device_config.primary_device = "tt"
-    config.training_config.batch_size = 12  # Larger batch size for TT
-    config.training_config.learning_rate = 6e-4  # Standard learning rate
-    config.training_config.compile = True  # Enable compilation for TT
+    config.device.primary_device = "tt"
+    config.training.batch_size = 12  # Larger batch size for TT
+    config.training.learning_rate = 6e-4  # Standard learning rate
+    config.training.compile = True  # Enable compilation for TT
     return config
