@@ -203,7 +203,7 @@ def main():
         wandb_config = init_wandb(
             config.logging_config,
             job_type="training",
-            dir_path=config.logging_config.checkpoint.checkpoint_dir
+            dir_path=config.logging_config.checkpoint_dir
         )
         logger.info("Initialized WandB logging")
     
