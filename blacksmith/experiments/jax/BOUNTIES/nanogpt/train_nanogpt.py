@@ -8,6 +8,10 @@ import time
 import logging
 from typing import Optional
 
+# Set JAX platform early to avoid backend initialization issues
+if 'JAX_PLATFORMS' not in os.environ:
+    os.environ['JAX_PLATFORMS'] = 'cpu'
+
 import jax
 import jax.numpy as jnp
 from jax import random
