@@ -141,7 +141,7 @@ class GPT(nn.Module):
         self.lm_head = nn.Dense(self.vocab_size, use_bias=False)
         
     def __call__(self, idx: jnp.ndarray, training: bool = False) -> jnp.ndarray:
-        device = idx.device() if hasattr(idx, 'device') else None
+        device = idx.device if hasattr(idx, 'device') else None
         B, T = idx.shape
         
         # Token embeddings
