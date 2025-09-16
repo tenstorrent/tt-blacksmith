@@ -15,7 +15,25 @@ class DeviceManager:
     def __init__(self, primary_device: str = "tt", fallback_device: str = "cpu"):
         self.primary_device = primary_device
         self.fallback_device = fallback_device
-        self.cpu_device = jax.devices("cpu")[0]
+        
+        # Force CPU backend first to avoid TT backend initialization issues
+        import os
+        original_platforms = os.environ.get('JAX_PLATFORMS', '')
+        os.environ['JAX_PLATFORMS'] = 'cpu'
+        
+        try:
+            self.cpu_device = jax.devices("cpu")[0]
+            logging.info(f"CPU device: {self.cpu_device}")
+        except Exception as e:
+            logging.error(f"Failed to initialize CPU device: {e}")
+            raise
+        finally:
+            # Restore original platforms setting
+            if original_platforms:
+                os.environ['JAX_PLATFORMS'] = original_platforms
+            else:
+                os.environ.pop('JAX_PLATFORMS', None)
+        
         self.tt_device = None
         
         # Try to get TT device
@@ -23,6 +41,7 @@ class DeviceManager:
             tt_devices = jax.devices("tt")
             if tt_devices:
                 self.tt_device = tt_devices[0]
+                logging.info(f"TT device: {self.tt_device}")
         except Exception as e:
             logging.warning(f"TT device not available: {e}")
             self.tt_device = None
