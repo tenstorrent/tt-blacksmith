@@ -177,7 +177,13 @@ def main():
     
     # Load configuration
     if args.config:
-        config = generate_config(ExperimentConfig, args.config)
+        # Handle both relative and absolute paths
+        config_path = args.config
+        if not os.path.isabs(config_path) and not os.path.exists(config_path):
+            # Try relative to script directory
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(script_dir, args.config)
+        config = generate_config(ExperimentConfig, config_path)
     else:
         # Use default config based on device
         if args.device == "cpu":
