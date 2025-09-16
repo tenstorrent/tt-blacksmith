@@ -14,11 +14,9 @@ from jax import random
 import flax
 from flax import linen as nn
 
-# Add the project root to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
-
-# Import from parent directories
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '..'))
+# Add the current directory to the path for local imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
 try:
     from blacksmith.tools.cli import generate_config
