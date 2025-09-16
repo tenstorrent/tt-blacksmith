@@ -70,13 +70,13 @@ class MLP(nn.Module):
     def setup(self):
         self.c_fc = nn.Dense(4 * self.n_embd, use_bias=self.bias)
         self.c_proj = nn.Dense(self.n_embd, use_bias=self.bias)
-        self.dropout = nn.Dropout(self.dropout)
+        self.dropout_layer = nn.Dropout(self.dropout)
         
     def __call__(self, x: jnp.ndarray, training: bool = False) -> jnp.ndarray:
         x = self.c_fc(x)
         x = nn.gelu(x)
         x = self.c_proj(x)
-        x = self.dropout(x, deterministic=not training)
+        x = self.dropout_layer(x, deterministic=not training)
         return x
 
 
