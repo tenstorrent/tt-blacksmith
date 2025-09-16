@@ -21,25 +21,30 @@ def init_wandb(
     if not config.log_on_wandb:
         return None
     
-    # Set up wandb directory
-    if dir_path is None:
-        dir_path = config.checkpoint_dir
-    
-    os.makedirs(dir_path, exist_ok=True)
-    
-    # Initialize wandb run
-    wandb.init(
-        project=config.wandb_project,
-        entity=None,  # Not in the config structure
-        name=config.wandb_run_name,
-        tags=[],  # Not in the config structure
-        notes=None,  # Not in the config structure
-        job_type=job_type,
-        dir=dir_path,
-        resume="allow",
-    )
-    
-    return wandb.config
+    try:
+        # Set up wandb directory
+        if dir_path is None:
+            dir_path = config.checkpoint_dir
+        
+        os.makedirs(dir_path, exist_ok=True)
+        
+        # Initialize wandb run
+        wandb.init(
+            project=config.wandb_project,
+            entity=None,  # Not in the config structure
+            name=config.wandb_run_name,
+            tags=[],  # Not in the config structure
+            notes=None,  # Not in the config structure
+            job_type=job_type,
+            dir=dir_path,
+            resume="allow",
+        )
+        
+        return wandb.config
+    except Exception as e:
+        print(f"Warning: WandB initialization failed: {e}")
+        print("Continuing without WandB logging...")
+        return None
 
 
 def log_metrics(metrics: Dict[str, Any], step: Optional[int] = None) -> None:
