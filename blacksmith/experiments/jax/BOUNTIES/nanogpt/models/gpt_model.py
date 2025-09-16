@@ -42,7 +42,7 @@ class CausalSelfAttention(nn.Module):
         v = v.reshape(B, T, self.n_head, C // self.n_head).transpose(0, 2, 1, 3)  # (B, nh, T, hs)
         
         # Causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.shape[-1]))
+        att = (q @ k.transpose(0, 1, 3, 2)) * (1.0 / math.sqrt(k.shape[-1]))
         
         # Create causal mask
         mask = jnp.tril(jnp.ones((T, T)))
