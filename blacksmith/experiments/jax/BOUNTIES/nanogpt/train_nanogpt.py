@@ -52,7 +52,7 @@ def initialize_model_and_data(config: ExperimentConfig, device_manager, logger):
     """Initialize model, data, and optimizer."""
     
     # Create model
-    model = create_model(config)
+    model = create_model(config.model_config)
     logger.info(f"Created model with config: {config.model_config}")
     
     # Initialize model parameters
