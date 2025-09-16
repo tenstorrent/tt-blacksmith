@@ -19,6 +19,16 @@ This implementation provides:
 - Transformer blocks with residual connections
 - Layer normalization and dropout
 - Language modeling head
+
+### Hyperparameter Fidelity
+This implementation faithfully reproduces Karpathy's NanoGPT hyperparameters:
+- **Learning Rate**: 6e-4 (matches original)
+- **Batch Size**: 12 (matches original)
+- **Block Size**: 1024 (matches original)
+- **Model Size**: 12 layers, 12 heads, 768 embedding (matches original)
+- **Weight Decay**: 1e-1 (matches original)
+- **Optimizer**: AdamW with β1=0.9, β2=0.95 (matches original)
+- **Gradient Clipping**: 1.0 (matches original)
 - Configurable model size (layers, heads, embedding dimension)
 
 ### Device Management
