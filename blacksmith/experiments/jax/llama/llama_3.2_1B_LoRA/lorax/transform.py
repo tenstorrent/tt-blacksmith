@@ -8,9 +8,10 @@ import warnings
 import jax
 import jax.lax as lax
 import quax
+from typing import Any, Callable
 
 
-def lora(f):
+def lora(f: Callable[..., Any]) -> Callable[..., Any]:
     """
     Alias for quax.quaxify to reduce necessary modification to code
     using older version of Lorax
@@ -33,18 +34,18 @@ class LoraWeight(quax.ArrayValue):
     def materialise(self):
         return (self.w + self.get_scale() * self.b @ self.a).astype(self.w.dtype)
 
-    def materialize(self):
-        # Alias for British spelling compatibility
-        return self.materialise()
-
-    def get_scale(self):
+    def get_scale(self) -> float:
         return self.alpha / self.b.shape[-1]
 
-    def aval(self):
+    def aval(self) -> jax.core.ShapedArray:
         return jax.core.ShapedArray(self.w.shape, self.w.dtype)
 
 
-def _check_dot_dimension_numbers(dimension_numbers):
+def _check_dot_dimension_numbers(dimension_numbers: Any) -> bool:
+    # Validate that the `dot_general` call is compatible with LoRA's unbatched
+    # matrix multiply semantics. We only support a single contracting dimension
+    # and no batch dimensions. Returning True means "supported"; returning
+    # False asks Quax to fall back to the default implementation.
     (lhs_contract, rhs_contract), (lhs_batch, rhs_batch) = dimension_numbers
     if lhs_batch or rhs_batch:
         warnings.warn("Lorax does not support batched matmuls")
@@ -56,7 +57,14 @@ def _check_dot_dimension_numbers(dimension_numbers):
 
 
 @quax.register(lax.dot_general_p)
-def handle_dot_lhs(lora: LoraWeight, rhs: jax.Array, *, dimension_numbers, **kwargs):
+def handle_dot_lhs(lora: LoraWeight, rhs: jax.Array, *, dimension_numbers: Any, **kwargs: Any) -> Any:
+    # Quax primitive registration: this decorator tells Quax to intercept the
+    # JAX primitive `lax.dot_general_p` when the LHS operand is a `LoraWeight`.
+    # During tracing/compilation, Quax dispatches to this handler so we can
+    # inject the LoRA low‑rank update without materializing (W + B @ A).
+    # Mathematically, for (W + (alpha/k) * B @ A) @ X, we compute:
+    #   (W @ X) + B @ (A @ X)
+    # using two small matmuls, preserving dtype and shapes expected by JAX.
     if not _check_dot_dimension_numbers(dimension_numbers):
         return NotImplemented
 
@@ -83,7 +91,12 @@ def handle_dot_lhs(lora: LoraWeight, rhs: jax.Array, *, dimension_numbers, **kwa
 
 
 @quax.register(lax.dot_general_p)
-def handle_dot_rhs(lhs: jax.Array, lora: LoraWeight, *, dimension_numbers, **kwargs):
+def handle_dot_rhs(lhs: jax.Array, lora: LoraWeight, *, dimension_numbers: Any, **kwargs: Any) -> Any:
+    # Symmetric to the LHS case: register an implementation for `lax.dot_general_p`
+    # when the RHS operand is a `LoraWeight`. For X @ (W + (alpha/k) * B @ A), we
+    # compute:
+    #   (X @ W) + (X @ B) @ A
+    # avoiding materializing the adapted weight while matching JAX semantics.
     if not _check_dot_dimension_numbers(dimension_numbers):
         return NotImplemented
     op = partial(jax.lax.dot_general, **kwargs)
@@ -104,7 +117,10 @@ def handle_dot_rhs(lhs: jax.Array, lora: LoraWeight, *, dimension_numbers, **kwa
 
 
 @quax.register(lax.transpose_p)
-def eval_lora_transpose(arg: LoraWeight, *, permutation):
+def eval_lora_transpose(arg: LoraWeight, *, permutation: Any) -> Any:
+    # Define how a `LoraWeight` behaves under transpose. For 2D weights and a
+    # simple (1, 0) permutation, return a new `LoraWeight` with all components
+    # transposed, preserving LoRA structure without materialization.
     if not len(arg.shape) == 2 and permutation == (1, 0):
         return NotImplemented
 
@@ -117,7 +133,9 @@ def eval_lora_transpose(arg: LoraWeight, *, permutation):
 
 
 @quax.register(lax.convert_element_type_p)
-def eval_lora_convert_element_type(arg: LoraWeight, *, new_dtype, **_):
+def eval_lora_convert_element_type(arg: LoraWeight, *, new_dtype: Any, **_) -> LoraWeight:
+    # Define dtype conversion for `LoraWeight`. Convert internal arrays to the
+    # requested dtype while keeping `alpha` as a Python float.
     return LoraWeight(
         w=jax.lax.convert_element_type(arg.w, new_dtype),
         a=jax.lax.convert_element_type(arg.a, new_dtype),

@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import warnings
-from typing import Tuple, Dict, Any, Optional
+from typing import Tuple, List, Dict, Any, Optional
+
+os.environ["JAX_PLATFORMS"] = "cpu"
 
 import jax
-
-jax.config.update("jax_platforms", "tt,cpu")
 import jax.numpy as jnp
 import optax
 import numpy as np
@@ -24,13 +25,18 @@ import wandb
 
 
 MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
+DEFAULT_EXPERIMENT_NAME = "Llama-CPU-LoRA-Training"
+DEFAULT_RUN_NAME = "llama-3.2-1b-sst2-cpu-lorax"
 
-DEFAULT_EXPERIMENT_NAME = "Llama-TT-LoRA-Training"
-DEFAULT_RUN_NAME = "llama-3.2-1b-sst2-tt-lorax"
+WANDB_ENABLED = False
 
 
-def setup_wandb(training_config: TrainingConfig) -> wandb.sdk.wandb_run.Run:
-    """Setup wandb for experiment tracking."""
+def setup_wandb(training_config: TrainingConfig, enable: bool = False) -> Optional[Any]:
+    """Optionally setup wandb for experiment tracking; returns run or None."""
+    global WANDB_ENABLED
+    WANDB_ENABLED = bool(enable and (wandb is not None))
+    if not WANDB_ENABLED:
+        return None
     wandb_run = wandb.init(
         project=DEFAULT_EXPERIMENT_NAME,
         name=DEFAULT_RUN_NAME,
@@ -43,7 +49,7 @@ def setup_wandb(training_config: TrainingConfig) -> wandb.sdk.wandb_run.Run:
             "num_epochs": training_config.num_epochs,
             "lora_rank": training_config.lora_r,
             "lora_target_modules": ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"],
-            "device": "tt",
+            "device": "cpu",
             "framework": "jax_lorax",
         },
     )
@@ -52,11 +58,12 @@ def setup_wandb(training_config: TrainingConfig) -> wandb.sdk.wandb_run.Run:
 
 
 def log_to_wandb(data_dict: Dict[str, Any], step: Optional[int] = None) -> None:
-    """Log data to wandb."""
-    wandb.log(data_dict, step=step)
+    """Log data to wandb if enabled; otherwise no-op."""
+    if WANDB_ENABLED and wandb is not None:
+        wandb.log(data_dict, step=step)
 
 
-def create_batches(data: jnp.ndarray, batch_size: int = 8) -> jnp.ndarray:
+def create_batches(data: jnp.ndarray, batch_size: int = 4) -> jnp.ndarray:
     """Create training batches from input data."""
     num_batches = len(data) // batch_size
     batched_data = data[: num_batches * batch_size].reshape(num_batches, batch_size, -1)
@@ -142,23 +149,29 @@ def create_loss_fn(lora_model: Any) -> Any:
     return loss_fn
 
 
-def create_compute_grads_fn(loss_fn: Any) -> Any:
-    """Create JIT-compiled gradient computation function."""
+def create_train_step(optimizer: Any, loss_fn: Any) -> Any:
+    """Create JIT-compiled training step function."""
 
     @jax.jit
-    def compute_grads_tt(
-        trainable_params_tt: Any,
-        frozen_params_tt: Any,
+    def train_step(
+        trainable_params: Any,
+        frozen_params: Any,
+        opt_state: Any,
         input_ids_batch: jnp.ndarray,
         attention_mask_batch: jnp.ndarray,
         labels_batch: jnp.ndarray,
-    ) -> Tuple[jnp.ndarray, Any]:
+    ) -> Tuple[Any, Any, jnp.ndarray]:
+        # Compute gradients only with respect to argnums=0 (trainable_params).
+        # Frozen parameters participate in the forward pass but are treated as
+        # constants for differentiation and receive no gradients.
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
-            trainable_params_tt, frozen_params_tt, input_ids_batch, attention_mask_batch, labels_batch
+            trainable_params, frozen_params, input_ids_batch, attention_mask_batch, labels_batch
         )
-        return loss, grads
+        updates, new_opt_state = optimizer.update(grads, opt_state, trainable_params)
+        new_params = optax.apply_updates(trainable_params, updates)
+        return new_params, new_opt_state, loss
 
-    return compute_grads_tt
+    return train_step
 
 
 def main(
@@ -170,18 +183,12 @@ def main(
     num_epochs: int = 5,
     lora_rank: int = 4,
     num_hidden_layers: int = 16,
+    use_wandb: bool = False,
 ) -> None:
     """Main training function with configurable parameters."""
+    model = load_model(model_name, num_hidden_layers)
 
-    cpu_device = jax.devices("cpu")[0]
-    tt_device = jax.devices("tt")[0]
-
-    print("Loading Llama 3.2-1B model...")
-    with jax.default_device(cpu_device):
-        model = load_model(model_name, num_hidden_layers)
-
-    model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), model.params)
-
+    # Create training configuration for SST dataset
     training_config = TrainingConfig(
         model_name=model_name,
         dataset_id=dataset_id,
@@ -189,30 +196,26 @@ def main(
         learning_rate=learning_rate,
         batch_size=batch_size,
         num_epochs=num_epochs,
-        lora_r=lora_rank,
     )
 
-    wandb_run = setup_wandb(training_config)
+    # Optional: setup wandb for experiment tracking
+    wandb_run = setup_wandb(training_config, enable=use_wandb)
 
     input_id_batches, attention_mask_batches, label_batches = load_data(training_config)
 
     decision_fn = create_lora_decision_fn(lora_rank)
     lora_spec = lorax.simple_spec(model.params, decision_fn=decision_fn, tune_vectors=False)
+    lora_params = lorax.init_lora(model.params, lora_spec, jax.random.PRNGKey(42))
 
-    with jax.default_device(cpu_device):
-        lora_params = lorax.init_lora(model.params, lora_spec, jax.random.PRNGKey(42))
-
-    lora_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), lora_params)
+    # Split parameters into trainable and frozen sets: only LoRA‑adapted weights
+    # are optimized during training, while the base model weights remain fixed.
     trainable_params, frozen_params = lorax.split_trainable_frozen(lora_params, lora_spec)
-
-    with jax.default_device(cpu_device):
-        optimizer = optax.adamw(learning_rate=learning_rate, weight_decay=0.01)
-        trainable_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), trainable_params)
-        opt_state = optimizer.init(trainable_params_cpu)
+    optimizer = optax.adamw(learning_rate=learning_rate, weight_decay=0.01)
+    opt_state = optimizer.init(trainable_params)
 
     lora_model = lorax.lora(model)
     loss_fn = create_loss_fn(lora_model)
-    compute_grads_tt = create_compute_grads_fn(loss_fn)
+    train_step = create_train_step(optimizer, loss_fn)
 
     print("Starting training on SST dataset...")
     global_step = 0
@@ -229,18 +232,9 @@ def main(
                 attention_mask = attention_mask_batches[batch_idx]
                 labels = label_batches[batch_idx]
 
-                loss, grads = compute_grads_tt(trainable_params, frozen_params, input_ids, attention_mask, labels)
-
-                with jax.default_device(cpu_device):
-                    grads_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), grads)
-                    trainable_params_cpu = jax.tree_util.tree_map(
-                        lambda x: jax.device_put(x, cpu_device), trainable_params
-                    )
-                    updates, new_opt_state = optimizer.update(grads_cpu, opt_state, trainable_params_cpu)
-                    new_params_cpu = optax.apply_updates(trainable_params_cpu, updates)
-
-                trainable_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), new_params_cpu)
-                opt_state = new_opt_state
+                trainable_params, opt_state, loss = train_step(
+                    trainable_params, frozen_params, opt_state, input_ids, attention_mask, labels
+                )
 
                 current_loss = float(loss)
                 epoch_losses.append(current_loss)
@@ -277,6 +271,16 @@ def main(
 
         log_to_wandb(
             {
+                "epoch_avg_loss": avg_epoch_loss,
+            },
+            step=global_step,
+        )
+
+        print(f"Epoch {epoch+1} Results:")
+        print(f"   Training Avg Loss: {avg_epoch_loss:.4f}")
+
+        log_to_wandb(
+            {
                 "training_completed": True,
                 "total_steps": global_step,
             },
@@ -291,10 +295,9 @@ def main(
         raise
 
     finally:
-        wandb.finish()
-        print("Finished wandb run")
-
-    print("Testing sentiment classification generation...")
+        if WANDB_ENABLED and wandb is not None:
+            wandb.finish()
+            print("Finished wandb run")
 
 
 if __name__ == "__main__":

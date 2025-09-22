@@ -10,10 +10,13 @@ import quax
 
 from .constants import LORA_FREEZE, LORA_FULL
 from .transform import LoraWeight
+from typing import Any, Tuple, Dict
 
 
-def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, is_leaf=None):
+def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, is_leaf=None) -> Any:
     def iter_keys(key):
+        # Infinite PRNGKey generator: repeatedly split the key to obtain a fresh
+        # subkey for initializing each LoRA adapter tensor.
         while True:
             key, out_key = jax.random.split(key)
             yield out_key
@@ -21,6 +24,9 @@ def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
     key_it = iter_keys(rng)
 
     def get_param(path, param, spec_val):
+        # Map a single parameter and spec value to either:
+        # - the original parameter (freeze/full tune), or
+        # - a LoraWeight wrapping the base weight with newly initialized A/B.
         if spec_val in (LORA_FREEZE, LORA_FULL):
             return param
 
@@ -49,7 +55,7 @@ def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
     return jax.tree_util.tree_map_with_path(get_param, param_tree, spec, is_leaf=is_leaf)
 
 
-def simple_spec(params, decision_fn=None, tune_vectors=False, is_leaf=None):
+def simple_spec(params, decision_fn=None, tune_vectors=False, is_leaf=None) -> Any:
     """
     Create a simple lora spec for a pytree
     Args:
@@ -72,7 +78,11 @@ def simple_spec(params, decision_fn=None, tune_vectors=False, is_leaf=None):
     return tree_map_with_path(full_fn, params, is_leaf=is_leaf)
 
 
-def merge_params(lora_params, destructive=True, use_scaling=True):
+# NOTE: Optional helper for single-tree workflows. Not used in the current
+# split/merge training loop (where we keep separate trainable/frozen trees).
+# Use this if you want to materialise LoRA into dense weights and operate on a
+# single params tree without `LoraWeight` wrappers.
+def merge_params(lora_params, destructive=True, use_scaling=True) -> Any:
     """
     Re-merge LoRA parameters.
     Arguments:
@@ -93,7 +103,10 @@ def merge_params(lora_params, destructive=True, use_scaling=True):
     return jax.tree.map(map_fn, lora_params, is_leaf=lambda x: isinstance(x, LoraWeight))
 
 
-def split_lora_params(params, spec):
+# NOTE: Optional helper for checkpointing adapters only. Not used in the
+# current split/merge loop (we already have `trainable_params`). Use this to
+# produce a LoRA-only checkpoint retaining the full path structure.
+def split_lora_params(params, spec) -> Any:
     """
     Map params to a pytree in which all `LoraWeight.w` values and all params marked with
     LORA_FREEZE are replaced with None. This is useful for checkpointing just
@@ -109,7 +122,13 @@ def split_lora_params(params, spec):
     return jax.tree.map(node_mapper, params, spec)
 
 
-def wrap_optimizer(optimizer: optax.GradientTransformation, spec, scalar_frozen_grads=False):
+# NOTE: Optional helper for single-tree optimizer updates. Not used in the
+# current design because we compute grads only w.r.t. trainable params and
+# update only those. Use this if you keep a merged params tree and want the
+# optimizer to zero-out updates on frozen parts according to the spec.
+def wrap_optimizer(
+    optimizer: optax.GradientTransformation, spec, scalar_frozen_grads=False
+) -> optax.GradientTransformation:
     """
     Wrap the optimizer to freeze parameters according to the LoRA spec.
     - LoraWeight objects: freeze 'w' and 'alpha', allow 'a' and 'b' to update
@@ -146,7 +165,7 @@ def wrap_optimizer(optimizer: optax.GradientTransformation, spec, scalar_frozen_
     )
 
 
-def split_trainable_frozen(lora_params, lora_spec):
+def split_trainable_frozen(lora_params, lora_spec) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     Split LoRA parameters into trainable and frozen pytrees.
     Trainable: Only LoRA a,b matrices from LoraWeight objects
@@ -180,7 +199,7 @@ def split_trainable_frozen(lora_params, lora_spec):
     return trainable_params, frozen_params
 
 
-def merge_trainable_frozen(trainable_params, frozen_params):
+def merge_trainable_frozen(trainable_params, frozen_params) -> Any:
     """
     Merge trainable and frozen pytrees back into full LoRA parameter tree.
     """
