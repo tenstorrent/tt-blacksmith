@@ -28,7 +28,7 @@ export PYTHONPATH=/localdev/upantelic/tt-blacksmith:$PYTHONPATH
 Run LoRA training on CPU:
 
 ```bash
-python3 blacksmith/experiments/jax/llama_jax/training_cpu.py
+python3 blacksmith/experiments/jax/llama/llama_3.2_1B_LoRA/training_cpu.py
 ```
 
 ### TT Device Training
@@ -36,7 +36,7 @@ python3 blacksmith/experiments/jax/llama_jax/training_cpu.py
 Run LoRA training on Tenstorrent device:
 
 ```bash
-python3 blacksmith/experiments/jax/llama_jax/training_tt.py
+python3 blacksmith/experiments/jax/llama/llama_3.2_1B_LoRA/training_tt.py
 ```
 
 ## Configuration Options
