@@ -316,7 +316,7 @@ def main() -> None:
             wandb.finish()
             print("Finished wandb run")
 
-    print("Testing sentiment classification generation...")
+    print("Testing sentiment classification generation....")
 
 
 if __name__ == "__main__":
