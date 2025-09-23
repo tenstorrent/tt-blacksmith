@@ -8,9 +8,10 @@ import os
 
 # Frontends can be tt-forge-fe or tt-xla
 FRONTEND = os.environ.get("TT_BLACKSMITH_FRONTEND", "")
+if not FRONTEND:
+    print("Error: TT_BLACKSMITH_FRONTEND environment variable not set.")
+    exit(1)
 
-if FRONTEND == "":
-    raise ValueError("TT_BLACKSMITH_FRONTEND is not set, please set it to `tt-forge-fe` or `tt-xla`")
 
 exclude_keywords = defaultdict(
     list,
