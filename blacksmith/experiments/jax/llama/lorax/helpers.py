@@ -1,6 +1,5 @@
+# SPDX-FileCopyrightText: (c) 2023 davisyoshida
 # SPDX-License-Identifier: MIT
-#
-# SPDX-FileCopyrightText: Copyright (c) 2023 davisyoshida
 import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_map_with_path, DictKey, SequenceKey
