@@ -14,7 +14,7 @@ done
 
 # if both are false, exit with error
 if [ "$tt_forge_fe" = false ] && [ "$tt_xla" = false ]; then
-    echo "Both TT-Forge-FE and TT-XLA are false, please specify one of them"
+    echo "Both frontend flags are false, please specify one of them: TT-XLA (--xla) or TT-Forge-FE (--ffe)"
     return 1
 fi
 
@@ -22,15 +22,23 @@ fi
 # To be safe we have two different environment directories for each frontend
 if [ "$tt_forge_fe" = true ]; then
     export TTBLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/ffe_env
+    export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
 fi
 if [ "$tt_xla" = true ]; then
     export TTBLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/xla_env
+    export TT_BLACKSMITH_FRONTEND="tt-xla"
 fi
 
 # If environment directory already exists, activate it
 if [ -d $TTBLACKSMITH_ENV_DIR/bin ]; then
-    [ -f $TTBLACKSMITH_ENV_DIR/bin/activate ] && source $TTBLACKSMITH_ENV_DIR/bin/activate
-    exit 0
+    if [ -f $TTBLACKSMITH_ENV_DIR/bin/activate ]; then
+        source $TTBLACKSMITH_ENV_DIR/bin/activate
+    else
+        echo "Virtual environment directory exists but does not contain activate script,"
+        echo "please remove the $TTBLACKSMITH_ENV_DIR directory and try again"
+        return
+    fi
+    return
 fi
 
 # Otherwise create it
@@ -41,13 +49,11 @@ pip install --upgrade pip
 
 # Install dependencies based on frontend
 if [ "$tt_forge_fe" = true ]; then
-    pip install -r env/ffe_requirements.txt
+    pip install -r env/ffe_requirements.txt -r env/requirements.txt
 fi
 if [ "$tt_xla" = true ]; then
-    pip install -r env/xla_requirements.txt
+    pip install -r env/xla_requirements.txt -r env/requirements.txt
 fi
 
 # Install base dependencies
-pip install -r env/requirements.txt
-export TT_BLACKSMITH_FRONTEND=$TT_BLACKSMITH_FRONTEND
 pip install -e $TT_BLACKSMITH_HOME

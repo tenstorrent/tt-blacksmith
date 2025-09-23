@@ -5,15 +5,17 @@
 To run experiments on Tenstorrent hardware, users must first activate correct environment, on the first activation script will install all dependencies
 
 > Note:
-> In case you cancel installation process it is recommended to
+> In case you cancel installation process or you want to install newer version
+> it is recommended to:
 > ```
+> git pull
 > rm -r ./env
 > git restore env
 > ```
 
 ### Activating Frontend Environment
 
-To activate the previously built Python environments for specific frontends, you need to run:
+To activate the previously built Python environments for specific frontend, you need to run:
 
 #### TT-Forge-FE:
 ```bash
@@ -24,15 +26,6 @@ source env/activate --ffe
 ```bash
 source env/activate --xla
 ```
-
-### Cleaning Build Files
-
-If at run into problems with building TT-XLA environment, try cleaning the previous build with:
- ```bash
-source ./scripts/activate_frontend.sh --clean [--full]
-```
-
-Second parameter `--full` is optional and defines if you would like to remove TT-MLIR third party repository, so that the next build can start with fetching latest version of TT-MLIR and building it from scratch.
 
 ## Running Experiments
 

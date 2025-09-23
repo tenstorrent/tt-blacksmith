@@ -1,3 +1,2 @@
-https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-0.3.0.dev20250811-py3-none-linux_x86_64.whl#sha256=ceb27cbe5bbef1167cfb912b19eaa0fe11884a56724267ecd49e9f6011e621e0
-torch_xla @ https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit7d989d1-cp310-cp310-linux_x86_64.whl#sha256=83f36ca01ef6ceb270898fc46fb177be498fcaad61e39634b62d0b2677059651
+pjrt-plugin-tt @ https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-0.4.0.dev20250923-cp311-cp311-linux_x86_64.whl#sha256=cde2bebbb163d371b7709da6a7fb3ac17607f410b0aa4c4ad0ae6216c160f75d
 flax
