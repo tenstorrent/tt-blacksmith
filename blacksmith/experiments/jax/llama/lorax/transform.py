@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2023 davisyoshida
+#
+# SPDX-License-Identifier: MIT
 from dataclasses import dataclass
 from functools import partial
 import warnings

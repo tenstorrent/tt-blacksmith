@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2023 davisyoshida
+#
+# SPDX-License-Identifier: MIT
 from .transform import LoraWeight, lora
 from .helpers import (
     init_lora,
