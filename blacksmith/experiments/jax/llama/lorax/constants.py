@@ -1,5 +1,5 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-License-Identifier: MIT
 #
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright (c) 2023 davisyoshida
 LORA_FREEZE = 0
 LORA_FULL = -1
