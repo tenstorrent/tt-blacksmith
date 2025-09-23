@@ -23,7 +23,6 @@ exclude_keywords = defaultdict(
 
 all_packages = find_packages(include=["blacksmith*"])
 excluded_packages = []
-
 for pkg in all_packages:
     for keyword in exclude_keywords[FRONTEND]:
         if re.search(keyword, pkg):

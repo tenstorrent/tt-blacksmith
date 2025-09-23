@@ -2,7 +2,8 @@
 
 ## Setup
 
-To run experiments on Tenstorrent hardware, users must first activate correct environment, on the first activation script will install all dependencies
+To run experiments on Tenstorrent hardware, users must first activate correct environment. 
+On the first activation, script will automatically install all dependencies.
 
 > Note:
 > In case you cancel installation process or you want to install newer version
@@ -13,9 +14,9 @@ To run experiments on Tenstorrent hardware, users must first activate correct en
 > git restore env
 > ```
 
-### Activating Frontend Environment
+### Activating frontend environment
 
-To activate the previously built Python environments for specific frontend, you need to run:
+To activate python environments for specific frontend, you need to run:
 
 #### TT-Forge-FE:
 ```bash
