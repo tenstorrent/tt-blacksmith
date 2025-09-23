@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 from typing import Tuple
 
-
 # JAX equivalent of kornia.create_meshgrid
 def create_meshgrid(height: int, width: int, normalized_coordinates: bool = False) -> jnp.ndarray:
     """Generate a coordinate grid for an image of size (height, width)."""
