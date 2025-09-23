@@ -2,7 +2,7 @@
 
 ## Setup
 
-To run experiments on Tenstorrent hardware, users must first activate correct environment. 
+To run experiments on Tenstorrent hardware, users must first activate correct environment.
 On the first activation, script will automatically install all dependencies.
 
 > Note:
