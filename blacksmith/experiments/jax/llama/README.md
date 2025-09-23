@@ -1,11 +1,10 @@
 # JAX LoRA Training for Llama 3.2-1B
 
-JAX-based LoRA (Low-Rank Adaptation) fine-tuning for the Llama 3.2-1B model on CPU and TT (Tenstorrent) devices.
+JAX-based LoRA (Low-Rank Adaptation) fine-tuning for the Llama 3.2-1B model on TT (Tenstorrent) devices.
 
 ## Overview
 
 This directory includes:
-- CPU training (`training_cpu.py`)
 - TT device training (`training_tt.py`)
 - Custom LoRAx implementation in `lorax/`
 - SST-2 example task and basic wandb integration
@@ -23,25 +22,17 @@ export PYTHONPATH=/localdev/upantelic/tt-blacksmith:$PYTHONPATH
 
 ## Usage
 
-### CPU Training
-
-Run LoRA training on CPU:
-
-```bash
-python3 blacksmith/experiments/jax/llama/llama_3.2_1B_LoRA/training_cpu.py
-```
-
 ### TT Device Training
 
 Run LoRA training on Tenstorrent device:
 
 ```bash
-python3 blacksmith/experiments/jax/llama/llama_3.2_1B_LoRA/training_tt.py
+python3 blacksmith/experiments/jax/llama/test_llama_fine_tuning_jax.py
 ```
 
 ## Configuration Options
 
-Both scripts support the same configurable parameters:
+This script supports the following configurable parameters:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|

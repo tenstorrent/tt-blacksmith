@@ -7,6 +7,10 @@ import warnings
 from typing import Tuple, Dict, Any, Optional
 
 import jax
+import os
+
+os.environ["JAX_PLATFORMS"] = "cpu"
+jax.config.update("jax_platforms", "cpu")
 import jax.numpy as jnp
 import optax
 import numpy as np
@@ -14,7 +18,7 @@ from transformers import FlaxAutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from datasets import load_dataset
 import lorax
-from lorax import LORA_FULL, LORA_FREEZE
+from lorax import LORA_FREEZE
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
@@ -29,8 +33,11 @@ DEFAULT_RUN_NAME = "llama-3.2-1b-sst2-tt-lorax"
 WANDB_ENABLED = False
 
 
-def setup_wandb(training_config: TrainingConfig, enable: bool = False) -> Optional[Any]:
-    """Optionally setup wandb for experiment tracking; returns run or None."""
+def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
+    """Optionally setup wandb for experiment tracking; returns run or None.
+
+    device: one of {"tt", "cpu"}
+    """
     global WANDB_ENABLED
     WANDB_ENABLED = bool(enable and (wandb is not None))
     if not WANDB_ENABLED:
@@ -47,7 +54,7 @@ def setup_wandb(training_config: TrainingConfig, enable: bool = False) -> Option
             "num_epochs": training_config.num_epochs,
             "lora_rank": training_config.lora_r,
             "lora_target_modules": ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"],
-            "device": "tt",
+            "device": device,
             "framework": "jax_lorax",
         },
     )
@@ -59,6 +66,21 @@ def log_to_wandb(data_dict: Dict[str, Any], step: Optional[int] = None) -> None:
     """Log data to wandb if enabled; otherwise no-op."""
     if WANDB_ENABLED and wandb is not None:
         wandb.log(data_dict, step=step)
+
+
+def _select_preferred_device() -> Tuple[jax.Device, str]:
+    """Prefer TT device if available, otherwise fall back to CPU.
+
+    Returns (device, device_kind_str)
+    """
+    cpu = jax.devices("cpu")[0]
+    try:
+        tt_devs = jax.devices("tt")
+    except Exception:
+        tt_devs = []
+    if tt_devs:
+        return tt_devs[0], "tt"
+    return cpu, "cpu"
 
 
 def create_batches(data: jnp.ndarray, batch_size: int = 8) -> jnp.ndarray:
@@ -183,16 +205,16 @@ def main(
     """Main training function with configurable parameters."""
 
     cpu_device = jax.devices("cpu")[0]
-    tt_device = jax.devices("tt")[0]
+    current_device, device_kind = _select_preferred_device()
 
-    print("Loading Llama 3.2-1B model...")
+    print(f"Loading Llama 3.2-1B model... Using device: {device_kind} -> {current_device}")
 
     # Initializing model parameters on CPU, since jax.random.normal
     # is currently not supported on device (https://github.com/tenstorrent/tt-xla/issues/1105).
     with jax.default_device(cpu_device):
         model = load_model(model_name, num_hidden_layers)
 
-    model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), model.params)
+    model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), model.params)
 
     training_config = TrainingConfig(
         model_name=model_name,
@@ -204,7 +226,7 @@ def main(
         lora_r=lora_rank,
     )
 
-    wandb_run = setup_wandb(training_config, enable=use_wandb)
+    wandb_run = setup_wandb(training_config, enable=use_wandb, device=device_kind)
 
     input_id_batches, attention_mask_batches, label_batches = load_data(training_config)
 
@@ -216,7 +238,7 @@ def main(
     with jax.default_device(cpu_device):
         lora_params = lorax.init_lora(model.params, lora_spec, jax.random.PRNGKey(42))
 
-    lora_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), lora_params)
+    lora_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), lora_params)
     # Split parameters into trainable and frozen sets: only LoRA‑adapted weights
     # are optimized during training, while the base model weights remain fixed.
     trainable_params, frozen_params = lorax.split_trainable_frozen(lora_params, lora_spec)
@@ -241,9 +263,9 @@ def main(
             num_batches = len(input_id_batches)
 
             for batch_idx in range(num_batches):
-                input_ids = input_id_batches[batch_idx]
-                attention_mask = attention_mask_batches[batch_idx]
-                labels = label_batches[batch_idx]
+                input_ids = jax.device_put(input_id_batches[batch_idx], current_device)
+                attention_mask = jax.device_put(attention_mask_batches[batch_idx], current_device)
+                labels = jax.device_put(label_batches[batch_idx], current_device)
 
                 loss, grads = compute_grads_tt(trainable_params, frozen_params, input_ids, attention_mask, labels)
 
@@ -258,7 +280,7 @@ def main(
                     updates, new_opt_state = optimizer.update(grads_cpu, opt_state, trainable_params_cpu)
                     new_params_cpu = optax.apply_updates(trainable_params_cpu, updates)
 
-                trainable_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, tt_device), new_params_cpu)
+                trainable_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), new_params_cpu)
                 opt_state = new_opt_state
 
                 current_loss = float(loss)
