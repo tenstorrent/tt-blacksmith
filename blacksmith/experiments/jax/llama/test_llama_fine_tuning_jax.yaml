@@ -2,33 +2,21 @@
 dataset_id: "stanfordnlp/sst2"
 
 # Model settings
-model_name: "meta-llama/Llama-3.2-1B"
+model_name: "Erland/Llama-3.2-1B-JAX"
 max_length: 64
-dtype: "torch.bfloat16"
+dtype: "jnp.float32"
 
 # Training hyperparameters
-learning_rate: 2e-5
-batch_size: 16
-gradient_accumulation_steps: 1
-gradient_checkpointing: False
+learning_rate: 1e-4
+batch_size: 4
 num_epochs: 1
-optim: "adamw_torch"
+optim: None
 
 # LoRA setup
 lora_r: 4
 lora_alpha: 8
-lora_target_modules: ["q_proj", "v_proj"]
+lora_target_modules: ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"]
 lora_task_type: "CAUSAL_LM"
 
 # Other settings
-seed: 23
-output_dir: "blacksmith/experiments/torch/llama"
-wandb_project: "llama-finetuning"
-wandb_run_name: "tt-llama-test"
-wandb_watch_mode: "all"
-wandb_log_freq: 1000
-model_to_wandb: False
-save_strategy: "epoch"
-logging_steps: 100
-do_train: True
 use_tt: True

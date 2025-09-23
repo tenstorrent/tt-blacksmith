@@ -1,6 +1,3 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
-#
-# SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_map_with_path, DictKey, SequenceKey

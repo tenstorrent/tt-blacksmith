@@ -4,13 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import warnings
+import os
 from typing import Tuple, Dict, Any, Optional
 
 import jax
-import os
-
-os.environ["JAX_PLATFORMS"] = "cpu"
-jax.config.update("jax_platforms", "cpu")
 import jax.numpy as jnp
 import optax
 import numpy as np
@@ -22,6 +19,7 @@ from lorax import LORA_FREEZE
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.cli import generate_config
 import wandb
 
 
@@ -53,7 +51,7 @@ def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: s
             "batch_size": training_config.batch_size,
             "num_epochs": training_config.num_epochs,
             "lora_rank": training_config.lora_r,
-            "lora_target_modules": ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"],
+            "lora_target_modules": training_config.lora_target_modules,
             "device": device,
             "framework": "jax_lorax",
         },
@@ -90,13 +88,12 @@ def create_batches(data: jnp.ndarray, batch_size: int = 8) -> jnp.ndarray:
     return batched_data
 
 
-def load_model(model_name: str, num_hidden_layers: int = 16) -> FlaxAutoModelForCausalLM:
+def load_model(model_name: str) -> FlaxAutoModelForCausalLM:
     """Load and configure the Llama model for training."""
     config = AutoConfig.from_pretrained(model_name)
     config.use_cache = False
-    config.num_hidden_layers = num_hidden_layers
-    config.dtype = jnp.bfloat16
-    return FlaxAutoModelForCausalLM.from_pretrained(model_name, config=config, from_pt=False, dtype=jnp.bfloat16)
+    config.dtype = jnp.float32
+    return FlaxAutoModelForCausalLM.from_pretrained(model_name, config=config, from_pt=False, dtype=jnp.float32)
 
 
 def load_data(training_config: TrainingConfig) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
@@ -191,18 +188,11 @@ def create_compute_grads_fn(loss_fn: Any) -> Any:
     return compute_grads_tt
 
 
-def main(
-    model_name: str = MODEL_NAME,
-    dataset_id: str = "stanfordnlp/sst2",
-    max_length: int = 128,
-    learning_rate: float = 1e-4,
-    batch_size: int = 4,
-    num_epochs: int = 5,
-    lora_rank: int = 4,
-    num_hidden_layers: int = 16,
-    use_wandb: bool = False,
-) -> None:
+def main() -> None:
     """Main training function with configurable parameters."""
+
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_jax.yaml")
+    training_config = generate_config(TrainingConfig, config_file_path)
 
     cpu_device = jax.devices("cpu")[0]
     current_device, device_kind = _select_preferred_device()
@@ -212,25 +202,15 @@ def main(
     # Initializing model parameters on CPU, since jax.random.normal
     # is currently not supported on device (https://github.com/tenstorrent/tt-xla/issues/1105).
     with jax.default_device(cpu_device):
-        model = load_model(model_name, num_hidden_layers)
+        model = load_model(training_config.model_name)
 
     model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), model.params)
 
-    training_config = TrainingConfig(
-        model_name=model_name,
-        dataset_id=dataset_id,
-        max_length=max_length,
-        learning_rate=learning_rate,
-        batch_size=batch_size,
-        num_epochs=num_epochs,
-        lora_r=lora_rank,
-    )
-
-    wandb_run = setup_wandb(training_config, enable=use_wandb, device=device_kind)
+    wandb_run = setup_wandb(training_config, enable=training_config.model_to_wandb, device=device_kind)
 
     input_id_batches, attention_mask_batches, label_batches = load_data(training_config)
 
-    decision_fn = create_lora_decision_fn(lora_rank)
+    decision_fn = create_lora_decision_fn(training_config.lora_r)
     lora_spec = lorax.simple_spec(model.params, decision_fn=decision_fn, tune_vectors=False)
 
     # Initializing model parameters on CPU, since jax.random.normal
@@ -244,7 +224,7 @@ def main(
     trainable_params, frozen_params = lorax.split_trainable_frozen(lora_params, lora_spec)
 
     with jax.default_device(cpu_device):
-        optimizer = optax.adamw(learning_rate=learning_rate, weight_decay=0.01)
+        optimizer = optax.adamw(learning_rate=training_config.learning_rate, weight_decay=0.01)
         trainable_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), trainable_params)
         opt_state = optimizer.init(trainable_params_cpu)
 

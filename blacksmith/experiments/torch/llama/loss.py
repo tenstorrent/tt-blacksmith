@@ -10,6 +10,7 @@ from forge.op.eltwise_binary import Multiply
 from forge.op.nn import Softmax
 from forge.op.constant import Constant
 
+
 # Due to softmax issues, we are using a custom loss function
 # This softmax uses dim=0 instead of dim=-1
 class CrossEntropyLoss(ForgeModule):
