@@ -14,7 +14,7 @@ done
 
 # if both are false, exit with error
 if [ "$tt_forge_fe" = false ] && [ "$tt_xla" = false ]; then
-    echo "Both frontend flags are false, please specify one of them: TT-XLA (--xla) or TT-Forge-FE (--ffe)"
+    echo "No frontend was specified, please select one from: TT-XLA (--xla) or TT-Forge-FE (--ffe)"
     return 1
 fi
 

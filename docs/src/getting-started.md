@@ -2,7 +2,12 @@
 
 ## Setup
 
-To run experiments on Tenstorrent hardware, users must first activate correct environment.
+In order to make use of TT-Blacksmith experiements, you need to clone GitHub repository first:
+```bash
+git clone https://github.com/tenstorrent/tt-blacksmith.git
+```
+
+To run experiments on Tenstorrent hardware, users must activate correct environment.
 On the first activation, script will automatically install all dependencies.
 
 > Note:
@@ -16,16 +21,10 @@ On the first activation, script will automatically install all dependencies.
 
 ### Activating frontend environment
 
-To activate python environments for specific frontend, you need to run:
+To activate python environment for specific frontend (TT-XLA or TT-Forge-FE), you need to run:
 
-#### TT-Forge-FE:
 ```bash
-source env/activate --ffe
-```
-
-#### TT-XLA:
-```bash
-source env/activate --xla
+source env/activate {--xla | --ffe}
 ```
 
 ## Running Experiments
