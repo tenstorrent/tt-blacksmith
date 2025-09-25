@@ -21,30 +21,30 @@ fi
 # Set environment directory based on frontend
 # To be safe we have two different environment directories for each frontend
 if [ "$tt_forge_fe" = true ]; then
-    export TTBLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/ffe_env
+    export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/ffe_env
     export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
 fi
 if [ "$tt_xla" = true ]; then
-    export TTBLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/xla_env
+    export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/xla_env
     export TT_BLACKSMITH_FRONTEND="tt-xla"
 fi
 
 # If environment directory already exists, activate it
-if [ -d $TTBLACKSMITH_ENV_DIR/bin ]; then
-    if [ -f $TTBLACKSMITH_ENV_DIR/bin/activate ]; then
-        source $TTBLACKSMITH_ENV_DIR/bin/activate
+if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
+    if [ -f $TT_BLACKSMITH_ENV_DIR/bin/activate ]; then
+        source $TT_BLACKSMITH_ENV_DIR/bin/activate
     else
         echo "Virtual environment directory exists but does not contain activate script,"
-        echo "please remove the $TTBLACKSMITH_ENV_DIR directory and try again"
+        echo "please remove the $TT_BLACKSMITH_ENV_DIR directory and try again"
         return
     fi
     return
 fi
 
 # Otherwise create it
-echo "Creating virtual environment in $TTBLACKSMITH_ENV_DIR"
-python3.11 -m venv $TTBLACKSMITH_ENV_DIR
-source $TTBLACKSMITH_ENV_DIR/bin/activate
+echo "Creating virtual environment in $TT_BLACKSMITH_ENV_DIR"
+python3.11 -m venv $TT_BLACKSMITH_ENV_DIR
+source $TT_BLACKSMITH_ENV_DIR/bin/activate
 pip install --upgrade pip
 
 # Install dependencies based on frontend
