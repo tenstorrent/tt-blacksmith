@@ -198,9 +198,9 @@ def split_trainable_frozen(lora_params, lora_spec) -> Tuple[Dict[str, Any], Dict
 
     traverse_tree(lora_params, lora_spec)
 
-    print(f"📊 Split completed:")
-    print(f"   Trainable params: {len(trainable_params)} LoRA matrix pairs")
-    print(f"   Frozen params: {len(frozen_params)} weight groups")
+    print(f"Split completed:")
+    print(f" Trainable params: {len(trainable_params)} LoRA matrix pairs")
+    print(f" Frozen params: {len(frozen_params)} weight groups")
 
     return trainable_params, frozen_params
 
