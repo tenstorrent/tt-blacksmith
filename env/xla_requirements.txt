@@ -1,2 +1,2 @@
-pjrt-plugin-tt @ https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-0.4.0.dev20250923-cp311-cp311-linux_x86_64.whl#sha256=cde2bebbb163d371b7709da6a7fb3ac17607f410b0aa4c4ad0ae6216c160f75d
+pjrt-plugin-tt @ https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-0.4.0.dev20250930-cp311-cp311-linux_x86_64.whl#sha256=b2d83d86474f414957330956ca5c1b027483f5a650e506f6c276db7932bd3c35
 flax
