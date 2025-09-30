@@ -6,6 +6,7 @@ import os
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms
@@ -15,7 +16,6 @@ import wandb
 from blacksmith.tools.cli import generate_config
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
-from blacksmith.tools.torch_xla_utils import init_device
 import os
 
 # --------------------------------
@@ -26,9 +26,9 @@ def test_training():
     config: ExperimentConfig = generate_config(
         ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
     )
-
-    init_device()
-    torch_xla.sync(wait=True)
+    
+    # Set device type
+    xr.runtime.set_device_type("TT")
 
     logger_config = config.logger_config
 
