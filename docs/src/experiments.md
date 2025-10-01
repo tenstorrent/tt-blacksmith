@@ -10,6 +10,7 @@ The following table provides an overview of different model and dataset combinat
 | --- | --- | --- | --- | --- |
 | Lightning | MLP | MNIST | TT | [README](https://github.com/tenstorrent/tt-blacksmith/tree/main/blacksmith/experiments/lightning/mnist/README.md) |
 | JAX | MLP | MNIST | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
+| PyTorch | MLP | MNIST | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
 | JAX | NeRF | Blender | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |
 | Lightning | NeRF | Blender | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
 | PyTorch | Llama | SST-2 | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
