@@ -1,7 +1,6 @@
 name: Run Test
 
 on:
-  push: # Debug trigger
   workflow_dispatch:
     inputs:
       use-shared-runners:
@@ -19,4 +18,4 @@ jobs:
     secrets: inherit
     with:
       docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
-      use-shared-runners: ${{ inputs.use-shared-runners || false }}
+      use-shared-runners: ${{ inputs.use-shared-runners }}
