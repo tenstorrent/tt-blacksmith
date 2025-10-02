@@ -73,6 +73,11 @@ class DeviceManager:
         """Context manager for setting default device."""
         return jax.default_device(self.get_device(device_type))
     
+    def cpu_fallback(self, func: Callable, *args, **kwargs):
+        """Explicitly run function on CPU (for parameter init, optimizer step, etc.)"""
+        with self.with_device("cpu"):
+            return func(*args, **kwargs)
+    
     def is_tt_available(self) -> bool:
         """Check if TT device is available."""
         return self.tt_device is not None

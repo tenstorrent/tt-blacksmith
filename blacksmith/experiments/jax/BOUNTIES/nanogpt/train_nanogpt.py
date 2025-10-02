@@ -12,6 +12,12 @@ from typing import Optional
 if 'JAX_PLATFORMS' not in os.environ:
     os.environ['JAX_PLATFORMS'] = 'cpu'
 
+# Set debug logging if requested
+if os.environ.get('LOGGER_LEVEL') == 'DEBUG':
+    os.environ['JAX_LOG_COMPILES'] = '1'
+    os.environ['JAX_TRACE_BACK'] = '1'
+    print("Debug logging enabled - TT-IR will be printed for TT operations")
+
 import jax
 import jax.numpy as jnp
 from jax import random
@@ -79,7 +85,7 @@ def initialize_model_and_data(config: ExperimentConfig, device_manager, logger):
     logger.info(f"Created optimizer")
     
     # Create training state
-    train_state = create_train_state(model, params, optimizer)
+    train_state = create_train_state(model, params, optimizer, device_manager)
     logger.info(f"Created training state")
     
     return model, dataset, dataloader, train_state

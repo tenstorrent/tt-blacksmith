@@ -117,14 +117,9 @@ def estimate_loss(
     losses = []
     
     for _ in range(eval_iters):
-        try:
-            # Try to get batch on primary device
-            with device_manager.with_device(device_manager.primary_device):
-                inputs, targets = get_batch_fn()
-        except Exception as e:
-            # Fallback to CPU
-            with device_manager.with_device("cpu"):
-                inputs, targets = get_batch_fn()
+        # Get batch on primary device
+        with device_manager.with_device(device_manager.primary_device):
+            inputs, targets = get_batch_fn()
         
         # Compute loss
         loss, _ = compute_loss(model, params, inputs, targets, training=False)
@@ -148,12 +143,15 @@ def get_lr(step: int, config) -> float:
 def create_train_state(
     model: Any,
     params: Any,
-    optimizer: optax.GradientTransformation
+    optimizer: optax.GradientTransformation,
+    device_manager: Any
 ) -> TrainState:
-    """Create initial training state."""
+    """Create initial training state with explicit CPU fallback for optimizer init."""
     
     logger.info("Creating initial training state")
-    opt_state = optimizer.init(params)
+    
+    # Initialize optimizer state on CPU (explicit fallback)
+    opt_state = device_manager.cpu_fallback(optimizer.init, params)
     
     train_state = TrainState(
         step=0,
@@ -174,26 +172,15 @@ def training_step(
 ) -> Tuple[TrainState, float, Any]:
     """Perform a single training step."""
     
-    # Compute loss and gradients
-    try:
-        with device_manager.with_device(device_manager.primary_device):
-            loss, grads, logits = compute_loss_and_grads(
-                train_state.model,
-                train_state.params,
-                inputs,
-                targets,
-                training=True
-            )
-    except Exception as e:
-        # Fallback to CPU
-        with device_manager.with_device("cpu"):
-            loss, grads, logits = compute_loss_and_grads(
-                train_state.model,
-                train_state.params,
-                inputs,
-                targets,
-                training=True
-            )
+    # Compute loss and gradients on primary device
+    with device_manager.with_device(device_manager.primary_device):
+        loss, grads, logits = compute_loss_and_grads(
+            train_state.model,
+            train_state.params,
+            inputs,
+            targets,
+            training=True
+        )
     
     # Update parameters
     new_params, new_opt_state = update_params(

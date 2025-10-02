@@ -51,7 +51,7 @@ def run_training(config, device_name, max_steps=100):
     
     # Create optimizer and training state
     optimizer = create_optimizer(config)
-    train_state = create_train_state(model, params, optimizer)
+    train_state = create_train_state(model, params, optimizer, device_manager)
     
     # Training loop
     losses = []

@@ -79,7 +79,7 @@ def test_training_step():
     
     # Create optimizer and training state
     optimizer = create_optimizer(config)
-    train_state = create_train_state(model, params, optimizer)
+    train_state = create_train_state(model, params, optimizer, device_manager)
     
     # Get a batch
     inputs, targets = dataset.get_batch('train', batch_size=2)

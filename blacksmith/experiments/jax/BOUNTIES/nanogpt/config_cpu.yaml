@@ -3,49 +3,49 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # CPU Configuration for NanoGPT Training
-# This configuration is optimized for CPU training as a baseline
+# This configuration is identical to TT config for fair comparison
 
 model:
-  n_layer: 6  # Smaller model for CPU
-  n_head: 6
-  n_embd: 384
-  block_size: 512  # Smaller context length for CPU
+  n_layer: 12  # Same as TT config
+  n_head: 12
+  n_embd: 768
+  block_size: 1024  # Same as TT config
   vocab_size: 50304
   dropout: 0.0
   bias: false
 
 data:
-  dataset: "shakespeare"  # Use smaller dataset for CPU
+  dataset: "openwebtext"  # Same as TT config
   data_dir: "data"
-  batch_size: 4  # Smaller batch size for CPU
-  block_size: 512
-  num_workers: 2
-  pin_memory: false
+  batch_size: 12  # Same as TT config
+  block_size: 1024
+  num_workers: 4
+  pin_memory: true
 
 training:
-  learning_rate: 3e-4  # Lower learning rate for CPU
-  max_iters: 1000  # Fewer iterations for demo
+  learning_rate: 6e-4  # Same as TT config
+  max_iters: 600000  # Same as TT config
   weight_decay: 1e-1
   beta1: 0.9
   beta2: 0.95
   grad_clip: 1.0
   decay_lr: true
-  warmup_iters: 100
-  lr_decay_iters: 1000
-  min_lr: 3e-5
-  eval_interval: 100
-  eval_iters: 20
+  warmup_iters: 2000
+  lr_decay_iters: 600000
+  min_lr: 6e-5
+  eval_interval: 2000
+  eval_iters: 200
   log_interval: 1
   always_save_checkpoint: true
-  device: "cpu"
+  device: "cpu"  # Only difference: device type
   compile: false  # Disable compilation for CPU
   dtype: "float32"
 
 device:
-  primary_device: "cpu"
+  primary_device: "cpu"  # Only difference: device type
   enable_fallback: true
   fallback_device: "cpu"
-  cpu_batch_size: 4
+  cpu_batch_size: 8
   tt_batch_size: 12
 
 logging:
@@ -53,7 +53,7 @@ logging:
   wandb_project: "nanogpt-jax-cpu"
   wandb_run_name: "nanogpt-cpu-baseline"
   checkpoint_dir: "checkpoints_cpu"
-  save_interval: 200
+  save_interval: 2000
   max_checkpoints: 3
   log_every_n_steps: 10
   log_metrics: true
