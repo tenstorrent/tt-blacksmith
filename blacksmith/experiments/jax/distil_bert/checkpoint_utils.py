@@ -30,7 +30,7 @@ def load_checkpoint(checkpoint_path):
 
 
 def get_latest_checkpoint(checkpoint_dir):
-    # Find the latest checkpoint in directory.
+    # Find the path of the latest checkpoint in the directory.
     if not os.path.exists(checkpoint_dir):
         return None
 

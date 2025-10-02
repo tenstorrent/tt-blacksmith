@@ -15,17 +15,11 @@ import wandb
 from blacksmith.tools.cli import generate_config
 from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 
-
-from blacksmith.models.jax.distil_bert.model import init_teacher, init_student
+from blacksmith.models.jax.distil_bert.model import init_model
 from blacksmith.models.jax.distil_bert.model_utils import split_params, combine_params
-from blacksmith.datasets.jax.distil_bert.sst2_dataset import get_tokenizer, load_sst2, numpy_batch_iter
+from blacksmith.datasets.jax.distil_bert.sst2_dataset import *
 
-from blacksmith.experiments.jax.distil_bert.checkpoint_utils import (
-    save_checkpoint,
-    load_checkpoint,
-    get_latest_checkpoint,
-    cleanup_old_checkpoints,
-)
+from blacksmith.experiments.jax.distil_bert.checkpoint_utils import *
 
 # Optimizer schedule with linear warmup and linear decay.
 def build_schedule(config: ExperimentConfig, num_train_steps: int):
@@ -40,12 +34,8 @@ def build_schedule(config: ExperimentConfig, num_train_steps: int):
     return schedule
 
 
-def softmax_with_temperature(logits, T):
-    return nn.softmax(logits / T, axis=-1)
-
-
 def kl_divergence(p_logits, q_logits, T):
-    p = softmax_with_temperature(p_logits, T)
+    p = nn.softmax(p_logits / T, axis=-1)
     log_p = jax.nn.log_softmax(p_logits / T, axis=-1)
     log_q = jax.nn.log_softmax(q_logits / T, axis=-1)
     kl = jnp.sum(p * (log_p - log_q), axis=-1)
@@ -143,18 +133,20 @@ def loss_fn(student, trainable_params, frozen_params, t_logits, t_hidden, batch,
 
 
 def evaluate(dataset, eval_step_fn, trainable_params, frozen_params, columns, batch_size=32):
+    # Use numpy_batch_iter without shuffling for deterministic evaluation.
+    eval_iter = numpy_batch_iter(dataset, batch_size, columns, shuffle=False)
+
     n = len(dataset)
-    total, count = 0.0, 0
-    for start in range(0, n, batch_size):
-        end = min(start + batch_size, n)
-        batch = {k: dataset[k][start:end] for k in columns}
-        batch["input_ids"] = batch["input_ids"].astype(np.int32)
-        batch["attention_mask"] = batch["attention_mask"].astype(np.int32)
-        batch["labels"] = batch["labels"].astype(np.int32)
+    steps_per_eval = math.ceil(n / batch_size)
+
+    total = 0.0
+
+    for _ in range(steps_per_eval):
+        batch = next(eval_iter)
         acc = eval_step_fn(trainable_params, frozen_params, batch)
-        total += float(acc) * (end - start)
-        count += end - start
-    return total / count
+        total += float(acc) * len(batch["labels"])
+
+    return total / n
 
 
 def train(config: ExperimentConfig):
@@ -166,8 +158,8 @@ def train(config: ExperimentConfig):
     # Initialize models and split student params into trainable and frozen,
     # where frozen params are the embedding layers. This is done to keep the
     # embeddings fixed during training as they are already well-trained on large corpora.
-    teacher, teacher_params = init_teacher()
-    student, student_params = init_student()
+    teacher, teacher_params = init_model(config.teacher_model, num_labels=2)
+    student, student_params = init_model(config.student_model, num_labels=2, seed=config.seed)
     trainable_params, frozen_params = split_params(student_params)
 
     # Create JIT-compiled teacher forward function.
@@ -186,8 +178,8 @@ def train(config: ExperimentConfig):
         job_type=config.job_name,
     )
 
-    num_train_steps = math.ceil(len(train_data) / config.batch_size) * config.num_epochs
     steps_per_epoch = math.ceil(len(train_data) / config.batch_size)
+    num_train_steps = steps_per_epoch * config.num_epochs
     global_step = 0
     rng = jax.random.PRNGKey(config.seed)
 
@@ -211,12 +203,8 @@ def train(config: ExperimentConfig):
     else:
         # Delete all existing checkpoints when not resuming.
         if os.path.exists(checkpoint_dir):
-            checkpoints = glob.glob(os.path.join(checkpoint_dir, "checkpoint_*.pkl"))
-            for checkpoint_path in checkpoints:
-                os.remove(checkpoint_path)
-                print(f"Deleted existing checkpoint: {checkpoint_path}")
-            if checkpoints:
-                print("Cleaned up all existing checkpoints for fresh start")
+            cleanup_old_checkpoints(checkpoint_dir, keep_top_k=0)
+            print("Cleaned up all existing checkpoints for fresh start")
 
     # Optimizer is initialized on CPU as it's execution will be on CPU
     # (https://github.com/tenstorrent/tt-metal/issues/27072).
@@ -254,8 +242,9 @@ def train(config: ExperimentConfig):
                 lambda x: jax.device_put(x, jax.devices("tt")[0]), new_trainable_params_cpu
             )
 
-            for k in loss_buffer:
-                loss_buffer[k].append(float(metrics[k]))
+            # loss_type can be 'loss_total', 'loss_ce', 'loss_kl', 'loss_cos'.
+            for loss_type in loss_buffer:
+                loss_buffer[loss_type].append(float(metrics[loss_type]))
 
             # Log training metrics at configured frequency.
             if global_step % config.log_every == 0:

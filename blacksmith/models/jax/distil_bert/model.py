@@ -3,34 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
-from transformers import (
-    FlaxBertForSequenceClassification,
-    FlaxDistilBertForSequenceClassification,
-)
+from transformers import FlaxAutoModelForSequenceClassification
 
-
-def init_teacher(model_name="textattack/bert-base-uncased-SST-2", num_labels=2, device="tt"):
+# Generic model initialization function.
+def init_model(model_name, num_labels=2, seed=None, device="tt"):
     # Initialize parameters on CPU (https://github.com/tenstorrent/tt-mlir/issues/979).
     with jax.default_device(jax.devices("cpu")[0]):
-        teacher = FlaxBertForSequenceClassification.from_pretrained(
-            model_name,
-            num_labels=num_labels,
-            dtype=jnp.bfloat16,
-        )
-    # Put parameters back to tt device.
-    teacher_params = jax.device_put(teacher.params, jax.devices(device)[0])
-    return teacher, teacher_params
+        kwargs = {
+            "num_labels": num_labels,
+            "dtype": jnp.bfloat16,
+        }
+        if seed is not None:
+            kwargs["seed"] = seed
 
+        model = FlaxAutoModelForSequenceClassification.from_pretrained(model_name, **kwargs)
 
-def init_student(model_name="distilbert-base-uncased", num_labels=2, seed=42, device="tt"):
-    # Initialize parameters on CPU (https://github.com/tenstorrent/tt-mlir/issues/979).
-    with jax.default_device(jax.devices("cpu")[0]):
-        student = FlaxDistilBertForSequenceClassification.from_pretrained(
-            model_name,
-            num_labels=num_labels,
-            dtype=jnp.bfloat16,
-            seed=seed,
-        )
     # Put parameters back to tt device.
-    student_params = jax.device_put(student.params, jax.devices(device)[0])
-    return student, student_params
+    params = jax.device_put(model.params, jax.devices(device)[0])
+    return model, params
