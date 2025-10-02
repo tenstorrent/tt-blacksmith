@@ -1,7 +1,6 @@
 name: Test (call)
 
 on:
-  push: # Debug trigger
   workflow_call:
     inputs:
       docker_image:

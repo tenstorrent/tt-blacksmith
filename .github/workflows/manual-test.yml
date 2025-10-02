@@ -1,6 +1,7 @@
 name: Run Test
 
 on:
+  push: # Debug trigger
   workflow_dispatch:
     inputs:
       use-shared-runners:
