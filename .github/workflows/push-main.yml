@@ -1,0 +1,18 @@
+name: On push
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  checks: write
+  pages: write
+  id-token: write
+  deployments: write
+
+jobs:
+
+  deploy-docs:
+    uses: ./.github/workflows/call-build-docs.yml
+    secrets: inherit

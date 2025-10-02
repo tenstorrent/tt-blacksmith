@@ -18,6 +18,11 @@ if [ "$tt_forge_fe" = false ] && [ "$tt_xla" = false ]; then
     return 1
 fi
 
+export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
+export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
+# pytest alias for venv interpreter
+alias pytest='python -m pytest'
+
 # Set environment directory based on frontend
 # To be safe we have two different environment directories for each frontend
 if [ "$tt_forge_fe" = true ]; then

@@ -1,0 +1,21 @@
+name: Run Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      use-shared-runners:
+        description: 'Use shared runners from Civ2'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  checks: write
+
+jobs:
+  test:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
+      use-shared-runners: ${{ inputs.use-shared-runners }}

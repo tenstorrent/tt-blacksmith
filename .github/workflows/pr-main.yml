@@ -7,17 +7,13 @@ on:
 
 jobs:
   pre-commit:
-    uses: ./.github/workflows/pre-commit.yml
-    secrets: inherit
-  spdx:
-    uses: ./.github/workflows/spdx.yml
+    uses: ./.github/workflows/call-pre-commit.yml
     secrets: inherit
 
   check-all-green:
     if: always()
     needs:
       - pre-commit
-      - spdx
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
