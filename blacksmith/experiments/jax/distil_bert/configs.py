@@ -23,6 +23,7 @@ class ExperimentConfig(BaseModel):
     warmup_ratio: float = Field(default=0.06, ge=0, le=1.0)
     optimizer: str = Field(default="adamw")
     seed: int = Field(default=42)
+    resume_from_checkpoint: bool = Field(default=False)
 
     # Loss settings
     temperature: float = Field(default=2.0, gt=0)
@@ -37,4 +38,7 @@ class ExperimentConfig(BaseModel):
     job_name: str = Field(default="distillation")
     log_every: int = Field(default=50, gt=0)
     log_val_every: int = Field(default=100, gt=0)
+    do_checkpoint: bool = Field(default=True)
+    checkpoint_every: int = Field(default=250, gt=0)
+    keep_top_k_checkpoints: int = Field(default=2)
     output_dir: str = Field(default="blacksmith/experiments/jax/distil_bert")

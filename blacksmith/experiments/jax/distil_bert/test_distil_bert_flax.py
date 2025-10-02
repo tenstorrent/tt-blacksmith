@@ -4,6 +4,7 @@
 
 import os
 import math
+import glob
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -11,12 +12,20 @@ import optax
 from flax import linen as nn
 import wandb
 
-from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 from blacksmith.tools.cli import generate_config
+from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
+
 
 from blacksmith.models.jax.distil_bert.model import init_teacher, init_student
 from blacksmith.models.jax.distil_bert.model_utils import split_params, combine_params
 from blacksmith.datasets.jax.distil_bert.sst2_dataset import get_tokenizer, load_sst2, numpy_batch_iter
+
+from blacksmith.experiments.jax.distil_bert.checkpoint_utils import (
+    save_checkpoint,
+    load_checkpoint,
+    get_latest_checkpoint,
+    cleanup_old_checkpoints,
+)
 
 # Optimizer schedule with linear warmup and linear decay.
 def build_schedule(config: ExperimentConfig, num_train_steps: int):
@@ -182,6 +191,33 @@ def train(config: ExperimentConfig):
     global_step = 0
     rng = jax.random.PRNGKey(config.seed)
 
+    # Setup checkpointing.
+    checkpoint_dir = os.path.join(config.output_dir, "checkpoints")
+    start_step = 0
+
+    # Load from checkpoint if resuming.
+    if config.resume_from_checkpoint:
+        latest_checkpoint = get_latest_checkpoint(checkpoint_dir)
+        if latest_checkpoint:
+            checkpoint = load_checkpoint(latest_checkpoint)
+            trainable_params = checkpoint["trainable_params"]
+            opt_state = checkpoint["opt_state"]
+            rng = checkpoint["rng"]
+            start_step = checkpoint["step"]
+            global_step = start_step
+            print(f"Resuming training from step {start_step}")
+        else:
+            print("No checkpoint found, starting from scratch")
+    else:
+        # Delete all existing checkpoints when not resuming.
+        if os.path.exists(checkpoint_dir):
+            checkpoints = glob.glob(os.path.join(checkpoint_dir, "checkpoint_*.pkl"))
+            for checkpoint_path in checkpoints:
+                os.remove(checkpoint_path)
+                print(f"Deleted existing checkpoint: {checkpoint_path}")
+            if checkpoints:
+                print("Cleaned up all existing checkpoints for fresh start")
+
     # Optimizer is initialized on CPU as it's execution will be on CPU
     # (https://github.com/tenstorrent/tt-metal/issues/27072).
     trainable_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, jax.devices("cpu")[0]), trainable_params)
@@ -225,7 +261,7 @@ def train(config: ExperimentConfig):
             if global_step % config.log_every == 0:
                 avg_metrics = {k: np.mean(loss_buffer[k]) for k in loss_buffer}
                 print(
-                    f"[epoch {epoch} step {global_step}] "
+                    f"[step {global_step}] "
                     f"loss_total={avg_metrics['loss_total']:.4f} "
                     f"ce={avg_metrics['loss_ce']:.4f} "
                     f"kl={avg_metrics['loss_kl']:.4f} "
@@ -252,13 +288,18 @@ def train(config: ExperimentConfig):
                 )
                 print(f"→ step {global_step}: validation accuracy={val_acc*100:.2f}%")
 
-                # Log validation to wandb
+                # Log validation to wandb.
                 wandb.log(
                     {
                         "val/accuracy": val_acc,
                         "step": global_step,
                     }
                 )
+
+            # Save checkpoint at configured frequency.
+            if config.do_checkpoint and global_step % config.checkpoint_every == 0 and global_step > 0:
+                save_checkpoint(checkpoint_dir, global_step, trainable_params, opt_state, rng)
+                cleanup_old_checkpoints(checkpoint_dir, config.keep_top_k_checkpoints)
 
             global_step += 1
 
