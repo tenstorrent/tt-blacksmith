@@ -4,13 +4,15 @@
 
 import os
 import math
-import glob
+from pathlib import Path
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import linen as nn
 import wandb
+
+from transformers import AutoTokenizer
 
 from blacksmith.tools.cli import generate_config
 from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
@@ -151,7 +153,7 @@ def evaluate(dataset, eval_step_fn, trainable_params, frozen_params, columns, ba
 
 def train(config: ExperimentConfig):
     # Load dataset and create batch iterator.
-    tokenizer = get_tokenizer(config.tokenizer_name)
+    tokenizer = AutoTokenizer.from_pretrained(config.tokenizer_name)
     train_data, val_data, columns = load_sst2(tokenizer, max_length=config.max_length)
     train_iter = numpy_batch_iter(train_data, config.batch_size, columns, shuffle=True, seed=config.seed)
 
@@ -184,7 +186,7 @@ def train(config: ExperimentConfig):
     rng = jax.random.PRNGKey(config.seed)
 
     # Setup checkpointing.
-    checkpoint_dir = os.path.join(config.output_dir, "checkpoints")
+    checkpoint_dir = Path(config.output_dir) / "checkpoints"
     start_step = 0
 
     # Load from checkpoint if resuming.
@@ -202,7 +204,7 @@ def train(config: ExperimentConfig):
             print("No checkpoint found, starting from scratch")
     else:
         # Delete all existing checkpoints when not resuming.
-        if os.path.exists(checkpoint_dir):
+        if checkpoint_dir.exists():
             cleanup_old_checkpoints(checkpoint_dir, keep_top_k=0)
             print("Cleaned up all existing checkpoints for fresh start")
 
@@ -296,8 +298,8 @@ def train(config: ExperimentConfig):
         wandb.finish()
 
     # Save model.
-    output_dir = os.path.join(config.output_dir, "distilled_student_sst2")
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path(config.output_dir) / "distilled_student_sst2"
+    output_dir.mkdir(parents=True, exist_ok=True)
     final_params = combine_params(trainable_params, frozen_params)
     student.save_pretrained(output_dir, params=final_params)
     tokenizer.save_pretrained(output_dir)
@@ -305,6 +307,6 @@ def train(config: ExperimentConfig):
 
 
 if __name__ == "__main__":
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_distil_bert_flax.yaml")
+    config_file_path = Path(__file__).parent / "test_distil_bert_flax.yaml"
     config = generate_config(ExperimentConfig, config_file_path)
     train(config)

@@ -3,11 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import numpy as np
 from datasets import load_dataset
-from transformers import AutoTokenizer
-
-
-def get_tokenizer(pretrained_name="bert-base-uncased"):
-    return AutoTokenizer.from_pretrained(pretrained_name)
 
 
 def load_sst2(tokenizer, max_length=128):

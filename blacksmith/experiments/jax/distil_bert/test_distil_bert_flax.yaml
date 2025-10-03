@@ -16,6 +16,7 @@ weight_decay: 0.01
 warmup_ratio: 0.06
 optimizer: "adamw"
 seed: 42
+# If False, training starts from scratch and previous checkpoints are deleted.
 resume_from_checkpoint: False
 
 # Loss settings
@@ -29,9 +30,9 @@ use_wandb: False
 experiment_name: "Flax DistilBERT on SST-2"
 project_name: "bert-distillation"
 job_name: "distillation"
-log_every: 50
-log_val_every: 50
-do_checkpoint: True
-checkpoint_every: 50
+log_every: 100
+log_val_every: 100
+do_checkpoint: False
+checkpoint_every: 100
 keep_top_k_checkpoints: 2
 output_dir: "blacksmith/experiments/jax/distil_bert"
