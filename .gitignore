@@ -1,4 +1,3 @@
-third_party/toolchains
 data/
 generated_modules/
 **/__pycache__/
@@ -6,6 +5,12 @@ generated_modules/
 checkpoints/
 wandb/
 results/
-envs/ffe_env
 logs/
 docs/output
+
+# Python env
+env/*
+!env/activate
+!env/ffe_requirements.txt
+!env/xla_requirements.txt
+!env/requirements.txt

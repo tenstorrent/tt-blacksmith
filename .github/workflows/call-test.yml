@@ -1,0 +1,69 @@
+name: Test (call)
+
+on:
+  workflow_call:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for the build'
+        required: true
+        type: string
+      use-shared-runners:
+        description: 'Use shared runners from Civ2'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  WANDB_MODE: disabled # to not log the data to wandb
+
+jobs:
+
+  # Run tests on TT hardware
+  run-tests:
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - { "runs-on": "n150", "frontend": "xla", "script": "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py" }
+          - { "runs-on": "n150", "frontend": "xla", "script": "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py" }
+          - { "runs-on": "n300", "frontend": "xla", "script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py" }
+          - { "runs-on": "n300", "frontend": "xla", "script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py" }
+          - { "runs-on": "n300", "frontend": "xla", "script": "blacksmith/experiments/torch/mnist/test_mnist_training.py" }
+
+    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || matrix.build.runs-on }}
+
+    name: "test ${{ matrix.build.script }} (${{ matrix.build.frontend }}, ${{ matrix.build.runs-on }} )"
+
+    container:
+      image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+
+    - uses: actions/checkout@v4
+
+    - name: Mark repo as safe for git
+      run: |
+        git config --global --add safe.directory /__w/tt-blacksmith/tt-blacksmith
+
+    - name: Setup environment
+      shell: bash
+      run: |
+        source env/activate --${{ matrix.build.frontend }}
+
+    - name: Run tests
+      shell: bash
+      run: |
+        export WANDB_MODE=disabled
+        export LOGURU_LEVEL=ERROR
+        export LOGGER_LEVEL=ERROR
+        source env/activate --${{ matrix.build.frontend }}
+        python3 ${{ matrix.build.script }}

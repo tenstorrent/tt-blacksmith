@@ -1,0 +1,38 @@
+# Dataset settings
+dataset_id: "glue/sst2"
+tokenizer_name: "bert-base-uncased"
+max_length: 128
+
+# Model settings
+teacher_model: "textattack/bert-base-uncased-SST-2"
+student_model: "distilbert-base-uncased"
+dtype: "jax.bfloat16"
+
+# Training hyperparameters
+learning_rate: 1e-5
+batch_size: 32
+num_epochs: 3
+weight_decay: 0.01
+warmup_ratio: 0.06
+optimizer: "adamw"
+seed: 42
+# If False, training starts from scratch and previous checkpoints are deleted.
+resume_from_checkpoint: False
+
+# Loss settings
+temperature: 2.0
+alpha_kl: 0.45
+alpha_ce: 1.0
+alpha_cos: 0.1
+
+# Logging
+use_wandb: False
+experiment_name: "Flax DistilBERT on SST-2"
+project_name: "bert-distillation"
+job_name: "distillation"
+log_every: 100
+log_val_every: 100
+do_checkpoint: False
+checkpoint_every: 100
+keep_top_k_checkpoints: 2
+output_dir: "blacksmith/experiments/jax/distil_bert"

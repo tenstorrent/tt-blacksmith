@@ -1,0 +1,18 @@
+experiment_name: blacksmith-mnist-training
+tags:
+  - tt-xla
+  - model:torch
+  - plugin
+  - wandb
+device: "TT"
+training_config:
+  train_ratio: 0.8
+  batch_size: 64
+  epochs: 5
+  lr: 0.001
+net_config:
+  input_size: 784
+  hidden_size: 512
+  output_size: 10
+  bias: True
+loss: torch.nn.MSELoss

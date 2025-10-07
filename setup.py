@@ -16,8 +16,8 @@ if not FRONTEND:
 exclude_keywords = defaultdict(
     list,
     {
-        "tt-forge-fe": ["jax"],
-        "tt-xla": ["forge", "torch", "lightning", "torchvision"],
+        "tt-forge-fe": ["jax", "torch_xla"],
+        "tt-xla": ["forge"],
     },
 )
 
