@@ -46,7 +46,12 @@ def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
 
             b = jnp.zeros((b_dim, spec_val), dtype=dtype)
             a = jax.random.normal(next(key_it), (spec_val, a_dim), dtype=dtype) * stddev
-            return LoraWeight(w=param, a=a, b=b, alpha=alpha)
+            
+            # Initialize magnitude vector for DoRA - use column norms of original weight
+            col_norms = jnp.linalg.norm(param, ord=2, axis=0, keepdims=True)
+            m = col_norms.astype(dtype)
+            
+            return LoraWeight(w=param, a=a, b=b, m=m, alpha=alpha)
 
         # conv case
         *window_shape, in_channels, out_channels = param.shape
@@ -56,7 +61,16 @@ def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
             dtype=param.dtype,
         )
         b = jax.random.normal(rng, (*window_shape, in_channels, spec_val), dtype=param.dtype) * stddev
-        return LoraWeight(param, a, b, alpha=alpha)
+        
+        # Initialize magnitude vector for DoRA - use column norms of original weight (flattened)
+        # For conv weights, we compute norms over all spatial and input channel dimensions
+        axes_to_norm = tuple(range(len(param.shape) - 1))  # All axes except output channels
+        col_norms = jnp.linalg.norm(param, ord=2, axis=axes_to_norm, keepdims=True)
+        # Reshape to match expected m shape: (1, ..., 1, out_channels)
+        m_shape = (*(1 for _ in range(len(window_shape))), 1, out_channels)
+        m = col_norms.reshape(m_shape).astype(param.dtype)
+        
+        return LoraWeight(param, a, b, m, alpha=alpha)
 
     return jax.tree_util.tree_map_with_path(get_param, param_tree, spec, is_leaf=is_leaf)
 
@@ -123,7 +137,7 @@ def split_lora_params(params, spec) -> Any:
         if not isinstance(node, LoraWeight):
             return node if spec_val != LORA_FREEZE else None
         # Create a new LoraWeight with w=None to save memory during checkpointing
-        return LoraWeight(w=None, a=node.a, b=node.b, alpha=node.alpha)
+        return LoraWeight(w=None, a=node.a, b=node.b, m=node.m, alpha=node.alpha)
 
     return jax.tree.map(node_mapper, params, spec)
 
@@ -145,11 +159,12 @@ def wrap_optimizer(
     def freeze_weights(updates):
         def freeze_by_spec(update, spec_value):
             if isinstance(update, LoraWeight):
-                # For LoraWeight: freeze 'w' and 'alpha', allow 'a' and 'b' to update
+                # For LoraWeight: freeze 'w', 'alpha', and 'm', allow 'a' and 'b' to update
                 return LoraWeight(
                     w=jnp.zeros_like(update.w),  # Zero gradient for frozen w
                     a=update.a,  # Keep gradient for a
                     b=update.b,  # Keep gradient for b
+                    m=jnp.zeros_like(update.m),  # Zero gradient for frozen m
                     alpha=0.0,  # Freeze alpha
                 )
             else:
@@ -182,8 +197,8 @@ def split_trainable_frozen(lora_params, lora_spec) -> Tuple[Dict[str, Any], Dict
 
     def split_param(param, spec_value, path_parts):
         if isinstance(param, LoraWeight):
-            # For LoraWeight: only a,b are trainable
-            trainable_params[".".join(path_parts)] = {"a": param.a, "b": param.b}
+            # For LoraWeight: only a,b are trainable, m should also be trainable for DoRA
+            trainable_params[".".join(path_parts)] = {"a": param.a, "b": param.b, "m": param.m}
             frozen_params[".".join(path_parts)] = {"w": param.w, "alpha": param.alpha}
         else:
             # Regular parameters go to frozen (they should all be spec=0)
@@ -199,7 +214,7 @@ def split_trainable_frozen(lora_params, lora_spec) -> Tuple[Dict[str, Any], Dict
     traverse_tree(lora_params, lora_spec)
 
     print(f"Split completed:")
-    print(f" Trainable params: {len(trainable_params)} LoRA matrix pairs")
+    print(f" Trainable params: {len(trainable_params)} LoRA matrix pairs (a, b, m)")
     print(f" Frozen params: {len(frozen_params)} weight groups")
 
     return trainable_params, frozen_params
@@ -231,7 +246,13 @@ def merge_trainable_frozen(trainable_params, frozen_params) -> Any:
         frozen_lora = frozen_params[path]  # Should have 'w' and 'alpha'
 
         # Reconstruct LoraWeight
-        lora_weight = LoraWeight(w=frozen_lora["w"], a=trainable["a"], b=trainable["b"], alpha=frozen_lora["alpha"])
+        lora_weight = LoraWeight(
+            w=frozen_lora["w"], 
+            a=trainable["a"], 
+            b=trainable["b"], 
+            m=trainable["m"],
+            alpha=frozen_lora["alpha"]
+        )
 
         # Place in merged tree
         keys = path.split(".")
