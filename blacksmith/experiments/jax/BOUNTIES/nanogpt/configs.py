@@ -135,18 +135,104 @@ def get_default_config() -> ExperimentConfig:
 def get_cpu_config() -> ExperimentConfig:
     """Get configuration optimized for CPU training."""
     config = get_default_config()
-    config.device.primary_device = "cpu"
-    config.data.batch_size = 4  # Smaller batch size for CPU
-    config.training.learning_rate = 3e-4  # Lower learning rate for CPU
-    config.training.compile = False  # Disable compilation for CPU
+    # Make identical to TT config for fair comparison
+    config.model.n_layer = 12
+    config.model.n_head = 12
+    config.model.n_embd = 768
+    config.model.block_size = 1024
+    config.data.dataset = "openwebtext"
+    config.data.batch_size = 12  # Same as TT config
+    config.data.block_size = 1024
+    config.training.learning_rate = 6e-4  # Same as TT config
+    config.training.max_iters = 600000  # Same as TT config
+    config.training.warmup_iters = 2000
+    config.training.lr_decay_iters = 600000
+    config.training.min_lr = 6e-5
+    config.training.eval_interval = 2000
+    config.training.eval_iters = 200
+    config.training.weight_decay = 1e-1
+    config.training.beta1 = 0.9
+    config.training.beta2 = 0.95
+    config.training.grad_clip = 1.0
+    config.training.decay_lr = True
+    config.training.log_interval = 1
+    config.training.always_save_checkpoint = True
+    config.training.device = "cpu"
+    config.training.compile = False  # Only difference: disable compilation for CPU
+    config.training.dtype = "float32"
+    config.device.primary_device = "cpu"  # Only difference: device type
+    config.device.enable_fallback = True
+    config.device.fallback_device = "cpu"
+    config.device.cpu_batch_size = 8
+    config.device.tt_batch_size = 12
+    config.logging.log_on_wandb = True
+    config.logging.wandb_project = "nanogpt-jax-cpu"
+    config.logging.wandb_run_name = "nanogpt-cpu-baseline"
+    config.logging.checkpoint_dir = "checkpoints_cpu"
+    config.logging.save_interval = 2000
+    config.logging.max_checkpoints = 3
+    config.logging.log_every_n_steps = 10
+    config.logging.log_metrics = True
+    config.logging.log_gradients = False
+    config.early_stopping.enabled = False
+    config.early_stopping.patience = 10
+    config.early_stopping.min_delta = 0.001
+    config.early_stopping.monitor = "val_loss"
+    config.experiment_name = "nanogpt-jax-cpu"
+    config.seed = 42
+    config.resume = False
+    config.resume_from_checkpoint = None
     return config
 
 
 def get_tt_config() -> ExperimentConfig:
     """Get configuration optimized for TT-N150 training."""
     config = get_default_config()
-    config.device.primary_device = "tt"
-    config.data.batch_size = 12  # Larger batch size for TT
-    config.training.learning_rate = 6e-4  # Standard learning rate
-    config.training.compile = True  # Enable compilation for TT
+    # Make identical to CPU config for fair comparison
+    config.model.n_layer = 12
+    config.model.n_head = 12
+    config.model.n_embd = 768
+    config.model.block_size = 1024
+    config.data.dataset = "openwebtext"
+    config.data.batch_size = 12  # Same as CPU config
+    config.data.block_size = 1024
+    config.training.learning_rate = 6e-4  # Same as CPU config
+    config.training.max_iters = 600000  # Same as CPU config
+    config.training.warmup_iters = 2000
+    config.training.lr_decay_iters = 600000
+    config.training.min_lr = 6e-5
+    config.training.eval_interval = 2000
+    config.training.eval_iters = 200
+    config.training.weight_decay = 1e-1
+    config.training.beta1 = 0.9
+    config.training.beta2 = 0.95
+    config.training.grad_clip = 1.0
+    config.training.decay_lr = True
+    config.training.log_interval = 1
+    config.training.always_save_checkpoint = True
+    config.training.device = "tt"
+    config.training.compile = True  # Only difference: enable compilation for TT
+    config.training.dtype = "float32"
+    config.device.primary_device = "tt"  # Only difference: device type
+    config.device.enable_fallback = True
+    config.device.fallback_device = "cpu"
+    config.device.cpu_batch_size = 8
+    config.device.tt_batch_size = 12
+    config.logging.log_on_wandb = True
+    config.logging.wandb_project = "nanogpt-jax-tt"
+    config.logging.wandb_run_name = "nanogpt-tt-n150"
+    config.logging.checkpoint_dir = "checkpoints_tt"
+    config.logging.save_interval = 2000
+    config.logging.max_checkpoints = 3
+    config.logging.log_every_n_steps = 10
+    config.logging.log_metrics = True
+    config.logging.log_gradients = False
+    config.early_stopping.enabled = False
+    config.early_stopping.patience = 10
+    config.early_stopping.min_delta = 0.001
+    config.early_stopping.monitor = "val_loss"
+    config.experiment_name = "nanogpt-jax-tt"
+    config.seed = 42
+    config.resume = False
+    config.resume_from_checkpoint = None
     return config
