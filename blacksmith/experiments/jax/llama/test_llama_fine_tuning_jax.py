@@ -21,6 +21,9 @@ from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config
 import wandb
 
+import numpy as np
+import jax
+import jax.numpy as jnp
 
 MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
 DEFAULT_EXPERIMENT_NAME = "Llama-TT-LoRA-Training"
@@ -28,6 +31,73 @@ DEFAULT_RUN_NAME = "llama-3.2-1b-sst2-tt-lorax"
 
 
 WANDB_ENABLED = False
+
+import numpy as np
+import jax
+import jax.numpy as jnp
+import os
+
+
+def compute_dora_metrics(initial_params, current_params):
+    """Compute ΔM (magnitude diff) and ΔD (direction diff) across all 2D weight matrices."""
+    delta_M, delta_D = [], []
+
+    def compare_matrix(W0, Wt):
+        if W0.ndim > 2:
+            W0 = W0.reshape(W0.shape[0], -1)
+            Wt = Wt.reshape(Wt.shape[0], -1)
+        if W0.shape != Wt.shape:
+            return None, None
+        eps = 1e-9
+        m0 = jnp.linalg.norm(W0, axis=0)
+        mt = jnp.linalg.norm(Wt, axis=0)
+        v0 = W0 / (m0 + eps)
+        vt = Wt / (mt + eps)
+        dM = jnp.mean(jnp.abs(mt - m0) / (m0 + eps))     # relative ΔM
+        cos_sim = jnp.sum(vt * v0, axis=0)
+        cos_sim = jnp.clip(cos_sim, -1.0, 1.0)
+        dD = jnp.mean(1 - cos_sim)
+        return float(dM), float(dD)
+
+    flat0 = jax.tree_util.tree_leaves(initial_params)
+    flat1 = jax.tree_util.tree_leaves(current_params)
+    for W0, Wt in zip(flat0, flat1):
+        if isinstance(W0, jax.Array) and W0.ndim >= 2:
+            dM, dD = compare_matrix(W0, Wt)
+            if dM is not None:
+                delta_M.append(dM)
+                delta_D.append(dD)
+
+    return np.array(delta_M), np.array(delta_D)
+
+
+def save_dora_metrics(step, delta_M, delta_D, out_dir="dora_metrics"):
+    """Save ΔM and ΔD arrays for the current step."""
+    os.makedirs(out_dir, exist_ok=True)
+    save_path = os.path.join(out_dir, f"step_{step:05d}.npz")
+    np.savez(save_path, delta_M=delta_M, delta_D=delta_D)
+    print(f"[DoRA] Saved metrics → {save_path}")
+
+def mean_abs_diff_adapted(initial_params, current_params, lora_spec):
+    # 1) materialize both
+    def mat(p):
+        return jax.tree.map(
+            lambda x: x.materialise() if hasattr(x, "materialise") else x,
+            p, is_leaf=lambda x: hasattr(x, "materialise")
+        )
+    W0 = mat(initial_params)
+    Wt = mat(current_params)
+
+    # 2) compute diffs only on adapted kernels (spec != LORA_FREEZE) & 2D weights
+    diffs = []
+    for p0, p1, s in zip(
+        jax.tree_util.tree_leaves(W0),
+        jax.tree_util.tree_leaves(Wt),
+        jax.tree_util.tree_leaves(lora_spec),
+    ):
+        if isinstance(p0, jax.Array) and getattr(p0, "ndim", 0) >= 2 and isinstance(s, int) and s != LORA_FREEZE:
+            diffs.append(float(jnp.mean(jnp.abs(p1 - p0))))
+    return float(np.mean(diffs)) if diffs else 0.0
 
 
 def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
@@ -235,6 +305,14 @@ def main() -> None:
     global_step = 0
     last_10_losses = []
 
+    initial_weights = lorax.merge_trainable_frozen(trainable_params, frozen_params)
+    initial_weights = jax.tree.map(
+        lambda p: p.materialise() if hasattr(p, "materialise") else p,
+        initial_weights,
+        is_leaf=lambda x: hasattr(x, "materialise")
+    )
+    dms = []
+    dds = []
     try:
         for epoch in range(training_config.num_epochs):
             epoch_losses = []
@@ -276,7 +354,7 @@ def main() -> None:
                     step=global_step,
                 )
 
-                if len(last_10_losses) == 10:
+                if len(last_10_losses) == 1:
                     avg_10_loss = np.mean(last_10_losses)
                     log_to_wandb(
                         {
@@ -288,12 +366,50 @@ def main() -> None:
                         f"Epoch {epoch+1}, Batch {batch_idx+1:2d}: Loss = {current_loss:.4f} | Avg 10 = {avg_10_loss:.4f}"
                     )
                     last_10_losses = []
+
+                    merged_params = lorax.merge_trainable_frozen(trainable_params, frozen_params)
+                    merged_params = jax.tree.map(
+                        lambda p: p.materialise() if hasattr(p, "materialise") else p,
+                        merged_params,
+                        is_leaf=lambda x: hasattr(x, "materialise")
+                    )
+
+                    # apples-to-apples diff (materialized, adapted-only)
+                    mad = mean_abs_diff_adapted(initial_weights, merged_params, lora_spec)
+                    print(f"[DoRA] mean abs diff (adapted, materialized): {mad:.6e}")
+
+                    # your existing metrics
+                    delta_M, delta_D = compute_dora_metrics(initial_weights, merged_params)
+
+                    print(f"[DoRA] ΔM={np.mean(delta_M):.6e}, ΔD={np.mean(delta_D):.6e}")
+                    dms.append(np.mean(delta_M))
+                    dds.append(np.mean(delta_D))
+
+
+
+                    import matplotlib.pyplot as plt
+                    plt.figure(figsize=(10, 6))
+                    plt.scatter(dds, dms, s=25, alpha=0.7)
+                    plt.xlabel("ΔD (1 - cos)")
+                    plt.ylabel("ΔM (|Δm| / m₀)")
+                    plt.title(f"ΔM vs ΔD – Step {global_step}")
+                    plt.grid(True, linestyle="--", alpha=0.4)
+                    plt.savefig(f"dora_scatter_step_{global_step:05d}.png", dpi=150)
+                    plt.close()
+
+
+
                 else:
                     print(
                         f"Epoch {epoch+1}, Batch {batch_idx+1:2d}: Loss = {current_loss:.4f} ({len(last_10_losses)}/10)"
                     )
 
+
+                
+
             avg_epoch_loss = np.mean(epoch_losses)
+
+            
 
         log_to_wandb(
             {
