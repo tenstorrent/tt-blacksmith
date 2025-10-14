@@ -47,7 +47,7 @@ def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
             b = jnp.zeros((b_dim, spec_val), dtype=dtype)
             a = jax.random.normal(next(key_it), (spec_val, a_dim), dtype=dtype) * stddev
             
-            # Initialize magnitude vector for DoRA - use column norms of original weight
+            # Initialize magnitude vector for LoRA - use column norms of original weight
             col_norms = jnp.linalg.norm(param, ord=2, axis=0, keepdims=True)
             m = col_norms.astype(dtype)
             
@@ -62,7 +62,7 @@ def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
         )
         b = jax.random.normal(rng, (*window_shape, in_channels, spec_val), dtype=param.dtype) * stddev
         
-        # Initialize magnitude vector for DoRA - use column norms of original weight (flattened)
+        # Initialize magnitude vector for LoRA - use column norms of original weight (flattened)
         # For conv weights, we compute norms over all spatial and input channel dimensions
         axes_to_norm = tuple(range(len(param.shape) - 1))  # All axes except output channels
         col_norms = jnp.linalg.norm(param, ord=2, axis=axes_to_norm, keepdims=True)
@@ -197,7 +197,7 @@ def split_trainable_frozen(lora_params, lora_spec) -> Tuple[Dict[str, Any], Dict
 
     def split_param(param, spec_value, path_parts):
         if isinstance(param, LoraWeight):
-            # For LoraWeight: only a,b are trainable, m should also be trainable for DoRA
+            # For LoraWeight: only a,b are trainable, m should also be trainable for LoRA
             trainable_params[".".join(path_parts)] = {"a": param.a, "b": param.b, "m": param.m}
             frozen_params[".".join(path_parts)] = {"w": param.w, "alpha": param.alpha}
         else:

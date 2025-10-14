@@ -93,7 +93,7 @@ def handle_dot_rhs_dora(lhs: jax.Array, lora: LoraWeight, *, dimension_numbers: 
 
 
 @quax.register(lax.transpose_p)
-def eval_lora_transpose(arg: LoraWeight, *, permutation: Any) -> Any:
+def eval_dora_transpose(arg: LoraWeight, *, permutation: Any) -> Any:
     """
     Define how a `LoraWeight` behaves under transpose. For 2D weights and a
     simple (1, 0) permutation, return a new `LoraWeight` with all components
@@ -112,7 +112,7 @@ def eval_lora_transpose(arg: LoraWeight, *, permutation: Any) -> Any:
 
 
 @quax.register(lax.convert_element_type_p)
-def eval_lora_convert_element_type(arg: LoraWeight, *, new_dtype: Any, **_) -> LoraWeight:
+def eval_dora_convert_element_type(arg: LoraWeight, *, new_dtype: Any, **_) -> LoraWeight:
     """
     Define dtype conversion for `LoraWeight`. Convert internal arrays to the
     requested dtype while keeping `alpha` as a Python float.
