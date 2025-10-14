@@ -96,7 +96,7 @@ def eval_dora_transpose(arg: DoraWeight, *, permutation: Any) -> Any:
     """
     Define how a `DoraWeight` behaves under transpose.
     """
-    if not len(arg.shape) == 2 and permutation == (1, 0):
+    if not (len(arg.shape) == 2 and permutation == (1, 0)):
         return NotImplemented
 
     return DoraWeight(
