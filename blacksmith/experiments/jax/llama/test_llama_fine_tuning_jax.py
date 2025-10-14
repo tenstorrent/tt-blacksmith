@@ -14,7 +14,7 @@ from transformers import FlaxAutoModelForCausalLM, AutoTokenizer, AutoConfig
 
 from datasets import load_dataset
 import lorax
-from lorax import LORA_FREEZE
+from lorax import DORA_FREEZE
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
@@ -22,7 +22,7 @@ from blacksmith.tools.cli import generate_config
 import wandb
 
 MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
-DEFAULT_EXPERIMENT_NAME = "Llama-TT-LoRA-Training"
+DEFAULT_EXPERIMENT_NAME = "Llama-TT-DoRA-Training"
 DEFAULT_RUN_NAME = "llama-3.2-1b-sst2-tt-lorax"
 
 
@@ -50,8 +50,8 @@ def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: s
             "learning_rate": training_config.learning_rate,
             "batch_size": training_config.batch_size,
             "num_epochs": training_config.num_epochs,
-            "lora_rank": training_config.lora_r,
-            "lora_target_modules": training_config.lora_target_modules,
+            "dora_rank": training_config.lora_r,
+            "dora_target_modules": training_config.lora_target_modules,
             "device": device,
             "framework": "jax_lorax",
         },
@@ -117,23 +117,23 @@ def load_data(training_config: TrainingConfig) -> Tuple[jnp.ndarray, jnp.ndarray
     return train_input_ids, train_attention_mask, train_labels
 
 
-def create_lora_decision_fn(lora_rank: int) -> Any:
-    """Create LoRA decision function for parameter selection."""
+def create_dora_decision_fn(dora_rank: int) -> Any:
+    """Create DoRA decision function for parameter selection."""
 
     def decision_fn(path: Any, param: Any) -> int:
         path_str = ".".join(str(k.key) if hasattr(k, "key") else str(k) for k in path)
         if ".mlp." in path_str and (
             ".gate_proj.kernel" in path_str or ".up_proj.kernel" in path_str or ".down_proj.kernel" in path_str
         ):
-            print(f"Applying LoRA rank {lora_rank} to: {path_str}")
-            return lora_rank
+            print(f"Applying DoRA rank {dora_rank} to: {path_str}")
+            return dora_rank
         else:
-            return LORA_FREEZE
+            return DORA_FREEZE
 
     return decision_fn
 
 
-def create_loss_fn(lora_model: Any) -> Any:
+def create_loss_fn(dora_model: Any) -> Any:
     """Create training loss function."""
 
     def loss_fn(
@@ -144,7 +144,7 @@ def create_loss_fn(lora_model: Any) -> Any:
         labels_batch: jnp.ndarray,
     ) -> jnp.ndarray:
         merged_params = lorax.merge_trainable_frozen(trainable_params, frozen_params)
-        logits = lora_model(input_ids_batch, attention_mask=attention_mask_batch, params=merged_params).logits
+        logits = dora_model(input_ids_batch, attention_mask=attention_mask_batch, params=merged_params).logits
 
         shift_logits = logits[:, :-1, :]
         shift_labels = labels_batch[:, 1:]
@@ -210,26 +210,26 @@ def main() -> None:
 
     input_id_batches, attention_mask_batches, label_batches = load_data(training_config)
 
-    decision_fn = create_lora_decision_fn(training_config.lora_r)
-    lora_spec = lorax.simple_spec(model.params, decision_fn=decision_fn, tune_vectors=False)
+    decision_fn = create_dora_decision_fn(training_config.lora_r)
+    dora_spec = lorax.simple_spec(model.params, decision_fn=decision_fn, tune_vectors=False)
 
     # Initializing model parameters on CPU, since jax.random.normal
     # is currently not supported on device (https://github.com/tenstorrent/tt-xla/issues/1105).
     with jax.default_device(cpu_device):
-        lora_params = lorax.init_lora(model.params, lora_spec, jax.random.PRNGKey(42))
+        dora_params = lorax.init_dora(model.params, dora_spec, jax.random.PRNGKey(42))
 
-    lora_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), lora_params)
-    # Split parameters into trainable and frozen sets: only LoRA‑adapted weights
+    dora_params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), dora_params)
+    # Split parameters into trainable and frozen sets: only DoRA‑adapted weights
     # are optimized during training, while the base model weights remain fixed.
-    trainable_params, frozen_params = lorax.split_trainable_frozen(lora_params, lora_spec)
+    trainable_params, frozen_params = lorax.split_trainable_frozen(dora_params, dora_spec)
 
     with jax.default_device(cpu_device):
         optimizer = optax.adamw(learning_rate=training_config.learning_rate, weight_decay=0.01)
         trainable_params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), trainable_params)
         opt_state = optimizer.init(trainable_params_cpu)
 
-    lora_model = lorax.lora(model)
-    loss_fn = create_loss_fn(lora_model)
+    dora_model = lorax.dora(model)
+    loss_fn = create_loss_fn(dora_model)
     compute_grads_tt = create_compute_grads_fn(loss_fn)
 
     print("Starting training on SST dataset...")

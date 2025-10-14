@@ -12,7 +12,7 @@ batch_size: 4
 num_epochs: 1
 optim: None
 
-# LoRA setup
+# DoRA setup
 lora_r: 4
 lora_alpha: 8
 lora_target_modules: ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"]

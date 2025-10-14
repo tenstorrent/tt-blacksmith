@@ -18,7 +18,7 @@ import quax
 from typing import Any, Callable
 
 
-def lora(f: Callable[..., Any]) -> Callable[..., Any]:
+def dora(f: Callable[..., Any]) -> Callable[..., Any]:
     """
     Alias for quax.quaxify to reduce necessary modification to code
     using older version of Lorax
@@ -26,7 +26,7 @@ def lora(f: Callable[..., Any]) -> Callable[..., Any]:
     return quax.quaxify(f)
 
 @dataclass
-class LoraWeight(quax.ArrayValue):
+class DoraWeight(quax.ArrayValue):
     w: jax.Array  # M x N
     a: jax.Array  # k x N
     b: jax.Array  # M x k
@@ -50,59 +50,56 @@ class LoraWeight(quax.ArrayValue):
 
 
 @quax.register(lax.dot_general_p)
-def handle_dot_lhs_dora(lora: LoraWeight, rhs: jax.Array, *, dimension_numbers: Any, **kwargs: Any) -> Any:
+def handle_dot_lhs_dora(dora: DoraWeight, rhs: jax.Array, *, dimension_numbers: Any, **kwargs: Any) -> Any:
     """
     Handle DoRA forward pass: y = (m * normalize(W + B @ A)) @ x
-    Implemented efficiently using two smaller matmuls and column normalization.
     """
-    if isinstance(rhs, LoraWeight):
+    if isinstance(rhs, DoraWeight):
         rhs = rhs.materialise()
-        warnings.warn("Encountered product of two LoraWeights. Materializing the rhs")
+        warnings.warn("Encountered product of two DoraWeights. Materializing the rhs")
 
     op = partial(jax.lax.dot_general, **kwargs)
 
     # First compute adapted direction: W + B @ A
-    v = lora.w + (lora.b @ lora.a)
+    v = dora.w + (dora.b @ dora.a)
     col_norms = jnp.linalg.norm(v, ord=2, axis=0, keepdims=True)
     v_normed = v / col_norms
 
     # Scale by magnitude vector (1×N) along columns
-    v_scaled = lora.m * v_normed
+    v_scaled = dora.m * v_normed
 
     # Perform dot product with rhs
     out = op(v_scaled, rhs, dimension_numbers=dimension_numbers)
 
-    return out.astype(lora.w.dtype)
+    return out.astype(dora.w.dtype)
 
 
 
 @quax.register(lax.dot_general_p)
-def handle_dot_rhs_dora(lhs: jax.Array, lora: LoraWeight, *, dimension_numbers: Any, **kwargs: Any) -> Any:
+def handle_dot_rhs_dora(lhs: jax.Array, dora: DoraWeight, *, dimension_numbers: Any, **kwargs: Any) -> Any:
     """
     Handle DoRA forward pass for X @ (m * normalize(W + B @ A))
     """
     op = partial(jax.lax.dot_general, **kwargs)
 
-    v = lora.w + (lora.b @ lora.a)
+    v = dora.w + (dora.b @ dora.a)
     col_norms = jnp.linalg.norm(v, ord=2, axis=0, keepdims=True)
     v_normed = v / col_norms
-    v_scaled = lora.m * v_normed
+    v_scaled = dora.m * v_normed
 
     out = op(lhs, v_scaled, dimension_numbers=dimension_numbers)
-    return out.astype(lora.w.dtype)
+    return out.astype(dora.w.dtype)
 
 
 @quax.register(lax.transpose_p)
-def eval_dora_transpose(arg: LoraWeight, *, permutation: Any) -> Any:
+def eval_dora_transpose(arg: DoraWeight, *, permutation: Any) -> Any:
     """
-    Define how a `LoraWeight` behaves under transpose. For 2D weights and a
-    simple (1, 0) permutation, return a new `LoraWeight` with all components
-    transposed, preserving DoRA structure without materialization.
+    Define how a `DoraWeight` behaves under transpose.
     """
     if not len(arg.shape) == 2 and permutation == (1, 0):
         return NotImplemented
 
-    return LoraWeight(
+    return DoraWeight(
         w=arg.w.T,
         a=arg.b.T,
         b=arg.a.T,
@@ -112,12 +109,11 @@ def eval_dora_transpose(arg: LoraWeight, *, permutation: Any) -> Any:
 
 
 @quax.register(lax.convert_element_type_p)
-def eval_dora_convert_element_type(arg: LoraWeight, *, new_dtype: Any, **_) -> LoraWeight:
+def eval_dora_convert_element_type(arg: DoraWeight, *, new_dtype: Any, **_) -> DoraWeight:
     """
-    Define dtype conversion for `LoraWeight`. Convert internal arrays to the
-    requested dtype while keeping `alpha` as a Python float.
+    Define dtype conversion for `DoraWeight`.
     """
-    return LoraWeight(
+    return DoraWeight(
         w=jax.lax.convert_element_type(arg.w, new_dtype),
         a=jax.lax.convert_element_type(arg.a, new_dtype),
         b=jax.lax.convert_element_type(arg.b, new_dtype),

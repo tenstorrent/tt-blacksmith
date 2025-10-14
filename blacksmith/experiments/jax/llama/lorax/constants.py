@@ -7,5 +7,5 @@ Copyright (c) 2023 davisyoshida
 Source: https://github.com/davisyoshida/lorax
 See THIRD_PARTY_NOTICES.md for the full MIT license text.
 """
-LORA_FREEZE = 0
-LORA_FULL = -1
+DORA_FREEZE = 0
+DORA_FULL = -1

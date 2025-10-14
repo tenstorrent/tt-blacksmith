@@ -7,29 +7,26 @@ Copyright (c) 2023 davisyoshida
 Source: https://github.com/davisyoshida/lorax
 See THIRD_PARTY_NOTICES.md for the full MIT license text.
 """
-from .transform import LoraWeight, lora
+from .transform import DoraWeight, dora
 from .helpers import (
-    init_lora,
-    merge_params,
+    init_dora,
     simple_spec,
-    split_lora_params,
-    wrap_optimizer,
     split_trainable_frozen,
     merge_trainable_frozen,
 )
-from .constants import LORA_FULL, LORA_FREEZE
+from .constants import DORA_FULL, DORA_FREEZE
 
 __all__ = [
-    # Main LoRA functionality
-    "LoraWeight",
-    "lora",
+    # Main DoRA functionality
+    "DoraWeight",
+    "dora",
     # Helper functions
-    "init_lora",
+    "init_dora",
     "merge_params",
     "simple_spec",
-    "split_lora_params",
+    "split_dora_params",
     "wrap_optimizer",
     # Constants
-    "LORA_FULL",
-    "LORA_FREEZE",
+    "DORA_FULL",
+    "DORA_FREEZE",
 ]
