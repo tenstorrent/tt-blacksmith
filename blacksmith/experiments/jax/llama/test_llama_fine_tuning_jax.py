@@ -29,8 +29,6 @@ DEFAULT_RUN_NAME = "llama-3.2-1b-sst2-tt-lorax"
 WANDB_ENABLED = False
 
 
-    
-
 def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
     """Optionally setup wandb for experiment tracking; returns run or None.
 
@@ -236,7 +234,6 @@ def main() -> None:
     global_step = 0
     last_10_losses = []
 
-
     try:
         for epoch in range(training_config.num_epochs):
             epoch_losses = []
@@ -294,10 +291,7 @@ def main() -> None:
                         f"Epoch {epoch+1}, Batch {batch_idx+1:2d}: Loss = {current_loss:.4f} ({len(last_10_losses)}/10)"
                     )
 
-
             avg_epoch_loss = np.mean(epoch_losses)
-
-            
 
         log_to_wandb(
             {

@@ -25,6 +25,7 @@ def dora(f: Callable[..., Any]) -> Callable[..., Any]:
     """
     return quax.quaxify(f)
 
+
 @dataclass
 class DoraWeight(quax.ArrayValue):
     w: jax.Array  # M x N
@@ -40,10 +41,10 @@ class DoraWeight(quax.ArrayValue):
         assert self.m.shape[-1] == self.w.shape[-1]
 
     def materialise(self):
-        v = self.w + self.b @ self.a                      # adapted direction
+        v = self.w + self.b @ self.a  # adapted direction
         col_norms = jnp.linalg.norm(v, ord=2, axis=0, keepdims=True)  # (1, N)
-        v_normed = v / col_norms                          # normalize columns
-        return (self.m * v_normed).astype(self.w.dtype)   # scale by m
+        v_normed = v / col_norms  # normalize columns
+        return (self.m * v_normed).astype(self.w.dtype)  # scale by m
 
     def aval(self) -> jax.core.ShapedArray:
         return jax.core.ShapedArray(self.w.shape, self.w.dtype)
@@ -72,7 +73,6 @@ def handle_dot_lhs_dora(dora: DoraWeight, rhs: jax.Array, *, dimension_numbers: 
     out = op(v_scaled, rhs, dimension_numbers=dimension_numbers)
 
     return out.astype(dora.w.dtype)
-
 
 
 @quax.register(lax.dot_general_p)
@@ -120,4 +120,3 @@ def eval_dora_convert_element_type(arg: DoraWeight, *, new_dtype: Any, **_) -> D
         m=jax.lax.convert_element_type(arg.m, new_dtype),
         alpha=arg.alpha,  # leave alpha as a Python float
     )
-
