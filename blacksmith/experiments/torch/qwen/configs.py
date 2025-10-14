@@ -21,6 +21,20 @@ class TrainingConfig(BaseModel):
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
 
+    # Logging settings
+    wandb_project: str = Field(default="llama-finetuning")
+    wandb_run_name: str = Field(default="llama-finetuning_pure_torch")
+    wandb_watch_mode: str = Field(default="all")
+    wandb_log_freq: int = Field(default=1000)
+    model_to_wandb: bool = Field(default=False)
+    logging_strategy: str = Field(default="steps")
+    logging_steps: int = Field(default=10, gt=0)
+    save_strategy: str = Field(default="epoch")
+
+    # Reproducibility settings
+    seed: int = Field(default=23)
+    deterministic: bool = Field(default=False)
+
     # LoRA setup
     lora_r: int = Field(default=4, gt=0)
     lora_alpha: int = Field(default=8, gt=0)
@@ -28,18 +42,8 @@ class TrainingConfig(BaseModel):
     lora_task_type: str = Field(default="CAUSAL_LM")
 
     # Other settings
-    seed: int = Field(default=23)
+    framework: str = Field(default="pytorch")
     output_dir: str = Field(default="experiments/results/llama32-1b")
-    report_to: str = Field(default="wandb")
-    wandb_project: str = Field(default="llama-finetuning")
-    wandb_run_name: str = Field(default="llama-finetuning_pure_torch")
-    wandb_watch_mode: str = Field(default="all")
-    wandb_log_freq: int = Field(default=1000)
-    model_to_wandb: bool = Field(default=False)
-    save_strategy: str = Field(default="epoch")
-    logging_strategy: str = Field(default="steps")
-    logging_steps: int = Field(default=10, gt=0)
-    eval_frequency: int = Field(default=1000, gt=0)
     save_total_limit: int = Field(default=3, gt=0)
     do_train: bool = Field(default=True)
     do_eval: bool = Field(default=True)

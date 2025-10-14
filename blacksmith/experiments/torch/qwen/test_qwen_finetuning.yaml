@@ -19,7 +19,20 @@ num_epochs: 1
 optim: "adamw_torch"
 
 # Logging settings
+log_level: str = "INFO"
+use_wandb: True
+wandb_project: "qwen-finetuning"
+wandb_run_name: "tt-qwen-test"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+save_strategy: "epoch"
+logging_steps: 100
 
+# Reproducibility settings
+seed: 23
+deterministic: False
 
 # LoRA setup
 lora_r: 4
@@ -29,14 +42,7 @@ lora_task_type: "CAUSAL_LM"
 
 
 # Other settings
-seed: 23
+framework: "pytorch"
 output_dir: "blacksmith/experiments/torch/qwen"
-wandb_project: "qwen-finetuning"
-wandb_run_name: "tt-qwen-test"
-wandb_watch_mode: "all"
-wandb_log_freq: 1000
-model_to_wandb: False
-save_strategy: "epoch"
-logging_steps: 100
 do_train: True
 use_tt: True
