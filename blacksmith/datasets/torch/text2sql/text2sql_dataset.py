@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 from string import Template
 
 from transformers import DataCollatorForSeq2Seq
@@ -9,12 +12,14 @@ from transformers import AutoTokenizer
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 
 
-PROMPT_TEMPLATE = Template("""### Instruction:\n
+PROMPT_TEMPLATE = Template(
+    """### Instruction:\n
 Generate an SQL query for the given question and database schema.\n\n
 ### Input:\n
 Question: $prompt\n
 Schema: $context\n\n
-### Output:\n""")
+### Output:\n"""
+)
 
 
 class TextToSQLDataset(Dataset):
@@ -25,6 +30,7 @@ class TextToSQLDataset(Dataset):
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
+        self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
         self._prepare_dataset()
@@ -65,7 +71,7 @@ class TextToSQLDataset(Dataset):
 
         # Tokenize dataset
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
-        self.full_dataset = tokenized_dataset.filter(lambda example: example['len'] <= self.config.max_length)
+        self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
         self.dataset = self.full_dataset.remove_columns(
             [col for col in self.full_dataset.column_names if col not in self.required_columns]
         )
@@ -84,9 +90,7 @@ class TextToSQLDataset(Dataset):
 
     def get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorForSeq2Seq(
-            tokenizer=self.tokenizer,
-            padding='max_length',
-            max_length=self.config.max_length
+            tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
         )
 
         return DataLoader(self.dataset, batch_size=self.config.batch_size, collate_fn=data_collator)
