@@ -6,7 +6,7 @@ import torch
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from blacksmith.tools.storage_backends import StorageBackend, LocalStorage
+from blacksmith.tools.storage_backends import StorageBackend
 
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
 
@@ -14,7 +14,9 @@ from blacksmith.experiments.torch.qwen.configs import TrainingConfig
 class CheckpointManager:
     def __init__(self, config: TrainingConfig):
         self.config = config
+
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
 
         self.storage_backend = self._setup_storage_backend()
 
@@ -65,7 +67,7 @@ class CheckpointManager:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             checkpoint_name = f"checkpoint_step{step}_epoch{epoch}_{timestamp}.pt"
 
-        checkpoint_path = os.path.join(self.config.checkpoint_dir, checkpoint_name)
+        checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
         # Prepare checkpoint data
         checkpoint_data = {
@@ -82,14 +84,14 @@ class CheckpointManager:
         torch.save(checkpoint_data, checkpoint_path)
 
         # Track best checkpoints
-        if self.config.metric_name in metrics:
-            self._update_best_checkpoints(checkpoint_info)
+        # if self.config.metric_name in metrics:
+        #     self._update_best_checkpoints(checkpoint_info)
 
         # Cleanup old checkpoints
-        self._cleanup_checkpoints()
+        # self._cleanup_checkpoints()
 
         # Save updated history
-        self._save_checkpoint_history()
+        # self._save_checkpoint_history()
 
         # Sync to storage if enabled
         if self.config.sync_to_storage and self.config.remote_path:

@@ -1,6 +1,5 @@
 # Dataset settings
 dataset_id: "gretelai/synthetic_text_to_sql"
-# dataset_id: "stanfordnlp/sst2"
 
 # Model settings
 # model_name: "meta-llama/Llama-3.2-1B"
@@ -20,7 +19,7 @@ optim: "adamw_torch"
 
 # Logging settings
 log_level: "INFO"
-use_wandb: True
+use_wandb: False
 wandb_project: "qwen-finetuning"
 wandb_run_name: "tt-qwen-test"
 wandb_tags: ["test"]
@@ -34,7 +33,7 @@ epoch_freq: 1
 resume_from_checkpoint: False
 resume_option: "last"  # [last, best, path]
 checkpoint_path: "" # path to checkpoint if resume_option is "path"
-save_strategy: "epoch"
+save_strategy: "none"
 project_dir: "blacksmith/experiments/torch/qwen"
 save_optim: False
 storage_backend: "local"
@@ -50,11 +49,8 @@ deterministic: False
 lora_r: 4
 lora_alpha: 8
 lora_target_modules: ["q_proj", "v_proj"]
-# lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 lora_task_type: "CAUSAL_LM"
-
 
 # Other settings
 framework: "pytorch"
-do_train: True
 use_tt: False

@@ -6,10 +6,10 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="stanfordnlp/sst2")
+    dataset_id: str = Field(default="gretelai/synthetic_text_to_sql")
 
     # Model settings
-    model_name: str = Field(default="meta-llama/Llama-3.2-1B")
+    model_name: str = Field(default="Qwen/Qwen2.5-0.5B")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
 
@@ -22,14 +22,28 @@ class TrainingConfig(BaseModel):
     optim: str = Field(default="adamw_torch")
 
     # Logging settings
-    wandb_project: str = Field(default="llama-finetuning")
-    wandb_run_name: str = Field(default="llama-finetuning_pure_torch")
+    log_level: str = Field(default="INFO")
+    use_wandb: bool = Field(default=True)
+    wandb_project: str = Field(default="qwen-finetuning")
+    wandb_run_name: str = Field(default="tt-qwen-test")
+    wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
     model_to_wandb: bool = Field(default=False)
-    logging_strategy: str = Field(default="steps")
-    logging_steps: int = Field(default=10, gt=0)
+    steps_freq: int = Field(default=25)
+    epoch_freq: int = Field(default=1)
+
+    # Checkpoint settings
+    resume_from_checkpoint: bool = Field(default=False)
+    resume_option: str = Field(default="last")  # [last, best, path]
+    checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
     save_strategy: str = Field(default="epoch")
+    project_dir: str = Field(default="blacksmith/experiments/torch/qwen")
+    save_optim: bool = Field(default=False)
+    storage_backend: str = Field(default="local")
+    sync_to_storage: bool = Field(default=False)
+    load_from_storage: bool = Field(default=False)
+    remote_path: str = Field(default="")
 
     # Reproducibility settings
     seed: int = Field(default=23)
@@ -43,8 +57,4 @@ class TrainingConfig(BaseModel):
 
     # Other settings
     framework: str = Field(default="pytorch")
-    output_dir: str = Field(default="experiments/results/llama32-1b")
-    save_total_limit: int = Field(default=3, gt=0)
-    do_train: bool = Field(default=True)
-    do_eval: bool = Field(default=True)
     use_tt: bool = Field(default=True)

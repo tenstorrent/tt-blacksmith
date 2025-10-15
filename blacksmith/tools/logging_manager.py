@@ -21,7 +21,7 @@ class TrainingLogger:
             self._setup_wandb()
 
     def _setup_std_logger(self):
-        self.std_logger = logging.getLogger(self.config.name)
+        self.std_logger = logging.getLogger(self.config.wandb_run_name)
         self.std_logger.setLevel(getattr(logging, self.config.log_level.upper()))
 
         # Remove existing handlers to avoid duplicates

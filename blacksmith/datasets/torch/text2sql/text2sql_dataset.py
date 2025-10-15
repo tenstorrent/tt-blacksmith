@@ -23,17 +23,18 @@ Schema: $context\n\n
 
 
 class TextToSQLDataset(Dataset):
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config: TrainingConfig, split: str = "train"):
         """
         Args:
             config: TrainingConfig
+            split: Dataset split to use ("train", "test")
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
-        self._prepare_dataset()
+        self._prepare_dataset(split)
 
     def _tokenize_function(self, example):
         prompt = example["sql_prompt"]
@@ -64,9 +65,8 @@ class TextToSQLDataset(Dataset):
 
         return example
 
-    def _prepare_dataset(self):
-        print(f"Loading dataset ({self.config.dataset_id})...")
-        raw_dataset = load_dataset(self.config.dataset_id, split="train")
+    def _prepare_dataset(self, split: str):
+        raw_dataset = load_dataset(self.config.dataset_id, split=split)
         raw_dataset = raw_dataset.filter(lambda example: example["sql_complexity"] == "basic SQL")
 
         # Tokenize dataset
