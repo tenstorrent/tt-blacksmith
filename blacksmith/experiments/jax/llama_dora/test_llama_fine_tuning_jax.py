@@ -186,8 +186,7 @@ def create_compute_grads_fn(loss_fn: Any) -> Any:
     return compute_grads_tt
 
 
-def main() -> None:
-    """Main training function with configurable parameters."""
+def main():
 
     config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_jax.yaml")
     training_config = generate_config(TrainingConfig, config_file_path)
@@ -311,9 +310,9 @@ def main() -> None:
     finally:
         if WANDB_ENABLED and wandb is not None:
             wandb.finish()
-            print("Finished wandb run")
+            print("Finished wandb run.")
 
-    print("Testing sentiment classification generation....")
+    print("Testing sentiment classification generation...")
 
 
 if __name__ == "__main__":

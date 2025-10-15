@@ -75,7 +75,7 @@ def init_dora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, 
 
 def simple_spec(params, decision_fn=None, tune_vectors=False, is_leaf=None) -> Any:
     """
-    Create a simple dora spec for a pytree
+    Create a simple DoRA spec for a pytree.
     Args:
         params: pytree of parameters
         tune_vectors: If true, will flag all arrays with less than 2 dimensions for tuning

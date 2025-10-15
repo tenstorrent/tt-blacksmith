@@ -10,17 +10,14 @@ This directory includes:
 - SST-2 example task and basic wandb integration
 
 ### Prerequisites
-- Follow the environment setup in the top-level tt-blacksmith documentation.
+- Follow the environment setup in the top-level TT-Blacksmith documentation.
 - Install Lorax dependencies (pinned versions):
 
 ```bash
 pip install git+https://github.com/patrick-kidger/quax.git@8c50184a7e60835799cc5f79c9de9315ca77c875 --no-deps
 pip install equinox==0.13.1 --no-deps
 pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
-export PYTHONPATH=/localdev/username/tt-blacksmith:$PYTHONPATH
 ```
-
-## Usage
 
 ### TT Device Training
 

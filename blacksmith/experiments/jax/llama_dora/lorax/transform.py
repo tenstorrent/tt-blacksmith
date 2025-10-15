@@ -37,8 +37,7 @@ class DoraWeight(quax.ArrayValue):
     def __post_init__(self):
         assert self.a.shape[-2] == self.b.shape[-1]
         assert self.w.shape[-2] == self.b.shape[-2]
-        assert self.w.shape[-1] == self.a.shape[-1]
-        assert self.m.shape[-1] == self.w.shape[-1]
+        assert self.w.shape[-1] == self.a.shape[-1] == self.m.shape[-1]
 
     def materialise(self):
         v = self.w + self.b @ self.a  # adapted direction
@@ -56,8 +55,8 @@ def handle_dot_lhs_dora(dora: DoraWeight, rhs: jax.Array, *, dimension_numbers: 
     Handle DoRA forward pass: y = (m * normalize(W + B @ A)) @ x
     """
     if isinstance(rhs, DoraWeight):
-        rhs = rhs.materialise()
         warnings.warn("Encountered product of two DoraWeights. Materializing the rhs")
+        rhs = rhs.materialise()
 
     op = partial(jax.lax.dot_general, **kwargs)
 
@@ -78,7 +77,7 @@ def handle_dot_lhs_dora(dora: DoraWeight, rhs: jax.Array, *, dimension_numbers: 
 @quax.register(lax.dot_general_p)
 def handle_dot_rhs_dora(lhs: jax.Array, dora: DoraWeight, *, dimension_numbers: Any, **kwargs: Any) -> Any:
     """
-    Handle DoRA forward pass for X @ (m * normalize(W + B @ A))
+    Handle DoRA forward pass for x @ (m * normalize(W + B @ A))
     """
     op = partial(jax.lax.dot_general, **kwargs)
 
@@ -94,7 +93,7 @@ def handle_dot_rhs_dora(lhs: jax.Array, dora: DoraWeight, *, dimension_numbers: 
 @quax.register(lax.transpose_p)
 def eval_dora_transpose(arg: DoraWeight, *, permutation: Any) -> Any:
     """
-    Define how a `DoraWeight` behaves under transpose.
+    Define how `DoraWeight` behaves under transpose.
     """
     if not (len(arg.shape) == 2 and permutation == (1, 0)):
         return NotImplemented
