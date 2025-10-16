@@ -10,22 +10,22 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def save(self, local_path: str, remote_path: str = None):
-        """Upload file to a storage"""
+        """Upload file to remote storage"""
         pass
 
     @abstractmethod
     def load(self, remote_path: str, local_path: str = None):
-        """Download file from a storage"""
+        """Download file from remote storage"""
         pass
 
     @abstractmethod
     def exists(self, remote_path: str) -> bool:
-        """Check if file exists in a storage"""
+        """Check if file exists in remote storage"""
         pass
 
     @abstractmethod
     def delete(self, remote_path: str):
-        """Delete file from a storage"""
+        """Delete file from remote storage"""
         pass
 
     @abstractmethod

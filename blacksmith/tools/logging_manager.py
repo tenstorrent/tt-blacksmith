@@ -38,6 +38,7 @@ class TrainingLogger:
         self.std_logger.addHandler(console_handler)
 
     def _setup_wandb(self):
+        self.std_logger.info("Initializing Weights & Biases (W&B)...")
         try:
             self.wandb_run = wandb.init(
                 project=self.config.wandb_project,
@@ -46,9 +47,6 @@ class TrainingLogger:
                 config=self.config.model_dump(),
                 save_code=True,
             )
-
-            self.std_logger.info(f"W&B initialized: {wandb.run.url}")
-
         except Exception as e:
             self.std_logger.error(f"Failed to initialize W&B: {e}")
             self.config.use_wandb = False

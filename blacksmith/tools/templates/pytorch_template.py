@@ -5,6 +5,7 @@ import os
 import traceback
 
 import torch
+from torch.utils.data import DataLoader
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
@@ -19,7 +20,7 @@ from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
-def validate(model, val_data_loader, logger, device):
+def validate(model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device) -> float:
     logger.info("Starting validation...")
 
     total_val_loss = 0.0
@@ -45,12 +46,11 @@ def validate(model, val_data_loader, logger, device):
     return avg_val_loss
 
 
-def train(config, device, logger, checkpoint_manager):
+def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
     logger.info("Starting training...")
 
     # Load model
-    model = get_model(config)
-    model.to(device)
+    model = get_model(config, device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")

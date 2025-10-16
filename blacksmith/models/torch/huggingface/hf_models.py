@@ -8,7 +8,7 @@ from peft import LoraConfig, get_peft_model
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 
 
-def get_model(config: TrainingConfig):
+def get_model(config: TrainingConfig, device: torch.device):
     # This will be replaced with forge models loader, we should add adapter functions to modify the model as needed
 
     # Load a model
@@ -19,8 +19,8 @@ def get_model(config: TrainingConfig):
     if config.lora_r > 0:
         model = _apply_lora(model, config)
 
-    # Apply dtype modification
     model.to(eval(config.dtype))
+    model.to(device)
 
     return model
 

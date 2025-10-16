@@ -20,7 +20,7 @@ from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
-def validate(model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: str):
+def validate(model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device) -> float:
     logger.info("Starting validation...")
 
     total_val_loss = 0.0
@@ -46,11 +46,11 @@ def validate(model: torch.nn.Module, val_data_loader: DataLoader, logger: Traini
     return avg_val_loss
 
 
-def train(config, device, logger, checkpoint_manager):
+def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
     logger.info("Starting training...")
 
     # Load model
-    model = get_model(config)
+    model = get_model(config, device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -61,7 +61,6 @@ def train(config, device, logger, checkpoint_manager):
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
-    model.to(device)
 
     # Load dataset
     train_dataset = TextToSQLDataset(config=config)
