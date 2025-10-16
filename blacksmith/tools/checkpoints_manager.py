@@ -12,6 +12,7 @@ from blacksmith.tools.storage_backends import StorageBackend
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
 from blacksmith.tools.logging_manager import TrainingLogger
 
+
 class CheckpointManager:
     def __init__(self, config: TrainingConfig, logger: TrainingLogger):
         self.config = config
@@ -35,18 +36,15 @@ class CheckpointManager:
         """Load checkpoint history from metadata file"""
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         if os.path.exists(history_file):
-            with open(history_file, 'r') as f:
+            with open(history_file, "r") as f:
                 return json.load(f)
 
-        return {
-            "checkpoints": [],
-            "best_checkpoints": []
-        }
+        return {"checkpoints": [], "best_checkpoints": []}
 
     def _save_checkpoint_history(self):
         """Save checkpoint history to metadata file"""
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
-        with open(history_file, 'w') as f:
+        with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
     def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
@@ -110,7 +108,7 @@ class CheckpointManager:
             "step": step,
             "epoch": epoch,
             "metrics": metrics,
-            "timestamp": checkpoint_data["timestamp"]
+            "timestamp": checkpoint_data["timestamp"],
         }
         self.checkpoint_history["checkpoints"].append(checkpoint_info)
 
@@ -213,7 +211,7 @@ class CheckpointManager:
         optimizer: Optional[torch.optim.Optimizer] = None,
     ) -> Optional[Dict[str, Any]]:
         """Load the most recent checkpoint
-        
+
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)
@@ -228,7 +226,7 @@ class CheckpointManager:
         self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None
     ) -> Optional[Dict[str, Any]]:
         """Load the best checkpoint based on tracked metric
-        
+
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)

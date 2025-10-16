@@ -20,7 +20,9 @@ from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
-def validate(model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device) -> float:
+def validate(
+    model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
+) -> float:
     logger.info("Starting validation...")
 
     total_val_loss = 0.0

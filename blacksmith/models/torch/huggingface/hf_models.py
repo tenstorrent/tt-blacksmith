@@ -34,4 +34,3 @@ def _apply_lora(model, config: TrainingConfig):
     )
 
     return get_peft_model(model, lora_config)
-
