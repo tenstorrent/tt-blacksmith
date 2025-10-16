@@ -6,8 +6,9 @@ from typing import Dict
 
 from datasets import load_dataset
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 
 
@@ -21,7 +22,7 @@ Schema: $context\n\n
 )
 
 
-class TextToSQLDataset(Dataset):
+class TextToSQLDataset(BaseDataset):
     def __init__(self, config: TrainingConfig, split: str = "train"):
         """
         Args:

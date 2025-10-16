@@ -11,8 +11,8 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tqdm import tqdm
 
-from blacksmith.experiments.torch.qwen.configs import TrainingConfig
-from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
+from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
@@ -62,11 +62,11 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         checkpoint_manager.load_checkpoint()
 
     # Load dataset
-    train_dataset = TextToSQLDataset(config=config)
+    train_dataset = BaseDataset(config=config)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)}")
 
-    eval_dataset = TextToSQLDataset(config=config, split="test")
+    eval_dataset = BaseDataset(config=config, split="test")
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)}")
 
@@ -79,7 +79,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         for epoch in range(config.num_epochs):
             model.train()
 
-            for ind, batch in enumerate(tqdm(train_dataloader)):
+            for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
                 input_ids = batch["input_ids"].to(device)
@@ -134,7 +134,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_qwen_finetuning.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_model_template.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
