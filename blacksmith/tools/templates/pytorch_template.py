@@ -5,19 +5,21 @@ import os
 import traceback
 
 import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
+from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
-from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset2
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
-def validate(model, val_data_loader, logger, device, config, tokenizer=None):
+def validate(model, val_data_loader, logger, device):
     logger.info("Starting validation...")
 
     total_val_loss = 0.0
@@ -40,12 +42,12 @@ def validate(model, val_data_loader, logger, device, config, tokenizer=None):
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
 
-    # Log sample generations
-
     return avg_val_loss
 
 
 def train(config, device, logger, checkpoint_manager):
+    logger.info("Starting training...")
+
     # Load model
     model = get_model(config)
     model.to(device)
@@ -145,10 +147,6 @@ if __name__ == "__main__":
 
     # Device setup
     if config.use_tt:
-        import torch_xla
-        import torch_xla.core.xla_model as xm
-        import torch_xla.runtime as xr
-
         xr.runtime.set_device_type("TT")
         device = xm.xla_device()
     else:

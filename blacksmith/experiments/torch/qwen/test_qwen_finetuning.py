@@ -5,19 +5,22 @@ import os
 import traceback
 
 import torch
+from torch.utils.data import DataLoader
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
-from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset2
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
-def validate(model, val_data_loader, logger, device, config, tokenizer=None):
+def validate(model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: str):
     logger.info("Starting validation...")
 
     total_val_loss = 0.0
@@ -40,22 +43,25 @@ def validate(model, val_data_loader, logger, device, config, tokenizer=None):
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
 
-    # Log sample generations
-
     return avg_val_loss
 
 
 def train(config, device, logger, checkpoint_manager):
+    logger.info("Starting training...")
+
     # Load model
     model = get_model(config)
-    model.to(device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
+    # Init training components (optimizer, lr scheduler, etc.)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint()
+        checkpoint_manager.load_checkpoint(model, optimizer)
+    model.to(device)
 
     # Load dataset
     train_dataset = TextToSQLDataset(config=config)
@@ -66,16 +72,13 @@ def train(config, device, logger, checkpoint_manager):
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)}")
 
-    # Init training components (optimizer, lr scheduler, etc.)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-
     global_step = 0
     running_loss = 0.0
     try:
         for epoch in range(config.num_epochs):
             model.train()
 
-            for ind, batch in enumerate(tqdm(train_dataloader)):
+            for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
                 input_ids = batch["input_ids"].to(device)
@@ -106,18 +109,21 @@ def train(config, device, logger, checkpoint_manager):
                     running_loss = 0.0
 
                     # Do validation
-                    valid_loss = validate(model, eval_dataloader, logger, device, config)
+                    valid_loss = validate(model, eval_dataloader, logger, device)
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
-                    # Save checkpoint
+                    # Save step checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
+            # Save epoch checkpoint
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         # Save final model
-        final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+        final_model_path = checkpoint_manager.save_checkpoint(
+            model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
+        )
         logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
     except Exception as e:
@@ -141,14 +147,10 @@ if __name__ == "__main__":
     logger = TrainingLogger(config)
 
     # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config)
+    checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup
     if config.use_tt:
-        import torch_xla
-        import torch_xla.core.xla_model as xm
-        import torch_xla.runtime as xr
-
         xr.runtime.set_device_type("TT")
         device = xm.xla_device()
     else:

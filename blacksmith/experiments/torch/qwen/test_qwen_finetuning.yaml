@@ -2,9 +2,6 @@
 dataset_id: "gretelai/synthetic_text_to_sql"
 
 # Model settings
-# model_name: "meta-llama/Llama-3.2-1B"
-# model_name: "tiiuae/Falcon3-1B-Base"
-# model_name: "google/gemma-1.1-2b-it"
 model_name: "Qwen/Qwen2.5-0.5B"
 max_length: 128
 dtype: "torch.bfloat16"
@@ -26,14 +23,18 @@ wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 25
+steps_freq: 5
 epoch_freq: 1
 
 # Checkpoint settings
 resume_from_checkpoint: False
 resume_option: "last"  # [last, best, path]
 checkpoint_path: "" # path to checkpoint if resume_option is "path"
-save_strategy: "none"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
 project_dir: "blacksmith/experiments/torch/qwen"
 save_optim: False
 storage_backend: "local"
@@ -53,4 +54,4 @@ lora_task_type: "CAUSAL_LM"
 
 # Other settings
 framework: "pytorch"
-use_tt: False
+use_tt: True

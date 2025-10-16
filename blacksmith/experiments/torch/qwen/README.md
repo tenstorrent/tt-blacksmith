@@ -1,4 +1,4 @@
-# Llama with LoRA Experiment
+# Qwen with LoRA Experiment
 
 This directory contains the code for the Qwen model with LoRA fine-tuning experiment.
 Qwen model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-0.5B).

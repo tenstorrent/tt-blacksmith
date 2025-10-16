@@ -1,22 +1,20 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
-import shutil
-from typing import List
 from abc import ABC, abstractmethod
+from typing import List
 
 
 class StorageBackend(ABC):
     """Abstract base class for storage backends"""
 
     @abstractmethod
-    def save(self, local_path: str, remote_path: str):
+    def save(self, local_path: str, remote_path: str = None):
         """Upload file to a storage"""
         pass
 
     @abstractmethod
-    def load(self, remote_path: str, local_path: str):
+    def load(self, remote_path: str, local_path: str = None):
         """Download file from a storage"""
         pass
 

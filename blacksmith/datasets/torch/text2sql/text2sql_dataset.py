@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from string import Template
+from typing import Dict
 
-from transformers import DataCollatorForSeq2Seq
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
+from torch.utils.data import DataLoader, Dataset
 
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 
@@ -26,7 +25,7 @@ class TextToSQLDataset(Dataset):
     def __init__(self, config: TrainingConfig, split: str = "train"):
         """
         Args:
-            config: TrainingConfig
+            config: Training configuration
             split: Dataset split to use ("train", "test")
         """
         self.config = config
@@ -36,12 +35,11 @@ class TextToSQLDataset(Dataset):
 
         self._prepare_dataset(split)
 
-    def _tokenize_function(self, example):
+    def _tokenize_function(self, example: Dict) -> Dict:
         prompt = example["sql_prompt"]
         context = example.get("sql_context", "")
         sql = example["sql"]
 
-        # Build the instruction prompt
         input_text = PROMPT_TEMPLATE.substitute(prompt=prompt, context=context)
         target_text = sql.strip()
         full_text = input_text + target_text
@@ -69,17 +67,16 @@ class TextToSQLDataset(Dataset):
         raw_dataset = load_dataset(self.config.dataset_id, split=split)
         raw_dataset = raw_dataset.filter(lambda example: example["sql_complexity"] == "basic SQL")
 
-        # Tokenize dataset
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
         self.dataset = self.full_dataset.remove_columns(
             [col for col in self.full_dataset.column_names if col not in self.required_columns]
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.dataset)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Dict:
         sample = self.dataset[idx]
 
         return {

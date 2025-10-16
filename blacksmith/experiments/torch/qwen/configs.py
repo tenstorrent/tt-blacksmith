@@ -37,6 +37,10 @@ class TrainingConfig(BaseModel):
     resume_from_checkpoint: bool = Field(default=False)
     resume_option: str = Field(default="last")  # [last, best, path]
     checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
+    checkpoint_metric: str = Field(default="eval/loss")
+    checkpoint_metric_mode: str = Field(default="min")  # [min, max]
+    keep_last_n: int = Field(default=3, ge=0)
+    keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="epoch")
     project_dir: str = Field(default="blacksmith/experiments/torch/qwen")
     save_optim: bool = Field(default=False)

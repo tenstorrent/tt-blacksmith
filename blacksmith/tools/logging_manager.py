@@ -1,11 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 import logging
 import sys
 from typing import Dict, Any, Optional
-from pathlib import Path
 
+import torch
 import wandb
 
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
@@ -108,7 +109,7 @@ class TrainingLogger:
             except Exception as e:
                 self.std_logger.warning(f"Failed to log model info to W&B: {e}")
 
-    def watch_model(self, model):
+    def watch_model(self, model: torch.nn.Module):
         """
         Watch model gradients and parameters in W&B.
 
@@ -133,7 +134,7 @@ class TrainingLogger:
         """
         if self.config.use_wandb:
             try:
-                artifact_name = name or Path(artifact_path).name
+                artifact_name = name or os.path.basename(artifact_path)
                 artifact = wandb.Artifact(artifact_name, type=artifact_type)
                 artifact.add_file(artifact_path)
 
