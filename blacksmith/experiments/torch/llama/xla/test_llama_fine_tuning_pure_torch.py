@@ -18,8 +18,9 @@ from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config
 
+
 def show_examples(examples, tokenizer):
-    
+
     for i, example in enumerate(examples):
         if i > 10:
             break
@@ -57,6 +58,7 @@ def show_examples(examples, tokenizer):
         correct = (valid_targets == valid_preds).float().mean()
         print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
 
+
 def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     print(f"\n=== Starting Validation ===")
     model.eval()
@@ -76,12 +78,12 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             # Forward pass + loss
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
-            
+
             # Shift logits and labels for causal LM: predict next token
             # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
             shift_logits = logits[:, :-1, :].contiguous()
             shift_labels = expected_output[:, 1:].contiguous()
-            
+
             loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
             total_val_loss += loss.item()
             predictions = logits.argmax(dim=-1)
@@ -116,17 +118,16 @@ def train(config, device):
     # Get model
     model = get_model(config)
     model = model.to(device)
-    
+
     # Initialize wandb
     run = wandb.init(project=config.wandb_project, name=config.wandb_run_name, config=vars(config), save_code=True)
     run.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
-
 
     # Get dataset
     dataset = SSTDataset(config)
     tokenizer = dataset.tokenizer
     train_set, eval_set = dataset.load_tokenized_data()
-    
+
     train_data_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, drop_last=True)
     val_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
 
@@ -155,7 +156,7 @@ def train(config, device):
                 # Get input ids and attention mask
                 input_ids = batch["input_ids"].to(device)
                 attention_mask = batch["attention_mask"].to(device)
-                
+
                 # Get expected output
                 expected_output = batch["labels"].to(device)
 
@@ -167,11 +168,11 @@ def train(config, device):
                 # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
                 shift_logits = logits[:, :-1, :].contiguous()
                 shift_labels = expected_output[:, 1:].contiguous()
-                
+
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
 
                 print(f"Loss: {loss.item():.6f}")
-                
+
                 # Backward pass
                 loss.backward()
                 running_loss += loss.item()
@@ -184,7 +185,7 @@ def train(config, device):
                     torch_xla.sync(wait=True)
 
                 global_step += 1
-                
+
                 if global_step % config.logging_steps == 0:
                     avg_loss = running_loss / config.logging_steps
                     run.log({"train/loss": avg_loss, "step": global_step})
@@ -207,7 +208,7 @@ def train(config, device):
         # Save final model
         final_model_path = os.path.join(config.output_dir, "checkpoints", "final_model.pth")
         torch.save(model.state_dict(), final_model_path)
-        
+
         if config.model_to_wandb:
             artifact = wandb.Artifact("final_model", type="model")
             artifact.add_file(final_model_path)

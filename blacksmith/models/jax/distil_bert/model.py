@@ -5,6 +5,7 @@ import jax
 import jax.numpy as jnp
 from transformers import FlaxAutoModelForSequenceClassification
 
+
 # Generic model initialization function.
 def init_model(model_name, num_labels=2, seed=None, device="tt"):
     # Initialize parameters on CPU (https://github.com/tenstorrent/tt-mlir/issues/979).

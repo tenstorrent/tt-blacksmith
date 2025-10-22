@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from flax.core.frozen_dict import freeze, unfreeze
 
+
 # Recursively walks through parameter tree, extracting 'embeddings' into frozen dict.
 def _recursive_extract_embeddings(node):
     if not isinstance(node, dict):
