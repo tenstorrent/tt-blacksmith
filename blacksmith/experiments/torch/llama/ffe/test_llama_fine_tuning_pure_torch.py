@@ -179,7 +179,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
     if config.use_tt:
         # TODO: Remove this once softmax is fixed
-        from blacksmith.experiments.torch.llama.loss import CrossEntropyLoss
+        from blacksmith.experiments.torch.llama.ffe.loss import CrossEntropyLoss
 
         loss_tt = CrossEntropyLoss(name="cross_entropy_loss", dtype=forge_dtype)
 

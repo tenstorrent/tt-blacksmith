@@ -1,0 +1,242 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+import os
+import random
+import numpy as np
+import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
+import traceback
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+import wandb
+
+from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
+from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
+from blacksmith.tools.cli import generate_config
+
+def show_examples(examples, tokenizer):
+    
+    for i, example in enumerate(examples):
+        if i > 10:
+            break
+        print(f"\nExample {i+1} (from batch {example['batch_num']}):")
+
+        input_ids = example["input_ids"].to("cpu")
+        expected = example["expected"].to("cpu")
+        predicted = example["predicted"].to("cpu")
+
+        valid_mask = expected != -100
+        if not valid_mask.any():
+            print(f"  No valid tokens (all -100)")
+            continue
+
+        valid_targets = expected[valid_mask]
+        valid_preds = predicted[valid_mask]
+
+        show_len = min(10, len(valid_targets))
+        target_tokens = valid_targets[:show_len].tolist()
+        pred_tokens = valid_preds[:show_len].tolist()
+
+        print(f"Target IDs:  {target_tokens}")
+        print(f"Pred IDs:    {pred_tokens}")
+
+        try:
+            target_text = tokenizer.decode(target_tokens, skip_special_tokens=False)
+            pred_text = tokenizer.decode(pred_tokens, skip_special_tokens=False)
+            input_text = tokenizer.decode(input_ids, skip_special_tokens=True)
+            print(f"Input text:  '{input_text}'")
+            print(f"Target text: '{target_text}'")
+            print(f"Pred text:   '{pred_text}'")
+        except Exception as e:
+            print(f"  (Could not decode text: {e})")
+
+        correct = (valid_targets == valid_preds).float().mean()
+        print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
+
+def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
+    print(f"\n=== Starting Validation ===")
+    model.eval()
+    total_val_loss = 0.0
+    num_val_batches = 0
+    collected_examples = []
+    max_examples = 10
+
+    with torch.no_grad():
+        for batch in tqdm(val_data_loader, desc="Validation"):
+            if num_val_batches > 10:
+                break
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            expected_output = batch["labels"].to(device)
+
+            # Forward pass + loss
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = outputs.logits
+            
+            # Shift logits and labels for causal LM: predict next token
+            # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
+            shift_logits = logits[:, :-1, :].contiguous()
+            shift_labels = expected_output[:, 1:].contiguous()
+            
+            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
+            total_val_loss += loss.item()
+            predictions = logits.argmax(dim=-1)
+            num_val_batches += 1
+
+            if len(collected_examples) < max_examples:
+                batch_size = expected_output.shape[0]
+                import random
+
+                sample_indices = random.sample(
+                    range(batch_size), min(batch_size, max_examples - len(collected_examples))
+                )
+
+                for idx in sample_indices:
+                    collected_examples.append(
+                        {
+                            "input_ids": input_ids[idx],
+                            "expected": expected_output[idx],
+                            "predicted": predictions[idx],
+                            "batch_num": num_val_batches,
+                        }
+                    )
+
+    print(f"\n=== Validation Examples (Random samples) ===")
+    show_examples(collected_examples, tokenizer)
+    avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
+    print(f"Average validation loss: {avg_val_loss}")
+    return avg_val_loss
+
+
+def train(config, device):
+    # Get model
+    model = get_model(config)
+    model = model.to(device)
+    
+    # Initialize wandb
+    run = wandb.init(project=config.wandb_project, name=config.wandb_run_name, config=vars(config), save_code=True)
+    run.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
+
+
+    # Get dataset
+    dataset = SSTDataset(config)
+    tokenizer = dataset.tokenizer
+    train_set, eval_set = dataset.load_tokenized_data()
+    
+    train_data_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, drop_last=True)
+    val_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
+
+    # Get optimizer
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+
+    # Get loss function
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+
+    # Training
+    global_step = 0
+    running_loss = 0.0
+
+    try:
+        for epoch in range(config.num_epochs):
+            print(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
+
+            for batch in tqdm(train_data_loader, desc="Training"):
+                # Set model to train mode
+                # We need to do this in inner loop to avoid validation on step logging from switching to eval mode
+                model.train()
+
+                # Zero out gradients
+                optimizer.zero_grad()
+
+                # Get input ids and attention mask
+                input_ids = batch["input_ids"].to(device)
+                attention_mask = batch["attention_mask"].to(device)
+                
+                # Get expected output
+                expected_output = batch["labels"].to(device)
+
+                # Forward pass
+                output = model(input_ids=input_ids, attention_mask=attention_mask)
+                logits = output.logits
+
+                # Shift logits and labels for causal LM: predict next token
+                # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
+                shift_logits = logits[:, :-1, :].contiguous()
+                shift_labels = expected_output[:, 1:].contiguous()
+                
+                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
+
+                print(f"Loss: {loss.item():.6f}")
+                
+                # Backward pass
+                loss.backward()
+                running_loss += loss.item()
+
+                # Optimizer step on CPU
+                optimizer.step()
+
+                # Sync XLA device
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
+
+                global_step += 1
+                
+                if global_step % config.logging_steps == 0:
+                    avg_loss = running_loss / config.logging_steps
+                    run.log({"train/loss": avg_loss, "step": global_step})
+                    running_loss = 0.0
+                    # Validation phase
+                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
+
+                    run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
+
+                    if config.save_strategy == "steps":
+                        checkpoint_path = os.path.join(
+                            config.output_dir, "checkpoints", f"checkpoint-{global_step}.pth"
+                        )
+                        torch.save(model.state_dict(), checkpoint_path)
+
+            if config.save_strategy == "epoch":
+                checkpoint_path = os.path.join(config.output_dir, "checkpoints", f"checkpoint-{epoch+1}.pth")
+                torch.save(model.state_dict(), checkpoint_path)
+
+        # Save final model
+        final_model_path = os.path.join(config.output_dir, "checkpoints", "final_model.pth")
+        torch.save(model.state_dict(), final_model_path)
+        
+        if config.model_to_wandb:
+            artifact = wandb.Artifact("final_model", type="model")
+            artifact.add_file(final_model_path)
+            run.log_artifact(artifact)
+    except Exception as e:
+        error_msg = f"Training failed with error: {str(e)}"
+        traceback_str = traceback.format_exc()
+        print(error_msg)
+        print(traceback_str)
+        raise
+    finally:
+        wandb.finish()
+
+
+if __name__ == "__main__":
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
+    config = generate_config(TrainingConfig, config_file_path)
+
+    os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
+
+    # Device setup
+    if config.use_tt:
+        import torch_xla
+        import torch_xla.core.xla_model as xm
+        import torch_xla.runtime as xr
+
+        xr.runtime.set_device_type("TT")
+        device = xm.xla_device()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    train(config, device)
