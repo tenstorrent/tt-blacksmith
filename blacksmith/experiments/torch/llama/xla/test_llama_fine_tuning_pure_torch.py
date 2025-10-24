@@ -5,13 +5,10 @@ import os
 import random
 import numpy as np
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
 import traceback
+import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import wandb
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
@@ -22,10 +19,9 @@ from blacksmith.tools.cli import generate_config
 def show_examples(examples, tokenizer):
 
     for i, example in enumerate(examples):
-        if i > 10:
-            break
         print(f"\nExample {i+1} (from batch {example['batch_num']}):")
 
+        # NOTE: Move example tensors to CPU, because tokenizer does not work with TT tensors
         input_ids = example["input_ids"].to("cpu")
         expected = example["expected"].to("cpu")
         predicted = example["predicted"].to("cpu")
@@ -75,7 +71,7 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             attention_mask = batch["attention_mask"].to(device)
             expected_output = batch["labels"].to(device)
 
-            # Forward pass + loss
+            # Forward pass
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
 
@@ -84,8 +80,11 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             shift_logits = logits[:, :-1, :].contiguous()
             shift_labels = expected_output[:, 1:].contiguous()
 
+            # Loss
             loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
             total_val_loss += loss.item()
+
+            # Predictions
             predictions = logits.argmax(dim=-1)
             num_val_batches += 1
 
@@ -172,10 +171,10 @@ def train(config, device):
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
 
                 print(f"Loss: {loss.item():.6f}")
+                running_loss += loss.item()
 
                 # Backward pass
                 loss.backward()
-                running_loss += loss.item()
 
                 # Optimizer step on CPU
                 optimizer.step()
