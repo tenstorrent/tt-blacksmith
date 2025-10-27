@@ -3,13 +3,12 @@ dataset_id: "stanfordnlp/sst2"
 
 # Model settings
 model_name: "google/gemma-3-1b-it"
-max_length: 64
+max_length: 32
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-learning_rate: 2e-5
-batch_size: 4
-gradient_accumulation_steps: 2
+learning_rate: 6e-5
+batch_size: 8
 gradient_checkpointing: False
 num_epochs: 1
 optim: "adamw_torch"
@@ -23,8 +22,9 @@ wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 50
-epoch_freq: 1
+log_steps_freq: 10
+log_epoch_freq: 1
+val_steps_freq: 50
 
 # Checkpoint settings
 resume_from_checkpoint: False

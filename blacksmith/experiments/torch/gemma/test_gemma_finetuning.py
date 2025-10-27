@@ -19,6 +19,7 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
+
 def show_examples(examples, tokenizer):
 
     for i, example in enumerate(examples):
@@ -56,7 +57,10 @@ def show_examples(examples, tokenizer):
             print(f"  (Could not decode text: {e})")
 
         correct = (valid_targets == valid_preds).float().mean()
-        print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
+        print(
+            f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})"
+        )
+
 
 def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     print(f"\n=== Starting Validation ===")
@@ -77,33 +81,41 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             # Forward pass + loss
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
+            # move logits to cpu
+            logits = logits.to("cpu")
+            expected_output = expected_output.to("cpu")
+            input_ids = input_ids.to("cpu")
+            attention_mask = attention_mask.to("cpu")
 
             # Shift logits and labels for causal LM: predict next token
             # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
             shift_logits = logits[:, :-1, :].contiguous()
             shift_labels = expected_output[:, 1:].contiguous()
 
-            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
+            loss = loss_fn(
+                shift_logits.view(-1, model.model.config.vocab_size),
+                shift_labels.view(-1),
+            )
             total_val_loss += loss.item()
             predictions = logits.argmax(dim=-1)
+            shift_predictions = predictions[:, :-1].contiguous()
             num_val_batches += 1
-            if num_val_batches >= 10:
-                break
 
             if len(collected_examples) < max_examples:
                 batch_size = expected_output.shape[0]
                 import random
 
                 sample_indices = random.sample(
-                    range(batch_size), min(batch_size, max_examples - len(collected_examples))
+                    range(batch_size),
+                    min(batch_size, max_examples - len(collected_examples)),
                 )
 
                 for idx in sample_indices:
                     collected_examples.append(
                         {
                             "input_ids": input_ids[idx],
-                            "expected": expected_output[idx],
-                            "predicted": predictions[idx],
+                            "expected": shift_labels[idx],
+                            "predicted": shift_predictions[idx],
                             "batch_num": num_val_batches,
                         }
                     )
@@ -114,14 +126,22 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     print(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
 
-def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
+
+def train(
+    config: TrainingConfig,
+    device: torch.device,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
+):
     logger.info("Starting training...")
 
     # Load model
     model = get_model(config, device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+    logger.info(
+        f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+    )
 
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
@@ -132,12 +152,16 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     tokenizer = dataset.tokenizer
     train_set, eval_set = dataset.load_tokenized_data()
 
-    train_data_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, drop_last=True)
-    val_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
+    train_data_loader = DataLoader(
+        train_set, batch_size=config.batch_size, shuffle=True, drop_last=True
+    )
+    val_data_loader = DataLoader(
+        eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True
+    )
 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
 
     global_step = 0
     running_loss = 0.0
@@ -153,7 +177,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 labels = batch["labels"].to(device)
 
                 # Forward pass
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                outputs = model(
+                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
+                )
 
                 logits = outputs.logits
 
@@ -162,11 +188,15 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 shift_logits = logits[:, :-1, :].contiguous()
                 shift_labels = labels[:, 1:].contiguous()
 
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
-                #loss = output.loss
-                print(f"Loss: {loss.item():.6f}")
+                loss = loss_fn(
+                    shift_logits.view(-1, model.model.config.vocab_size),
+                    shift_labels.view(-1),
+                )
+                # loss = output.loss
+                loss_cpu = loss.item()
+                print(f"Loss: {loss_cpu:.6f} {loss.device}")
 
-                running_loss += loss.item()
+                running_loss += loss_cpu
 
                 # Backward pass
                 loss.backward()
@@ -178,31 +208,41 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 else:
                     optimizer.step()
 
-
-
                 if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
+                    avg_loss = (
+                        running_loss / config.steps_freq
+                        if global_step > 0
+                        else running_loss
+                    )
                     logger.log_metrics({"train/loss": avg_loss}, step=global_step)
                     running_loss = 0.0
-                    # Validation phase
-                    if global_step % 50 == 0:
-                        avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
+                
+                # Validation phase
+                if global_step % config.val_steps_freq == 0:
+                    avg_val_loss = validate(
+                        model, val_data_loader, loss_fn, device, config, tokenizer
+                    )
 
-                        logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step)
+                    logger.log_metrics(
+                        {"epoch": epoch + 1, "val/loss": avg_val_loss},
+                        step=global_step,
+                    )
 
-                        if config.save_strategy == "steps":
-                            checkpoint_path = os.path.join(
-                                config.output_dir, "checkpoints", f"checkpoint-{global_step}.pth"
-                            )
-                            torch.save(model.state_dict(), checkpoint_path)
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
                 global_step += 1
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         # Save final model
-        final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
-        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
+        final_model_path = checkpoint_manager.save_checkpoint(
+            model, global_step, epoch, optimizer
+        )
+        logger.log_artifact(
+            final_model_path, artifact_type="model", name="final_model.pth"
+        )
 
     except Exception as e:
         traceback_str = traceback.format_exc()
@@ -214,7 +254,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma_finetuning.yaml")
+    config_file_path = os.path.join(
+        os.path.dirname(__file__), "test_gemma_finetuning.yaml"
+    )
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
