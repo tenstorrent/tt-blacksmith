@@ -6,10 +6,10 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="gretelai/synthetic_text_to_sql")
+    dataset_id: str = Field(default="stanfordnlp/sst2")
 
     # Model settings
-    model_name: str = Field(default="Qwen/Qwen2.5-0.5B")
+    model_name: str = Field(default="google/gemma-3-1b-it")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
 
@@ -24,8 +24,8 @@ class TrainingConfig(BaseModel):
     # Logging settings
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=True)
-    wandb_project: str = Field(default="qwen-finetuning")
-    wandb_run_name: str = Field(default="tt-qwen-test")
+    wandb_project: str = Field(default="gemma-finetuning")
+    wandb_run_name: str = Field(default="tt-gemma-test")
     wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
@@ -44,7 +44,7 @@ class TrainingConfig(BaseModel):
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="epoch")
-    project_dir: str = Field(default="blacksmith/experiments/torch/qwen")
+    project_dir: str = Field(default="blacksmith/experiments/torch/gemma")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
     sync_to_storage: bool = Field(default=False)
