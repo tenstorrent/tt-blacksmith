@@ -28,4 +28,5 @@ wandb_log_freq: 1000
 model_to_wandb: False
 save_strategy: "epoch"
 logging_steps: 50
+print_examples: True
 use_tt: True

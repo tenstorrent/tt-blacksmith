@@ -43,4 +43,5 @@ class TrainingConfig(BaseModel):
     save_total_limit: int = Field(default=3, gt=0)
     do_train: bool = Field(default=True)
     do_eval: bool = Field(default=True)
+    print_examples: bool = Field(default=False)
     use_tt: bool = Field(default=True)

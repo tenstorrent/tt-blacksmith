@@ -55,12 +55,28 @@ def show_examples(examples, tokenizer, config):
         print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
 
 
+def collect_examples(batch_size, collected_examples, max_examples):
+    if len(collected_examples) < max_examples:
+        import random
+
+        sample_indices = random.sample(range(batch_size), min(batch_size, max_examples - len(collected_examples)))
+        for idx in sample_indices:
+            collected_examples.append(
+                {
+                    "input_ids": input_ids[idx],
+                    "expected": expected_output[idx],
+                    "predicted": predictions[idx],
+                    "batch_num": num_val_batches,
+                }
+            )
+    return collected_examples
+
+
 def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     print(f"\n=== Starting Validation ===")
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
-    max_examples = 10
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
@@ -84,26 +100,14 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             predictions = logits.argmax(dim=-1)
             num_val_batches += 1
 
-            if len(collected_examples) < max_examples:
-                batch_size = expected_output.shape[0]
-                import random
-
-                sample_indices = random.sample(
-                    range(batch_size), min(batch_size, max_examples - len(collected_examples))
+            if config.print_examples:
+                collected_examples = collect_examples(
+                    batch_size=expected_output.shape[0], collected_examples=collected_examples, max_examples=10
                 )
 
-                for idx in sample_indices:
-                    collected_examples.append(
-                        {
-                            "input_ids": input_ids[idx],
-                            "expected": expected_output[idx],
-                            "predicted": predictions[idx],
-                            "batch_num": num_val_batches,
-                        }
-                    )
-
-    print(f"\n=== Validation Examples (Random samples) ===")
-    show_examples(collected_examples, tokenizer, config)
+    if config.print_examples:
+        print(f"\n=== Validation Examples (Random samples) ===")
+        show_examples(collected_examples, tokenizer, config)
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     print(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
