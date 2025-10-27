@@ -10,13 +10,10 @@ See THIRD_PARTY_NOTICES.md for the full MIT license text.
 import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_map_with_path, DictKey, SequenceKey
-
-import optax
-import quax
+from typing import Any, Tuple, Dict
 
 from .constants import DORA_FREEZE, DORA_FULL
 from .transform import DoraWeight
-from typing import Any, Tuple, Dict
 
 
 def init_dora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, is_leaf=None) -> Any:

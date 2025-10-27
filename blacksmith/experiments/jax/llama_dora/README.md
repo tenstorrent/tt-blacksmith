@@ -15,7 +15,7 @@ This directory includes:
 
 ```bash
 pip install git+https://github.com/patrick-kidger/quax.git@8c50184a7e60835799cc5f79c9de9315ca77c875 --no-deps
-pip install equinox==0.13.1 --no-deps
+pip install git+https://github.com/patrick-kidger/equinox.git@367124071570194b5d90692b2e09caa834b89ab9 --no-deps
 pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
 ```
 
@@ -24,7 +24,7 @@ pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
 Run DoRA training on Tenstorrent device:
 
 ```bash
-python3 blacksmith/experiments/jax/llama/test_llama_fine_tuning_jax.py
+python3 blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.py
 ```
 
 ## Configuration Options
@@ -38,13 +38,11 @@ This script supports the following configurable parameters:
 | `max_length` | `128` | Maximum sequence length |
 | `learning_rate` | `1e-4` | Learning rate for optimizer |
 | `batch_size` | `4` | Training batch size |
-| `num_epochs` | `5` | Number of training epochs |
+| `num_epochs` | `1` | Number of training epochs |
 | `dora_rank` | `4` | DoRA adaptation rank |
-| `num_hidden_layers` | `16` | Number of transformer layers |
 
 ### DoRA Target Modules
 
 The implementation applies DoRA adaptation to MLP layers only:
-- `mlp.gate_proj.kernel`
 - `mlp.up_proj.kernel`
 - `mlp.down_proj.kernel`

@@ -7,16 +7,23 @@ max_length: 64
 dtype: "jnp.float32"
 
 # Training hyperparameters
-learning_rate: 1e-4
 batch_size: 4
 num_epochs: 1
-optim: None
+learning_rate: 1e-4
+weight_decay: 0.01
+optim: "adamw"
 
 # DoRA setup
 lora_r: 4
 lora_alpha: 8
-lora_target_modules: ["mlp.gate_proj.kernel", "mlp.up_proj.kernel", "mlp.down_proj.kernel"]
+lora_target_modules: ["mlp.up_proj.kernel", "mlp.down_proj.kernel"]
 lora_task_type: "CAUSAL_LM"
 
+# Logging settings
+use_wandb: False
+wandb_run_name: "Llama 3.2-1B-JAX Fine-Tuning with DoRA"
+wandb_project: "blacksmith-llama-dora"
+logging_steps: 2
+
 # Other settings
-use_tt: True
+seed: 42

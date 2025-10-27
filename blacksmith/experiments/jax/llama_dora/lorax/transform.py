@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from dataclasses import dataclass
-from functools import partial
-import warnings
-
 """
 Portions of this file are derived from 'lorax' by davisyoshida (MIT).
 Copyright (c) 2023 davisyoshida
 Source: https://github.com/davisyoshida/lorax
 See THIRD_PARTY_NOTICES.md for the full MIT license text.
 """
+import warnings
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import quax
+
 from typing import Any, Callable
+from dataclasses import dataclass
+from functools import partial
 
 
 def dora(f: Callable[..., Any]) -> Callable[..., Any]:
