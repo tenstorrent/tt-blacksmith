@@ -10,6 +10,7 @@ dtype: "torch.bfloat16"
 learning_rate: 2e-5
 batch_size: 16
 num_epochs: 1
+ignored_index: -100
 
 # LoRA setup
 lora_r: 4

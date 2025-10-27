@@ -12,6 +12,7 @@ batch_size: 16
 gradient_accumulation_steps: 1
 gradient_checkpointing: False
 num_epochs: 1
+ignored_index: -100
 optim: "adamw_torch"
 
 # LoRA setup

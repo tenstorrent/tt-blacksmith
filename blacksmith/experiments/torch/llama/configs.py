@@ -19,7 +19,7 @@ class TrainingConfig(BaseModel):
     gradient_accumulation_steps: int = Field(default=1, gt=0)
     gradient_checkpointing: bool = Field(default=False)
     num_epochs: int = Field(default=1, gt=0)
-    optim: str = Field(default="adamw_torch")
+    ignored_index: int = Field(default=-100)
 
     # LoRA setup
     lora_r: int = Field(default=4, gt=0)

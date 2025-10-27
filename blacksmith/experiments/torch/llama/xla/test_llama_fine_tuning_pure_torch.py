@@ -16,7 +16,7 @@ from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWr
 from blacksmith.tools.cli import generate_config
 
 
-def show_examples(examples, tokenizer):
+def show_examples(examples, tokenizer, config):
 
     for i, example in enumerate(examples):
         print(f"\nExample {i+1} (from batch {example['batch_num']}):")
@@ -26,9 +26,9 @@ def show_examples(examples, tokenizer):
         expected = example["expected"].to("cpu")
         predicted = example["predicted"].to("cpu")
 
-        valid_mask = expected != -100
+        valid_mask = expected != config.ignored_index
         if not valid_mask.any():
-            print(f"  No valid tokens (all -100)")
+            print(f"  No valid tokens (all {config.ignored_index})")
             continue
 
         valid_targets = expected[valid_mask]
@@ -103,7 +103,7 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
                     )
 
     print(f"\n=== Validation Examples (Random samples) ===")
-    show_examples(collected_examples, tokenizer)
+    show_examples(collected_examples, tokenizer, config)
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     print(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
@@ -148,7 +148,7 @@ def train(config, device):
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
     # Get loss function
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     # Training
     global_step = 0
