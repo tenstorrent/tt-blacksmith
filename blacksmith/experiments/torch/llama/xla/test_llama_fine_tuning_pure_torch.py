@@ -202,9 +202,9 @@ def train(config, device):
                     model.eval()
 
                     # Validation phase
-                    # avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
+                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
 
-                    # run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
+                    run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
 
                     model.train()
                     if config.save_strategy == "steps":
