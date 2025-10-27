@@ -24,7 +24,6 @@ def get_model(config: TrainingConfig, device: torch.device):
 
     return model
 
-
 def _apply_lora(model, config: TrainingConfig):
     lora_config = LoraConfig(
         r=config.lora_r,

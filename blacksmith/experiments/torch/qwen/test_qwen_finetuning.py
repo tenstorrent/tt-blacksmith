@@ -60,6 +60,8 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
@@ -87,21 +89,21 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 labels = batch["labels"].to(device)
 
                 # Forward pass
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
                 # Compute loss
-                loss = outputs.loss
+                shift_logits = outputs.logits[..., :-1, :].contiguous()
+                shift_labels = labels[..., 1:].contiguous()
+                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
                 running_loss += loss.item()
 
                 # Backward pass
                 loss.backward()
 
                 # Update parameters
+                optimizer.step()
                 if config.use_tt:
-                    xm.optimizer_step(optimizer)
                     torch_xla.sync(wait=True)
-                else:
-                    optimizer.step()
 
                 global_step += 1
                 if global_step % config.steps_freq == 0:

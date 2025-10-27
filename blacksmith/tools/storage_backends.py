@@ -30,5 +30,5 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def list_files(self, remote_dir: str) -> List[str]:
-        """List files in a directory"""
+        """List files in remote directory"""
         pass

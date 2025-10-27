@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.templates.configs import TrainingConfig
 
 
 PROMPT_TEMPLATE = Template(
