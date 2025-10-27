@@ -33,6 +33,7 @@ class TrainingConfig(BaseModel):
     steps_freq: int = Field(default=10)
     epoch_freq: int = Field(default=1)
     val_steps_freq: int = Field(default=50)
+    print_examples: bool = Field(default=True)
     epoch_freq: int = Field(default=1)
 
     # Checkpoint settings

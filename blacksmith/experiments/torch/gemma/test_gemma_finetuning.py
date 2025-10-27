@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import traceback
+import random
 
 import torch
 from torch.utils.data import DataLoader
@@ -10,6 +11,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tqdm import tqdm
+from transformers import PreTrainedTokenizer
 
 from blacksmith.experiments.torch.gemma.configs import TrainingConfig
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
@@ -20,10 +22,10 @@ from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
-def show_examples(examples, tokenizer):
+def show_examples(examples: list, tokenizer: PreTrainedTokenizer, max_show: int = 10):
 
     for i, example in enumerate(examples):
-        if i > 10:
+        if i >= max_show:
             break
         print(f"\nExample {i+1} (from batch {example['batch_num']}):")
 
@@ -62,6 +64,33 @@ def show_examples(examples, tokenizer):
         )
 
 
+def collect_examples(
+    batch_size: int,
+    collected_examples: list,
+    max_examples: int,
+    input_ids: torch.Tensor,
+    expected_output: torch.Tensor,
+    predictions: torch.Tensor,
+    num_val_batches: int,
+):
+    if len(collected_examples) >= max_examples:
+        return collected_examples
+
+    sample_indices = random.sample(
+        range(batch_size), min(batch_size, max_examples - len(collected_examples))
+    )
+    for idx in sample_indices:
+        collected_examples.append(
+            {
+                "input_ids": input_ids[idx],
+                "expected": expected_output[idx],
+                "predicted": predictions[idx],
+                "batch_num": num_val_batches,
+            }
+        )
+    return collected_examples
+
+
 def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     print(f"\n=== Starting Validation ===")
     model.eval()
@@ -72,8 +101,6 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            if num_val_batches > 10:
-                break
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             expected_output = batch["labels"].to(device)
@@ -87,44 +114,50 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             input_ids = input_ids.to("cpu")
             attention_mask = attention_mask.to("cpu")
 
-            # Shift logits and labels for causal LM: predict next token
-            # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
+            # Shift logits to match pre-shifted labels from collate_fn
             shift_logits = logits[:, :-1, :].contiguous()
-            shift_labels = expected_output[:, 1:].contiguous()
 
+            # Labels are already shifted by collate_fn
             loss = loss_fn(
                 shift_logits.view(-1, model.model.config.vocab_size),
-                shift_labels.view(-1),
+                expected_output.view(-1),
             )
             total_val_loss += loss.item()
-            predictions = logits.argmax(dim=-1)
-            shift_predictions = predictions[:, :-1].contiguous()
+            predictions = shift_logits.argmax(dim=-1)
             num_val_batches += 1
 
-            if len(collected_examples) < max_examples:
-                batch_size = expected_output.shape[0]
-                import random
-
-                sample_indices = random.sample(
-                    range(batch_size),
-                    min(batch_size, max_examples - len(collected_examples)),
+            if config.print_examples:
+                collected_examples = collect_examples(
+                    batch_size=expected_output.shape[0],
+                    collected_examples=collected_examples,
+                    max_examples=max_examples,
+                    input_ids=input_ids,
+                    expected_output=expected_output,
+                    predictions=predictions,
+                    num_val_batches=num_val_batches,
                 )
 
-                for idx in sample_indices:
-                    collected_examples.append(
-                        {
-                            "input_ids": input_ids[idx],
-                            "expected": shift_labels[idx],
-                            "predicted": shift_predictions[idx],
-                            "batch_num": num_val_batches,
-                        }
-                    )
+    if config.print_examples:
+        print(f"\n=== Validation Examples (Random samples) ===")
+        show_examples(collected_examples, tokenizer)
 
-    print(f"\n=== Validation Examples (Random samples) ===")
-    show_examples(collected_examples, tokenizer)
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     print(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
+
+
+def collate_fn_with_shifted_labels(batch):
+    """
+    Collate function that pre-shifts labels for causal LM.
+    Shifts labels to exclude first token.
+    """
+    input_ids = torch.stack([item["input_ids"] for item in batch])
+    attention_mask = torch.stack([item["attention_mask"] for item in batch])
+    labels = torch.stack([item["labels"] for item in batch])
+
+    shifted_labels = labels[:, 1:].contiguous()
+
+    return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": shifted_labels}
 
 
 def train(
@@ -153,10 +186,10 @@ def train(
     train_set, eval_set = dataset.load_tokenized_data()
 
     train_data_loader = DataLoader(
-        train_set, batch_size=config.batch_size, shuffle=True, drop_last=True
+        train_set, batch_size=config.batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn_with_shifted_labels
     )
     val_data_loader = DataLoader(
-        eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True
+        eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True, collate_fn=collate_fn_with_shifted_labels
     )
 
     # Init training components (optimizer, lr scheduler, etc.)
@@ -178,19 +211,18 @@ def train(
 
                 # Forward pass
                 outputs = model(
-                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
+                    input_ids=input_ids, attention_mask=attention_mask
                 )
 
                 logits = outputs.logits
 
-                # Shift logits and labels for causal LM: predict next token
-                # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
+                # Shift logits to match pre-shifted labels from collate_fn
+                # logits[:, :-1] predicts tokens at positions 1:, matching our pre-shifted labels
                 shift_logits = logits[:, :-1, :].contiguous()
-                shift_labels = labels[:, 1:].contiguous()
 
                 loss = loss_fn(
                     shift_logits.view(-1, model.model.config.vocab_size),
-                    shift_labels.view(-1),
+                    labels.view(-1),
                 )
                 # loss = output.loss
                 loss_cpu = loss.item()
@@ -216,7 +248,7 @@ def train(
                     )
                     logger.log_metrics({"train/loss": avg_loss}, step=global_step)
                     running_loss = 0.0
-                
+
                 # Validation phase
                 if global_step % config.val_steps_freq == 0:
                     avg_val_loss = validate(
@@ -229,7 +261,9 @@ def train(
                     )
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
-                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                    checkpoint_manager.save_checkpoint(
+                        model, global_step, epoch, optimizer
+                    )
 
                 global_step += 1
 
