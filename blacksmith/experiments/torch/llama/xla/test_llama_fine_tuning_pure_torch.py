@@ -55,7 +55,9 @@ def show_examples(examples, tokenizer, config):
         print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
 
 
-def collect_examples(batch_size, collected_examples, max_examples):
+def collect_examples(
+    batch_size, collected_examples, max_examples, input_ids, expected_output, predictions, num_val_batches
+):
     if len(collected_examples) < max_examples:
         import random
 
@@ -97,12 +99,18 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             total_val_loss += loss.item()
 
             # Predictions
-            predictions = logits.argmax(dim=-1)
+            predictions = shift_logits.argmax(dim=-1)
             num_val_batches += 1
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=expected_output.shape[0], collected_examples=collected_examples, max_examples=10
+                    batch_size=expected_output.shape[0],
+                    collected_examples=collected_examples,
+                    max_examples=10,
+                    input_ids=input_ids,
+                    expected_output=expected_output,
+                    predictions=predictions,
+                    num_val_batches=num_val_batches,
                 )
 
     if config.print_examples:
