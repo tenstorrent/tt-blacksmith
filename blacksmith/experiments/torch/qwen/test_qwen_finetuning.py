@@ -27,7 +27,7 @@ def validate(
 
     total_val_loss = 0.0
     num_val_batches = 0
-
+    model.eval()
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             input_ids = batch["input_ids"].to(device)
@@ -114,6 +114,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     # Do validation
                     valid_loss = validate(model, eval_dataloader, logger, device)
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    model.train()
 
                     # Save step checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
