@@ -155,10 +155,10 @@ def train(config, device):
     running_loss = 0.0
 
     try:
+        model.train()
         for epoch in range(config.num_epochs):
             print(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
 
-            model.train()
             for batch in tqdm(train_data_loader, desc="Training"):
                 # Zero out gradients
                 optimizer.zero_grad()
