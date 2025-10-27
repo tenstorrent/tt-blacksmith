@@ -57,7 +57,6 @@ def show_examples(examples, tokenizer):
 
 def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     print(f"\n=== Starting Validation ===")
-    model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
@@ -73,13 +72,12 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
 
-            # Shift logits and labels for causal LM: predict next token
-            # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
+            # Shift logits for causal LM: predict next token
+            # logits[:, :-1] predicts tokens at positions 1:
             shift_logits = logits[:, :-1, :].contiguous()
-            shift_labels = expected_output[:, 1:].contiguous()
 
             # Loss
-            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
+            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
             total_val_loss += loss.item()
 
             # Predictions
@@ -111,6 +109,20 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
     return avg_val_loss
 
 
+def collate_fn_with_shifted_labels(batch):
+    """
+    Collate function that pre-shifts labels for causal LM.
+    Shifts labels to exclude first token.
+    """
+    input_ids = torch.stack([item["input_ids"] for item in batch])
+    attention_mask = torch.stack([item["attention_mask"] for item in batch])
+    labels = torch.stack([item["labels"] for item in batch])
+
+    shifted_labels = labels[:, 1:].contiguous()
+
+    return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": shifted_labels}
+
+
 def train(config, device):
     # Get model
     model = get_model(config)
@@ -125,8 +137,12 @@ def train(config, device):
     tokenizer = dataset.tokenizer
     train_set, eval_set = dataset.load_tokenized_data()
 
-    train_data_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, drop_last=True)
-    val_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
+    train_data_loader = DataLoader(
+        train_set, batch_size=config.batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn_with_shifted_labels
+    )
+    val_data_loader = DataLoader(
+        eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True, collate_fn=collate_fn_with_shifted_labels
+    )
 
     # Get optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -142,11 +158,8 @@ def train(config, device):
         for epoch in range(config.num_epochs):
             print(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
 
+            model.train()
             for batch in tqdm(train_data_loader, desc="Training"):
-                # Set model to train mode
-                # We need to do this in inner loop to avoid validation on step logging from switching to eval mode
-                model.train()
-
                 # Zero out gradients
                 optimizer.zero_grad()
 
@@ -161,12 +174,11 @@ def train(config, device):
                 output = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = output.logits
 
-                # Shift logits and labels for causal LM: predict next token
-                # logits[:, :-1] predicts tokens at positions 1:, so compare with labels[:, 1:]
+                # Shift logits for causal LM: predict next token
+                # logits[:, :-1] predicts tokens at positions 1:
                 shift_logits = logits[:, :-1, :].contiguous()
-                shift_labels = expected_output[:, 1:].contiguous()
 
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
+                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
 
                 print(f"Loss: {loss.item():.6f}")
                 running_loss += loss.item()
@@ -187,11 +199,14 @@ def train(config, device):
                     avg_loss = running_loss / config.logging_steps
                     run.log({"train/loss": avg_loss, "step": global_step})
                     running_loss = 0.0
+                    model.eval()
+
                     # Validation phase
-                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
+                    # avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
 
-                    run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
+                    # run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
 
+                    model.train()
                     if config.save_strategy == "steps":
                         checkpoint_path = os.path.join(
                             config.output_dir, "checkpoints", f"checkpoint-{global_step}.pth"
