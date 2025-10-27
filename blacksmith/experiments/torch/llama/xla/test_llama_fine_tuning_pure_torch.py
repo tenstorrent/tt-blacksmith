@@ -65,8 +65,6 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            if num_val_batches > 10:
-                break
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             expected_output = batch["labels"].to(device)
@@ -212,6 +210,7 @@ def train(config, device):
             artifact = wandb.Artifact("final_model", type="model")
             artifact.add_file(final_model_path)
             run.log_artifact(artifact)
+
     except Exception as e:
         error_msg = f"Training failed with error: {str(e)}"
         traceback_str = traceback.format_exc()
