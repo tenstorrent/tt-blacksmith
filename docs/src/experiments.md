@@ -6,15 +6,17 @@ This page provides an overview of the experiments included in this repository, d
 
 The following table provides an overview of different model and dataset combinations within various frameworks explored in this project.
 
-| Framework | Model | Dataset | Devices | Details |
-| --- | --- | --- | --- | --- |
-| Lightning | MLP | MNIST | TT | [README](https://github.com/tenstorrent/tt-blacksmith/tree/main/blacksmith/experiments/lightning/mnist/README.md) |
-| JAX | MLP | MNIST | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
-| PyTorch | MLP | MNIST | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
-| JAX | NeRF | Blender | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |
-| Lightning | NeRF | Blender | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
-| PyTorch | Llama | SST-2 | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
-| JAX | Llama | SST-2 | TT | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/README.md) |
+| Framework | Model | Dataset | Method | Devices | Details |
+| --- | --- | --- | --- | --- | --- |
+| PyTorch | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
+| PyTorch | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
+| PyTorch | Qwen 2.5 0.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| JAX | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
+| JAX | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |
+| JAX | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/README.md) |
+| JAX | Llama 3.2 1B | SST-2 | DoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama_dora/README.md) |
+| Lightning | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/tree/main/blacksmith/experiments/lightning/mnist/README.md) |
+| Lightning | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
 
 
 ## Navigating the Experiment Structure
