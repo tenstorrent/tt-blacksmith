@@ -52,10 +52,10 @@ def log_mem(stage):
     print(f"[{stage}] Allocated: {allocated:.2f} GB | Peak: {peak:.2f} GB")
 
 
-def show_examples(examples, tokenizer, config):
+def show_examples(examples, tokenizer, config, logger):
 
     for i, example in enumerate(examples):
-        print(f"\nExample {i+1} (from batch {example['batch_num']}):")
+        logger.info(f"\nExample {i+1} (from batch {example['batch_num']}):")
 
         # NOTE: Move example tensors to CPU, because tokenizer does not work with tensors on TT device
         input_ids = example["input_ids"].to("cpu")
@@ -64,7 +64,7 @@ def show_examples(examples, tokenizer, config):
 
         valid_mask = expected != config.ignored_index
         if not valid_mask.any():
-            print(f"  No valid tokens (all {config.ignored_index})")
+            logger.info(f"  No valid tokens (all {config.ignored_index})")
             continue
 
         valid_targets = expected[valid_mask]
@@ -74,21 +74,21 @@ def show_examples(examples, tokenizer, config):
         target_tokens = valid_targets[:show_len].tolist()
         pred_tokens = valid_preds[:show_len].tolist()
 
-        print(f"Target IDs:  {target_tokens}")
-        print(f"Pred IDs:    {pred_tokens}")
+        logger.info(f"Target IDs:  {target_tokens}")
+        logger.info(f"Pred IDs:    {pred_tokens}")
 
         try:
             target_text = tokenizer.decode(target_tokens, skip_special_tokens=False)
             pred_text = tokenizer.decode(pred_tokens, skip_special_tokens=False)
             input_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-            print(f"Input text:  '{input_text}'")
-            print(f"Target text: '{target_text}'")
-            print(f"Pred text:   '{pred_text}'")
+            logger.info(f"Input text:  '{input_text}'")
+            logger.info(f"Target text: '{target_text}'")
+            logger.info(f"Pred text:   '{pred_text}'")
         except Exception as e:
-            print(f"  (Could not decode text: {e})")
+            logger.info(f"  (Could not decode text: {e})")
 
         correct = (valid_targets == valid_preds).float().mean()
-        print(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
+        logger.info(f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})")
 
 
 def collect_examples(

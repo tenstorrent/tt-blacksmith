@@ -2,26 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-import random
-import numpy as np
 import torch
 import traceback
-import wandb
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
+from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.torch_helpers import show_examples, collect_examples
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
-def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
-    print(f"\n=== Starting Validation ===")
+def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
+    logger.info("Starting validation...")
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
+    model.eval()
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
@@ -57,11 +61,11 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
                 )
 
     if config.print_examples:
-        print(f"\n=== Validation Examples (Random samples) ===")
-        show_examples(collected_examples, tokenizer, config)
+        logger.info("Printing validation examples...")
+        show_examples(collected_examples, tokenizer, config, logger)
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
-    print(f"Average validation loss: {avg_val_loss}")
+    logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
 
 
@@ -79,43 +83,45 @@ def collate_fn_with_shifted_labels(batch):
     return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": shifted_labels}
 
 
-def train(config, device):
-    # Get model
-    model = get_model(config)
-    model = model.to(device)
+def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
+    logger.info("Starting training...")
 
-    # Initialize wandb
-    run = wandb.init(project=config.wandb_project, name=config.wandb_run_name, config=vars(config), save_code=True)
-    run.watch(model, log=config.wandb_watch_mode, log_freq=config.wandb_log_freq)
+    # Load model
+    model = get_model(config, device)
+    logger.info(f"Loaded {config.model_name} model.")
+    logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    # Init training components (optimizer, lr scheduler, etc.)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+
+    # Load checkpoint if needed
+    if config.resume_from_checkpoint:
+        checkpoint_manager.load_checkpoint(model, optimizer)
 
     # Get dataset
     dataset = SSTDataset(config)
     tokenizer = dataset.tokenizer
     train_set, eval_set = dataset.load_tokenized_data()
 
-    train_data_loader = DataLoader(
+    train_dataloader = DataLoader(
         train_set, batch_size=config.batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn_with_shifted_labels
     )
-    val_data_loader = DataLoader(
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)}")
+    eval_dataloader = DataLoader(
         eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True, collate_fn=collate_fn_with_shifted_labels
     )
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)}")
 
-    # Get optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-
-    # Get loss function
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
-
-    # Training
     global_step = 0
     running_loss = 0.0
-
     try:
         model.train()
         for epoch in range(config.num_epochs):
-            print(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
 
-            for batch in tqdm(train_data_loader, desc="Training"):
+            for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients
                 optimizer.zero_grad()
 
@@ -136,77 +142,74 @@ def train(config, device):
 
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
 
-                print(f"Loss: {loss.item():.6f}")
+                print(f"Loss: {loss.item()}")
                 running_loss += loss.item()
 
                 # Backward pass
                 loss.backward()
 
-                # Optimizer step on CPU
-                optimizer.step()
-
-                # Sync XLA device
+                # Optimizer step
                 if config.use_tt:
+                    xm.optimizer_step(optimizer)
                     torch_xla.sync(wait=True)
+                else:
+                    optimizer.step()
 
                 global_step += 1
-
-                if global_step % config.logging_steps == 0:
-                    avg_loss = running_loss / config.logging_steps
-                    run.log({"train/loss": avg_loss, "step": global_step})
+                if global_step % config.steps_freq == 0:
+                    avg_loss = running_loss / config.steps_freq
+                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
                     running_loss = 0.0
-                    model.eval()
 
-                    # Validation phase
-                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, tokenizer)
-
-                    run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
-
+                    # Do validation
+                    valid_loss = validate(model, eval_dataloader, loss_fn, logger, device, config, tokenizer)
+                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
                     model.train()
-                    if config.save_strategy == "steps":
-                        checkpoint_path = os.path.join(
-                            config.output_dir, "checkpoints", f"checkpoint-{global_step}.pth"
-                        )
-                        torch.save(model.state_dict(), checkpoint_path)
 
-            if config.save_strategy == "epoch":
-                checkpoint_path = os.path.join(config.output_dir, "checkpoints", f"checkpoint-{epoch+1}.pth")
-                torch.save(model.state_dict(), checkpoint_path)
+                    # Save step checkpoint
+                    if checkpoint_manager.should_save_checkpoint(global_step):
+                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+            # Save epoch checkpoint
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         # Save final model
-        final_model_path = os.path.join(config.output_dir, "checkpoints", "final_model.pth")
-        torch.save(model.state_dict(), final_model_path)
-
-        if config.model_to_wandb:
-            artifact = wandb.Artifact("final_model", type="model")
-            artifact.add_file(final_model_path)
-            run.log_artifact(artifact)
+        final_model_path = checkpoint_manager.save_checkpoint(
+            model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
+        )
+        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
     except Exception as e:
-        error_msg = f"Training failed with error: {str(e)}"
         traceback_str = traceback.format_exc()
-        print(error_msg)
-        print(traceback_str)
+        logger.error(f"Training failed with error: {str(e)}", traceback_str)
         raise
     finally:
-        wandb.finish()
+        logger.finish()
 
 
 if __name__ == "__main__":
+    # Config setup
     config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
-    os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
+    # Reproducibility setup
+    repro_manager = ReproducibilityManager(config)
+    repro_manager.setup()
+
+    # Logger setup
+    logger = TrainingLogger(config)
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup
     if config.use_tt:
-        import torch_xla
-        import torch_xla.core.xla_model as xm
-        import torch_xla.runtime as xr
-
         xr.runtime.set_device_type("TT")
         device = xm.xla_device()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using device: {device}")
 
-    train(config, device)
+    # Start training
+    train(config, device, logger, checkpoint_manager)

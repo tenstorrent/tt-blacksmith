@@ -11,7 +11,7 @@ import wandb
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
+from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config
 
 
