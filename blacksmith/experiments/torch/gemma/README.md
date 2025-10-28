@@ -49,7 +49,6 @@ Current `test_gemma_finetuning.yaml` has the recommended and tested hyperparamet
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `learning_rate` | Learning rate for the optimizer. | 2e-5 |
 | `batch_size` | Number of samples per training batch. | 32 |
-| `gradient_accumulation_steps` | Steps to accumulate gradients before updating. | 1 |
 | `gradient_checkpointing` | Whether to use gradient checkpointing to save memory. | False |
 | `num_epochs` | Total number of training epochs. | 1 |
 | `optim` | Optimizer to use for training. | "adamw_torch" |

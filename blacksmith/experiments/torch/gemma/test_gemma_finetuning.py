@@ -23,8 +23,8 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.torch_helpers import show_examples, collect_examples
 
 
-def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
-    print(f"\n=== Starting Validation ===")
+def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=None):
+    logger.info(f"\n=== Starting Validation ===")
     model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
@@ -65,11 +65,11 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
                 )
 
     if config.print_examples:
-        print(f"\n=== Validation Examples (Random samples) ===")
+        logger.info(f"\n=== Validation Examples (Random samples) ===")
         show_examples(collected_examples, tokenizer, config, logger)
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
-    print(f"Average validation loss: {avg_val_loss}")
+    logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
 
 
@@ -99,9 +99,7 @@ def train(
     model = get_model(config, device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    logger.info(
-        f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
-    )
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
@@ -137,9 +135,7 @@ def train(
                 labels = batch["labels"].to(device)
 
                 # Forward pass
-                outputs = model(
-                    input_ids=input_ids, attention_mask=attention_mask
-                )
+                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
 
                 logits = outputs.logits
 
@@ -167,19 +163,13 @@ def train(
                     optimizer.step()
 
                 if global_step % config.steps_freq == 0:
-                    avg_loss = (
-                        running_loss / config.steps_freq
-                        if global_step > 0
-                        else running_loss
-                    )
+                    avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
                     logger.log_metrics({"train/loss": avg_loss}, step=global_step)
                     running_loss = 0.0
 
                 # Validation phase
                 if global_step % config.val_steps_freq == 0:
-                    avg_val_loss = validate(
-                        model, val_data_loader, loss_fn, device, config, tokenizer
-                    )
+                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer)
                     model.train()
 
                     logger.log_metrics(
@@ -188,9 +178,7 @@ def train(
                     )
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
-                    checkpoint_manager.save_checkpoint(
-                        model, global_step, epoch, optimizer
-                    )
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
                 global_step += 1
 
@@ -198,12 +186,8 @@ def train(
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         # Save final model
-        final_model_path = checkpoint_manager.save_checkpoint(
-            model, global_step, epoch, optimizer
-        )
-        logger.log_artifact(
-            final_model_path, artifact_type="model", name="final_model.pth"
-        )
+        final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
     except Exception as e:
         traceback_str = traceback.format_exc()
@@ -215,9 +199,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(
-        os.path.dirname(__file__), "test_gemma_finetuning.yaml"
-    )
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma_finetuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
