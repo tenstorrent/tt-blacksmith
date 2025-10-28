@@ -147,9 +147,7 @@ def train(
                     shift_logits.view(-1, model.model.config.vocab_size),
                     labels.view(-1),
                 )
-                # loss = output.loss
                 loss_cpu = loss.item()
-
                 running_loss += loss_cpu
 
                 # Backward pass
