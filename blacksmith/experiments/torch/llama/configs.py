@@ -18,6 +18,7 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(default=32, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
     gradient_checkpointing: bool = Field(default=False)
+    weight_decay: float = Field(default=0.0, ge=0)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
     ignored_index: int = Field(default=-100)
