@@ -13,7 +13,7 @@ class TrainingConfig(BaseModel):
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
     ignored_index: int = Field(default=-100)
-    
+
     # Training hyperparameters
     learning_rate: float = Field(default=2e-5, gt=0)
     batch_size: int = Field(default=32, gt=0)
