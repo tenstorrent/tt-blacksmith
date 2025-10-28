@@ -142,7 +142,6 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
 
-                print(f"Loss: {loss.item()}")
                 running_loss += loss.item()
 
                 # Backward pass
