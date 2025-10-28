@@ -1,6 +1,6 @@
-# Llama with LoRA Experiment
+# Llama with LoRA Experiment in FFE
 
-This directory contains the code for the Llama with LoRA fine-tuning experiment.
+This directory contains the code for the Llama with LoRA fine-tuning experiment in FFE.
 Llama model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
@@ -12,7 +12,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/llama/test_llama_fine_tuning_pure_torch.py
+python3 blacksmith/experiments/torch/llama/ffe/test_llama_fine_tuning_pure_torch.py
 ```
 
 ## Data
@@ -50,7 +50,6 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `learning_rate` | Learning rate for the optimizer. | 2e-5 |
 | `batch_size` | Number of samples per training batch. | 32 |
-| `gradient_accumulation_steps` | Number of steps to accumulate gradients before updating. | 1 |
 | `gradient_checkpointing` | Whether to use gradient checkpointing to save memory. | False |
 | `num_epochs` | Total number of training epochs. | 1 |
 | `optim` | Optimizer to use for training. | "adamw_torch" |

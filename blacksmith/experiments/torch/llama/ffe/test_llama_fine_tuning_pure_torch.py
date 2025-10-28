@@ -11,11 +11,11 @@ import wandb
 
 from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model, TextModelWrapper
+from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config
 
 
-def show_examples(examples, tokenizer):
+def show_examples(examples, tokenizer, config):
     for i, example in enumerate(examples):
         print(f"\nExample {i+1} (from batch {example['batch_num']}):")
 
@@ -23,9 +23,9 @@ def show_examples(examples, tokenizer):
         expected = example["expected"]
         predicted = example["predicted"]
 
-        valid_mask = expected != -100
+        valid_mask = expected != config.ignored_index
         if not valid_mask.any():
-            print(f"  No valid tokens (all -100)")
+            print(f"  No valid tokens (all {config.ignored_index})")
             continue
 
         valid_targets = expected[valid_mask]
@@ -103,7 +103,7 @@ def validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype,
                     )
 
     print(f"\n=== Validation Examples (Random samples) ===")
-    show_examples(collected_examples, tokenizer)
+    show_examples(collected_examples, tokenizer, config)
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     print(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
@@ -179,7 +179,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
     if config.use_tt:
         # TODO: Remove this once softmax is fixed
-        from blacksmith.experiments.torch.llama.loss import CrossEntropyLoss
+        from blacksmith.experiments.torch.llama.ffe.loss import CrossEntropyLoss
 
         loss_tt = CrossEntropyLoss(name="cross_entropy_loss", dtype=forge_dtype)
 
@@ -196,7 +196,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
             training=True,
         )
     else:
-        loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+        loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     global_step = 0
     running_loss = 0.0

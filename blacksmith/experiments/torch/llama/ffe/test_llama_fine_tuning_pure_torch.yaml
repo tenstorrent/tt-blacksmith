@@ -9,9 +9,9 @@ dtype: "torch.bfloat16"
 # Training hyperparameters
 learning_rate: 2e-5
 batch_size: 16
-gradient_accumulation_steps: 1
 gradient_checkpointing: False
 num_epochs: 1
+ignored_index: -100
 optim: "adamw_torch"
 
 # LoRA setup
@@ -22,8 +22,8 @@ lora_task_type: "CAUSAL_LM"
 
 # Other settings
 seed: 23
-output_dir: "blacksmith/experiments/torch/llama"
-wandb_project: "llama-finetuning"
+output_dir: "blacksmith/experiments/torch/llama/ffe"
+wandb_project: "llama-finetuning-ffe"
 wandb_run_name: "tt-llama-test"
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
