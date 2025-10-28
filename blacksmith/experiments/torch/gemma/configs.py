@@ -12,11 +12,11 @@ class TrainingConfig(BaseModel):
     model_name: str = Field(default="google/gemma-3-1b-it")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
-
+    ignored_index: int = Field(default=-100)
+    
     # Training hyperparameters
     learning_rate: float = Field(default=2e-5, gt=0)
     batch_size: int = Field(default=32, gt=0)
-    gradient_accumulation_steps: int = Field(default=1, gt=0)
     gradient_checkpointing: bool = Field(default=False)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
@@ -34,7 +34,6 @@ class TrainingConfig(BaseModel):
     epoch_freq: int = Field(default=1)
     val_steps_freq: int = Field(default=50)
     print_examples: bool = Field(default=True)
-    epoch_freq: int = Field(default=1)
 
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)

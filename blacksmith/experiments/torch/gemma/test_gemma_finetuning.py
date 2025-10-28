@@ -20,75 +20,7 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
-
-
-def show_examples(examples: list, tokenizer: PreTrainedTokenizer, max_show: int = 10):
-
-    for i, example in enumerate(examples):
-        if i >= max_show:
-            break
-        print(f"\nExample {i+1} (from batch {example['batch_num']}):")
-
-        input_ids = example["input_ids"].to("cpu")
-        expected = example["expected"].to("cpu")
-        predicted = example["predicted"].to("cpu")
-
-        valid_mask = expected != -100
-        if not valid_mask.any():
-            print(f"  No valid tokens (all -100)")
-            continue
-
-        valid_targets = expected[valid_mask]
-        valid_preds = predicted[valid_mask]
-
-        show_len = min(10, len(valid_targets))
-        target_tokens = valid_targets[:show_len].tolist()
-        pred_tokens = valid_preds[:show_len].tolist()
-
-        print(f"Target IDs:  {target_tokens}")
-        print(f"Pred IDs:    {pred_tokens}")
-
-        try:
-            target_text = tokenizer.decode(target_tokens, skip_special_tokens=False)
-            pred_text = tokenizer.decode(pred_tokens, skip_special_tokens=False)
-            input_text = tokenizer.decode(input_ids, skip_special_tokens=True)
-            print(f"Input text:  '{input_text}'")
-            print(f"Target text: '{target_text}'")
-            print(f"Pred text:   '{pred_text}'")
-        except Exception as e:
-            print(f"  (Could not decode text: {e})")
-
-        correct = (valid_targets == valid_preds).float().mean()
-        print(
-            f"Accuracy: {correct.item():.3f} ({(valid_targets == valid_preds).sum()}/{len(valid_targets)})"
-        )
-
-
-def collect_examples(
-    batch_size: int,
-    collected_examples: list,
-    max_examples: int,
-    input_ids: torch.Tensor,
-    expected_output: torch.Tensor,
-    predictions: torch.Tensor,
-    num_val_batches: int,
-):
-    if len(collected_examples) >= max_examples:
-        return collected_examples
-
-    sample_indices = random.sample(
-        range(batch_size), min(batch_size, max_examples - len(collected_examples))
-    )
-    for idx in sample_indices:
-        collected_examples.append(
-            {
-                "input_ids": input_ids[idx],
-                "expected": expected_output[idx],
-                "predicted": predictions[idx],
-                "batch_num": num_val_batches,
-            }
-        )
-    return collected_examples
+from blacksmith.tools.torch_helpers import show_examples, collect_examples
 
 
 def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
@@ -108,11 +40,6 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
             # Forward pass + loss
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
-            # move logits to cpu
-            logits = logits.to("cpu")
-            expected_output = expected_output.to("cpu")
-            input_ids = input_ids.to("cpu")
-            attention_mask = attention_mask.to("cpu")
 
             # Shift logits to match pre-shifted labels from collate_fn
             shift_logits = logits[:, :-1, :].contiguous()
@@ -139,7 +66,7 @@ def validate(model, val_data_loader, loss_fn, device, config, tokenizer=None):
 
     if config.print_examples:
         print(f"\n=== Validation Examples (Random samples) ===")
-        show_examples(collected_examples, tokenizer)
+        show_examples(collected_examples, tokenizer, config, logger)
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     print(f"Average validation loss: {avg_val_loss}")
@@ -194,7 +121,7 @@ def train(
 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     global_step = 0
     running_loss = 0.0
@@ -226,7 +153,6 @@ def train(
                 )
                 # loss = output.loss
                 loss_cpu = loss.item()
-                print(f"Loss: {loss_cpu:.6f} {loss.device}")
 
                 running_loss += loss_cpu
 
@@ -254,6 +180,7 @@ def train(
                     avg_val_loss = validate(
                         model, val_data_loader, loss_fn, device, config, tokenizer
                     )
+                    model.train()
 
                     logger.log_metrics(
                         {"epoch": epoch + 1, "val/loss": avg_val_loss},
