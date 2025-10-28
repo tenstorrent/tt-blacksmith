@@ -15,9 +15,8 @@ This directory includes:
 
 ```bash
 pip install git+https://github.com/patrick-kidger/quax.git@8c50184a7e60835799cc5f79c9de9315ca77c875 --no-deps
-pip install equinox==0.13.1 --no-deps
+pip install git+https://github.com/patrick-kidger/equinox.git@367124071570194b5d90692b2e09caa834b89ab9 --no-deps
 pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
-export PYTHONPATH=/localdev/upantelic/tt-blacksmith:$PYTHONPATH
 ```
 
 ## Usage
