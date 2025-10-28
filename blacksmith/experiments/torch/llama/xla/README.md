@@ -50,7 +50,6 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `learning_rate` | Learning rate for the optimizer. | 2e-5 |
 | `batch_size` | Number of samples per training batch. | 32 |
-| `gradient_accumulation_steps` | Number of steps to accumulate gradients before updating. | 1 |
 | `gradient_checkpointing` | Whether to use gradient checkpointing to save memory. | False |
 | `num_epochs` | Total number of training epochs. | 1 |
 | `optim` | Optimizer to use for training. | "adamw_torch" |
