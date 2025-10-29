@@ -21,10 +21,10 @@ class BaseDataset(Dataset, ABC):
         self.config = config
         self.split = split
 
-        self._prepare_dataset(split)
+        self._prepare_dataset()
 
     @abstractmethod
-    def _prepare_dataset(self, split: str):
+    def _prepare_dataset(self):
         """Load and prepare the dataset"""
         pass
 

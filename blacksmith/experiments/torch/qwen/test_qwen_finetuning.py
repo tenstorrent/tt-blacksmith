@@ -18,6 +18,7 @@ from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 
 
 def validate(
@@ -67,13 +68,13 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         checkpoint_manager.load_checkpoint(model, optimizer)
 
     # Load dataset
-    train_dataset = TextToSQLDataset(config=config)
+    train_dataset = TextToSQLDataset(config=config, collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = TextToSQLDataset(config=config, split="test")
+    eval_dataset = TextToSQLDataset(config=config, split="test", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     global_step = 0
     running_loss = 0.0
@@ -93,8 +94,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # Compute loss
                 shift_logits = outputs.logits[..., :-1, :].contiguous()
-                shift_labels = labels[..., 1:].contiguous()
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), shift_labels.view(-1))
+                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), labels.view(-1))
                 running_loss += loss.item()
 
                 # Backward pass

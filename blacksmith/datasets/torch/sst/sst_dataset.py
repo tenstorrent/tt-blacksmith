@@ -1,33 +1,24 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from string import Template
-from typing import Dict
-
+from typing import Tuple, Dict, Any
 from datasets import load_dataset
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
+import torch
 
+from blacksmith.datasets.torch.sst.sst_utils import PROMPT_TEMPLATE, RESPONSE_TEMPLATE, LBL2VALUE
+from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.tools.templates.configs import TrainingConfig
 
 
-PROMPT_TEMPLATE = Template(
-    """### Instruction:\n
-Generate an SQL query for the given question and database schema.\n\n
-### Input:\n
-Question: $prompt\n
-Schema: $context\n\n
-### Output:\n"""
-)
-
-
-class TextToSQLDataset(BaseDataset):
+class SSTDataset(BaseDataset):
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: Training configuration
-            split: Dataset split to use ("train", "test")
+            config: TrainingConfig
+            split: Dataset split to use ("train", "validation")
+            collate_fn: Collate function to use for the dataset
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
@@ -38,14 +29,10 @@ class TextToSQLDataset(BaseDataset):
 
         self._prepare_dataset()
 
-    def _tokenize_function(self, example: Dict) -> Dict:
-        prompt = example["sql_prompt"]
-        context = example.get("sql_context", "")
-        sql = example["sql"]
-
-        input_text = PROMPT_TEMPLATE.substitute(prompt=prompt, context=context)
-        target_text = sql.strip()
-        full_text = input_text + target_text
+    def _tokenize_function(self, example):
+        prompt = PROMPT_TEMPLATE.substitute(input=example["sentence"])
+        response = RESPONSE_TEMPLATE.substitute(label=LBL2VALUE[example["label"]])
+        full_text = prompt + response
 
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
 
@@ -53,7 +40,7 @@ class TextToSQLDataset(BaseDataset):
         attention_mask = encoding["attention_mask"].squeeze(0)
 
         labels = input_ids.clone()
-        prompt_encoding = self.tokenizer(input_text, truncation=False, padding=False, return_tensors="pt")
+        prompt_encoding = self.tokenizer(prompt, truncation=False, padding=False, return_tensors="pt")
         prompt_input_ids = prompt_encoding["input_ids"].squeeze(0)
         prompt_len = prompt_input_ids.size(0)
         labels[:prompt_len] = -100
@@ -67,8 +54,8 @@ class TextToSQLDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
+        print(f"Loading dataset ({self.config.dataset_id})...")
         raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
-        raw_dataset = raw_dataset.filter(lambda example: example["sql_complexity"] == "basic SQL")
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
@@ -76,10 +63,10 @@ class TextToSQLDataset(BaseDataset):
             [col for col in self.full_dataset.column_names if col not in self.required_columns]
         )
 
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.dataset)
 
-    def __getitem__(self, idx: int) -> Dict:
+    def __getitem__(self, idx):
         sample = self.dataset[idx]
 
         return {

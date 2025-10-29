@@ -14,13 +14,14 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
 from blacksmith.experiments.torch.gemma.configs import TrainingConfig
-from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
+from blacksmith.datasets.torch.sst.sst_dataset import SSTDataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.torch_helpers import show_examples, collect_examples
+from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 
 
 def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=None):
@@ -64,27 +65,13 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
                     num_val_batches=num_val_batches,
                 )
 
-    if config.print_examples:
+    if config.print_examples and tokenizer is not None:
         logger.info(f"\n=== Validation Examples (Random samples) ===")
         show_examples(collected_examples, tokenizer, config, logger)
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
-
-
-def collate_fn_with_shifted_labels(batch):
-    """
-    Collate function that pre-shifts labels for causal LM.
-    Shifts labels to exclude first token.
-    """
-    input_ids = torch.stack([item["input_ids"] for item in batch])
-    attention_mask = torch.stack([item["attention_mask"] for item in batch])
-    labels = torch.stack([item["labels"] for item in batch])
-
-    shifted_labels = labels[:, 1:].contiguous()
-
-    return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": shifted_labels}
 
 
 def train(
@@ -106,16 +93,15 @@ def train(
         checkpoint_manager.load_checkpoint()
 
     # Load dataset
-    dataset = SSTDataset(config)
-    tokenizer = dataset.tokenizer
-    train_set, eval_set = dataset.load_tokenized_data()
+    train_dataset = SSTDataset(config=config, collate_fn=collate_fn_for_causal_lm)
+    train_dataloader = train_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    train_data_loader = DataLoader(
-        train_set, batch_size=config.batch_size, shuffle=True, drop_last=True, collate_fn=collate_fn_with_shifted_labels
-    )
-    val_data_loader = DataLoader(
-        eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True, collate_fn=collate_fn_with_shifted_labels
-    )
+    eval_dataset = SSTDataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataloader = eval_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+
+    tokenizer = train_dataset.tokenizer
 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -127,7 +113,7 @@ def train(
         for epoch in range(config.num_epochs):
             model.train()
 
-            for batch in tqdm(train_data_loader):
+            for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
                 input_ids = batch["input_ids"].to(device)
@@ -167,7 +153,7 @@ def train(
 
                 # Validation phase
                 if global_step % config.val_steps_freq == 0:
-                    avg_val_loss = validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer)
+                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device, config, logger, tokenizer)
                     model.train()
 
                     logger.log_metrics(

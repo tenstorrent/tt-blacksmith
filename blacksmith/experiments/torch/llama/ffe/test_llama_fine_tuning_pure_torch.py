@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
+from blacksmith.datasets.torch.sst.sst_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config
@@ -299,10 +299,12 @@ if __name__ == "__main__":
 
     model = get_model(config)
 
-    dataset = SSTDataset(config)
-    train_set, eval_set = dataset.load_tokenized_data()
-    train_data_loader = DataLoader(train_set, batch_size=config.batch_size, shuffle=True, drop_last=True)
-    eval_data_loader = DataLoader(eval_set, batch_size=config.batch_size, shuffle=False, drop_last=True)
+    # Load dataset
+    train_dataset = SSTDataset(config=config)
+    train_dataloader = train_dataset.get_dataloader()
+
+    eval_dataset = SSTDataset(config=config, split="validation")
+    eval_dataloader = eval_dataset.get_dataloader()
 
     if config.do_train:
-        train(config, model, dataset.tokenizer, train_data_loader, eval_data_loader)
+        train(config, model, train_dataset.tokenizer, train_dataloader, eval_dataloader)
