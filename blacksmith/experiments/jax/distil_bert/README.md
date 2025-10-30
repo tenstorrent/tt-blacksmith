@@ -1,7 +1,8 @@
-# DistilBERT Knowledge Distillation on SST-2 in TT-XLA
+# DistilBERT Knowledge Distillation Experiment
 
 This directory contains the code for performing **knowledge distillation** of a DistilBERT model on the **SST-2** sentiment classification dataset using **TT-XLA**.
 The goal of this experiment is to train a smaller *student* model (DistilBERT) to mimic a larger *teacher* model (BERT-base) while maintaining high performance on sentiment classification.
+Original paper can be found [here](https://arxiv.org/abs/1910.01108)
 
 ---
 
