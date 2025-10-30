@@ -14,7 +14,7 @@ from typing import Tuple, Any
 from pathlib import Path
 from lorax import DORA_FREEZE
 
-from blacksmith.datasets.torch.llama.sst_dataset import SSTDataset
+from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config
 
@@ -44,17 +44,20 @@ def load_data(training_config: TrainingConfig) -> Tuple[jnp.ndarray, jnp.ndarray
     Returns:
         Tuple of (input_ids, attention_masks, labels) as batched JAX arrays.
     """
-    dataset_loader = SSTDataset(training_config)
-    train_dataset, _ = dataset_loader.load_tokenized_data()
+    dataset_loader = SSTDataset(training_config, split="train")
+    train_dataloader = dataset_loader.get_dataloader()
 
     train_input_ids = []
     train_attention_mask = []
     train_labels = []
 
-    for item in train_dataset:
-        train_input_ids.append(np.array(item["input_ids"]))
-        train_attention_mask.append(np.array(item["attention_mask"]))
-        train_labels.append(np.array(item["labels"]))
+    for batch in train_dataloader:
+        for item in batch["input_ids"]:
+            train_input_ids.append(np.array(item))
+        for item in batch["attention_mask"]:
+            train_attention_mask.append(np.array(item))
+        for item in batch["labels"]:
+            train_labels.append(np.array(item))
 
     train_input_ids = create_batches(train_input_ids, training_config.batch_size)
     train_attention_mask = create_batches(train_attention_mask, training_config.batch_size)
