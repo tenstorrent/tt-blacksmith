@@ -54,7 +54,6 @@ class SSTDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        print(f"Loading dataset ({self.config.dataset_id}/{self.config.dataset_configuration})...")
         raw_dataset = load_dataset(self.config.dataset_id, self.config.dataset_configuration, split=self.split)
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
