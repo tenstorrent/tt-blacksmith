@@ -17,11 +17,12 @@ python3 blacksmith/experiments/torch/gemma/test_gemma_finetuning.py
 
 ## Data
 
-The Stanford Sentiment Treebank 2 (SST-2) dataset is a widely-used benchmark for binary sentiment classification.
+GLUE, the General Language Understanding Evaluation benchmark (https://gluebenchmark.com/) is a collection of resources for training, evaluating, and analyzing natural language understanding systems.
+The Stanford Sentiment Treebank consists of sentences from movie reviews and human annotations of their sentiment. The task is to predict the sentiment of a given sentence. It uses the two-way (positive/negative) class split, with only sentence-level labels.
 Each example consists of a sentence from movie reviews labeled as either positive or negative sentiment.
 This dataset is commonly used to evaluate the performance of natural language understanding models on sentiment analysis tasks.
 
-Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/stanfordnlp/sst2)
+Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/nyu-mll/glue)
 
 Example:
 ```
