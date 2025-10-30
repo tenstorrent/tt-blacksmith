@@ -1,5 +1,6 @@
 # Dataset settings
-dataset_id: "stanfordnlp/sst2"
+dataset_id: "glue"
+dataset_configuration: "sst2"
 
 # Model settings
 model_name: "meta-llama/Llama-3.2-1B"

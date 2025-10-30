@@ -1,5 +1,6 @@
 # Dataset settings
-dataset_id: "stanfordnlp/sst2"
+dataset_id: "glue"
+dataset_configuration: "sst2"
 
 # Model settings
 model_name: "google/gemma-3-1b-it"

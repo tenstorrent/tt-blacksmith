@@ -7,7 +7,7 @@ from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
 import torch
 
-from blacksmith.datasets.torch.sst.sst_utils import PROMPT_TEMPLATE, RESPONSE_TEMPLATE, LBL2VALUE
+from blacksmith.datasets.torch.sst2.sst2_utils import PROMPT_TEMPLATE, RESPONSE_TEMPLATE, LBL2VALUE
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 
@@ -54,8 +54,8 @@ class SSTDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        print(f"Loading dataset ({self.config.dataset_id})...")
-        raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
+        print(f"Loading dataset ({self.config.dataset_id}/{self.config.dataset_configuration})...")
+        raw_dataset = load_dataset(self.config.dataset_id, self.config.dataset_configuration, split=self.split)
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)

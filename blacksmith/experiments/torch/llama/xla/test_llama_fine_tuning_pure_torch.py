@@ -10,7 +10,7 @@ import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from blacksmith.datasets.torch.sst.sst_dataset import SSTDataset
+from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config

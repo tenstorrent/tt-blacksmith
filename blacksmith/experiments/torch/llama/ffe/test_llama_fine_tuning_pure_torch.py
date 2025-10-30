@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-from blacksmith.datasets.torch.sst.sst_dataset import SSTDataset
+from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config

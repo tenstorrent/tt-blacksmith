@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="stanfordnlp/sst2")
+    dataset_id: str = Field(default="glue")
+    dataset_configuration: str = Field(default="sst2")
 
     # Model settings
     model_name: str = Field(default="meta-llama/Llama-3.2-1B")
