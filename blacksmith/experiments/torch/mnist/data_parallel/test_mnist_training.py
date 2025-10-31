@@ -19,11 +19,105 @@ import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import torch_xla.distributed.parallel_loader as pl
 from torch_xla.experimental import plugins
-from blacksmith.tools.cli import generate_config
-from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
-from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
+# from blacksmith.tools.cli import generate_config
+# from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
+# from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
 import os
 import wandb
+import yaml
+from pydantic import BaseModel
+from typing import List
+from pydantic import BaseModel, Field, model_validator
+
+
+# from blacksmith.tools.logging.configs import LoggerConfig, get_default_logger_config
+import os
+import sys
+from typing import Union
+
+
+class CheckpointLoggerConfig(BaseModel):
+    log_checkpoint: bool
+    checkpoint_dir: str
+    checkpoint_name: str
+    log_every_n_steps: Union[None, int] = Field(default=None)
+    log_every_n_epochs: Union[None, int] = Field(default=None)
+    save_gradients: bool
+    save_top_k: int = Field(default=-1)  # how many checkpoints to keep, -1 means keep all
+
+    @model_validator(mode="after")
+    def check_exclusive_every_n(self):
+        if self.log_every_n_steps is not None and self.log_every_n_epochs is not None:
+            raise ValueError("log_every_n_steps and log_every_n_epochs are mutually exclusive")
+        return self
+
+class LoggerConfig(BaseModel):
+    checkpoint: Union[None, CheckpointLoggerConfig] = Field(default=None)
+    log_hyperparameters: bool
+    wandb_dir: str
+    log_train_loss: Union[None, str] = Field(default=None)
+    log_train_accuracy: Union[None, str] = Field(default=None)
+    log_gradients: Union[None, str] = Field(default=None)
+    log_weights: Union[None, str] = Field(default=None)
+    log_optimizer: Union[None, str] = Field(default=None)
+    log_every_n_steps: Union[None, int] = Field(default=None)
+    log_every_n_epochs: Union[None, int] = Field(default=None)
+    log_val_loss: Union[None, str] = Field(default=None)
+    log_val_accuracy: Union[None, str] = Field(default=None)
+
+    @model_validator(mode="after")
+    def check_exclusive_every_n(self):
+        if self.log_every_n_steps is not None and self.log_every_n_epochs is not None:
+            raise ValueError("log_every_n_steps and log_every_n_epochs are mutually exclusive")
+        return self
+
+
+def get_default_logger_config() -> LoggerConfig:
+    logger_config = os.path.join(os.path.dirname(__file__), "logger_config.yaml")
+    return generate_config(LoggerConfig, logger_config)
+class MNISTLinearConfig(BaseModel):
+    input_size: int = 784
+    hidden_size: int = 512
+    output_size: int = 10
+    bias: bool = True
+
+
+class TrainingConfig(BaseModel):
+    train_ratio: float = 0.8
+    batch_size: int = 64
+    epochs: int = 5
+    lr: float = 0.001
+
+
+class ExperimentConfig(BaseModel):
+    device: str = "TT"
+    experiment_name: str = "blacksmith-mnist"
+    tags: List[str] = ["tt-xla", "model:torch", "plugin", "wandb"]
+    net_config: MNISTLinearConfig = Field(default_factory=MNISTLinearConfig)
+    loss: str = "torch.nn.MSELoss"
+    training_config: TrainingConfig = Field(default_factory=TrainingConfig)
+    data_loading_dtype: str = "bfloat16"
+    logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
+
+class MNISTLinear(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, bias=True):
+        super(MNISTLinear, self).__init__()
+        self.linear_relu_stack = nn.Sequential(
+            nn.Linear(input_size, hidden_size, bias=bias),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size, bias=bias),
+            nn.ReLU(),
+            nn.Linear(hidden_size, output_size, bias=bias),
+        )
+
+    def forward(self, x):
+        logits = self.linear_relu_stack(x)
+        return logits
+
+def generate_config(config: BaseModel, yaml_path):
+    with open(yaml_path, "r") as file:
+        data = yaml.safe_load(file)
+    return config.model_validate(data)
 
 
 def setup_tt_environment():

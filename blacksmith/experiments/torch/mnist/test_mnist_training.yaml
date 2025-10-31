@@ -15,4 +15,8 @@ net_config:
   hidden_size: 512
   output_size: 10
   bias: True
+data_loading_config:
+  batch_size: 64
+  dtype: bfloat16
+  pre_shuffle: True
 loss: torch.nn.MSELoss
