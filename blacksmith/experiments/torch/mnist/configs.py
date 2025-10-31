@@ -24,6 +24,11 @@ class TrainingConfig(BaseModel):
     lr: float = 0.001
 
 
+class DataLoadingConfig(BaseModel):
+    batch_size: int = 64
+    dtype: str = "torch.bfloat16"
+
+
 class ExperimentConfig(BaseModel):
     device: str = "TT"
     experiment_name: str = "blacksmith-mnist"
@@ -31,5 +36,5 @@ class ExperimentConfig(BaseModel):
     net_config: MNISTLinearConfig = Field(default_factory=MNISTLinearConfig)
     loss: str = "torch.nn.MSELoss"
     training_config: TrainingConfig = Field(default_factory=TrainingConfig)
-    data_loading_dtype: str = "bfloat16"
+    data_loading_config: DataLoadingConfig = Field(default_factory=DataLoadingConfig)
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
