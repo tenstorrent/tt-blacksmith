@@ -76,6 +76,7 @@ def validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype,
             else:
                 input_ids = input_ids.to(device)
                 attention_mask = attention_mask.to(device)
+                expected_output = expected_output.to(device)
                 outputs = model(input_ids, attention_mask=attention_mask)
                 logits = outputs.logits
                 loss = loss_fn(logits.view(-1, vocab_size), expected_output.view(-1))
@@ -256,7 +257,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
                     else:
                         model.eval()
                         avg_val_loss = validate(
-                            model, val_data_loader, loss_fn, device, config, vocab_size, dtype, tokenizer
+                            model, val_data_loader, loss_fn, device, config, vocab_size, None, tokenizer
                         )
                     run.log({"epoch": epoch + 1, "val/loss": avg_val_loss, "step": global_step})
 
