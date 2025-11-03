@@ -37,6 +37,7 @@ case $EXPERIMENT_TYPE in
         ;;
     2)
         export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/gpu_env
+        export PJRT_DEVICE=CUDA
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
@@ -71,7 +72,6 @@ case $EXPERIMENT_TYPE in
         ;;
     2)
         pip install -r env/gpu_requirements.txt -r env/requirements.txt
-        export PJRT_DEVICE=CUDA
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
