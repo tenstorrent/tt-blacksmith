@@ -1,21 +1,25 @@
 TT_BLACKSMITH_HOME=$(pwd)
 
-tt_forge_fe=false
-tt_xla=false
+EXPERIMENT_TYPE=-1
+EXPECTED_ARGS=1
 
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --ffe) tt_forge_fe=true ;;
-        --xla) tt_xla=true ;;
-        *) echo "Unknown parameter passed: $1"; return 1 ;;
-    esac
-    shift
-done
+if [ "$#" -gt "$EXPECTED_ARGS" ]; then
+  echo "Single option for experiment type expected, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+  return 1
+fi
 
-# if both are false, exit with error
-if [ "$tt_forge_fe" = false ] && [ "$tt_xla" = false ]; then
-    echo "No frontend was specified, please select one from: TT-XLA (--xla) or TT-Forge-FE (--ffe)"
-    return 1
+case $1 in
+    --ffe) EXPERIMENT_TYPE=0 ;;
+    --xla) EXPERIMENT_TYPE=1 ;;
+    --gpu) EXPERIMENT_TYPE=2 ;;
+    *) echo "Unknown parameter passed: $1"; return 1 ;;
+esac
+
+# if no experiment type is specified, default to TT-XLA
+if [ "$EXPERIMENT_TYPE" = -1 ]; then
+    echo "No type of experiment was specified, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+    echo "Defaulting to TT-XLA (--xla)"
+    EXPERIMENT_TYPE=1
 fi
 
 export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
@@ -23,16 +27,21 @@ export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
 # pytest alias for venv interpreter
 alias pytest='python -m pytest'
 
-# Set environment directory based on frontend
-# To be safe we have two different environment directories for each frontend
-if [ "$tt_forge_fe" = true ]; then
-    export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/ffe_env
-    export TT_BLACKSMITH_FRONTEND="tt-forge-fe"
-fi
-if [ "$tt_xla" = true ]; then
-    export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/xla_env
-    export TT_BLACKSMITH_FRONTEND="tt-xla"
-fi
+# Set environment directory based on experiment type
+case $EXPERIMENT_TYPE in
+    0)
+        export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/ffe_env
+        ;;
+    1)
+        export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/xla_env
+        ;;
+    2)
+        export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/gpu_env
+        ;;
+    *)
+        echo "Unknown experiment type: $EXPERIMENT_TYPE"
+        return 1
+esac
 
 # If environment directory already exists, activate it
 if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
@@ -52,13 +61,22 @@ python3.11 -m venv $TT_BLACKSMITH_ENV_DIR
 source $TT_BLACKSMITH_ENV_DIR/bin/activate
 pip install --upgrade pip
 
-# Install dependencies based on frontend
-if [ "$tt_forge_fe" = true ]; then
-    pip install -r env/ffe_requirements.txt -r env/requirements.txt
-fi
-if [ "$tt_xla" = true ]; then
-    pip install -r env/xla_requirements.txt -r env/requirements.txt
-fi
+# Install dependencies based on experiment type
+case $EXPERIMENT_TYPE in
+    0)
+        pip install -r env/ffe_requirements.txt -r env/requirements.txt
+        ;;
+    1)
+        pip install -r env/xla_requirements.txt -r env/requirements.txt
+        ;;
+    2)
+        pip install -r env/gpu_requirements.txt -r env/requirements.txt
+        export PJRT_DEVICE=CUDA
+        ;;
+    *)
+        echo "Unknown experiment type: $EXPERIMENT_TYPE"
+        return 1
+esac
 
 # Install base dependencies
 pip install -e $TT_BLACKSMITH_HOME
