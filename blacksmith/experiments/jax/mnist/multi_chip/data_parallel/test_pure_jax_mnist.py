@@ -112,16 +112,16 @@ def train_mnist():
     def validation_loss(params, x_batch, y_batch):
         def loss_fn(p):
             logits = mlp_model(p, x_batch)
-            return logits, cross_entropy(logits, y_batch)
+            return cross_entropy(logits, y_batch), logits
 
-        logits, loss = loss_fn(params)
+        loss, logits = loss_fn(params)
 
         gathered_loss = lax.all_gather(loss, axis_name="dp")  # Shape: (num_devices,)
         loss = jnp.mean(gathered_loss)  # Scalar, replicated
 
         gathered_logits = lax.all_gather(logits, axis_name="dp")
 
-        return gathered_logits, loss
+        return loss, gathered_logits
 
     def argmax_on_cpu(array):
         with jax.default_device(jax.devices("cpu")[0]):
@@ -288,7 +288,7 @@ def train_mnist():
             )(params, x_batch, y_batch)
 
         validation_step_jit = jax.jit(
-            validation_step, out_shardings=(sharding_config.param_sharding, sharding_config.scalar_sharding)
+            validation_step, out_shardings=(sharding_config.scalar_sharding, sharding_config.param_sharding)
         )
 
         for i in range(0, len(x_test), batch_size):
@@ -299,7 +299,7 @@ def train_mnist():
             x_batch = jax.device_put(x_batch_host, sharding_config.data_sharding)
             y_batch = jax.device_put(y_batch_host, sharding_config.data_sharding)
 
-            logits, loss = validation_step_jit(params, x_batch, y_batch)
+            loss, logits = validation_step_jit(params, x_batch, y_batch)
 
             logits_host = jax.device_put(logits, jax.devices("cpu")[0])
             batch_loss = jax.device_put(loss, jax.devices("cpu")[0])
