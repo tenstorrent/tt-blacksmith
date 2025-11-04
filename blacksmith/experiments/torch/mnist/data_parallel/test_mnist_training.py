@@ -19,9 +19,9 @@ import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
 import torch_xla.distributed.parallel_loader as pl
 from torch_xla.experimental import plugins
-# from blacksmith.tools.cli import generate_config
-# from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
-# from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
+from blacksmith.tools.cli import generate_config
+from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
+from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
 import os
 import wandb
 import yaml
@@ -30,94 +30,10 @@ from typing import List
 from pydantic import BaseModel, Field, model_validator
 
 
-# from blacksmith.tools.logging.configs import LoggerConfig, get_default_logger_config
+from blacksmith.tools.logging.configs import LoggerConfig, get_default_logger_config
 import os
 import sys
 from typing import Union
-
-
-class CheckpointLoggerConfig(BaseModel):
-    log_checkpoint: bool
-    checkpoint_dir: str
-    checkpoint_name: str
-    log_every_n_steps: Union[None, int] = Field(default=None)
-    log_every_n_epochs: Union[None, int] = Field(default=None)
-    save_gradients: bool
-    save_top_k: int = Field(default=-1)  # how many checkpoints to keep, -1 means keep all
-
-    @model_validator(mode="after")
-    def check_exclusive_every_n(self):
-        if self.log_every_n_steps is not None and self.log_every_n_epochs is not None:
-            raise ValueError("log_every_n_steps and log_every_n_epochs are mutually exclusive")
-        return self
-
-class LoggerConfig(BaseModel):
-    checkpoint: Union[None, CheckpointLoggerConfig] = Field(default=None)
-    log_hyperparameters: bool
-    wandb_dir: str
-    log_train_loss: Union[None, str] = Field(default=None)
-    log_train_accuracy: Union[None, str] = Field(default=None)
-    log_gradients: Union[None, str] = Field(default=None)
-    log_weights: Union[None, str] = Field(default=None)
-    log_optimizer: Union[None, str] = Field(default=None)
-    log_every_n_steps: Union[None, int] = Field(default=None)
-    log_every_n_epochs: Union[None, int] = Field(default=None)
-    log_val_loss: Union[None, str] = Field(default=None)
-    log_val_accuracy: Union[None, str] = Field(default=None)
-
-    @model_validator(mode="after")
-    def check_exclusive_every_n(self):
-        if self.log_every_n_steps is not None and self.log_every_n_epochs is not None:
-            raise ValueError("log_every_n_steps and log_every_n_epochs are mutually exclusive")
-        return self
-
-
-def get_default_logger_config() -> LoggerConfig:
-    logger_config = os.path.join(os.path.dirname(__file__), "logger_config.yaml")
-    return generate_config(LoggerConfig, logger_config)
-class MNISTLinearConfig(BaseModel):
-    input_size: int = 784
-    hidden_size: int = 512
-    output_size: int = 10
-    bias: bool = True
-
-
-class TrainingConfig(BaseModel):
-    train_ratio: float = 0.8
-    batch_size: int = 64
-    epochs: int = 5
-    lr: float = 0.001
-
-
-class ExperimentConfig(BaseModel):
-    device: str = "TT"
-    experiment_name: str = "blacksmith-mnist"
-    tags: List[str] = ["tt-xla", "model:torch", "plugin", "wandb"]
-    net_config: MNISTLinearConfig = Field(default_factory=MNISTLinearConfig)
-    loss: str = "torch.nn.MSELoss"
-    training_config: TrainingConfig = Field(default_factory=TrainingConfig)
-    data_loading_dtype: str = "bfloat16"
-    logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
-
-class MNISTLinear(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, bias=True):
-        super(MNISTLinear, self).__init__()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(input_size, hidden_size, bias=bias),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size, bias=bias),
-            nn.ReLU(),
-            nn.Linear(hidden_size, output_size, bias=bias),
-        )
-
-    def forward(self, x):
-        logits = self.linear_relu_stack(x)
-        return logits
-
-def generate_config(config: BaseModel, yaml_path):
-    with open(yaml_path, "r") as file:
-        data = yaml.safe_load(file)
-    return config.model_validate(data)
 
 
 def setup_tt_environment():
@@ -130,7 +46,7 @@ def setup_tt_environment():
     os.environ["LOGGER_LEVEL"] = "DEBUG"
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
-    # os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"  
+    # os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
 
     xr.set_device_type("TT")
     xr.use_spmd()
@@ -176,7 +92,7 @@ def training_on_multiple_devices():
     # if logger_config.log_hyperparameters:
     #     wandb_run.config.update(config.model_dump())
 
-    num_steps = 1
+    num_steps = 32
     setup_tt_environment()
     torch.manual_seed(1)
 
@@ -190,8 +106,12 @@ def training_on_multiple_devices():
     val_size = len(mnist_dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(mnist_dataset, [train_size, val_size])
 
-    train_dataloader = DataLoader(train_dataset, batch_size=config.training_config.batch_size, shuffle=True, drop_last=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=config.training_config.batch_size, shuffle=False, drop_last=False)
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=config.training_config.batch_size, shuffle=True, drop_last=True
+    )
+    val_dataloader = DataLoader(
+        val_dataset, batch_size=config.training_config.batch_size, shuffle=False, drop_last=False
+    )
 
     # Device
     device = torch_xla.device()
@@ -206,10 +126,16 @@ def training_on_multiple_devices():
     input_sharding = xs.ShardingSpec(mesh, ("batch", None))
 
     train_device_loader = get_loader(
-        data_loader=train_dataloader, num_steps=num_steps, batch_size=config.training_config.batch_size, input_sharding=input_sharding
+        data_loader=train_dataloader,
+        num_steps=num_steps,
+        batch_size=config.training_config.batch_size,
+        input_sharding=input_sharding,
     )
     val_device_loader = get_loader(
-        data_loader=val_dataloader, num_steps=num_steps, batch_size=config.training_config.batch_size, input_sharding=input_sharding
+        data_loader=val_dataloader,
+        num_steps=num_steps,
+        batch_size=config.training_config.batch_size,
+        input_sharding=input_sharding,
     )
 
     # Optimizer and Loss
@@ -224,7 +150,7 @@ def training_on_multiple_devices():
             inputs = inputs.view(inputs.size(0), -1)
             targets = targets.view(targets.size(0), -1)
             inputs = inputs.to(device, dtype=torch.bfloat16)
-            targets = targets.to(device, dtype=torch.bfloat16)  
+            targets = targets.to(device, dtype=torch.bfloat16)
             torch_xla.sync(wait=True)
             xs.mark_sharding(targets, mesh, ("batch", None))
 
@@ -236,7 +162,7 @@ def training_on_multiple_devices():
             xm.optimizer_step(optimizer)
             torch_xla.sync(wait=True)
             train_loss += loss.cpu().item()
-          
+
         avg_train_loss = train_loss / len(train_device_loader)
         print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.4f}")
         # wandb.log({"train_loss": avg_train_loss, "epoch": epoch + 1})
@@ -250,7 +176,7 @@ def training_on_multiple_devices():
 
     #             val_inputs = val_inputs.to(device, dtype=torch.bfloat16)
     #             val_targets = val_targets.to(device)
-                
+
     #             xs.mark_sharding(val_targets, mesh, (None,))
 
     #             outputs = model(val_inputs)
@@ -262,7 +188,6 @@ def training_on_multiple_devices():
     #     wandb.log({"val_loss": avg_val_loss}, step=epoch + 1)
 
     # print("Training complete. Saving model parameters.")
-   
 
 
 if __name__ == "__main__":
