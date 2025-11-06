@@ -32,7 +32,7 @@ wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 10
+steps_freq: 100
 epoch_freq: 1
 
 # Checkpoint settings

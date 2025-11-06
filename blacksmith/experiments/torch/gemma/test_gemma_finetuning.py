@@ -52,6 +52,10 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
             )
             total_val_loss += loss.item()
             predictions = shift_logits.argmax(dim=-1)
+
+            if config.use_tt:
+                torch_xla.sync(wait=True)
+            
             num_val_batches += 1
 
             if config.print_examples:
@@ -138,17 +142,17 @@ def train(
 
                 # Backward pass
                 loss.backward()
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 # Update parameters
+                optimizer.step()
                 if config.use_tt:
-                    xm.optimizer_step(optimizer)
                     torch_xla.sync(wait=True)
-                else:
-                    optimizer.step()
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
-                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
+                    logger.log_metrics({"train/loss": avg_loss}, commit=global_step % config.val_steps_freq != 0, step=global_step)
                     running_loss = 0.0
 
                 # Validation phase
