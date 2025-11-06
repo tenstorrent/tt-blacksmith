@@ -48,7 +48,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             predictions = shift_logits.argmax(dim=-1)
             if config.use_tt:
                 torch_xla.sync(wait=True)
-            
+
             num_val_batches += 1
 
             if config.print_examples:
