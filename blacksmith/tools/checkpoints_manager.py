@@ -243,7 +243,7 @@ class CheckpointManager:
         return {
             "total_checkpoints": len(self.checkpoint_history["checkpoints"]),
             "best_checkpoints": self.checkpoint_history.get("best_checkpoints", []),
-            "latest_checkpoint": self.checkpoint_history["checkpoints"][-1]
-            if self.checkpoint_history["checkpoints"]
-            else None,
+            "latest_checkpoint": (
+                self.checkpoint_history["checkpoints"][-1] if self.checkpoint_history["checkpoints"] else None
+            ),
         }

@@ -32,6 +32,8 @@ class TrainingConfig(BaseModel):
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
+    print_examples: bool = Field(default=False)
+    ignored_index: int = Field(default=-100)
 
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)
@@ -62,3 +64,4 @@ class TrainingConfig(BaseModel):
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
+    do_validation: bool = Field(default=False)
