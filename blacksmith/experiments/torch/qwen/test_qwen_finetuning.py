@@ -7,9 +7,9 @@ import traceback
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tqdm import tqdm
+from transformers import AutoTokenizer
 
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
@@ -19,13 +19,22 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
+from blacksmith.tools.torch_helpers import collect_examples, show_examples
 
 
 def validate(
-    model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
+    model: torch.nn.Module,
+    val_data_loader: DataLoader,
+    loss_fn: torch.nn.Module,
+    logger: TrainingLogger,
+    device: torch.device,
+    config: TrainingConfig,
+    tokenizer: AutoTokenizer = None,
 ) -> float:
     logger.info("Starting validation...")
 
+    collected_examples = []
+    max_examples = 5
     total_val_loss = 0.0
     num_val_batches = 0
     model.eval()
@@ -36,15 +45,41 @@ def validate(
             labels = batch["labels"].to(device)
 
             # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = outputs.logits
 
-            # Compute loss
-            loss = outputs.loss
+            # Shift logits for causal LM: predict next token
+            # logits[:, :-1] predicts tokens at positions 1:
+            shift_logits = logits[:, :-1, :].contiguous()
+
+            # Loss
+            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), labels.view(-1))
             total_val_loss += loss.item()
+
+            # Predictions
+            predictions = shift_logits.argmax(dim=-1)
+            if config.use_tt:
+                torch_xla.sync(wait=True)
 
             num_val_batches += 1
 
+            if config.print_examples:
+                collected_examples = collect_examples(
+                    batch_size=labels.shape[0],
+                    collected_examples=collected_examples,
+                    max_examples=max_examples,
+                    input_ids=input_ids,
+                    expected_output=labels,
+                    predictions=predictions,
+                    num_val_batches=num_val_batches,
+                )
+
+    if config.print_examples and tokenizer is not None:
+        logger.info("Printing validation examples...")
+        show_examples(collected_examples, tokenizer, config, logger)
+
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
+    logger.info(f"Average validation loss: {avg_val_loss}")
 
     return avg_val_loss
 
@@ -99,6 +134,8 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # Backward pass
                 loss.backward()
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 # Update parameters
                 optimizer.step()
@@ -108,13 +145,16 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 global_step += 1
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
                     # Do validation
-                    valid_loss = validate(model, eval_dataloader, logger, device)
-                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
-                    model.train()
+                    if config.do_validation:
+                        valid_loss = validate(
+                            model, eval_dataloader, loss_fn, logger, device, config, eval_dataset.tokenizer
+                        )
+                        logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                        model.train()
 
                     # Save step checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
@@ -140,7 +180,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_qwen_finetuning.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_qwen_1-5b_finetuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
@@ -156,7 +196,7 @@ if __name__ == "__main__":
     # Device setup
     if config.use_tt:
         xr.runtime.set_device_type("TT")
-        device = xm.xla_device()
+        device = torch_xla.device()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")

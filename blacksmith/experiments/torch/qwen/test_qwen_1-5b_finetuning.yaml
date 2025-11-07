@@ -2,7 +2,7 @@
 dataset_id: "gretelai/synthetic_text_to_sql"
 
 # Model settings
-model_name: "Qwen/Qwen2.5-0.5B"
+model_name: "Qwen/Qwen2.5-1.5B"
 max_length: 128
 dtype: "torch.bfloat16"
 
@@ -18,7 +18,7 @@ optim: "adamw_torch"
 log_level: "INFO"
 use_wandb: True
 wandb_project: "qwen-finetuning"
-wandb_run_name: "tt-qwen-test-full-T2SQL"
+wandb_run_name: "tt-qwen-1.5B-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000

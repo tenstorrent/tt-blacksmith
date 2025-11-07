@@ -7,7 +7,6 @@ import traceback
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tqdm import tqdm
 
@@ -95,18 +94,18 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # Backward pass
                 loss.backward()
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 # Update parameters
+                optimizer.step()
                 if config.use_tt:
-                    xm.optimizer_step(optimizer)
                     torch_xla.sync(wait=True)
-                else:
-                    optimizer.step()
 
                 global_step += 1
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
                     # Do validation
@@ -150,7 +149,7 @@ if __name__ == "__main__":
     # Device setup
     if config.use_tt:
         xr.runtime.set_device_type("TT")
-        device = xm.xla_device()
+        device = torch_xla.device()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")

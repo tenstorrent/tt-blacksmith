@@ -8,7 +8,6 @@ import random
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
-import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
@@ -52,6 +51,10 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
             )
             total_val_loss += loss.item()
             predictions = shift_logits.argmax(dim=-1)
+
+            if config.use_tt:
+                torch_xla.sync(wait=True)
+
             num_val_batches += 1
 
             if config.print_examples:
@@ -138,21 +141,23 @@ def train(
 
                 # Backward pass
                 loss.backward()
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 # Update parameters
+                optimizer.step()
                 if config.use_tt:
-                    xm.optimizer_step(optimizer)
                     torch_xla.sync(wait=True)
-                else:
-                    optimizer.step()
+
+                do_validation = global_step % config.val_steps_freq == 0
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
-                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
+                    logger.log_metrics({"train/loss": avg_loss}, commit=not do_validation, step=global_step)
                     running_loss = 0.0
 
                 # Validation phase
-                if global_step % config.val_steps_freq == 0:
+                if do_validation:
                     avg_val_loss = validate(model, eval_dataloader, loss_fn, device, config, logger, tokenizer)
                     model.train()
 
@@ -199,7 +204,7 @@ if __name__ == "__main__":
     # Device setup
     if config.use_tt:
         xr.runtime.set_device_type("TT")
-        device = xm.xla_device()
+        device = torch_xla.device()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
