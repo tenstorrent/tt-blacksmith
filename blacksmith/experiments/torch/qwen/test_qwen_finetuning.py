@@ -58,6 +58,9 @@ def validate(
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
+            if config.use_tt:
+                torch_xla.sync(wait=True)
+
             num_val_batches += 1
 
             if config.print_examples:
@@ -142,7 +145,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 global_step += 1
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
                     # Do validation
