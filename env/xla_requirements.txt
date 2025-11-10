@@ -1,4 +1,4 @@
-pjrt-plugin-tt @ https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-0.6.0.dev20251104-cp311-cp311-linux_x86_64.whl#sha256=afd03c6316f1ee980e730f2daa4c06dee726fd6fcf819db2b5f36f85df45ad73
+pjrt-plugin-tt @ https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-0.6.0.dev20251110-cp311-cp311-linux_x86_64.whl#sha256=994e87329fc2dcb21174ba0c51738f38379a7b8463c7fdd610585e46ba68a669
 flax
 transformers
 datasets
