@@ -10,8 +10,8 @@ class TrainingConfig(BaseModel):
     dataset_configuration: str = Field(default="sst2")
 
     # Model settings
-    model_name: str = Field(default="google/gemma-3-1b-it")
-    max_length: int = Field(default=128, gt=0)
+    model_name: str = Field(default="microsoft/phi-1")
+    max_length: int = Field(default=32, gt=0)
     dtype: str = Field(default="torch.bfloat16")
     ignored_index: int = Field(default=-100)
 
@@ -25,8 +25,8 @@ class TrainingConfig(BaseModel):
     # Logging settings
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=True)
-    wandb_project: str = Field(default="gemma-finetuning")
-    wandb_run_name: str = Field(default="tt-gemma-test")
+    wandb_project: str = Field(default="phi1-finetuning")
+    wandb_run_name: str = Field(default="tt-phi1-test")
     wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
@@ -45,7 +45,7 @@ class TrainingConfig(BaseModel):
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="epoch")
-    project_dir: str = Field(default="blacksmith/experiments/torch/gemma")
+    project_dir: str = Field(default="blacksmith/experiments/torch/model")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
     sync_to_storage: bool = Field(default=False)
