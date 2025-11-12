@@ -18,6 +18,7 @@ from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
 import os
 
+
 # --------------------------------
 # Training loop
 # --------------------------------
