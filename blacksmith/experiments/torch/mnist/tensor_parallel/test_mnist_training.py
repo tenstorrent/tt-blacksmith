@@ -4,30 +4,21 @@
 
 from types import NoneType
 import torch
-from torchvision import transforms, datasets
-from torch.utils.data._utils.collate import default_collate
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla.core.xla_model as xm
+from torchvision import transforms, datasets
+from torch.utils.data import DataLoader
 import numpy as np
-import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
-import torch_xla.distributed.parallel_loader as pl
-from torch_xla.experimental import plugins
 from blacksmith.tools.cli import generate_config
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
-
 import os
 import wandb
-
-print(f"XLA version: {torch_xla.__version__}")
-print(f"XLA path: {torch_xla.__file__}")
 
 
 def setup_tt_environment():
@@ -44,15 +35,15 @@ def setup_tt_environment():
     xr.use_spmd()
 
 
-def cross_entropy_loss(out, y):
+def cross_entropy_loss(outputs, targets):
     # Supports one-hot labels (preferred here) and class indices.
     # Ensures per-sample loss shape is [batch, 1] (keepdim=True semantics),
     # then averages across batch to [1, 1].
-    if y.dim() == 2 and y.size(1) == out.size(1):
-        log_probs = F.log_softmax(out, dim=1)
-        per_sample = -(log_probs * y).sum(dim=1, keepdim=True)
+    if targets.dim() == 2 and targets.size(1) == outputs.size(1):
+        log_probs = F.log_softmax(outputs, dim=1)
+        per_sample = -(log_probs * targets).sum(dim=1, keepdim=True)
     else:
-        per_sample = F.cross_entropy(out, y, reduction="none").unsqueeze(1)
+        per_sample = F.cross_entropy(outputs, targets, reduction="none").unsqueeze(1)
     return per_sample.mean(dim=0, keepdim=True)
 
 
@@ -120,6 +111,7 @@ def main():
         steps = 0
         running_loss = 0.0
         for inputs, targets in train_loader:
+            # Reshape inputs and targets to (batch_size, -1)
             inputs = inputs.view(inputs.size(0), -1)
             targets = F.one_hot(targets, num_classes=10)
             targets = targets.view(targets.size(0), -1)
@@ -128,9 +120,9 @@ def main():
             targets = targets.to(device)
 
             optimizer.zero_grad()
-            out = model(inputs)
-            xs.mark_sharding(out, mesh, (None, None))
-            loss = cross_entropy_loss(out, targets)
+            outputs = model(inputs)
+            xs.mark_sharding(outputs, mesh, (None, None))
+            loss = cross_entropy_loss(outputs, targets)
             loss.backward()
             optimizer.step()
             torch_xla.sync(wait=True)
@@ -145,28 +137,28 @@ def main():
         wandb_run.log({"train_loss": avg_loss, "epoch": epoch})
 
         # Validation, measure the accuracy
-        # if epoch % 5 == 0:
-        #     model.eval()
-        #     correct = 0
-        #     total = 0
-        #     with torch.no_grad():
-        #         for inputs, targets in val_loader:
-        #             inputs = inputs.view(inputs.size(0), -1)
-        #             targets = F.one_hot(targets, num_classes=10)
-        #             targets = targets.view(targets.size(0), -1)
+        if epoch % 5 == 0:
+            model.eval()
+            correct = 0
+            total = 0
+            with torch.no_grad():
+                for inputs, targets in val_loader:
+                    inputs = inputs.view(inputs.size(0), -1)
+                    targets = F.one_hot(targets, num_classes=10)
+                    targets = targets.view(targets.size(0), -1)
 
-        #             inputs = inputs.to(device)
-        #             targets = targets.to(device)
+                    inputs = inputs.to(device)
+                    targets = targets.to(device)
 
-        #             outputs = model(inputs)
-        #             pred = torch.argmax(outputs, dim=1)
-        #             label = torch.argmax(targets, dim=1)
-        #             correct += (pred == label).sum().item()
-        #             total += targets.size(0)
+                    outputs = model(inputs)
+                    pred = torch.argmax(outputs, dim=1)
+                    label = torch.argmax(targets, dim=1)
+                    correct += (pred == label).sum().item()
+                    total += targets.size(0)
 
-        #     print(f"Epoch {epoch}, Val Accuracy: {correct / total:.4f}")
-        #     wandb_run.log({"val_accuracy": correct / total, "epoch": epoch})
-        #     model.train()
+            print(f"Epoch {epoch}, Val Accuracy: {correct / total:.4f}")
+            wandb_run.log({"val_accuracy": correct / total, "epoch": epoch})
+            model.train()
 
     wandb_run.finish()
 
