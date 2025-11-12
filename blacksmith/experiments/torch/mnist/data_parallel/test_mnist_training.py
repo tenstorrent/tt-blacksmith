@@ -4,20 +4,16 @@
 
 from types import NoneType
 import torch
-from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla.core.xla_model as xm
+from torchvision import transforms, datasets
 import numpy as np
-import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
-import torch_xla.distributed.parallel_loader as pl
-from torch_xla.experimental import plugins
 from blacksmith.tools.cli import generate_config
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
@@ -97,6 +93,7 @@ def main():
         steps = 0
         running_loss = 0.0
         for inputs, targets in train_loader:
+            # Reshape inputs and targets to (batch_size, -1)
             inputs = inputs.view(inputs.size(0), -1)
             targets = F.one_hot(targets, num_classes=10)
             targets = targets.view(targets.size(0), -1)
@@ -109,8 +106,6 @@ def main():
 
             optimizer.zero_grad()
             outputs = model(inputs)
-            print(f"Outputs: {outputs.shape}")
-            print(f"Targets: {targets.shape}")
             loss = (outputs - targets).pow(2)
             loss = loss.mean(dim=1, keepdim=True)
             loss = loss.mean(dim=0, keepdim=True)
