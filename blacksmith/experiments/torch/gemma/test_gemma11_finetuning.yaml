@@ -10,7 +10,7 @@ ignored_index: -100
 
 # Training hyperparameters
 learning_rate: 6e-5
-batch_size: 1
+batch_size: 4
 gradient_checkpointing: False
 num_epochs: 1
 optim: "adamw_torch"
