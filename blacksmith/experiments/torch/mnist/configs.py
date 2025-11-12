@@ -14,18 +14,18 @@ class MNISTLinearConfig(BaseModel):
     input_size: int = 784
     hidden_size: int = 512
     output_size: int = 10
-    bias: bool = True
+    bias: bool = False
 
 
 class TrainingConfig(BaseModel):
     train_ratio: float = 0.8
-    batch_size: int = 64
+    batch_size: int = 256
     epochs: int = 5
-    lr: float = 0.001
+    lr: float = 0.01
 
 
 class DataLoadingConfig(BaseModel):
-    batch_size: int = 64
+    batch_size: int = 256
     dtype: str = "torch.bfloat16"
 
 
