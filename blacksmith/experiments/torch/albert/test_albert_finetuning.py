@@ -10,9 +10,9 @@ import torch_xla
 import torch_xla.runtime as xr
 from tqdm import tqdm
 
-from blacksmith.tools.templates.configs import TrainingConfig
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.models.torch.huggingface.hf_models import get_model
+from blacksmith.experiments.torch.albert.configs import TrainingConfig
+from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
+from blacksmith.models.torch.huggingface.hf_models import get_albert_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -23,10 +23,14 @@ def validate(
     model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
 ) -> float:
     logger.info("Starting validation...")
+    model.eval()
 
+    loss_fn = torch.nn.CrossEntropyLoss()
     total_val_loss = 0.0
     num_val_batches = 0
 
+    correct = 0
+    total = 0
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             input_ids = batch["input_ids"].to(device)
@@ -34,24 +38,32 @@ def validate(
             labels = batch["labels"].to(device)
 
             # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            logits = model(input_ids=input_ids, attention_mask=attention_mask)
+            predictions = torch.argmax(logits, dim=-1)
 
             # Compute loss
-            loss = outputs.loss
+            loss = loss_fn(logits, labels)
             total_val_loss += loss.item()
+
+            correct += (predictions == labels).sum().item()
+            total += labels.size(0)
 
             num_val_batches += 1
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
+    metrics = {
+        "accuracy": correct / total if total > 0 else 0.0,
+        "correct": correct,
+        "total": total
+    }
 
-    return avg_val_loss
-
+    return avg_val_loss, metrics
 
 def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
     logger.info("Starting training...")
 
     # Load model
-    model = get_model(config, device)
+    model = get_albert_model(config, device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -61,16 +73,17 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         checkpoint_manager.load_checkpoint()
 
     # Load dataset
-    train_dataset = BaseDataset(config=config)
+    train_dataset = Banking77Dataset(config=config)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = BaseDataset(config=config, split="test")
+    eval_dataset = Banking77Dataset(config=config, split="test")
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    loss_fn = torch.nn.CrossEntropyLoss()
 
     global_step = 0
     running_loss = 0.0
@@ -86,10 +99,10 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 labels = batch["labels"].to(device)
 
                 # Forward pass
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+                logits = model(input_ids=input_ids, attention_mask=attention_mask)
 
                 # Compute loss
-                loss = outputs.loss
+                loss = loss_fn(logits, labels)
                 running_loss += loss.item()
 
                 # Backward pass
@@ -109,8 +122,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     running_loss = 0.0
 
                     # Do validation
-                    valid_loss = validate(model, eval_dataloader, logger, device)
-                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    valid_loss, metrics = validate(model, eval_dataloader, logger, device)
+                    logger.log_metrics({"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]}, step=global_step)
+                    model.train()
 
                     # Save checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
@@ -133,7 +147,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_model_template.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_albert_finetuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
