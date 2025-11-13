@@ -7,29 +7,25 @@ from typing import Dict
 from datasets import load_dataset
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
-
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
 
 
 PROMPT_TEMPLATE = Template(
     """
-Your task is to answer the question based on the given context. 
-Output should be in the valid json format: {'text': [answer_text], "answer_start": [starting position of answer in the context]}.
-
-Context: $context
-Question: $question
-Answer:
+Context: $context\n
+Question: $question\n
+Answer: 
 """
 )
 
 
-class SquadDataset(BaseDataset):
+class SquadV2Dataset(BaseDataset):  # Renamed class
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: Training configuration
-            split: Dataset split to use ("train", "test")
+            config: TrainingConfig (ensure config.dataset_id is set to "squad_v2")
+            split: Dataset split to use ("train", "validation")
             collate_fn: Collate function to use for the dataset
         """
         self.config = config
@@ -41,14 +37,19 @@ class SquadDataset(BaseDataset):
 
         self._prepare_dataset()
 
-    def _tokenize_function(self, example: Dict) -> Dict:
-        question = example["question"]
-        context = example["context"]
-        answers = example["answers"]
+    def _tokenize_function(self, example):
+        context = example['context']
+        question = example['question']
+        prompt = PROMPT_TEMPLATE.substitute(context=context, question=question)
 
-        input_text = PROMPT_TEMPLATE.substitute(question=question, context=context)
-        target_text = sql.strip()
-        full_text = input_text + target_text
+        # Determine the response
+        # SQuAD v2.0 has unanswerable questions, indicated by an empty 'text' list.
+        if example['answers']['text']:
+            response = example['answers']['text'][0]
+        else:
+            response = "unanswerable"
+
+        full_text = prompt + response
 
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
 
@@ -56,7 +57,7 @@ class SquadDataset(BaseDataset):
         attention_mask = encoding["attention_mask"].squeeze(0)
 
         labels = input_ids.clone()
-        prompt_encoding = self.tokenizer(input_text, truncation=False, padding=False, return_tensors="pt")
+        prompt_encoding = self.tokenizer(prompt, truncation=False, padding=False, return_tensors="pt")
         prompt_input_ids = prompt_encoding["input_ids"].squeeze(0)
         prompt_len = prompt_input_ids.size(0)
         labels[:prompt_len] = -100
@@ -70,7 +71,7 @@ class SquadDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
+        raw_dataset = load_dataset(self.config.dataset_id, self.config.dataset_configuration, split=self.split)
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
@@ -78,10 +79,10 @@ class SquadDataset(BaseDataset):
             [col for col in self.full_dataset.column_names if col not in self.required_columns]
         )
 
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.dataset)
 
-    def __getitem__(self, idx: int) -> Dict:
+    def __getitem__(self, idx):
         sample = self.dataset[idx]
 
         return {
