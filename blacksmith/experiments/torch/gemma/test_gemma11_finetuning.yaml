@@ -1,6 +1,6 @@
 # Dataset settings
-dataset_id: "glue"
-dataset_configuration: "sst2"
+dataset_id: "rajpurkar/squad_v2"
+# dataset_configuration: "sst2"
 
 # Model settings
 model_name: "google/gemma-1.1-2b-it"
