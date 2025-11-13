@@ -188,7 +188,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma_finetuning.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma11_finetuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
