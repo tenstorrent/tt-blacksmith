@@ -71,7 +71,7 @@ class SquadV2Dataset(BaseDataset):  # Renamed class
         return example
 
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(self.config.dataset_id, self.config.dataset_configuration, split=self.split)
+        raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
