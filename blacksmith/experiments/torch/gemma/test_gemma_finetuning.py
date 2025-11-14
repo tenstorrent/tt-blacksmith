@@ -149,7 +149,7 @@ def train(
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                do_validation = global_step % config.val_steps_freq == 0
+                do_validation = global_step % config.val_steps_freq == 0 and global_step > 0
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
@@ -188,7 +188,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma11_finetuning.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma11_finetuning_squadV2.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
