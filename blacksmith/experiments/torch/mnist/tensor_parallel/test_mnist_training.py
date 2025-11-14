@@ -1,33 +1,39 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
+import traceback
+from typing import Tuple
 
-from types import NoneType
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import transforms, datasets
 from torch.utils.data import DataLoader
 import numpy as np
+
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 from torch_xla.distributed.spmd import Mesh
+
+from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.tools.cli import generate_config
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
-from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
-import os
-import wandb
+from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 
 
-def setup_tt_environment():
-    """Setup TensorTrent environment and plugin."""
+def setup_tt_environment(config: TrainingConfig):
+    if not config.use_tt:
+        return
+
     os.environ["PJRT_DEVICE"] = "TT"
     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
     os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
     os.environ["MESH_SHAPE"] = "1,2"
-    os.environ["LOGGER_LEVEL"] = "DEBUG"
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
     os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
 
@@ -35,10 +41,10 @@ def setup_tt_environment():
     xr.use_spmd()
 
 
-def cross_entropy_loss(outputs, targets):
-    # Supports one-hot labels (preferred here) and class indices.
-    # Ensures per-sample loss shape is [batch, 1] (keepdim=True semantics),
-    # then averages across batch to [1, 1].
+def cross_entropy_loss(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    # Workaround for nn.CrossEntropyLoss - it returns a scalar (reduction='mean'),
+    # but tensor parallel operations require loss shape [1, 1] (keepdim=True).
+    # github issue: https://github.com/tenstorrent/tt-xla/issues/1993
     if targets.dim() == 2 and targets.size(1) == outputs.size(1):
         log_probs = F.log_softmax(outputs, dim=1)
         per_sample = -(log_probs * targets).sum(dim=1, keepdim=True)
@@ -47,121 +53,200 @@ def cross_entropy_loss(outputs, targets):
     return per_sample.mean(dim=0, keepdim=True)
 
 
-def main():
+def apply_tensor_parallel_sharding(model: nn.Module, mesh: Mesh):
+    # Sync to ensure all weights are materialized
+    torch_xla.sync(wait=True)
+    # Layer names and their corresponding sharding patterns
+    layer_configs = {
+        "linear_relu_stack.0": (None, "model"),
+        "linear_relu_stack.2": ("model", None),
+        "linear_relu_stack.4": (None, "model"),
+    }
 
-    config: ExperimentConfig = generate_config(
-        ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
-    )
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear) and hasattr(module, "weight"):
+            if name in layer_configs:
+                sharding_pattern = layer_configs[name]
+                xs.mark_sharding(module.weight, mesh, sharding_pattern)
 
-    wandb_run = wandb.init(
-        mode="online",
-        project="mnist_tp_training",
-        name="mnist_tp_training",
-        tags=["wandb", "tensor_parallel"],
-        dir="./wandb",
-    )
 
-    # Setup TT environment
-    setup_tt_environment()
+def validate(
+    model: torch.nn.Module, val_loader: DataLoader, device: torch.device, logger: TrainingLogger, config: TrainingConfig
+) -> Tuple[float, float]:
+    logger.info("Starting validation...")
 
-    # Device
-    device = torch_xla.device()
+    model.eval()
+    total_loss = 0.0
+    total_samples = 0
+    correct = 0
 
-    # Define mesh for multi-device training
-    num_devices = xr.global_runtime_device_count()
-    mesh_shape = (num_devices,)
-    device_ids = np.array(range(num_devices))
-    axis_names = ("model",)
-    mesh = Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
-
-    # Model
-    model = MNISTLinear(
-        config.net_config.input_size,
-        config.net_config.hidden_size,
-        config.net_config.output_size,
-        bias=config.net_config.bias,
-    )
-    model = model.to(device)
-
-    # Tensor-parallel parameter sharding across the 'model' axis
-    l0 = model.linear_relu_stack[0]
-    l1 = model.linear_relu_stack[2]
-    l2 = model.linear_relu_stack[4]
-
-    xs.mark_sharding(l0.weight, mesh, (None, "model"))
-    xs.mark_sharding(l1.weight, mesh, ("model", None))
-    xs.mark_sharding(l2.weight, mesh, (None, "model"))
-
-    # Dataset
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-    mnist_dataset = datasets.MNIST(root="./data", train=True, transform=transform, download=True)
-    train_size = int(config.training_config.train_ratio * len(mnist_dataset))
-    val_size = len(mnist_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(mnist_dataset, [train_size, val_size])
-
-    train_loader = DataLoader(train_dataset, batch_size=config.training_config.batch_size, shuffle=True, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=config.training_config.batch_size, shuffle=False, drop_last=True)
-
-    # Optimizer
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.training_config.lr)
-
-    # Training
-    for epoch in range(config.training_config.epochs):
-        model.train()
-        steps = 0
-        running_loss = 0.0
-        for inputs, targets in train_loader:
-            # Reshape inputs and targets to (batch_size, -1)
+    with torch.no_grad():
+        for inputs, targets in val_loader:
             inputs = inputs.view(inputs.size(0), -1)
-            targets = F.one_hot(targets, num_classes=10)
             targets = targets.view(targets.size(0), -1)
 
             inputs = inputs.to(device)
             targets = targets.to(device)
 
-            optimizer.zero_grad()
+            # Forward pass
             outputs = model(inputs)
-            xs.mark_sharding(outputs, mesh, (None, None))
+
+            # Compute loss
             loss = cross_entropy_loss(outputs, targets)
-            loss.backward()
-            optimizer.step()
-            torch_xla.sync(wait=True)
-            running_loss += loss.item()
+            total_loss += loss.item() * inputs.size(0)
 
-            # Log loss every 100 steps
-            if steps % 100 == 0:
-                print(f"Step {steps}, Loss: {loss.item():.4f}")
-            steps += 1
-        avg_loss = running_loss / len(train_loader)
-        print(f"Epoch {epoch}, Loss: {avg_loss:.4f}")
-        wandb_run.log({"train_loss": avg_loss, "epoch": epoch})
+            preds = torch.argmax(outputs, dim=1)
+            labels = torch.argmax(targets, dim=1)
+            correct += (preds == labels).sum().item()
+            total_samples += inputs.size(0)
 
-        # Validation, measure the accuracy
-        if epoch % 5 == 0:
-            model.eval()
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for inputs, targets in val_loader:
-                    inputs = inputs.view(inputs.size(0), -1)
-                    targets = F.one_hot(targets, num_classes=10)
-                    targets = targets.view(targets.size(0), -1)
+    avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
+    accuracy = correct / total_samples if total_samples > 0 else 0.0
+    logger.info(f"Validation finished. Avg loss: {avg_loss:.6f}, Accuracy: {accuracy:.4f}")
+    return avg_loss, accuracy
 
-                    inputs = inputs.to(device)
-                    targets = targets.to(device)
 
-                    outputs = model(inputs)
-                    pred = torch.argmax(outputs, dim=1)
-                    label = torch.argmax(targets, dim=1)
-                    correct += (pred == label).sum().item()
-                    total += targets.size(0)
+def setup_mesh(config: TrainingConfig) -> Mesh:
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (num_devices,)
+    device_ids = np.array(range(num_devices))
+    axis_names = ("model",)
+    mesh = Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
+    return mesh
 
-            print(f"Epoch {epoch}, Val Accuracy: {correct / total:.4f}")
-            wandb_run.log({"val_accuracy": correct / total, "epoch": epoch})
-            model.train()
 
-    wandb_run.finish()
+def train(
+    config: TrainingConfig,
+    device: torch.device,
+    mesh: Mesh,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
+):
+    logger.info("Starting Tensor-Parallel MNIST training")
+
+    # Build model
+    model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
+    model = model.to(device)
+    logger.info(f"Loaded {config.model_name} model.")
+    logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    # Optimizer
+    optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
+
+    # Load checkpoint if requested
+    if config.resume_from_checkpoint:
+        checkpoint_manager.load_checkpoint(model, optimizer)
+
+    # Datasets
+    train_loader, val_loader = load_mnist_torch(dtype=torch.float32, batch_size=config.batch_size)
+    logger.info(f"Train dataset size: {len(train_loader) * config.batch_size}, Eval batches: {len(val_loader)}")
+
+    global_step = 0
+    running_loss = 0.0
+    # Training
+    try:
+        model.train()
+        for epoch in range(config.num_epochs):
+            logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
+            # Apply tensor parallel sharding
+            apply_tensor_parallel_sharding(model, mesh)
+            for inputs, targets in train_loader:
+                inputs = inputs.view(inputs.size(0), -1)
+                targets = targets.view(targets.size(0), -1)
+
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+
+                # Zero out gradients
+                optimizer.zero_grad()
+
+                # Forward pass
+                outputs = model(inputs)
+
+                # Mark sharding for tensor parallelism
+                xs.mark_sharding(outputs, mesh, (None, None))
+
+                # Compute loss
+                loss = cross_entropy_loss(outputs, targets)
+                loss.backward()
+                running_loss += loss.item()
+
+                # Optimizer step
+                xm.optimizer_step(optimizer, barrier=True)
+
+                global_step += 1
+
+                # Logging by steps
+                if global_step % config.steps_freq == 0:
+                    avg_loss = running_loss / config.steps_freq
+                    running_loss = 0.0
+
+                    # Run validation and log metrics
+                    val_loss, val_acc = validate(model, val_loader, device, logger, config)
+                    logger.log_metrics(
+                        {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc}, step=global_step
+                    )
+                    model.train()
+
+                    # Save checkpoint at step
+                    if checkpoint_manager.should_save_checkpoint(global_step):
+                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+            # end epoch loop
+            # Save checkpoint at epoch boundary if configured
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+        # final model save
+        final_checkpoint_path = checkpoint_manager.save_checkpoint(
+            model, global_step, config.num_epochs - 1, optimizer, checkpoint_name="final_model.pth"
+        )
+        logger.log_artifact(final_checkpoint_path, artifact_type="model", name="final_model.pth")
+        logger.info("Training finished successfully.")
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Training failed with error: {e}", tb)
+        raise
+    finally:
+        logger.finish()
 
 
 if __name__ == "__main__":
-    main()
+
+    # Generate config
+    config_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_mnist_training.yaml")
+    config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
+
+    # Reproducibility
+    repro_manager = ReproducibilityManager(config)
+    repro_manager.setup()
+
+    # Setup TT environment
+    setup_tt_environment(config)
+
+    # Compile options
+    options = {
+        "export_path": "model",
+        "export_tensors": True,
+        "enable_const_eval": False,
+    }
+    torch_xla.set_custom_compile_options(options)
+
+    # Setup mesh if using TT
+    mesh = None
+    if config.use_tt:
+        mesh = setup_mesh(config)
+
+    # Logger and checkpoint manager
+    logger = TrainingLogger(config)
+    checkpoint_manager = CheckpointManager(config, logger)
+
+    # Device
+    device = torch_xla.device()
+
+    logger.info(f"Using device: {device}")
+
+    # Start training
+    train(config, device, mesh, logger, checkpoint_manager)
