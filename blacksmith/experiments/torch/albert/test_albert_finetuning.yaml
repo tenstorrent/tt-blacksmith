@@ -6,22 +6,22 @@ model_name: "albert/albert-base-v2"
 max_length: 128
 num_labels: 77
 mlp_hidden_size: 256
-dtype: "torch.float32"
+dtype: "torch.bfloat16"
 
 # Training hyperparameters
 learning_rate: 1e-3
 weight_decay: 0.01
-batch_size: 32
+batch_size: 8
 gradient_accumulation_steps: 1
 gradient_checkpointing: False
-num_epochs: 10
+num_epochs: 5
 optim: "adamw_torch"
 
 # Logging settings
 log_level: "INFO"
 use_wandb: True
 wandb_project: "albert-finetuning"
-wandb_run_name: "gpu-albert-test"
+wandb_run_name: "tt-albert-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
@@ -51,4 +51,4 @@ deterministic: False
 
 # Other settings
 framework: "pytorch"
-use_tt: False
+use_tt: True
