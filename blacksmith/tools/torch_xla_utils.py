@@ -34,3 +34,32 @@ def init_device(plugin_path: str = DEFAULT_PJRT_PATH):
     plugin = TTPjrtPlugin(path)
     plugins.register_plugin(backend, plugin)
     print("Loaded", file=sys.stderr)
+
+
+def setup_multi_chip_environment(config):
+    import torch_xla.runtime as xr
+    os.environ["PJRT_DEVICE"] = "TT"
+    os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
+    os.environ["MESH_SHAPE"] = config.mesh_shape
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
+    xr.set_device_type("TT")
+    xr.use_spmd()
+
+
+def get_mesh(config):
+    # TODO: Extend this for other multichip setups once we have them.
+    import torch_xla.runtime as xr
+    from torch_xla.distributed.spmd import Mesh
+    import numpy as np
+
+    if config.parallelism != "single":
+        num_devices = xr.global_runtime_device_count()
+        mesh_shape = (num_devices, 1)
+        device_ids = np.array(range(num_devices))
+        mesh = Mesh(device_ids, mesh_shape, ('data', 'model'))
+    else:
+        mesh = None
+    return mesh
+
