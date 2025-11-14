@@ -38,6 +38,7 @@ def init_device(plugin_path: str = DEFAULT_PJRT_PATH):
 
 def setup_multi_chip_environment(config):
     import torch_xla.runtime as xr
+
     os.environ["PJRT_DEVICE"] = "TT"
     os.environ["XLA_STABLEHLO_COMPILE"] = "1"
     os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
@@ -58,8 +59,7 @@ def get_mesh(config):
         num_devices = xr.global_runtime_device_count()
         mesh_shape = (num_devices, 1)
         device_ids = np.array(range(num_devices))
-        mesh = Mesh(device_ids, mesh_shape, ('data', 'model'))
+        mesh = Mesh(device_ids, mesh_shape, ("data", "model"))
     else:
         mesh = None
     return mesh
-

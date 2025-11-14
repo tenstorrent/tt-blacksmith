@@ -23,20 +23,21 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
 def cross_entropy_loss(shift_logits, expected_output, labels_mask):
-    log_probs = F.log_softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]         
+    log_probs = F.log_softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]
     # Cross entropy: -sum(target * log_prob) over vocab dimension
     ce_loss = -(expected_output * log_probs).sum(dim=-1, keepdim=True)  # [batch, seq_len, 1]
-    
+
     # Apply mask to ignore padding tokens
     labels_mask = labels_mask.unsqueeze(-1).float()  # [batch, seq_len, 1]
     ce_loss = ce_loss * labels_mask
-    
+
     # Compute mean only over valid (non-masked) positions
     num_valid = labels_mask.sum(dim=1, keepdim=True)  # [batch, 1, 1]
     num_valid = torch.clamp(num_valid, min=1.0)  # Avoid division by zero
     loss_per_sample = ce_loss.sum(dim=1, keepdim=True) / num_valid  # [batch, 1, 1]
     loss = loss_per_sample.mean(dim=0, keepdim=True)  # [1, 1, 1]
     return loss
+
 
 def transform_labels(batch, ignored_index, vocab_size, device):
     labels = batch["labels"]
@@ -72,7 +73,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # Loss
             # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
             if config.parallelism != "single":
-                expected_output_one_hot, labels_mask = transform_labels(batch, config.ignored_index, model.model.config.vocab_size, device)
+                expected_output_one_hot, labels_mask = transform_labels(
+                    batch, config.ignored_index, model.model.config.vocab_size, device
+                )
                 loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
             else:
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
@@ -155,14 +158,17 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
                 if config.parallelism == "data":
-                    expected_output, labels_mask = transform_labels(batch, config.ignored_index, model.model.config.vocab_size, device)
+                    expected_output, labels_mask = transform_labels(
+                        batch, config.ignored_index, model.model.config.vocab_size, device
+                    )
 
                     # Apply sharding on inputs.
                     import torch_xla.distributed.spmd as xs
-                    xs.mark_sharding(input_ids, mesh, ('data', None))
-                    xs.mark_sharding(attention_mask, mesh, ('data', None))
-                    xs.mark_sharding(expected_output, mesh, ('data', None, None))
-                    xs.mark_sharding(labels_mask, mesh, ('data', None))
+
+                    xs.mark_sharding(input_ids, mesh, ("data", None))
+                    xs.mark_sharding(attention_mask, mesh, ("data", None))
+                    xs.mark_sharding(expected_output, mesh, ("data", None, None))
+                    xs.mark_sharding(labels_mask, mesh, ("data", None))
 
                 # Forward pass
                 output = model(input_ids=input_ids, attention_mask=attention_mask)
@@ -227,7 +233,10 @@ if __name__ == "__main__":
     config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
-    assert config.parallelism in ["single", "data"], "Currently only 'single' and 'data' parallelism modes are supported."
+    assert config.parallelism in [
+        "single",
+        "data",
+    ], "Currently only 'single' and 'data' parallelism modes are supported."
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
