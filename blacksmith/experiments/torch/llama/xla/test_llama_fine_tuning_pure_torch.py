@@ -71,9 +71,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             # Loss
             # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
-            expected_output, labels_mask = transform_labels(batch, config.ignored_index, model.model.config.vocab_size, device)
             if config.parallelism != "single":
-                loss = cross_entropy_loss(shift_logits, expected_output, labels_mask)
+                expected_output_one_hot, labels_mask = transform_labels(batch, config.ignored_index, model.model.config.vocab_size, device)
+                loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
             else:
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
             total_val_loss += loss.item()
