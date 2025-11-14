@@ -38,6 +38,15 @@ def cross_entropy_loss(shift_logits, expected_output, labels_mask):
     loss = loss_per_sample.mean(dim=0, keepdim=True)  # [1, 1, 1]
     return loss
 
+def transform_labels(batch, ignored_index, vocab_size, device):
+    labels = batch["labels"]
+    labels_mask = (labels != ignored_index).to(labels.device)
+    labels[labels == ignored_index] = 0
+    expected_output = F.one_hot(labels, num_classes=vocab_size)
+    expected_output = expected_output.to(device)
+    labels_mask = labels_mask.to(device)
+    return expected_output, labels_mask
+
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
     logger.info("Starting validation...")
@@ -62,8 +71,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             # Loss
             # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
+            expected_output, labels_mask = transform_labels(batch, config.ignored_index, model.model.config.vocab_size, device)
             if config.parallelism != "single":
-                loss = cross_entropy_loss(shift_logits, expected_output, attention_mask[:,1:])
+                loss = cross_entropy_loss(shift_logits, expected_output, labels_mask)
             else:
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
             total_val_loss += loss.item()
@@ -145,12 +155,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
                 if config.parallelism == "data":
-                    labels = batch["labels"]
-                    labels_mask = (labels != config.ignored_index).to(device)
-                    labels[labels == config.ignored_index] = 0
-                    expected_output = F.one_hot(labels, num_classes=model.model.config.vocab_size)
-                    expected_output = expected_output.to(device)
-                    labels_mask = labels_mask.to(device)
+                    expected_output, labels_mask = transform_labels(batch, config.ignored_index, model.model.config.vocab_size, device)
 
                     # Apply sharding on inputs.
                     import torch_xla.distributed.spmd as xs
@@ -237,7 +242,7 @@ if __name__ == "__main__":
     # Device setup
     if config.use_tt:
         if config.parallelism != "single":
-            setup_multi_chip_environment()
+            setup_multi_chip_environment(config)
         xr.runtime.set_device_type("TT")
         device = torch_xla.device()
     else:

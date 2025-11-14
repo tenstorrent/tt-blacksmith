@@ -62,6 +62,10 @@ class TrainingConfig(BaseModel):
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
     lora_task_type: str = Field(default="CAUSAL_LM")
 
+    # Multi-chip settings
+    parallelism: str = Field(default="single")  # [single, data, tensor]
+    mesh_shape: str = Field(default="8,1")  # Used if parallelism != single
+
     # Other settings
     output_dir: str = Field(default="experiments/results/llama32-1b")
     logging_steps: int = Field(default=10, gt=0)
