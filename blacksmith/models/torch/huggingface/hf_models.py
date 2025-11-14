@@ -48,9 +48,7 @@ class AlbertWithMLP(nn.Module):
 
         # Simple MLP - NO dropout
         self.classifier = nn.Sequential(
-            nn.Linear(768, config.mlp_hidden_dim),
-            nn.GELU(),
-            nn.Linear(config.mlp_hidden_dim, config.num_labels)
+            nn.Linear(768, config.mlp_hidden_dim), nn.GELU(), nn.Linear(config.mlp_hidden_dim, config.num_labels)
         )
 
     def forward(self, input_ids, attention_mask=None, token_type_ids=None):

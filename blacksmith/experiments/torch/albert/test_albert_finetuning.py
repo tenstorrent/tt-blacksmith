@@ -51,13 +51,10 @@ def validate(
             num_val_batches += 1
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
-    metrics = {
-        "accuracy": correct / total if total > 0 else 0.0,
-        "correct": correct,
-        "total": total
-    }
+    metrics = {"accuracy": correct / total if total > 0 else 0.0, "correct": correct, "total": total}
 
     return avg_val_loss, metrics
+
 
 def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
     logger.info("Starting training...")
