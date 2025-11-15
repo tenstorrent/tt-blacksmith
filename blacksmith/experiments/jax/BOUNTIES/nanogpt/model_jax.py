@@ -11,7 +11,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 @dataclass(frozen=True)
 class GPTConfig:
     block_size: int = 1024
-    vocab_size: int = 50304
+    vocab_size: int = 50304 # 50304
     num_layers: int = 12
     num_heads: int = 12
     num_embeds: int = 768
@@ -61,7 +61,7 @@ class MLP(nn.Module):
     def __call__(self, x, deterministic=None):
         B, T, C = x.shape
         x = nn.Dense(4 * C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_fc')(x)
-        x = nn.gelu(x, approximate=True)
+        x = nn.gelu(x, approximate=False)
         x = nn.Dense(C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_proj')(x)
         x = nn.Dropout(self.config.dropout_rate)(x, deterministic)
         return x
@@ -120,7 +120,7 @@ class GPT(nn.Module):
 
 
 def convert_hf_params(hf_params: FrozenDict, num_heads, num_embeds) -> FrozenDict:
-    params = unfreeze(hf_params['transformer'])
+    params = unfreeze(hf_params)
     for k, v in params.pop('h', {}).items():
         params[k] = v
 
