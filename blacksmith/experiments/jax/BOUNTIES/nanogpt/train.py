@@ -14,7 +14,7 @@ from flax.training.train_state import TrainState
 from flax.jax_utils import replicate, unreplicate
 import optax
 
-from model import GPT, GPTConfig
+from model_jax import GPT, GPTConfig
 from dataset import get_dataset
 
 import tensorflow as tf
