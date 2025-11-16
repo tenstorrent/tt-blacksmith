@@ -115,7 +115,7 @@ termcolor==3.2.0
 tokenizers==0.22.1
 toolz==1.1.0
 torch==2.7.1
-torch-xla
+torch-xla==2.9.0
 torchvision==0.22.1
 tqdm==4.67.1
 transformers==4.57.1

@@ -23,7 +23,6 @@ params_jax = model_jax.init(init_key)
 
 config_pt = Config_PT()
 model_pt = GPT_PT(config_pt)
-model_pt.eval() # set to eval mode (disables dropout if rate > 0)
 copy_jax_to_pt(params_jax, model_pt) 
 
 B, T = 4, 64
@@ -65,13 +64,16 @@ print(f"Starting training loop for {NUM_STEPS} steps...")
 
 for step in range(NUM_STEPS):
     # --- Generate identical data for this step ---
-    key, input_key, target_key, step_key = jax.random.split(key, 4)
-    input_ids_jax = jax.random.randint(input_key, (B, T), 0, config_jax.vocab_size, dtype=jnp.uint16)
-    targets_jax = jax.random.randint(target_key, (B, T), 0, config_jax.vocab_size, dtype=jnp.uint16)
-    
-    input_ids_pt = torch.tensor(np.asarray(input_ids_jax), dtype=torch.long)
-    targets_pt = torch.tensor(np.asarray(targets_jax), dtype=torch.long)
-    
+    key, step_key = jax.random.split(key, 2)
+    input_ids = np.random.randint(0, config_jax.vocab_size, size=(B, T), dtype=np.uint32)
+    targets = np.random.randint(0, config_jax.vocab_size, size=(B, T), dtype=np.uint32)
+
+    input_ids_jax = jnp.array(input_ids, dtype=jnp.uint32)
+    targets_jax = jnp.array(targets, dtype=jnp.uint32)
+
+    input_ids_pt = torch.tensor(input_ids, dtype=torch.long)
+    targets_pt = torch.tensor(targets, dtype=torch.long)
+
     # --- JAX train step ---
     params_jax, opt_state_jax, loss_jax_val, key = jax_train_step(
         params_jax, opt_state_jax, step_key, input_ids_jax, targets_jax

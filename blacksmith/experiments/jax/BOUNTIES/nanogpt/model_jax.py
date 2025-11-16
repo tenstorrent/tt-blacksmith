@@ -114,7 +114,7 @@ class GPT(nn.Module):
         by jitting init, traced values instead of concrete values are used
         which saves memory (since un-jitted model may not fit in memory)
         """
-        tokens = jnp.zeros((2, self.config.block_size), dtype=jnp.uint16)
+        tokens = jnp.zeros((2, self.config.block_size), dtype=jnp.uint32)
         params = jax.jit(super().init, static_argnums=(2,))(rng, tokens, True)
         return params
 
