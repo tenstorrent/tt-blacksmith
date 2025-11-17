@@ -73,10 +73,11 @@ class SquadV2Dataset(BaseDataset):  # Renamed class
     def _prepare_dataset(self):
         raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
 
-        # take only 10% of the dataset
-        reduced_dataset = raw_dataset.train_test_split(test_size=0.1,seed=42)['test']
+        # reduce the size of the validation dataset
+        if self.split == "validation":
+            raw_dataset = raw_dataset.train_test_split(test_size=0.02,seed=42)['test']
 
-        tokenized_dataset = reduced_dataset.map(self._tokenize_function)
+        tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
         self.dataset = self.full_dataset.remove_columns(
             [col for col in self.full_dataset.column_names if col not in self.required_columns]
