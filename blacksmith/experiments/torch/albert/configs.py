@@ -6,17 +6,17 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="path/to/dataset")
+    dataset_id: str = Field(default="mteb/banking77")
 
     # Model settings
-    model_name: str = Field(default="path/to/model")
+    model_name: str = Field(default="albert/albert-base-v2")
     max_length: int = Field(default=128, gt=0)
     num_labels: int = Field(default=2, gt=0)
     mlp_hidden_dim: int = Field(default=256, gt=0)
     dtype: str = Field(default="torch.bfloat16")
 
     # Training hyperparameters
-    learning_rate: float = Field(default=2e-5, gt=0)
+    learning_rate: float = Field(default=1e-3, gt=0)
     weight_decay: float = Field(default=0.0, ge=0)
     batch_size: int = Field(default=32, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
@@ -27,8 +27,8 @@ class TrainingConfig(BaseModel):
     # Logging settings
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=True)
-    wandb_project: str = Field(default="model-finetuning")
-    wandb_run_name: str = Field(default="tt-model-test")
+    wandb_project: str = Field(default="albert-finetuning")
+    wandb_run_name: str = Field(default="tt-albert-test")
     wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
@@ -45,7 +45,7 @@ class TrainingConfig(BaseModel):
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="epoch")
-    project_dir: str = Field(default="blacksmith/experiments/torch/model")
+    project_dir: str = Field(default="blacksmith/experiments/torch/albert")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
     sync_to_storage: bool = Field(default=False)

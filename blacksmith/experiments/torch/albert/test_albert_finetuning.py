@@ -20,12 +20,15 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 
 
 def validate(
-    model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
+    model: torch.nn.Module,
+    val_data_loader: DataLoader,
+    logger: TrainingLogger,
+    device: torch.device,
+    loss_fn: torch.nn.Module,
 ) -> float:
     logger.info("Starting validation...")
     model.eval()
 
-    loss_fn = torch.nn.CrossEntropyLoss()
     total_val_loss = 0.0
     num_val_batches = 0
 
@@ -84,10 +87,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     global_step = 0
     running_loss = 0.0
+    model.train()
     try:
         for epoch in range(config.num_epochs):
-            model.train()
-
             for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
@@ -119,7 +121,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     running_loss = 0.0
 
                     # Do validation
-                    valid_loss, metrics = validate(model, eval_dataloader, logger, device)
+                    valid_loss, metrics = validate(model, eval_dataloader, logger, device, loss_fn)
                     logger.log_metrics({"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]}, step=global_step)
                     model.train()
 

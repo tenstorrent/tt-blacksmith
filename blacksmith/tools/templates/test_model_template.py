@@ -23,6 +23,7 @@ def validate(
     model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
 ) -> float:
     logger.info("Starting validation...")
+    model.eval()
 
     total_val_loss = 0.0
     num_val_batches = 0
@@ -74,10 +75,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     global_step = 0
     running_loss = 0.0
+    model.train()
     try:
         for epoch in range(config.num_epochs):
-            model.train()
-
             for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
@@ -111,6 +111,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     # Do validation
                     valid_loss = validate(model, eval_dataloader, logger, device)
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    model.train()
 
                     # Save checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
