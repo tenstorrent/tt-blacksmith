@@ -3,109 +3,174 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import traceback
+from typing import Tuple
+
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import torchvision
 from torchvision import transforms
 
-import wandb
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 
 from blacksmith.tools.cli import generate_config
+from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.torch_xla_utils import setup_tt_environment
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
-from blacksmith.experiments.torch.mnist.configs import ExperimentConfig
-import os
+from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 
 
-# --------------------------------
-# Training loop
-# --------------------------------
-def test_training():
+def validate(
+    model: torch.nn.Module,
+    val_loader: DataLoader,
+    device: torch.device,
+    logger: TrainingLogger,
+    config: TrainingConfig,
+    loss_fn: torch.nn.Module,
+) -> Tuple[float, float]:
 
-    config: ExperimentConfig = generate_config(
-        ExperimentConfig, "blacksmith/experiments/torch/mnist/test_mnist_training.yaml"
-    )
+    logger.info("Starting validation...")
 
-    xr.runtime.set_device_type("TT")
+    model.eval()
+    total_loss = 0.0
+    total_samples = 0
+    correct = 0
 
-    logger_config = config.logger_config
-
-    wandb_run = wandb.init(
-        mode="online",
-        project=config.experiment_name,
-        name=config.experiment_name,
-        tags=config.tags,
-        dir=logger_config.wandb_dir,
-    )
-
-    if logger_config.log_hyperparameters:
-        wandb_run.config.update(config.model_dump())
-
-    # Model
-    model = MNISTLinear(**config.net_config.model_dump()).to(dtype=getattr(torch, config.data_loading_dtype))
-
-    # Dataset
-    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
-    dataset = torchvision.datasets.MNIST(root="./data", train=True, transform=transform, download=True)
-    train_size = int(config.training_config.train_ratio * len(dataset))
-    val_size = len(dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-
-    train_loader = DataLoader(train_dataset, batch_size=config.training_config.batch_size, shuffle=True, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=config.training_config.batch_size, shuffle=False, drop_last=False)
-
-    # Device
-    device = xm.xla_device()
-    model = model.to(device)
-
-    # Optimizer and Loss
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.training_config.lr)
-    loss_fn = eval(config.loss)()
-
-    # Training
-    for epoch in range(config.training_config.epochs):
-        model.train()
-        train_loss = 0.0
-        for inputs, targets in train_loader:
+    with torch.no_grad():
+        for inputs, targets in val_loader:
             inputs = inputs.view(inputs.size(0), -1)
             targets = targets.view(targets.size(0), -1)
 
-            inputs = inputs.to(device, dtype=torch.bfloat16)
-            targets = targets.to(device, dtype=torch.bfloat16)
+            inputs = inputs.to(device)
+            targets = targets.to(device)
 
-            optimizer.zero_grad()
             outputs = model(inputs)
             loss = loss_fn(outputs, targets)
-            loss.backward()
-            train_loss += loss.cpu().item()
+            total_loss += loss.item() * inputs.size(0)
 
-            xm.optimizer_step(optimizer)
-            torch_xla.sync(wait=True)
+            preds = torch.argmax(outputs, dim=1)
+            labels = torch.argmax(targets, dim=1)
+            correct += (preds == labels).sum().item()
+            total_samples += inputs.size(0)
 
-        avg_train_loss = train_loss / len(train_loader)
-        wandb.log({"train_loss": avg_train_loss, "epoch": epoch + 1})
+    avg_loss = total_loss / total_samples
+    accuracy = correct / total_samples
+    logger.info(f"Validation finished. Avg loss: {avg_loss:.6f}, Accuracy: {accuracy:.4f}")
+    return avg_loss, accuracy
 
-        # Validation
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for inputs, targets in val_loader:
+
+def train(
+    config: TrainingConfig,
+    device: torch.device,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
+):
+    logger.info("Starting MNIST training (single chip)")
+
+    # Load model
+    model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
+    model = model.to(device)
+    logger.info(f"Loaded {config.model_name} model.")
+    logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    # Optimizer and loss function
+    optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
+    loss_fn = eval(config.loss_fn)()
+
+    # Datasets
+    train_loader, val_loader = load_mnist_torch(dtype=torch.float32, batch_size=config.batch_size)
+    logger.info(f"Train dataset size: {len(train_loader) * config.batch_size}, Eval batches: {len(val_loader)}")
+
+    # Load checkpoint if requested
+    if config.resume_from_checkpoint:
+        checkpoint_manager.load_checkpoint(model, optimizer)
+
+    global_step = 0
+    running_loss = 0.0
+
+    try:
+        model.train()
+        for epoch in range(config.num_epochs):
+            logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
+            for inputs, targets in train_loader:
                 inputs = inputs.view(inputs.size(0), -1)
                 targets = targets.view(targets.size(0), -1)
 
-                inputs = inputs.to(device, dtype=torch.bfloat16)
-                targets = targets.to(device, dtype=torch.bfloat16)
+                inputs = inputs.to(device)
+                targets = targets.to(device)
 
+                optimizer.zero_grad()
+
+                # Forward
                 outputs = model(inputs)
                 loss = loss_fn(outputs, targets)
-                val_loss += loss.item()
 
-        avg_val_loss = val_loss / len(val_loader)
-        print(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
-        wandb.log({"val_loss": avg_val_loss}, step=epoch + 1)
+                # Backward
+                loss.backward()
+                running_loss += loss.item()
+
+                xm.optimizer_step(optimizer, barrier=True)
+
+                global_step += 1
+
+                # Logging
+                if global_step % config.steps_freq == 0:
+                    avg_loss = running_loss / config.steps_freq
+                    running_loss = 0.0
+
+                    val_loss, val_acc = validate(model, val_loader, device, logger, config, loss_fn)
+                    logger.log_metrics(
+                        {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc},
+                        step=global_step,
+                    )
+                    model.train()
+
+                    if checkpoint_manager.should_save_checkpoint(global_step):
+                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+            # Save checkpoint by epoch boundary
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+        # Final save
+        final_checkpoint_path = checkpoint_manager.save_checkpoint(
+            model, global_step, config.num_epochs - 1, optimizer, checkpoint_name="final_model.pth"
+        )
+        logger.log_artifact(final_checkpoint_path, artifact_type="model", name="final_model.pth")
+        logger.info("Training finished successfully.")
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Training failed with error: {e}", tb)
+        raise
+    finally:
+        logger.finish()
 
 
 if __name__ == "__main__":
-    test_training()
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training.yaml")
+    config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
+
+    # Setup TT environment
+    setup_tt_environment(config)
+
+    # Reproducibility
+    repro_manager = ReproducibilityManager(config)
+    repro_manager.setup()
+
+    # Logging + checkpoints
+    logger = TrainingLogger(config)
+    checkpoint_manager = CheckpointManager(config, logger)
+
+    # Device
+    device = torch_xla.device()
+
+    # Start training
+    train(config, device, logger, checkpoint_manager)

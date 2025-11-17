@@ -26,8 +26,8 @@ deterministic: false
 # Logging settings
 log_level: "INFO"
 use_wandb: true
-wandb_project: "blacksmith-mnist-single"
-wandb_run_name: "mnist_single_chip"
+wandb_project: "blacksmith-mnist-tp"
+wandb_run_name: "mnist_multichip"
 wandb_tags: ["tt-xla", "model:torch", "plugin", "wandb"]
 wandb_watch_mode: "all"
 wandb_log_freq: 100
@@ -52,11 +52,12 @@ load_from_storage: false
 remote_path: ""
 
 # Multi-chip settings
-parallelism: "single"
+parallelism: "tensor"
+mesh_shape: "2,1"
 
 # Other settings
 device: "TT"
-experiment_name: "torch-mnist"
+experiment_name: "torch-mnist-tp"
 framework: "pytorch"
 output_dir: "experiments/results/mnist"
 use_tt: true

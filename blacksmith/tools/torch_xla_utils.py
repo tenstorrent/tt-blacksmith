@@ -26,7 +26,6 @@ def setup_tt_environment(config: TrainingConfig):
 
 
 def get_mesh(config: TrainingConfig) -> xs.Mesh:
-    # TODO: Extend this for other multichip setups once we have them.
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh_shape = None
