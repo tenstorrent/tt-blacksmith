@@ -15,30 +15,15 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
-from torch_xla.distributed.spmd import Mesh
 
 from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
-
-
-def setup_tt_environment(config: TrainingConfig):
-    if not config.use_tt:
-        return
-
-    os.environ["PJRT_DEVICE"] = "TT"
-    os.environ["XLA_STABLEHLO_COMPILE"] = "1"
-    os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
-    os.environ["MESH_SHAPE"] = "1,2"
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
-
-    xr.set_device_type("TT")
-    xr.use_spmd()
 
 
 def cross_entropy_loss(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -53,7 +38,7 @@ def cross_entropy_loss(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Te
     return per_sample.mean(dim=0, keepdim=True)
 
 
-def apply_tensor_parallel_sharding(model: nn.Module, mesh: Mesh):
+def apply_tensor_parallel_sharding(model: nn.Module, mesh: xs.Mesh):
     # Sync to ensure all weights are materialized
     torch_xla.sync(wait=True)
     # Layer names and their corresponding sharding patterns
@@ -106,19 +91,10 @@ def validate(
     return avg_loss, accuracy
 
 
-def setup_mesh(config: TrainingConfig) -> Mesh:
-    num_devices = xr.global_runtime_device_count()
-    mesh_shape = (num_devices,)
-    device_ids = np.array(range(num_devices))
-    axis_names = ("model",)
-    mesh = Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
-    return mesh
-
-
 def train(
     config: TrainingConfig,
     device: torch.device,
-    mesh: Mesh,
+    mesh: xs.Mesh,
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
@@ -134,13 +110,13 @@ def train(
     # Optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
 
-    # Load checkpoint if requested
-    if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint(model, optimizer)
-
     # Datasets
     train_loader, val_loader = load_mnist_torch(dtype=torch.float32, batch_size=config.batch_size)
     logger.info(f"Train dataset size: {len(train_loader) * config.batch_size}, Eval batches: {len(val_loader)}")
+
+    # Load checkpoint if requested
+    if config.resume_from_checkpoint:
+        checkpoint_manager.load_checkpoint(model, optimizer)
 
     global_step = 0
     running_loss = 0.0
@@ -216,7 +192,7 @@ def train(
 if __name__ == "__main__":
 
     # Generate config
-    config_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_mnist_training.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training_tp.yaml")
     config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility
@@ -224,7 +200,8 @@ if __name__ == "__main__":
     repro_manager.setup()
 
     # Setup TT environment
-    setup_tt_environment(config)
+    if config.use_tt:
+        setup_tt_environment(config)
 
     # Compile options
     options = {
@@ -234,17 +211,20 @@ if __name__ == "__main__":
     }
     torch_xla.set_custom_compile_options(options)
 
-    # Setup mesh if using TT
+    # Setup mesh for tensor parallel
     mesh = None
     if config.use_tt:
-        mesh = setup_mesh(config)
+        mesh = get_mesh(config)
 
     # Logger and checkpoint manager
     logger = TrainingLogger(config)
     checkpoint_manager = CheckpointManager(config, logger)
 
-    # Device
-    device = torch_xla.device()
+    # Device selection
+    if config.use_tt:
+        device = torch_xla.device()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     logger.info(f"Using device: {device}")
 

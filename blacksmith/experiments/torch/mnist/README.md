@@ -36,6 +36,11 @@ python blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py
 
 ## Configuration
 
+For each training you can change default values in configuration files:
+1. Single chip - `blacksmith/experiments/torch/mnist/test_mnist_training.yaml`
+2. Data parallel - `blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training_dp.yaml`
+3. Tensor parallel - `blacksmith/experiments/torch/mnist/tesnor_parallel/test_mnist_training_tp.yaml`
+
 In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for example change default values for following parameters.
 
 | Parameter | Description | Default Value |
@@ -65,7 +70,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for exa
 | `log_level` | Logging level. | "INFO" |
 | `use_wandb` | Whether to use Weights & Biases for logging. | true |
 | `wandb_project` | W&B project name. | "blacksmith-mnist" |
-| `wandb_run_name` | W&B run name. | "mnist_multichip" |
+| `wandb_run_name` | W&B run name. | "mnist_single_chip" |
 | `wandb_tags` | A list of tags for the experiment. | ["tt-xla", "model:torch", "plugin", "wandb"] |
 | `wandb_watch_mode` | W&B watch mode for model tracking. | "all" |
 | `wandb_log_freq` | Frequency of W&B logging. | 100 |
@@ -87,9 +92,12 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for exa
 | `sync_to_storage` | Whether to sync checkpoints to storage. | false |
 | `load_from_storage` | Whether to load checkpoints from storage. | false |
 | `remote_path` | Remote path for checkpoint storage. | "" |
+|  **Multi-chip settings** |
+| `parallelism` | Select experiment - "single"/"data"/"tensor". | "" |
+| `mesh_shape` | Mesh shape. | "2,1" |
 |  **Other Settings** |
 | `device` | Select device "TT"/"CPU". | "TT" |
-| `experiment_name` | The name of the experiment used for tracking and logging. | "blacksmith-mnist-training" |
+| `experiment_name` | The name of the experiment used for tracking and logging. | "torch-mnist" |
 | `framework` | Framework being used. | "pytorch" |
 | `output_dir` | Output directory for results. | "experiments/results/mnist" |
 | `use_tt` | Whether to use TT device. | true |
