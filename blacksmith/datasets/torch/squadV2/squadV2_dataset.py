@@ -20,7 +20,7 @@ Answer:
 )
 
 
-class SquadV2Dataset(BaseDataset):  # Renamed class
+class SquadV2Dataset(BaseDataset):
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
