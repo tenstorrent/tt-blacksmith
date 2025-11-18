@@ -24,16 +24,7 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
-
-
-def mse_loss(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    # Workaround for nn.MSELoss - it returns a scalar (reduction='mean'),
-    # but data parallel operations require loss shape [1, 1] (keepdim=True).
-    # github issue: https://github.com/tenstorrent/tt-xla/issues/1993
-    loss = (outputs - targets).pow(2)
-    loss = loss.mean(dim=1, keepdim=True)
-    loss = loss.mean(dim=0, keepdim=True)
-    return loss
+from blacksmith.experiments.torch.mnist.data_parallel.utils import mse_loss
 
 
 def validate(
@@ -177,9 +168,14 @@ if __name__ == "__main__":
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
-    # Setup TT environment
+    # Setup TT environment and mesh
     if config.use_tt:
         setup_tt_environment(config)
+        mesh = get_mesh(config)
+        device = torch_xla.device()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        mesh = None
 
     # Compile options
     options = {
@@ -189,20 +185,9 @@ if __name__ == "__main__":
     }
     torch_xla.set_custom_compile_options(options)
 
-    # Setup mesh if using TT
-    mesh = None
-    if config.use_tt:
-        mesh = get_mesh(config)
-
     # Logger and checkpoint manager
     logger = TrainingLogger(config)
     checkpoint_manager = CheckpointManager(config, logger)
-
-    # Device selection
-    if config.use_tt:
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Start training
     train(config, device, mesh, logger, checkpoint_manager)

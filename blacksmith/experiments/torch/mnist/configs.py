@@ -61,9 +61,13 @@ class TrainingConfig(BaseModel):
     seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
 
+    # Multi-chip settings
+    parallelism: str = Field(default="data")  # [single, data, tensor]
+    mesh_shape: str = Field(default="2,1")  # Used if parallelism != single
+
     # Other settings
     device: str = Field(default="TT")
-    experiment_name: str = Field(default="blacksmith-mnist")
+    experiment_name: str = Field(default="torch-mnist")
     output_dir: str = Field(default="experiments/results/mnist")
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)

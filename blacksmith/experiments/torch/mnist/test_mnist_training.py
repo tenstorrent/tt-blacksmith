@@ -116,7 +116,8 @@ def train(
                 loss.backward()
                 running_loss += loss.item()
 
-                xm.optimizer_step(optimizer, barrier=True)
+                optimizer.step()
+                torch_xla.sync(wait=True)
 
                 global_step += 1
 
@@ -158,8 +159,12 @@ if __name__ == "__main__":
     config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training.yaml")
     config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
 
-    # Setup TT environment
-    setup_tt_environment(config)
+    # Setup TT environment and device
+    if config.use_tt:
+        setup_tt_environment(config)
+        device = torch_xla.device()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Reproducibility
     repro_manager = ReproducibilityManager(config)
@@ -168,9 +173,6 @@ if __name__ == "__main__":
     # Logging + checkpoints
     logger = TrainingLogger(config)
     checkpoint_manager = CheckpointManager(config, logger)
-
-    # Device
-    device = torch_xla.device()
 
     # Start training
     train(config, device, logger, checkpoint_manager)
