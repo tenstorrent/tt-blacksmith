@@ -1,0 +1,54 @@
+# Dataset settings
+dataset_id: "mteb/banking77"
+
+# Model settings
+model_name: "albert/albert-base-v2"
+max_length: 128
+num_labels: 77
+mlp_hidden_size: 256
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+learning_rate: 1e-3
+weight_decay: 0.01
+batch_size: 8
+gradient_accumulation_steps: 1
+gradient_checkpointing: False
+num_epochs: 5
+optim: "adamw_torch"
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "albert-finetuning"
+wandb_run_name: "tt-albert-test"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: "" # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "epoch"
+project_dir: "blacksmith/experiments/torch/albert"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Other settings
+framework: "pytorch"
+use_tt: True
