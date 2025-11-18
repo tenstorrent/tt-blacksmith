@@ -9,10 +9,11 @@ The following table provides an overview of different model and dataset combinat
 | Framework | Model | Dataset | Method | Devices | Details |
 | --- | --- | --- | --- | --- | --- |
 | PyTorch | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
-| PyTorch | MLP | MNIST | Full-model - data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
-| PyTorch | MLP | MNIST | Full-model - tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
+| PyTorch | MLP | MNIST | Full-model, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
+| PyTorch | MLP | MNIST | Full-model, Tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
-| PyTorch | Llama 3.2 1B | SST-2 | LoRA - data parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/README.md) |
+| PyTorch | Llama 3.2 1B | SST-2 | LoRA | T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
+| PyTorch | Llama 3.2 1B | SST-2 | LoRA, Data parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/README.md) |
 | PyTorch | Qwen 2.5 0.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Gemma 3 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
 | JAX | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
