@@ -1,7 +1,7 @@
-# Gemma with LoRA Experiment
+# Gemma 1.1 2B with LoRA Experiment
 
-This directory contains the code for the Gemma model with LoRA fine-tuning experiment.
-Gemma model specification can be found [here](https://huggingface.co/google/gemma-1.1-2b-it).
+This directory contains the code for the Gemma 1.1 2B model with LoRA fine-tuning experiment.
+Gemma 1.1 2B model specification can be found [here](https://huggingface.co/google/gemma-1.1-2b-it).
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
@@ -68,7 +68,7 @@ Current `test_gemma11_finetuning.yaml` has the recommended and tested hyperparam
 | Parameter | Description | Default Value |
 | --- | --- | --- |
 | `dataset_id` | The dataset used for fine-tuning. | "stanfordnlp/sst2" |
-| `model_name` | Name or path of the pre-trained Gemma model. | "google/gemma-1.1-1b-it" |
+| `model_name` | Name or path of the pre-trained Gemma 1.1 2B model. | "google/gemma-1.1-1b-it" |
 | `max_length` | Maximum token length for inputs. | 32 |
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `learning_rate` | Learning rate for the optimizer. | 6e-5 |
