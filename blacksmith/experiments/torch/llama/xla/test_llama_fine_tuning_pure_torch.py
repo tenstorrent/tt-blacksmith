@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import argparse
 import os
 import torch
 import traceback
@@ -15,38 +16,11 @@ from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.torch_helpers import show_examples, collect_examples, collate_fn_for_causal_lm
-from blacksmith.tools.torch_xla_utils import setup_multi_chip_environment, get_mesh
+from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-
-
-# Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
-def cross_entropy_loss(shift_logits, expected_output, labels_mask):
-    log_probs = F.log_softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]
-    # Cross entropy: -sum(target * log_prob) over vocab dimension
-    ce_loss = -(expected_output * log_probs).sum(dim=-1, keepdim=True)  # [batch, seq_len, 1]
-
-    # Apply mask to ignore padding tokens
-    labels_mask = labels_mask.unsqueeze(-1).float()  # [batch, seq_len, 1]
-    ce_loss = ce_loss * labels_mask
-
-    # Compute mean only over valid (non-masked) positions
-    num_valid = labels_mask.sum(dim=1, keepdim=True)  # [batch, 1, 1]
-    num_valid = torch.clamp(num_valid, min=1.0)  # Avoid division by zero
-    loss_per_sample = ce_loss.sum(dim=1, keepdim=True) / num_valid  # [batch, 1, 1]
-    loss = loss_per_sample.mean(dim=0, keepdim=True)  # [1, 1, 1]
-    return loss
-
-
-def transform_labels(batch, ignored_index, vocab_size, device):
-    labels = batch["labels"]
-    labels_mask = (labels != ignored_index).to(labels.device)
-    labels[labels == ignored_index] = 0
-    expected_output = F.one_hot(labels, num_classes=vocab_size)
-    expected_output = expected_output.to(device)
-    labels_mask = labels_mask.to(device)
-    return expected_output, labels_mask
+from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -184,6 +158,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
 
                 running_loss += loss.item()
+                print(f"Step {global_step}, Loss: {loss.item()}", flush=True)
 
                 # Backward pass
                 loss.backward()
@@ -230,7 +205,13 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
+    parser = argparse.ArgumentParser(description="LLaMA Fine-Tuning with PyTorch and XLA")
+    parser.add_argument("--config", type=str, required=False, help="Path to the configuration YAML file.")
+    args = parser.parse_args()
+    if args.config:
+        config_file_path = args.config
+    else:
+        config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     assert config.parallelism in [
@@ -250,9 +231,7 @@ if __name__ == "__main__":
 
     # Device setup
     if config.use_tt:
-        if config.parallelism != "single":
-            setup_multi_chip_environment(config)
-        xr.runtime.set_device_type("TT")
+        setup_tt_environment(config)
         device = torch_xla.device()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
