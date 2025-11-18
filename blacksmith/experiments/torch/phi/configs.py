@@ -16,8 +16,8 @@ class TrainingConfig(BaseModel):
     ignored_index: int = Field(default=-100)
 
     # Training hyperparameters
-    learning_rate: float = Field(default=2e-5, gt=0)
-    batch_size: int = Field(default=32, gt=0)
+    learning_rate: float = Field(default=6e-5, gt=0)
+    batch_size: int = Field(default=8, gt=0)
     gradient_checkpointing: bool = Field(default=False)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
@@ -26,7 +26,7 @@ class TrainingConfig(BaseModel):
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="phi1-finetuning")
-    wandb_run_name: str = Field(default="tt-phi1-test")
+    wandb_run_name: str = Field(default="tt-phi1-sst2")
     wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
@@ -45,7 +45,7 @@ class TrainingConfig(BaseModel):
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="epoch")
-    project_dir: str = Field(default="blacksmith/experiments/torch/model")
+    project_dir: str = Field(default="blacksmith/experiments/torch/phi")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
     sync_to_storage: bool = Field(default=False)

@@ -13,7 +13,7 @@ from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
 from blacksmith.experiments.torch.phi.configs import TrainingConfig
-from blacksmith.datasets.torch.squadV2.squadV2_dataset import SquadV2Dataset
+from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
@@ -96,11 +96,11 @@ def train(
         checkpoint_manager.load_checkpoint()
 
     # Load dataset
-    train_dataset = SquadV2Dataset(config=config, collate_fn=collate_fn_for_causal_lm)
+    train_dataset = SSTDataset(config=config, collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = SquadV2Dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = SSTDataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
@@ -112,10 +112,9 @@ def train(
 
     global_step = 0
     running_loss = 0.0
+    model.train()
     try:
         for epoch in range(config.num_epochs):
-            model.train()
-
             for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
@@ -188,7 +187,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_phi1_finetuning_squadV2.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_phi1_finetuning_sst2.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup

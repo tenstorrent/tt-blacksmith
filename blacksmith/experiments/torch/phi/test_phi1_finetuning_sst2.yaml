@@ -19,7 +19,7 @@ optim: "adamw_torch"
 log_level: "INFO"
 use_wandb: True
 wandb_project: "phi1-finetuning"
-wandb_run_name: "tt-phi1-test"
+wandb_run_name: "tt-phi1-sst2"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
