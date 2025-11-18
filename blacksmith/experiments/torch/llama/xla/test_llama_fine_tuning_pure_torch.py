@@ -5,13 +5,12 @@ import argparse
 import os
 import torch
 import traceback
+
 import torch_xla
 import torch_xla.runtime as xr
-from torch.utils.data import DataLoader
-import torch.nn.functional as F
 from tqdm import tqdm
 
-from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
+from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
@@ -101,11 +100,11 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         checkpoint_manager.load_checkpoint(model, optimizer)
 
     # Load dataset
-    train_dataset = SSTDataset(config=config, collate_fn=collate_fn_for_causal_lm)
+    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = SSTDataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 

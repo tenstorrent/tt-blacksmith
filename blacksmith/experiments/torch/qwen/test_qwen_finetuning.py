@@ -14,7 +14,7 @@ from transformers import AutoTokenizer
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
+from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -103,11 +103,11 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         checkpoint_manager.load_checkpoint(model, optimizer)
 
     # Load dataset
-    train_dataset = TextToSQLDataset(config=config, collate_fn=collate_fn_for_causal_lm)
+    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = TextToSQLDataset(config=config, split="test", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = get_dataset(config=config, split="test", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 

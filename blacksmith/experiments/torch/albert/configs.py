@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="mteb/banking77")
+    dataset_id: str = Field(default="banking77")
 
     # Model settings
     model_name: str = Field(default="albert/albert-base-v2")

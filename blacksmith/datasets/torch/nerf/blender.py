@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from random import random
 import torch
 from torch.utils.data import Dataset
 import json
@@ -8,8 +9,10 @@ import numpy as np
 import os
 from PIL import Image
 from torchvision import transforms as T
+from torchdata.stateful_dataloader import StatefulDataLoader
 
 from blacksmith.datasets.torch.nerf.ray_utils import *
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
 
 trans_t = lambda t: torch.Tensor([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, t], [0, 0, 0, 1]]).float()
 
@@ -30,17 +33,25 @@ def pose_spherical(theta, phi, radius):
     return c2w
 
 
-class BlenderDataset(Dataset):
-    def __init__(self, root_dir, split="train", img_wh=(800, 800)):
-        self.root_dir = root_dir
+def seed_worker(worker_id):
+    # TODO: move this out when refactoring training script to use reproducibilty manager
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+class BlenderDataset(BaseDataset):
+    def __init__(self, config, split="train"):
+        self.config = config
+        self.root_dir = config.data_loading.input_dir
         self.split = split
-        assert img_wh[0] == img_wh[1], "image width must equal image height!"
-        self.img_wh = img_wh
+        self.img_wh = config.data_loading.img_wh
+        assert self.img_wh[0] == self.img_wh[1], "image width must equal image height!"
         self.define_transforms()
 
-        self.read_meta()
+        self._prepare_dataset()
 
-    def read_meta(self):
+    def _prepare_dataset(self):
         with open(os.path.join(self.root_dir, f"transforms_{self.split}.json"), "r") as f:
             self.meta = json.load(f)
 
@@ -132,3 +143,12 @@ class BlenderDataset(Dataset):
             sample = {"rays": rays}
 
         return sample
+
+    def get_dataloader(self):
+        return StatefulDataLoader(
+                self,
+                shuffle=self.split == "train",
+                num_workers=self.config.data_loading.num_workers,
+                batch_size=self.config.data_loading.batch_size,
+                worker_init_fn=seed_worker,
+            )

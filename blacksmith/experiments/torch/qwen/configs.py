@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="gretelai/synthetic_text_to_sql")
+    dataset_id: str = Field(default="text2sql")
 
     # Model settings
     model_name: str = Field(default="Qwen/Qwen2.5-0.5B")

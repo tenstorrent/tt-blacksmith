@@ -3,6 +3,7 @@ tags:
   - tt-forge-fe
   - model:torch
   - lightning
+dataset_id: nerf
 
 model:
   deg: 2
@@ -27,6 +28,7 @@ data_loading:
   input_dir: /proj_sw/training_data/tt_nerf_white
   img_wh: [200, 200]
   batch_size: 4096
+  num_workers: 4
 
 training:
   use_forge: True

@@ -11,11 +11,8 @@ import wandb
 from collections import defaultdict
 from torchvision import transforms
 
-from torchdata.stateful_dataloader import StatefulDataLoader
-from pytorch_lightning.loggers.wandb import WandbLogger
 
-# models
-
+from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.models.torch.nerf import Embedding, NeRF
 from blacksmith.models.torch.nerf.nerftree import NerfTree
 from blacksmith.experiments.lightning.nerf.configs import NerfConfig, load_config
@@ -29,12 +26,12 @@ from blacksmith.experiments.lightning.nerf.utils.log import log_gradients, log_t
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import LightningModule, Trainer
 from pytorch_lightning import seed_everything
+from pytorch_lightning.loggers.wandb import WandbLogger
 
 import matplotlib
 
 matplotlib.use("Agg")
 import numpy as np
-import random
 
 import logging
 
@@ -44,12 +41,6 @@ from loguru import logger
 logger.disable("")
 
 torch.manual_seed(0)
-
-
-def seed_worker(worker_id):
-    worker_seed = torch.initial_seed() % 2**32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
 
 
 def copy_model_attributes(model, forge_model):
@@ -241,33 +232,17 @@ class EfficientNeRFSystem(LightningModule):
         return results
 
     def prepare_data(self):
-        dataset_kwargs = {
-            "root_dir": self.config.data_loading.input_dir,
-            "img_wh": tuple(self.config.data_loading.img_wh),
-        }
-        self.train_dataset = BlenderDataset(split="train", **dataset_kwargs)
-        self.val_dataset = BlenderDataset(split="test", **dataset_kwargs)
+        self.train_dataset = get_dataset(self.config, split="train")
+        self.val_dataset = get_dataset(self.config, split="test")
 
         self.near = self.train_dataset.near
         self.far = self.train_dataset.far
 
     def train_dataloader(self):
-        return StatefulDataLoader(
-            self.train_dataset,
-            shuffle=True,
-            num_workers=8,
-            batch_size=self.batch_size,
-            worker_init_fn=seed_worker,
-        )
+        return self.train_dataset.get_dataloader()
 
     def val_dataloader(self):
-        return StatefulDataLoader(
-            self.val_dataset,
-            shuffle=False,
-            num_workers=4,
-            worker_init_fn=seed_worker,
-            batch_size=1,
-        )
+        return self.val_dataset.get_dataloader()
 
     def training_step(self, batch: int, batch_idx: int) -> torch.Tensor:
         self.log("train/lr", get_learning_rate(self.optimizer), on_step=True, prog_bar=True)

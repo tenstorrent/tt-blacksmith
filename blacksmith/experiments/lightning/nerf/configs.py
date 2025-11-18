@@ -53,6 +53,7 @@ class TrainingConfig(BaseModel):
 class NerfConfig(BaseModel):
     experiment_name: str = "nerf-training"
     tags: List[str] = Field(default=["nerf"])
+    dataset_id: str = "nerf"
     model: ModelConfig = ModelConfig()
     data_loading: DataLoadingConfig = DataLoadingConfig()
     training: TrainingConfig = TrainingConfig()

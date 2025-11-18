@@ -5,11 +5,10 @@ import os
 import traceback
 
 import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 import wandb
 
-from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
+from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config
@@ -301,10 +300,10 @@ if __name__ == "__main__":
     model = get_model(config)
 
     # Load dataset
-    train_dataset = SSTDataset(config=config)
+    train_dataset = get_dataset(config=config, split="train")
     train_dataloader = train_dataset.get_dataloader()
 
-    eval_dataset = SSTDataset(config=config, split="validation")
+    eval_dataset = get_dataset(config=config, split="validation")
     eval_dataloader = eval_dataset.get_dataloader()
 
     if config.do_train:

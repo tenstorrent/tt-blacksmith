@@ -1,5 +1,5 @@
 # Dataset settings
-dataset_id: "mteb/banking77"
+dataset_id: "banking77"
 
 # Model settings
 model_name: "albert/albert-base-v2"
