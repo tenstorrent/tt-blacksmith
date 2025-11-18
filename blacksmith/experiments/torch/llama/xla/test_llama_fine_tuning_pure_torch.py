@@ -1,12 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import argparse
 import os
 import torch
 import traceback
 import torch_xla
 import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
@@ -14,9 +16,11 @@ from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.torch_helpers import show_examples, collect_examples, collate_fn_for_causal_lm
+from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -41,7 +45,14 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             # Loss
-            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
+            # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
+            if config.parallelism != "single":
+                expected_output_one_hot, labels_mask = transform_labels(
+                    batch, config.ignored_index, model.model.config.vocab_size, device
+                )
+                loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
+            else:
+                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
             total_val_loss += loss.item()
 
             # Predictions
@@ -102,6 +113,8 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     global_step = 0
     running_loss = 0.0
+    mesh = get_mesh(config)
+
     try:
         model.train()
         for epoch in range(config.num_epochs):
@@ -117,6 +130,20 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 # Get expected output
                 expected_output = batch["labels"].to(device)
 
+                # TODO: Refactor when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
+                if config.parallelism == "data":
+                    expected_output, labels_mask = transform_labels(
+                        batch, config.ignored_index, model.model.config.vocab_size, device
+                    )
+
+                    # Apply sharding on inputs.
+                    import torch_xla.distributed.spmd as xs
+
+                    xs.mark_sharding(input_ids, mesh, ("data", None))
+                    xs.mark_sharding(attention_mask, mesh, ("data", None))
+                    xs.mark_sharding(expected_output, mesh, ("data", None, None))
+                    xs.mark_sharding(labels_mask, mesh, ("data", None))
+
                 # Forward pass
                 output = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = output.logits
@@ -125,9 +152,13 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 # logits[:, :-1] predicts tokens at positions 1:
                 shift_logits = logits[:, :-1, :].contiguous()
 
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
+                if config.parallelism != "single":
+                    loss = cross_entropy_loss(shift_logits, expected_output, labels_mask)
+                else:
+                    loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
 
                 running_loss += loss.item()
+                print(f"Step {global_step}, Loss: {loss.item()}", flush=True)
 
                 # Backward pass
                 loss.backward()
@@ -174,8 +205,19 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
+    parser = argparse.ArgumentParser(description="LLaMA Fine-Tuning with PyTorch and XLA")
+    parser.add_argument("--config", type=str, required=False, help="Path to the configuration YAML file.")
+    args = parser.parse_args()
+    if args.config:
+        config_file_path = args.config
+    else:
+        config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
     config = generate_config(TrainingConfig, config_file_path)
+
+    assert config.parallelism in [
+        "single",
+        "data",
+    ], "Currently only 'single' and 'data' parallelism modes are supported."
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
@@ -189,7 +231,7 @@ if __name__ == "__main__":
 
     # Device setup
     if config.use_tt:
-        xr.runtime.set_device_type("TT")
+        setup_tt_environment(config)
         device = torch_xla.device()
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -15,6 +15,11 @@ The experiment is designed to run on the Huggingface framework.
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py
 ```
 
+To run data parallel training, use the following command:
+
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/test_dp_llama_fine_tuning_pure_torch.yaml
+```
 ## Data
 
 GLUE, the General Language Understanding Evaluation benchmark (https://gluebenchmark.com/) is a collection of resources for training, evaluating, and analyzing natural language understanding systems.
@@ -85,3 +90,5 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
+| `parallelism`                  | Parallelism strategy (`single`, `data`, `tensor`).     | "single"                            |
+| `mesh_shape`                  | Mesh shape for distributed training.                   | "8,1"                               |

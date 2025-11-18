@@ -10,9 +10,13 @@ The following table provides an overview of different model and dataset combinat
 | --- | --- | --- | --- | --- | --- |
 | PyTorch | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
+| PyTorch | Llama 3.2 1B | SST-2 | LoRA | T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md) |
 | PyTorch | Qwen 2.5 0.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Gemma 3 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
 | JAX | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
+| JAX | MLP | MNIST | Full-model, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
+| JAX | MLP | MNIST | Full-model, Tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
+| JAX | MLP | MNIST | Full-model, Data parallel | WH Galaxy | [W&B run](https://wandb.ai/tenstorrent-ml/DP%20-%20Pure%20JAX%20MLP%20training/runs/r2tfckk9?nw=nwuserpglusac). Not yet in main, code on this [branch](https://github.com/tenstorrent/tt-blacksmith/tree/pglusac/mnist-galaxy-jax) |
 | JAX | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |
 | JAX | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/README.md) |
 | JAX | Llama 3.2 1B | SST-2 | DoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama_dora/README.md) |
