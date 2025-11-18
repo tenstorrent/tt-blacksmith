@@ -15,7 +15,7 @@ PROMPT_TEMPLATE = Template(
     """
 Context: $context\n
 Question: $question\n
-Answer: 
+Answer:
 """
 )
 
@@ -38,14 +38,14 @@ class SquadV2Dataset(BaseDataset):  # Renamed class
         self._prepare_dataset()
 
     def _tokenize_function(self, example):
-        context = example['context']
-        question = example['question']
+        context = example["context"]
+        question = example["question"]
         prompt = PROMPT_TEMPLATE.substitute(context=context, question=question)
 
         # Determine the response
         # SQuAD v2.0 has unanswerable questions, indicated by an empty 'text' list.
-        if example['answers']['text']:
-            response = example['answers']['text'][0]
+        if example["answers"]["text"]:
+            response = example["answers"]["text"][0]
         else:
             response = "unanswerable"
 
@@ -75,9 +75,7 @@ class SquadV2Dataset(BaseDataset):  # Renamed class
 
         # reduce the size of the validation dataset
         if self.split == "validation":
-            raw_dataset = raw_dataset.train_test_split(test_size=0.02,seed=42)['test']
-        else:
-            raw_dataset = raw_dataset.train_test_split(test_size=0.1,seed=42)['test']
+            raw_dataset = raw_dataset.train_test_split(test_size=0.02, seed=42)["test"]
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
