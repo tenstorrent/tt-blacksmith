@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from blacksmith.datasets.torch.nerf.blender import BlenderDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
+from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
@@ -62,7 +63,7 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
     dataset_id = config.get("dataset_id", "").lower()
 
     if dataset_id == AvailableDataset.MNIST.value:
-        raise NotImplementedError("MNIST dataset is not implemented yet.")
+        return MNISTDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.NERF.value:
         return BlenderDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.SST2.value:

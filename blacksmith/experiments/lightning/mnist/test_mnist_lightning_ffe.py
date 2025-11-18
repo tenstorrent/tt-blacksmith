@@ -1,8 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List
-
 import lightning as L
 from lightning.pytorch.callbacks import ModelCheckpoint
 from blacksmith.tools.forge_tooling import disable_forge_logger
@@ -13,7 +11,7 @@ from blacksmith.tools.torch_lightning import (
     SaveCheckpointArtifact,
 )
 from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
+from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.lightning.mnist.configs import ExperimentConfig
 
@@ -30,9 +28,12 @@ def test_training():
     )
     logger_config = config.logger_config
 
-    train_loader, test_loader = load_mnist_torch(
-        dtype=eval(config.data_loading_config.dtype), batch_size=config.data_loading_config.batch_size
-    )
+    # Dataset
+    train_dataset = MNISTDataset(config, split="train")
+    train_loader = train_dataset.get_dataloader()
+    test_dataset = MNISTDataset(config, split="test")
+    test_loader = test_dataset.get_dataloader()
+
     model = MNISTLinear(**config.net_config.model_dump())
     logger = TTWandbLogger(
         project=config.experiment_name,

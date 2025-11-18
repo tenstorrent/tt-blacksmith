@@ -21,16 +21,12 @@ class TrainingConfig(BaseModel):
     lr: float
 
 
-class DataLoadingConfig(BaseModel):
-    batch_size: int
-    dtype: str
-
-
 class ExperimentConfig(BaseModel):
     experiment_name: str
     tags: List[str]
     net_config: MNISTLinearConfig
     loss: str
     training_config: TrainingConfig
-    data_loading_config: DataLoadingConfig
     logger_config: LoggerConfig = Field(default_factory=get_default_logger_config)
+    dataset_id: str = "mnist"
+    dtype: str = "torch.float32"

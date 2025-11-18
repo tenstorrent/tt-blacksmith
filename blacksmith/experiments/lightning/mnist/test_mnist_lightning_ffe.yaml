@@ -3,6 +3,9 @@ tags:
     - tt-forge-fe
     - model:torch
     - lightning
+loss: forge.op.loss.CrossEntropyLoss
+dataset_id: mnist
+dtype: torch.float32
 training_config:
     batch_size: 64
     epochs: 2
@@ -12,8 +15,3 @@ net_config:
     hidden_size: 512
     output_size: 10
     bias: True
-data_loading_config:
-    batch_size: 64
-    dtype: torch.float32
-    pre_shuffle: True
-loss: forge.op.loss.CrossEntropyLoss

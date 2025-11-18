@@ -25,6 +25,9 @@ In `blacksmith/experiments/lightning/mnist/test_mnist_lightning_ffe.yaml` you ca
 | --- | --- | --- |
 | `experiment_name` | The name of the experiment used for tracking and logging. | "blacksmith-mnist" |
 | `tags` | A list of tags for the experiment (e.g., frameworks, model type). | ["tt-forge-fe", "model:torch", "lightning"] |
+| `loss` | The loss function used for training. | forge.op.loss.CrossEntropyLoss |
+| `dataset_id` | The training dataset id. | mnist |
+| `dtype` | Data type used for input tensors. | torch.float32 |
 |  **Training** |
 | `training_config.batch_size` | Number of samples per training batch. | 64 |
 | `training_config.epochs` | Total number of training epochs. | 2 |
@@ -34,9 +37,3 @@ In `blacksmith/experiments/lightning/mnist/test_mnist_lightning_ffe.yaml` you ca
 | `net_config.hidden_size` | Size of the hidden layer in the model. | 512 |
 | `net_config.output_size` | Number of output classes. | 10 |
 | `net_config.bias` | Whether to include bias terms in the layers. | True |
-|  **Data Loading** |
-| `data_loading_config.batch_size` | Batch size used during data loading. | 64 |
-| `data_loading_config.dtype` | Data type used for input tensors. | torch.float32 |
-| `data_loading_config.pre_shuffle` | Whether to shuffle the data before training. | True |
-|  **Loss Function** |
-| `loss` | The loss function used for training. | forge.op.loss.CrossEntropyLoss |
