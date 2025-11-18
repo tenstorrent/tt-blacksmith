@@ -12,7 +12,7 @@ import torch_xla.runtime as xr
 from tqdm import tqdm
 from transformers import PreTrainedTokenizer
 
-from blacksmith.experiments.torch.gemma.configs import TrainingConfig
+from blacksmith.experiments.torch.gemma11.configs import TrainingConfig
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
@@ -112,10 +112,9 @@ def train(
 
     global_step = 0
     running_loss = 0.0
+    model.train()
     try:
         for epoch in range(config.num_epochs):
-            model.train()
-
             for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
@@ -188,7 +187,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma11_finetuning_sst2.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma_finetuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup

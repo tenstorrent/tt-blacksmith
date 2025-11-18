@@ -37,7 +37,7 @@ checkpoint_metric_mode: "min"  # [min, max]
 keep_last_n: 3
 keep_best_n: 1
 save_strategy: "step"
-project_dir: "blacksmith/experiments/torch/model"
+project_dir: "blacksmith/experiments/torch/gemma11"
 save_optim: False
 storage_backend: "local"
 sync_to_storage: False
