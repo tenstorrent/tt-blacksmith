@@ -104,8 +104,6 @@ def train(
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
-    tokenizer = train_dataset.tokenizer
-
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
@@ -135,8 +133,7 @@ def train(
                     shift_logits.view(-1, model.model.config.vocab_size),
                     labels.view(-1),
                 )
-                loss_cpu = loss.item()
-                running_loss += loss_cpu
+                running_loss += loss.item()
 
                 # Backward pass
                 loss.backward()
@@ -157,7 +154,7 @@ def train(
 
                 # Validation phase
                 if do_validation:
-                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device, config, logger, tokenizer)
+                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device, config, logger, train_dataset.tokenizer)
                     model.train()
 
                     logger.log_metrics(
@@ -187,7 +184,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma_finetuning.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma11_finetuning_sst2.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
