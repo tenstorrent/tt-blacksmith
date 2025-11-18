@@ -5,7 +5,7 @@ ALBERT model specification can be found [here](https://huggingface.co/albert/alb
 
 ## Overview
 
-This experiment fine-tunes a classification head on top of a frozen ALBERT-base model for intent classification on the Banking77 dataset. 
+This experiment fine-tunes a classification head on top of a frozen ALBERT-base model for intent classification on the Banking77 dataset.
 
 ## Training
 
