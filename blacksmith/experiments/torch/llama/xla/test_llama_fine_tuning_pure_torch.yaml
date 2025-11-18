@@ -21,7 +21,7 @@ lora_task_type: "CAUSAL_LM"
 
 # Multi-chip settings
 parallelism: "single"  # [single, data, tensor]
-mesh_shape: "8,1"  # only used if parallelism != "single"
+mesh_shape: "8,1"  # T3K mesh, only used if parallelism != "single"
 
 # Reproducibility settings
 seed: 23
