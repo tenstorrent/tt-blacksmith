@@ -1,40 +1,35 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 import os
 import traceback
+
 from typing import Tuple
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import torchvision
-from torchvision import transforms
+import numpy as np
 
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
+import torch_xla.distributed.spmd as xs
 
-from blacksmith.tools.cli import generate_config
 from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
+from blacksmith.tools.cli import generate_config
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_xla_utils import setup_tt_environment
+from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
+from blacksmith.experiments.torch.mnist.data_parallel.utils import mse_loss
 
 
 def validate(
-    model: torch.nn.Module,
-    val_loader: DataLoader,
-    device: torch.device,
-    logger: TrainingLogger,
-    config: TrainingConfig,
-    loss_fn: torch.nn.Module,
+    model: torch.nn.Module, val_loader: DataLoader, device: torch.device, logger: TrainingLogger, config: TrainingConfig
 ) -> Tuple[float, float]:
-
     logger.info("Starting validation...")
 
     model.eval()
@@ -51,7 +46,7 @@ def validate(
             targets = targets.to(device)
 
             outputs = model(inputs)
-            loss = loss_fn(outputs, targets)
+            loss = mse_loss(outputs, targets)
             total_loss += loss.item() * inputs.size(0)
 
             preds = torch.argmax(outputs, dim=1)
@@ -59,8 +54,8 @@ def validate(
             correct += (preds == labels).sum().item()
             total_samples += inputs.size(0)
 
-    avg_loss = total_loss / total_samples
-    accuracy = correct / total_samples
+    avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
+    accuracy = correct / total_samples if total_samples > 0 else 0.0
     logger.info(f"Validation finished. Avg loss: {avg_loss:.6f}, Accuracy: {accuracy:.4f}")
     return avg_loss, accuracy
 
@@ -68,10 +63,11 @@ def validate(
 def train(
     config: TrainingConfig,
     device: torch.device,
+    mesh: xs.Mesh,
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
-    logger.info("Starting MNIST training (single chip)")
+    logger.info("Starting MNIST training")
 
     # Load model
     model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
@@ -80,9 +76,8 @@ def train(
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    # Optimizer and loss function
+    # Optimizer
     optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
-    loss_fn = eval(config.loss_fn)()
 
     # Datasets
     train_loader, val_loader = load_mnist_torch(dtype=torch.float32, batch_size=config.batch_size)
@@ -94,7 +89,7 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-
+    # Training
     try:
         model.train()
         for epoch in range(config.num_epochs):
@@ -106,41 +101,50 @@ def train(
                 inputs = inputs.to(device)
                 targets = targets.to(device)
 
+                # Mark sharding for data parallelism
+                xs.mark_sharding(inputs, mesh, ("data", None))
+                xs.mark_sharding(targets, mesh, ("data", None))
+
+                # Zero out gradients
                 optimizer.zero_grad()
 
-                # Forward
+                # Forward pass
                 outputs = model(inputs)
-                loss = loss_fn(outputs, targets)
 
-                # Backward
+                # Compute loss
+                loss = mse_loss(outputs, targets)
+
+                # Backward pass
                 loss.backward()
                 running_loss += loss.item()
 
-                optimizer.step()
-                torch_xla.sync(wait=True)
+                # For multichip is better to use xm.optimizer_step - forces execution and ensures correct all-reduce operations
+                xm.optimizer_step(optimizer, barrier=True)
 
                 global_step += 1
 
-                # Logging
+                # Logging by steps
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     running_loss = 0.0
 
-                    val_loss, val_acc = validate(model, val_loader, device, logger, config, loss_fn)
+                    # Run validation and log metrics
+                    val_loss, val_acc = validate(model, val_loader, device, logger, config)
                     logger.log_metrics(
-                        {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc},
-                        step=global_step,
+                        {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc}, step=global_step
                     )
                     model.train()
 
+                    # Save checkpoint at step
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-            # Save checkpoint by epoch boundary
+            # end epoch loop
+            # Save checkpoint at epoch boundary if configured
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-        # Final save
+        # final model save
         final_checkpoint_path = checkpoint_manager.save_checkpoint(
             model, global_step, config.num_epochs - 1, optimizer, checkpoint_name="final_model.pth"
         )
@@ -156,23 +160,34 @@ def train(
 
 
 if __name__ == "__main__":
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training.yaml")
+    # Generate config
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training_dp.yaml")
     config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
-
-    # Setup TT environment and device
-    if config.use_tt:
-        setup_tt_environment(config)
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Reproducibility
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
-    # Logging + checkpoints
+    # Setup TT environment and mesh
+    if config.use_tt:
+        setup_tt_environment(config)
+        mesh = get_mesh(config)
+        device = torch_xla.device()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        mesh = None
+
+    # Compile options
+    options = {
+        "export_path": "model",
+        "export_tensors": True,
+        "enable_const_eval": False,
+    }
+    torch_xla.set_custom_compile_options(options)
+
+    # Logger and checkpoint manager
     logger = TrainingLogger(config)
     checkpoint_manager = CheckpointManager(config, logger)
 
     # Start training
-    train(config, device, logger, checkpoint_manager)
+    train(config, device, mesh, logger, checkpoint_manager)
