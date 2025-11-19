@@ -15,6 +15,7 @@ import wandb
 from transformers import AutoTokenizer
 
 from blacksmith.tools.cli import generate_config
+from blacksmith.tools.jax_helpers import build_schedule, ce_with_labels, kl_divergence, cosine_embedding_loss
 from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 
 from blacksmith.models.jax.distil_bert.model import init_model
@@ -22,40 +23,6 @@ from blacksmith.models.jax.distil_bert.model_utils import split_params, combine_
 from blacksmith.datasets.jax.distil_bert.sst2_dataset import *
 
 from blacksmith.experiments.jax.distil_bert.checkpoint_utils import *
-
-
-# Optimizer schedule with linear warmup and linear decay.
-def build_schedule(config: ExperimentConfig, num_train_steps: int):
-    warmup_steps = int(config.warmup_ratio * num_train_steps)
-    schedule = optax.join_schedules(
-        schedules=[
-            optax.linear_schedule(0.0, config.learning_rate, warmup_steps),
-            optax.linear_schedule(config.learning_rate, 0.0, num_train_steps - warmup_steps),
-        ],
-        boundaries=[warmup_steps],
-    )
-    return schedule
-
-
-def kl_divergence(p_logits, q_logits, T):
-    p = nn.softmax(p_logits / T, axis=-1)
-    log_p = jax.nn.log_softmax(p_logits / T, axis=-1)
-    log_q = jax.nn.log_softmax(q_logits / T, axis=-1)
-    kl = jnp.sum(p * (log_p - log_q), axis=-1)
-    return (T**2) * jnp.mean(kl)
-
-
-def ce_with_labels(logits, labels):
-    num_classes = logits.shape[-1]
-    one_hot_labels = jax.nn.one_hot(labels, num_classes)
-    return optax.softmax_cross_entropy(logits, one_hot_labels).mean()
-
-
-def cosine_embedding_loss(x, y, eps=1e-8):
-    x_norm = x / (jnp.linalg.norm(x, axis=-1, keepdims=True) + eps)
-    y_norm = y / (jnp.linalg.norm(y, axis=-1, keepdims=True) + eps)
-    cos_sim = jnp.sum(x_norm * y_norm, axis=-1)
-    return 1.0 - jnp.mean(cos_sim)
 
 
 def make_teacher_forward(teacher):
@@ -215,7 +182,10 @@ def train(config: ExperimentConfig):
     with jax.default_device(jax.devices("cpu")[0]):
         optimizer = optax.chain(
             optax.clip_by_global_norm(1.0),
-            optax.adamw(learning_rate=build_schedule(config, num_train_steps), weight_decay=config.weight_decay),
+            optax.adamw(
+                learning_rate=build_schedule(config.learning_rate, config.warmup_ratio, num_train_steps),
+                weight_decay=config.weight_decay,
+            ),
         )
         opt_state = optimizer.init(trainable_params_cpu)
 
@@ -308,6 +278,6 @@ def train(config: ExperimentConfig):
 
 
 if __name__ == "__main__":
-    config_file_path = Path(__file__).parent / "test_distil_bert_flax.yaml"
+    config_file_path = Path(__file__).parent.parent / "test_distil_bert_flax.yaml"
     config = generate_config(ExperimentConfig, config_file_path)
     train(config)

@@ -10,5 +10,7 @@ from jax.sharding import Mesh, PartitionSpec, NamedSharding
 class ShardingConfig:
     def __init__(self):
         self.mesh = Mesh(np.array(jax.devices("tt")), axis_names=("data",))
-        self.data_sharding = NamedSharding(self.mesh, PartitionSpec("data"))
-        self.param_sharding = NamedSharding(self.mesh, PartitionSpec())
+        self.data_partition = PartitionSpec("data")
+        self.param_partition = PartitionSpec()
+        self.data_sharding = NamedSharding(self.mesh, self.data_partition)
+        self.param_sharding = NamedSharding(self.mesh, self.param_partition)

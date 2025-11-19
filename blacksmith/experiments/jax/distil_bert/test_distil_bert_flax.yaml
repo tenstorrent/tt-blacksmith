@@ -28,7 +28,7 @@ alpha_cos: 0.1
 # Logging
 use_wandb: True
 experiment_name: "Flax DistilBERT on SST-2"
-project_name: "DP bert-distillation in Flax"
+project_name: "dp-bert-distillation-flax"
 job_name: "distillation"
 log_every: 25
 log_val_every: 50

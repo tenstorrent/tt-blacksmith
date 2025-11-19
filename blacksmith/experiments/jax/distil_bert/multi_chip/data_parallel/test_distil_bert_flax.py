@@ -17,6 +17,7 @@ import wandb
 from transformers import AutoTokenizer
 
 from blacksmith.tools.cli import generate_config
+from blacksmith.tools.jax_helpers import build_schedule, ce_with_labels, kl_divergence, cosine_embedding_loss
 from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 from blacksmith.experiments.jax.distil_bert.multi_chip.data_parallel.sharding_config import ShardingConfig
 
@@ -27,44 +28,10 @@ from blacksmith.datasets.jax.distil_bert.sst2_dataset import *
 from blacksmith.experiments.jax.distil_bert.checkpoint_utils import *
 
 
-# Optimizer schedule with linear warmup and linear decay.
-def build_schedule(config: ExperimentConfig, num_train_steps: int):
-    warmup_steps = int(config.warmup_ratio * num_train_steps)
-    schedule = optax.join_schedules(
-        schedules=[
-            optax.linear_schedule(0.0, config.learning_rate, warmup_steps),
-            optax.linear_schedule(config.learning_rate, 0.0, num_train_steps - warmup_steps),
-        ],
-        boundaries=[warmup_steps],
-    )
-    return schedule
-
-
-def kl_divergence(p_logits, q_logits, T):
-    p = nn.softmax(p_logits / T, axis=-1)
-    log_p = jax.nn.log_softmax(p_logits / T, axis=-1)
-    log_q = jax.nn.log_softmax(q_logits / T, axis=-1)
-    kl = jnp.sum(p * (log_p - log_q), axis=-1)
-    return (T**2) * jnp.mean(kl)
-
-
-def ce_with_labels(logits, labels):
-    num_classes = logits.shape[-1]
-    one_hot_labels = jax.nn.one_hot(labels, num_classes)
-    return optax.softmax_cross_entropy(logits, one_hot_labels).mean()
-
-
-def cosine_embedding_loss(x, y, eps=1e-8):
-    x_norm = x / (jnp.linalg.norm(x, axis=-1, keepdims=True) + eps)
-    y_norm = y / (jnp.linalg.norm(y, axis=-1, keepdims=True) + eps)
-    cos_sim = jnp.sum(x_norm * y_norm, axis=-1)
-    return 1.0 - jnp.mean(cos_sim)
-
-
 def create_sharded_teacher_forward(teacher, sharding_config: ShardingConfig):
     """
-    Creates data-parallel teacher forward using shard_map.
-    Params are replicated; input batch is sharded.
+    Creates data-parallel teacher forward pass.
+    Params are replicated and input batch is sharded.
     """
 
     def compute_teacher_outputs(params, input_ids, attention_mask):
@@ -79,16 +46,16 @@ def create_sharded_teacher_forward(teacher, sharding_config: ShardingConfig):
 
     def teacher_forward(params, input_ids, attention_mask):
         return shard_map.shard_map(
-            lambda p, x, m: compute_teacher_outputs(p, x, m),
+            compute_teacher_outputs,
             mesh=sharding_config.mesh,
             in_specs=(
-                PartitionSpec(),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
+                sharding_config.param_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
             ),
             out_specs=(
-                PartitionSpec("data"),
-                PartitionSpec("data"),
+                sharding_config.data_partition,
+                sharding_config.data_partition,
             ),
             check_rep=False,
         )(params, input_ids, attention_mask)
@@ -106,8 +73,8 @@ def create_sharded_teacher_forward(teacher, sharding_config: ShardingConfig):
 
 def create_sharded_training_step(student, loss_fn, config: ExperimentConfig, sharding_config: ShardingConfig):
     """
-    Creates data-parallel train_step using shard_map.
-    Params are replicated; input batch is sharded.
+    Creates data-parallel training step.
+    Params are replicated and input batch is sharded.
     Gradients are averaged across devices.
     """
 
@@ -115,7 +82,7 @@ def create_sharded_training_step(student, loss_fn, config: ExperimentConfig, sha
         trainable_params, frozen_params, input_ids, attention_mask, labels, t_logits, t_hidden, rng
     ):
 
-        # Per-shard forward + backward
+        # Per-shard forward + backward.
         def local_loss(p):
             return loss_fn(
                 student,
@@ -136,7 +103,7 @@ def create_sharded_training_step(student, loss_fn, config: ExperimentConfig, sha
             trainable_params
         )
 
-        # All-gather and mean gradients
+        # All-gather and mean gradients.
         def gather_grads(x):
             g = jax.lax.all_gather(x, axis_name="data")
             return jnp.mean(g, axis=0)
@@ -150,7 +117,7 @@ def create_sharded_training_step(student, loss_fn, config: ExperimentConfig, sha
             "loss_cos": loss_cos,
         }
 
-        # Average all losses across devices
+        # Average all losses across devices.
         metrics_all = jax.lax.all_gather(metrics_local, axis_name="data")
 
         metrics_mean = {k: jnp.mean(metrics_all[k]) for k in metrics_all}
@@ -160,21 +127,21 @@ def create_sharded_training_step(student, loss_fn, config: ExperimentConfig, sha
     def train_step(trainable_params, frozen_params, input_ids, attention_mask, labels, t_logits, t_hidden, rng):
 
         return shard_map.shard_map(
-            lambda p, f, x, m, y, tl, th, r: compute_loss_and_grads(p, f, x, m, y, tl, th, r),
+            compute_loss_and_grads,
             mesh=sharding_config.mesh,
             in_specs=(
-                PartitionSpec(),
-                PartitionSpec(),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
-                PartitionSpec(),
+                sharding_config.param_partition,
+                sharding_config.param_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
+                sharding_config.param_partition,
             ),
             out_specs=(
-                PartitionSpec(),
-                PartitionSpec(),
+                sharding_config.param_partition,
+                sharding_config.param_partition,
             ),
             check_rep=False,
         )(trainable_params, frozen_params, input_ids, attention_mask, labels, t_logits, t_hidden, rng)
@@ -182,8 +149,8 @@ def create_sharded_training_step(student, loss_fn, config: ExperimentConfig, sha
     train_step_jit = jax.jit(
         train_step,
         out_shardings=(
-            sharding_config.param_sharding,  # loss scalar replicated
-            sharding_config.param_sharding,  # grads replicated
+            sharding_config.param_sharding,  # Loss scalar replicated.
+            sharding_config.param_sharding,  # Grads replicated.
         ),
     )
 
@@ -196,7 +163,7 @@ def create_sharded_eval_step(student, sharding_config: ShardingConfig):
     that returns sharded logits across devices.
     """
 
-    # Per-device logits
+    # Per-device logits.
     def compute_logits(trainable_params, frozen_params, input_ids, attention_mask, labels):
 
         params = combine_params(trainable_params, frozen_params)
@@ -213,16 +180,16 @@ def create_sharded_eval_step(student, sharding_config: ShardingConfig):
     def eval_step_sharded(trainable_params, frozen_params, input_ids, attention_mask, labels):
 
         return shard_map.shard_map(
-            lambda p, f, x, m, y: compute_logits(p, f, x, m, y),
+            compute_logits,
             mesh=sharding_config.mesh,
             in_specs=(
-                PartitionSpec(),
-                PartitionSpec(),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
-                PartitionSpec("data"),
+                sharding_config.param_partition,
+                sharding_config.param_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
+                sharding_config.data_partition,
             ),
-            out_specs=PartitionSpec("data"),
+            out_specs=sharding_config.data_partition,
             check_rep=False,
         )(trainable_params, frozen_params, input_ids, attention_mask, labels)
 
@@ -277,14 +244,14 @@ def evaluate(dataset, eval_step_fn, trainable_params, frozen_params, columns, ba
         logits_sharded = eval_step_fn(trainable_params, frozen_params, input_ids_, attention_mask_, labels_)
 
         # Transfer sharded logits to CPU.
-        # The logits are sharded across devices, so when we transfer to CPU,
-        # logits will be gathered into the full batch shape.
+        # The logits are sharded across devices, so when we transfer them to CPU,
+        # they will be gathered into the full batch shape.
         logits_cpu = jax.device_put(logits_sharded, jax.devices("cpu")[0])
 
         # Calculate accuracy on CPU.
         with jax.default_device(jax.devices("cpu")[0]):
             preds = jnp.argmax(logits_cpu, axis=-1)
-            # Compare with original labels
+            # Compare with original labels.
             correct = jnp.sum((preds == batch["labels"]).astype(jnp.int32))
 
         total_correct += int(correct)
@@ -319,7 +286,7 @@ def train(config: ExperimentConfig, sharding_config: ShardingConfig):
     eval_step_jit = create_sharded_eval_step(student, sharding_config)
 
     os.environ["WANDB_MODE"] = "online" if config.use_wandb else "disabled"
-    # Initialize wandb
+    # Initialize wandb.
     wandb.init(
         project=config.project_name,
         name=config.experiment_name,
@@ -362,7 +329,10 @@ def train(config: ExperimentConfig, sharding_config: ShardingConfig):
     with jax.default_device(jax.devices("cpu")[0]):
         optimizer = optax.chain(
             optax.clip_by_global_norm(1.0),
-            optax.adamw(learning_rate=build_schedule(config, num_train_steps), weight_decay=config.weight_decay),
+            optax.adamw(
+                learning_rate=build_schedule(config.learning_rate, config.warmup_ratio, num_train_steps),
+                weight_decay=config.weight_decay,
+            ),
         )
         opt_state = optimizer.init(trainable_params_cpu)
 
@@ -392,7 +362,6 @@ def train(config: ExperimentConfig, sharding_config: ShardingConfig):
                 lambda x: jax.device_put(x, jax.devices("cpu")[0]), trainable_params
             )
 
-            # Optimizer step is done on CPU (https://github.com/tenstorrent/tt-metal/issues/27072).
             with jax.default_device(jax.devices("cpu")[0]):
                 updates, new_opt_state = optimizer.update(grads_cpu, opt_state, trainable_params_cpu)
                 new_trainable_params_cpu = optax.apply_updates(trainable_params_cpu, updates)
@@ -400,7 +369,7 @@ def train(config: ExperimentConfig, sharding_config: ShardingConfig):
 
             trainable_params = jax.device_put(new_trainable_params_cpu, sharding_config.param_sharding)
 
-            # loss_type can be 'loss_total', 'loss_ce', 'loss_kl', 'loss_cos'.
+            # 'loss_type' can be 'loss_total', 'loss_ce', 'loss_kl', 'loss_cos'.
             for loss_type in loss_buffer:
                 loss_buffer[loss_type].append(float(metrics[loss_type]))
 
