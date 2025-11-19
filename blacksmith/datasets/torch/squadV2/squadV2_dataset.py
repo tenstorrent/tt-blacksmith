@@ -75,7 +75,7 @@ class SquadV2Dataset(BaseDataset):
 
         # reduce the size of the validation dataset
         if self.split == "validation":
-            raw_dataset = raw_dataset.train_test_split(test_size=0.02, seed=42)["test"]
+            raw_dataset = raw_dataset.train_test_split(test_size=0.02, seed=self.config.seed)["test"]
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
