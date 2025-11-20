@@ -60,7 +60,8 @@ def validate(
 
             preds = torch.argmax(outputs, dim=1)
             labels = torch.argmax(targets, dim=1)
-            correct += (preds == labels).sum().item()
+            print(preds.shape, labels.shape)
+            correct += (preds == labels).sum(dim=0, keepdim=True).cpu().item()
             total_samples += inputs.size(0)
 
     avg_loss = total_loss / total_samples if total_samples > 0 else 0.0
@@ -106,19 +107,31 @@ def train(
             for inputs, targets in train_loader:
                 inputs = inputs.view(inputs.size(0), -1)
                 targets = targets.view(targets.size(0), -1)
+                # add another batch dimension for data parallelism
+                batch_size = inputs.size(0)
+                inputs = inputs.unsqueeze(0)
+                targets = targets.unsqueeze(0)
+                inputs = inputs.reshape(batch_size // 4, 4, -1)
+                targets = targets.reshape(batch_size // 4, 4, -1)
 
                 inputs = inputs.to(device)
                 targets = targets.to(device)
 
                 # Mark sharding for data parallelism
-                xs.mark_sharding(inputs, mesh, ("data", None))
-                xs.mark_sharding(targets, mesh, ("data", None))
+                xs.mark_sharding(inputs, mesh, ("data", "model", None))
+                xs.mark_sharding(targets, mesh, ("data", "model", None))
 
                 # Zero out gradients
                 optimizer.zero_grad()
 
                 # Forward pass
                 outputs = model(inputs)
+
+                # xs.mark_sharding(outputs, mesh, (None, None, None))
+                print(outputs.shape)
+                outputs = outputs.reshape(-1, config.output_size)
+                targets = targets.reshape(-1, config.output_size)
+                print(outputs.shape)
 
                 # Compute loss
                 loss = mse_loss(outputs, targets)
@@ -128,11 +141,13 @@ def train(
                 running_loss += loss.item()
 
                 # For multichip is better to use xm.optimizer_step - forces execution and ensures correct all-reduce operations
-                xm.optimizer_step(optimizer, barrier=True)
+                optimizer.step()
+
+                print(model.linear_relu_stack[0].weight)
 
                 global_step += 1
 
-                # Logging by steps
+                # # Logging by steps
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     running_loss = 0.0
