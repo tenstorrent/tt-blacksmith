@@ -70,7 +70,6 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `model_to_wandb`              | Whether to store model checkpoint in Weights & Biases. | False                               |
 | `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 25                                  |
 | `epoch_freq`                  | Frequency (in epochs) for performing periodic actions. | 1                                   |
-
 | `resume_from_checkpoint`      | Whether to resume training from a previous checkpoint. | False                               |
 | `resume_option`               | Resume method (`last`, `best`, or `path`).             | "last"                              |
 | `checkpoint_path`             | Path to a checkpoint if `resume_option="path"`.        | ""                                  |
@@ -81,7 +80,6 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `sync_to_storage`             | Whether to sync checkpoints to remote storage.         | False                               |
 | `load_from_storage`           | Whether to load checkpoints from remote storage.       | False                               |
 | `remote_path`                 | Remote storage path (if applicable).                   | ""                                  |
-
 | `seed`                        | Random seed for reproducibility.                       | 23                                  |
 | `deterministic`               | Whether to enforce deterministic behavior.             | False                               |
 | `lora_r`                      | Rank of LoRA adaptation matrices.                      | 4                                   |
