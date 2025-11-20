@@ -45,11 +45,17 @@ optimizer_pt = optim.AdamW(model_pt.parameters(), lr=lr, betas=betas, eps=eps, w
 @jax.jit
 def jax_train_step(params, opt_state, inputs, targets):
     
-    def loss_fn(params, rng):
+    def loss_fn(params):
         # Using deterministic=False because we assume dropout_rate=0.0
         # If dropout_rate > 0.0, this will use RNG, while model_pt.eval() will not.
-        logits = model_jax.apply(params, inputs, deterministic=False, rngs={'dropout': rng})
+        logits = model_jax.apply(params, inputs, deterministic=True)
         loss = optax.softmax_cross_entropy_with_integer_labels(logits, targets)
+
+        vocab_size = logits.shape[-1]
+        one_hot_targets = jax.nn.one_hot(targets, vocab_size)
+        log_probs = jax.nn.log_softmax(logits)
+        loss = -jnp.sum(one_hot_targets * log_probs, axis=-1)
+
         return jnp.mean(loss)
 
     loss_val, grads = jax.value_and_grad(loss_fn)(params)
