@@ -41,27 +41,34 @@ optimizer_jax = optax.adamw(learning_rate=lr, b1=betas[0], b2=betas[1], eps=eps,
 opt_state_jax = optimizer_jax.init(params_jax)
 optimizer_pt = optim.AdamW(model_pt.parameters(), lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
 
+
+def merge_params(train_params, frozen_params):
+    t = unfreeze(train_params)
+    f = unfreeze(frozen_params)
+    t['params'].update(f['params'])
+    return freeze(t)
 # --- JAX Train Step (JIT-compiled) ---
 @jax.jit
-def jax_train_step(params, opt_state, inputs, targets):
+def jax_train_step(train_params, frozen_params, opt_state, inputs, targets):
     
-    def loss_fn(params):
-        # Using deterministic=False because we assume dropout_rate=0.0
-        # If dropout_rate > 0.0, this will use RNG, while model_pt.eval() will not.
+    def loss_fn(train_params):
+        # Merge trainable and frozen params for the forward pass
+        params = merge_params(train_params, frozen_params)
+        
+        # Forward Pass (deterministic=True is CRITICAL to avoid dropout compiler bugs)
         logits = model_jax.apply(params, inputs, deterministic=True)
-        loss = optax.softmax_cross_entropy_with_integer_labels(logits, targets)
-
+        
+        # Manual Cross Entropy (One-Hot) to avoid 'ttir.scatter' error
         vocab_size = logits.shape[-1]
         one_hot_targets = jax.nn.one_hot(targets, vocab_size)
         log_probs = jax.nn.log_softmax(logits)
         loss = -jnp.sum(one_hot_targets * log_probs, axis=-1)
-
+        
         return jnp.mean(loss)
-
-    loss_val, grads = jax.value_and_grad(loss_fn)(params)
+    loss_val, grads = jax.value_and_grad(loss_fn)(train_params)
     
-    updates, new_opt_state = optimizer_jax.update(grads, opt_state, params)
-    new_params = optax.apply_updates(params, updates)
+    updates, new_opt_state = optimizer_jax.update(grads, opt_state, train_params)
+    new_params = optax.apply_updates(train_params, updates)
     
     return new_params, new_opt_state, loss_val
 
