@@ -16,12 +16,17 @@ np.random.seed(42)
 torch.manual_seed(42)
 key = jax.random.PRNGKey(42)
 
-config_jax = Config_JAX()
+config_jax = Config_JAX(num_layers=0)
 model_jax = GPT_JAX(config_jax)
 key, init_key = jax.random.split(key)
 params_jax = model_jax.init(init_key)
 
-config_pt = Config_PT()
+params_mutable = unfreeze(params_jax)
+wpe_params = params_mutable['params'].pop('wpe') # Remove wpe from trainable params
+params_train = freeze(params_mutable)            # These are the params we will train
+params_frozen = freeze({'params': {'wpe': wpe_params}}) # Store wpe separately
+
+config_pt = Config_PT(n_layer=0)
 model_pt = GPT_PT(config_pt)
 copy_jax_to_pt(params_jax, model_pt) 
 
@@ -38,7 +43,7 @@ optimizer_pt = optim.AdamW(model_pt.parameters(), lr=lr, betas=betas, eps=eps, w
 
 # --- JAX Train Step (JIT-compiled) ---
 @jax.jit
-def jax_train_step(params, opt_state, rng, inputs, targets):
+def jax_train_step(params, opt_state, inputs, targets):
     
     def loss_fn(params, rng):
         # Using deterministic=False because we assume dropout_rate=0.0
@@ -47,13 +52,12 @@ def jax_train_step(params, opt_state, rng, inputs, targets):
         loss = optax.softmax_cross_entropy_with_integer_labels(logits, targets)
         return jnp.mean(loss)
 
-    dropout_rng, new_rng = jax.random.split(rng)
-    loss_val, grads = jax.value_and_grad(loss_fn)(params, dropout_rng)
+    loss_val, grads = jax.value_and_grad(loss_fn)(params)
     
     updates, new_opt_state = optimizer_jax.update(grads, opt_state, params)
     new_params = optax.apply_updates(params, updates)
     
-    return new_params, new_opt_state, loss_val, new_rng
+    return new_params, new_opt_state, loss_val
 
 # --- 🚀 NEW: Training Loop ---
 NUM_STEPS = 200
@@ -75,9 +79,7 @@ for step in range(NUM_STEPS):
     targets_pt = torch.tensor(targets, dtype=torch.long)
 
     # --- JAX train step ---
-    params_jax, opt_state_jax, loss_jax_val, key = jax_train_step(
-        params_jax, opt_state_jax, step_key, input_ids_jax, targets_jax
-    )
+    params_jax, opt_state_jax, loss_jax_val = jax_train_step(params_jax, opt_state_jax, input_ids_jax, targets_jax)
     
     # --- PyTorch train step ---
     optimizer_pt.zero_grad(set_to_none=True)

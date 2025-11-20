@@ -44,13 +44,13 @@ class SelfAttention(nn.Module):
         attn = jnp.einsum('...qhd,...khd->...hqk', q, k) * scale
         attn = jnp.where(mask, attn, jnp.finfo(self.dtype).min)
         attn = jax.nn.softmax(attn).astype(self.dtype)
-        attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
+        # attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
 
         # return weighted sum over values for each query position
         x = jnp.einsum('...hqk,...khd->...qhd', attn, v).reshape(B, T, C)
         x = nn.Dense(C, use_bias=self.use_proj_bias, dtype=self.dtype, name='c_proj')(x)
 
-        x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
+        # x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
         return x
 
 
@@ -63,7 +63,7 @@ class MLP(nn.Module):
         x = nn.Dense(4 * C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_fc')(x)
         x = nn.gelu(x, approximate=False)
         x = nn.Dense(C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_proj')(x)
-        x = nn.Dropout(self.config.dropout_rate)(x, deterministic)
+        # x = nn.Dropout(self.config.dropout_rate)(x, deterministic)
         return x
 
 
@@ -100,7 +100,8 @@ class GPT(nn.Module):
 
         token_embed = wte(idx)      # [B, T, num_embeds]
         pos_embed = wpe(pos)        # [1, T, num_embeds]
-        x = nn.Dropout(self.config.dropout_rate)(token_embed + pos_embed, deterministic)
+        # x = nn.Dropout(self.config.dropout_rate)(token_embed + pos_embed, deterministic)
+        x = token_embed + pos_embed
 
         for i in range(self.config.num_layers):
             x = Block(self.config, name=str(i))(x, attn_mask, deterministic=deterministic)
