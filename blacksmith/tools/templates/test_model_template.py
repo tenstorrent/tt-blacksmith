@@ -11,7 +11,7 @@ import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.tools.templates.configs import TrainingConfig
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
+from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
@@ -62,11 +62,11 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
         checkpoint_manager.load_checkpoint()
 
     # Load dataset
-    train_dataset = BaseDataset(config=config)
+    train_dataset = get_dataset(config=config, split="train", collate_fn=None)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = BaseDataset(config=config, split="test")
+    eval_dataset = get_dataset(config=config, split="test", collate_fn=None)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
