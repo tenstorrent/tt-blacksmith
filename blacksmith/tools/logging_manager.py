@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 import torch
 import wandb
 
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.templates.configs import TrainingConfig
 
 
 class TrainingLogger:

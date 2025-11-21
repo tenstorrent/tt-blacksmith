@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from blacksmith.experiments.torch.albert.configs import TrainingConfig
 from blacksmith.datasets.torch.dataset_utils import get_dataset
-from blacksmith.models.torch.huggingface.hf_models import get_albert_model
+from blacksmith.models.torch.huggingface.albert import AlbertWithMLP
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -63,7 +63,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     logger.info("Starting training...")
 
     # Load model
-    model = get_albert_model(config, device)
+    model = AlbertWithMLP(config)
+    model.to(eval(config.dtype))
+    model.to(device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")

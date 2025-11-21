@@ -6,7 +6,7 @@ import random
 import torch
 import numpy as np
 
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.templates.configs import TrainingConfig
 
 
 class ReproducibilityManager:
