@@ -7,10 +7,10 @@ import torch
 import traceback
 
 import torch_xla
-import torch_xla.runtime as xr
+
 from tqdm import tqdm
 
-from blacksmith.datasets.torch.torch_dataset import get_dataset
+from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
@@ -112,7 +112,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     global_step = 0
     running_loss = 0.0
-    mesh = get_mesh(config)
+
+    if config.parallelism != "single":
+        mesh = get_mesh(config)
 
     try:
         model.train()

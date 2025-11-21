@@ -2,25 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Dict
 
 from torch.utils.data import DataLoader, Dataset
 
-from blacksmith.datasets.torch.nerf.blender import BlenderDataset
-from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
-from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
-from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
-from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
-
-
-class AvailableDataset(Enum):
-    MNIST = "mnist"
-    NERF = "nerf"
-    SST2 = "sst2"
-    TEXT2SQL = "text2sql"
-    BANKING77 = "banking77"
+from blacksmith.tools.templates.configs import TrainingConfig
 
 
 class BaseDataset(Dataset, ABC):
@@ -56,21 +42,3 @@ class BaseDataset(Dataset, ABC):
     def get_dataloader(self) -> DataLoader:
         """Create and return a DataLoader for this dataset"""
         pass
-
-
-def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
-    """Factory function to get the appropriate dataset based on the config"""
-    dataset_id = config.get("dataset_id", "").lower()
-
-    if dataset_id == AvailableDataset.MNIST.value:
-        return MNISTDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.NERF.value:
-        return BlenderDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.SST2.value:
-        return SSTDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.TEXT2SQL.value:
-        return TextToSQLDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.BANKING77.value:
-        return Banking77Dataset(config, split, collate_fn=collate_fn)
-    else:
-        raise ValueError(f"Unsupported dataset: {dataset_id}")

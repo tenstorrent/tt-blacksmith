@@ -10,7 +10,7 @@ import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.experiments.torch.gemma.configs import TrainingConfig
-from blacksmith.datasets.torch.torch_dataset import get_dataset
+from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager

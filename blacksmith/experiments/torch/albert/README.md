@@ -39,7 +39,7 @@ Current `test_albert_finetuning.yaml` has the recommended and tested hyperparame
 
 | Parameter                     | Description                                            | Default Value                        |
 | ----------------------------- | ------------------------------------------------------ | ------------------------------------ |
-| `dataset_id`                  | The dataset used for fine-tuning.                      | "mteb/banking77"                     |
+| `dataset_id`                  | The dataset used for fine-tuning.                      | "banking77"                          |
 | `model_name`                  | Name or path of the pre-trained model.                 | "albert/albert-base-v2"              |
 | `max_length`                  | Maximum token length for inputs.                       | 128                                  |
 | `num_labels`                  | Number of classification labels.                       | 77                                   |

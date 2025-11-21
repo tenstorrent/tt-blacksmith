@@ -18,6 +18,7 @@ Question: $question\n
 Answer:
 """
 )
+DATASET_PATH = "rajpurkar/squad_v2"
 
 
 class SquadV2Dataset(BaseDataset):
@@ -71,7 +72,7 @@ class SquadV2Dataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
+        raw_dataset = load_dataset(DATASET_PATH, split=self.split)
 
         # reduce the size of the validation dataset
         if self.split == "validation":

@@ -46,7 +46,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for exa
 | Parameter | Description | Default Value |
 | --- | --- | --- |
 |  **Dataset Settings** |
-| `dataset_name` | Name of the dataset. | "MNIST" |
+| `dataset_id` | Name of the dataset. | "mnist" |
 | `train_ratio` | Training/Validation dataset ratio. | 0.8 |
 | `dtype` | Data type used for input tensors. | "torch.bfloat16" |
 |  **Model Settings** |

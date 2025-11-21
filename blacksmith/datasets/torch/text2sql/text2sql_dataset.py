@@ -20,6 +20,7 @@ Question: $prompt\n
 Schema: $context\n\n
 ### Output:\n"""
 )
+DATASET_PATH = "gretelai/synthetic_text_to_sql"
 
 
 class TextToSQLDataset(BaseDataset):
@@ -67,7 +68,7 @@ class TextToSQLDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
+        raw_dataset = load_dataset(DATASET_PATH, split=self.split)
         raw_dataset = raw_dataset.filter(lambda example: example["sql_complexity"] == "basic SQL")
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_name: str = Field(default="MNIST")
+    dataset_id: str = Field(default="mnist")
     train_ratio: float = Field(default=0.8, gt=0, lt=1)
     dtype: str = Field(default="torch.bfloat16")
 

@@ -7,16 +7,12 @@ import traceback
 from typing import Tuple
 
 import torch
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
-import numpy as np
-
 import torch_xla
 import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
 import torch_xla.distributed.spmd as xs
 
-from blacksmith.datasets.torch.mnist.dataloader import load_mnist_torch
+from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -80,7 +76,10 @@ def train(
     optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
 
     # Datasets
-    train_loader, val_loader = load_mnist_torch(dtype=torch.float32, batch_size=config.batch_size)
+    train_dataset = get_dataset(config=config, split="train")
+    train_loader = train_dataset.get_dataloader()
+    val_dataset = get_dataset(config=config, split="validation")
+    val_loader = val_dataset.get_dataloader()
     logger.info(f"Train dataset size: {len(train_loader) * config.batch_size}, Eval batches: {len(val_loader)}")
 
     # Load checkpoint if requested

@@ -73,7 +73,7 @@ The Phi-1.5 model to be trained on Squad-V2 dataset is configured using the conf
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
-| `dataset_id` | The dataset used for fine-tuning. | "stanfordnlp/sst2" |
+| `dataset_id` | The dataset used for fine-tuning. | "sst2" |
 | `model_name` | Name or path of the pre-trained Phi model. | "microsoft/phi-1" |
 | `max_length` | Maximum token length for inputs. | 32 |
 | `dtype` | Data type used during training. | "torch.bfloat16" |

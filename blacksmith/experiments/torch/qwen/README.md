@@ -49,7 +49,7 @@ Current `test_qwen_finetuning.yaml` has the recommended and tested hyperparamete
 
 | Parameter                     | Description                                            | Default Value                       |
 | ----------------------------- | ------------------------------------------------------ | ----------------------------------- |
-| `dataset_id`                  | The dataset used for fine-tuning.                      | "gretelai/synthetic_text_to_sql"    |
+| `dataset_id`                  | The dataset used for fine-tuning.                      | "text2sql"    |
 | `model_name`                  | Name or path of the pre-trained model.                 | "Qwen/Qwen2.5-0.5B".                |
 | `max_length`                  | Maximum token length for inputs.                       | 128                                 |
 | `dtype`                       | Data type used during training.                        | "torch.bfloat16"                    |

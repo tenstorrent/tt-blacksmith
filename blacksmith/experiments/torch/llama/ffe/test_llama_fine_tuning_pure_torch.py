@@ -8,7 +8,7 @@ import torch
 from tqdm import tqdm
 import wandb
 
-from blacksmith.datasets.torch.torch_dataset import get_dataset
+from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
 from blacksmith.tools.cli import generate_config

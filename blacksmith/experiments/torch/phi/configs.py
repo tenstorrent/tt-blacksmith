@@ -6,8 +6,7 @@ from pydantic import BaseModel, Field
 
 class TrainingConfig(BaseModel):
     # Dataset settings
-    dataset_id: str = Field(default="glue")
-    dataset_configuration: str = Field(default="sst2")
+    dataset_id: str = Field(default="sst2")
 
     # Model settings
     model_name: str = Field(default="microsoft/phi-1")

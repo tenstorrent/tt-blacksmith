@@ -1,5 +1,5 @@
 # Dataset settings
-dataset_id: "rajpurkar/squad_v2"
+dataset_id: "squadv2"
 
 # Model settings
 model_name: "microsoft/phi-1"

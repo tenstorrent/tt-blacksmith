@@ -44,7 +44,7 @@ Current `test_gemma_finetuning.yaml` has the recommended and tested hyperparamet
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
-| `dataset_id` | The dataset used for fine-tuning. | "stanfordnlp/sst2" |
+| `dataset_id` | The dataset used for fine-tuning. | "sst2" |
 | `model_name` | Name or path of the pre-trained Gemma model. | "google/gemma-3-1b-it" |
 | `max_length` | Maximum token length for inputs. | 128 |
 | `dtype` | Data type used during training. | "torch.bfloat16" |

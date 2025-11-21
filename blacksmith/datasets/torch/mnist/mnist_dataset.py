@@ -9,7 +9,7 @@ from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.templates.configs import TrainingConfig
 
 # Constants for MNIST
 MEAN = 0.1307
@@ -22,6 +22,8 @@ class MNISTDataset(BaseDataset):
         self.config = config
         self.split = split
         self.collate_fn = collate_fn
+
+        self._prepare_dataset()
 
     def _prepare_dataset(self):
         dtype = eval(self.config.dtype)
@@ -57,7 +59,7 @@ class MNISTDataset(BaseDataset):
     def get_dataloader(self) -> DataLoader:
         return DataLoader(
             self.dataset,
-            batch_size=self.config.training_config.batch_size,
+            batch_size=self.config.batch_size,
             shuffle=self.split=="train",
             drop_last=True
         )

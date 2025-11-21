@@ -23,3 +23,4 @@ LBL2VALUE = {0: "negative", 1: "positive"}
 VALUE2LBL = {"negative": 0, "positive": 1}
 
 DATASET_BENCHMARK = "glue"
+DATASET_NAME = "sst2"

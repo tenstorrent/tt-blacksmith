@@ -9,11 +9,14 @@ from datasets import load_dataset
 from transformers import AutoTokenizer, DataCollatorWithPadding
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.templates.configs import TrainingConfig
+
+
+DATASET_PATH = "mteb/banking77"
 
 
 class Banking77Dataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train"):
+    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
             config: Training configuration
@@ -25,6 +28,7 @@ class Banking77Dataset(BaseDataset):
         self.required_columns = ["input_ids", "attention_mask", "labels"]
         self.split = split
         self.label_map = None
+        self.collate_fn = collate_fn
 
         self._prepare_dataset()
 
@@ -38,7 +42,7 @@ class Banking77Dataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        self.raw_dataset = load_dataset(self.config.dataset_id, split=self.split)
+        self.raw_dataset = load_dataset(DATASET_PATH, split=self.split)
 
         # Create label mapping
         unique_labels = sorted(set(self.raw_dataset["label"]))
