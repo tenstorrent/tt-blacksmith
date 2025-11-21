@@ -57,13 +57,6 @@ class Banking77Dataset(BaseDataset):
     def __getitem__(self, idx: int) -> Dict:
         return self.dataset[idx]
 
-    def _collate_fn(self, batch):
-        input_ids = torch.stack([torch.tensor(item["input_ids"]) for item in batch])
-        attention_mask = torch.stack([torch.tensor(item["attention_mask"]) for item in batch])
-        labels = torch.stack([torch.tensor(item["labels"]) for item in batch])
-
-        return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
-
     def get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorWithPadding(
             tokenizer=self.tokenizer, padding=True, max_length=self.config.max_length
