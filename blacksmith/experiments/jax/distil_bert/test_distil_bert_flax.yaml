@@ -10,7 +10,7 @@ dtype: "jax.bfloat16"
 
 # Training hyperparameters
 learning_rate: 1e-5
-batch_size: 32
+batch_size: 64
 num_epochs: 3
 weight_decay: 0.01
 warmup_ratio: 0.06
@@ -26,12 +26,12 @@ alpha_ce: 1.0
 alpha_cos: 0.1
 
 # Logging
-use_wandb: False
+use_wandb: True
 experiment_name: "Flax DistilBERT on SST-2"
-project_name: "bert-distillation"
+project_name: "dp-bert-distillation-flax"
 job_name: "distillation"
-log_every: 100
-log_val_every: 100
+log_every: 25
+log_val_every: 50
 do_checkpoint: False
 checkpoint_every: 100
 keep_top_k_checkpoints: 2
