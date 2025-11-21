@@ -146,9 +146,9 @@ class BlenderDataset(BaseDataset):
 
     def get_dataloader(self):
         return StatefulDataLoader(
-                self,
-                shuffle=self.split == "train",
-                num_workers=self.config.data_loading.num_workers,
-                batch_size=self.config.data_loading.batch_size,
-                worker_init_fn=seed_worker,
-            )
+            self,
+            shuffle=self.split == "train",
+            num_workers=self.config.data_loading.num_workers,
+            batch_size=self.config.data_loading.batch_size,
+            worker_init_fn=seed_worker,
+        )

@@ -6,7 +6,13 @@ from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
 import torch
 
-from blacksmith.datasets.torch.sst2.sst2_utils import PROMPT_TEMPLATE, RESPONSE_TEMPLATE, LBL2VALUE, DATASET_BENCHMARK, DATASET_NAME
+from blacksmith.datasets.torch.sst2.sst2_utils import (
+    PROMPT_TEMPLATE,
+    RESPONSE_TEMPLATE,
+    LBL2VALUE,
+    DATASET_BENCHMARK,
+    DATASET_NAME,
+)
 from blacksmith.tools.templates.configs import TrainingConfig
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 

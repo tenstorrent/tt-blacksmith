@@ -18,7 +18,7 @@ NUM_CLASSES = 10
 
 
 class MNISTDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split = "train", collate_fn=None):
+    def __init__(self, config: TrainingConfig, split="train", collate_fn=None):
         self.config = config
         self.split = split
         self.collate_fn = collate_fn
@@ -55,11 +55,8 @@ class MNISTDataset(BaseDataset):
 
     def __len__(self):
         return len(self.dataset)
-    
+
     def get_dataloader(self) -> DataLoader:
         return DataLoader(
-            self.dataset,
-            batch_size=self.config.batch_size,
-            shuffle=self.split=="train",
-            drop_last=True
+            self.dataset, batch_size=self.config.batch_size, shuffle=self.split == "train", drop_last=True
         )
