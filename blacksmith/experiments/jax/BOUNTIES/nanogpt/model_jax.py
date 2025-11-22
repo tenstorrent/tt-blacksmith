@@ -87,34 +87,54 @@ class Block(nn.Module):
 class GPT(nn.Module):
     config: GPTConfig
 
-    @nn.compact
+    def setup(self):
+        # 1. Embeddings
+        self.wte = nn.Embed(self.config.vocab_size, self.config.num_embeds, dtype=self.config.dtype, name='wte')
+        self.wpe = nn.Embed(self.config.block_size, self.config.num_embeds, dtype=self.config.dtype, name='wpe')
+        # self.drop = nn.Dropout(self.config.dropout_rate) # Removed for compiler safety
+        
+        # 2. Transformer Blocks
+        self.blocks = [Block(self.config, name=str(i)) for i in range(self.config.num_layers)]
+        
+        # 3. Final LayerNorm
+        self.ln_f = nn.LayerNorm(1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias, name='ln_f')
+
     def __call__(self, idx, deterministic=None):
-        B, T = idx.shape
-        assert T <= self.config.block_size, f"Cannot forward sequence of length {T}, block size is only {self.block_size}"
-
-        pos = jnp.arange(0, T)[None]
-        attn_mask = nn.make_causal_mask(idx, dtype=bool)
-
-        wte = nn.Embed(self.config.vocab_size, self.config.num_embeds, dtype=self.config.dtype, name='wte')
-        wpe = nn.Embed(self.config.block_size, self.config.num_embeds, dtype=self.config.dtype, name='wpe')
-
-        token_embed = wte(idx)      # [B, T, num_embeds]
-        pos_embed = wpe(pos)        # [1, T, num_embeds]
-        # x = nn.Dropout(self.config.dropout_rate)(token_embed + pos_embed, deterministic)
-        x = token_embed + pos_embed
-
-        for i in range(self.config.num_layers):
-            x = Block(self.config, name=str(i))(x, attn_mask, deterministic=deterministic)
-
-        x = nn.LayerNorm(1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias, name='ln_f')(x)
-        logits = wte.attend(x)
+        # Full pass (mostly for initialization)
+        x = self.embed(idx, deterministic)
+        x = self.body(x, deterministic)
+        logits = self.head(x)
         return logits
 
+    def embed(self, idx, deterministic=None):
+        # CPU Friendly Part
+        B, T = idx.shape
+        pos = jnp.arange(0, T)[None]
+        
+        token_embed = self.wte(idx)
+        pos_embed = self.wpe(pos)
+        x = token_embed + pos_embed
+        # x = self.drop(x, deterministic=deterministic) # Removed
+        return x
+
+    def body(self, x, deterministic=None):
+        # TT Hardware Part
+        # We need to reconstruct the mask here since we split the call
+        B, T, C = x.shape
+        # Note: We just use a standard causal mask for simplicity in the split
+        mask = nn.make_causal_mask(jnp.ones((B, T), dtype=jnp.int32), dtype=bool)
+
+        for block in self.blocks:
+            x = block(x, mask, deterministic=deterministic)
+        
+        x = self.ln_f(x)
+        return x
+
+    def head(self, x):
+        # CPU Friendly Part (uses wte weights)
+        return self.wte.attend(x)
+    
     def init(self, rng):
-        """
-        by jitting init, traced values instead of concrete values are used
-        which saves memory (since un-jitted model may not fit in memory)
-        """
         tokens = jnp.zeros((2, self.config.block_size), dtype=jnp.uint32)
         params = jax.jit(super().init, static_argnums=(2,))(rng, tokens, True)
         return params
