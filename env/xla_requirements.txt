@@ -5,3 +5,5 @@ datasets
 peft
 tqdm
 six
+torchdata
+kornia
