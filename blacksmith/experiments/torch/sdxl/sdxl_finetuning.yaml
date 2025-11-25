@@ -1,5 +1,6 @@
 # Dataset settings
-# dataset_id: "glue"
+dataset_id: "ellljoy/interior-design"
+resolution: 1024
 
 # Model settings
 model_name: "stabilityai/stable-diffusion-xl-base-1.0"
