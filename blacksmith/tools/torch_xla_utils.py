@@ -35,8 +35,8 @@ def get_mesh(config: TrainingConfig) -> xs.Mesh:
         mesh_shape = (num_devices, 1)
         axis_names = ("data", "model")
     elif config.parallelism == "tensor":
-        mesh_shape = (num_devices,)
-        axis_names = ("model",)
+        mesh_shape = (2, num_devices // 2)
+        axis_names = ("data", "model")
     else:
         raise ValueError(f"Invalid parallelism: {config.parallelism}")
 
