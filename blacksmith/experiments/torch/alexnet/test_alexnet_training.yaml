@@ -1,40 +1,68 @@
 # Dataset settings
-dataset_name: "tiny-imagenet"
+dataset_id: "tiny-imagenet"
+train_ratio: 0.9       # since you had eval_split: 0.1
+dtype: "torch.float32"
 data_path: "tiny-imagenet-200"
 
 # Model settings
-model_variant: "alexnet"
-num_classes: 200
-image_size: 64
-dtype: "torch.float32"
+model_name: "alexnet"
+input_size: 256        # image_size from original
+output_size: 200       # num_classes
+bias: true             # default to true if not specified
 
 # Training hyperparameters
-learning_rate: 0.01
+learning_rate: 0.001
 batch_size: 256
+num_epochs: 10
+train_log_steps: 100
+val_log_epochs: 1       # inferred from save_strategy/logging_strategy
+loss_fn: "torch.nn.CrossEntropyLoss"  # typical for classification
+optim: "sgd"
 momentum: 0.9
 weight_decay: 1e-4
-num_epochs: 5
-optim: "sgd"
 
-# Learning rate scheduler
-lr_scheduler: "step"
-lr_step_size: 7
-lr_gamma: 0.1
+# Reproducibility settings
+seed: 42
+deterministic: false
+
+# Logging settings
+log_level: "INFO"
+use_wandb: true
+wandb_project: "alexnet-training"
+wandb_run_name: "alexnet-training"
+wandb_tags: ["tt-xla", "model:torch", "plugin", "wandb"]
+wandb_watch_mode: "gradients"
+wandb_log_freq: 100
+model_to_wandb: false
+steps_freq: 100
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: false
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "val/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "epoch"
+project_dir: "experiments/results/alexnet"
+save_optim: false
+storage_backend: "local"
+sync_to_storage: false
+load_from_storage: false
+remote_path: ""
+
+# Multi-chip settings
+parallelism: "single"
+
+# Other settings
+device: "TT"
+experiment_name: "alexnet-training"
+framework: "pytorch"
+output_dir: "experiments/results/alexnet"
+use_tt: true
+print_examples: false
 
 # Data loading
 num_workers: 8
-eval_split: 0.1
-
-# Other settings
-seed: 42
-output_dir: "experiments/results/alexnet"
-report_to: "wandb"
-wandb_project: "alexnet-training"
-wandb_watch_mode: "gradients"
-wandb_log_freq: 50
-save_strategy: "epoch"
-logging_strategy: "steps"
-logging_steps: 50
-save_total_limit: 3
-do_train: True
-do_eval: True 
