@@ -212,7 +212,7 @@ if __name__ == "__main__":
     if args.config:
         config_file_path = args.config
     else:
-        config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
+        config_file_path = "blacksmith/experiments/torch/llama/xla/lora/test_lora.yaml"
     config = generate_config(TrainingConfig, config_file_path)
 
     assert config.parallelism in [

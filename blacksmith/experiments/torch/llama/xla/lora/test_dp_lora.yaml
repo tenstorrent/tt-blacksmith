@@ -29,7 +29,7 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "llama-dp-finetuning-xla"
+wandb_project: "llama-dp-lora-finetuning-xla"
 wandb_run_name: "tt-llama-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
@@ -47,7 +47,7 @@ checkpoint_metric_mode: "min"  # [min, max]
 keep_last_n: 3
 keep_best_n: 1
 save_strategy: "step"
-project_dir: "blacksmith/experiments/torch/llama/xla"
+project_dir: "blacksmith/experiments/torch/llama/xla/lora"
 save_optim: False
 storage_backend: "local"
 sync_to_storage: False

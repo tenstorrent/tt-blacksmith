@@ -14,6 +14,7 @@ class TrainingConfig(BaseModel):
     dtype: str = Field(default="torch.bfloat16")
 
     # Training hyperparameters
+    training_type: str = Field(default="lora")  # [lora, adapters]
     learning_rate: float = Field(default=2e-5, gt=0)
     batch_size: int = Field(default=32, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
@@ -60,6 +61,11 @@ class TrainingConfig(BaseModel):
     lora_alpha: int = Field(default=8, gt=0)
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
     lora_task_type: str = Field(default="CAUSAL_LM")
+
+    # Adapter setup
+    adapter_bottleneck_dim: int = Field(default=24, ge=0)
+    adapter_non_linearity: str = Field(default="torch.nn.GELU")  # [torch.nn.ReLU, torch.nn.GELU, torch.nn.SiLU]
+    adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
     # Multi-chip settings
     parallelism: str = Field(default="single")  # [single, data, tensor]
