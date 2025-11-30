@@ -39,6 +39,7 @@ def _apply_lora(model, config: TrainingConfig):
 
     return get_peft_model(model, lora_config)
 
+
 def _apply_adapters(model, config: TrainingConfig):
     # Freeze all layers
     for param in model.parameters():
@@ -49,7 +50,7 @@ def _apply_adapters(model, config: TrainingConfig):
         adapter_layers = list(range(len(model.model.layers)))
     else:
         adapter_layers = config.adapter_layers
-    
+
     for block_idx in adapter_layers:
         #### Insert first adapter
         original_layer_output = model.model.layers[block_idx].self_attn.o_proj
@@ -62,8 +63,9 @@ def _apply_adapters(model, config: TrainingConfig):
         adapter = make_adapter(original_layer_output.out_features, original_layer_output.out_features, config)
         new_layer_output = torch.nn.Sequential(original_layer_output, *adapter)
         model.model.layers[block_idx].mlp.down_proj = new_layer_output
-    
+
     return model
+
 
 def make_adapter(in_dim, out_dim, config: TrainingConfig):
     bottleneck_dim = config.adapter_bottleneck_dim
