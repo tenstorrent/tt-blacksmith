@@ -128,6 +128,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     # Save checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                
+                # DRAM leak: https://github.com/tenstorrent/pytorch-xla/pull/16
+                xr.clear_computation_cache()
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)

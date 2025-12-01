@@ -135,6 +135,9 @@ def train(
 
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                
+                # DRAM leak: https://github.com/tenstorrent/pytorch-xla/pull/16
+                xr.clear_computation_cache()
 
             # Save checkpoint by epoch boundary
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
