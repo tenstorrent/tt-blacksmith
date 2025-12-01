@@ -11,6 +11,8 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from tqdm import tqdm
 
+import torch_xla.distributed.spmd as xs
+
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
@@ -21,6 +23,55 @@ from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
+
+def apply_tensor_parallel_sharding(model, mesh):
+    # Sync to ensure all weights are materialized
+    torch_xla.sync(wait=True)
+
+    layer_configs = {}
+
+    # Embedding: shard vocab dimension (column parallel, rows of embedding)
+    #layer_configs["base_model.model.model.embed_tokens"] = ("model", None)
+
+    # LM Head: shard vocab dimension (column parallel)
+    #layer_configs["base_model.model.lm_head"] = ("model", None)
+
+    # Per-layer sharding
+    num_layers = 16
+    for i in range(num_layers):
+        prefix = f"base_model.model.model.layers.{i}"
+
+        # ===== Attention Projections =====
+        # MEGATRON: Q/K/V are column-parallel -> shard input dim (cols) -> (None, "model")
+        layer_configs[f"{prefix}.self_attn.q_proj.base_layer"] = ("model", None)
+        layer_configs[f"{prefix}.self_attn.q_proj.lora_B.default"] = ("model", None)
+
+        layer_configs[f"{prefix}.self_attn.k_proj.base_layer"] = ("model", None)
+
+        layer_configs[f"{prefix}.self_attn.v_proj.base_layer"] = ("model", None)
+        layer_configs[f"{prefix}.self_attn.v_proj.lora_B.default"] = ("model", None)
+
+        # O projection: row-parallel combine -> row/cols mapping kept as (None, "model")
+        # (This matches Megatron where the output projection is parallelized differently
+        #  and typically requires an all-reduce after the matmul.)
+        layer_configs[f"{prefix}.self_attn.o_proj"] = (None, "model")
+
+        # ===== MLP Projections (no LoRA) =====
+        layer_configs[f"{prefix}.mlp.gate_proj"] = ("model", None)
+        layer_configs[f"{prefix}.mlp.up_proj"] = ("model", None)
+        layer_configs[f"{prefix}.mlp.down_proj"] = (None, "model")
+
+    # Apply sharding to weights
+    for name, module in model.named_modules():
+        if hasattr(module, "weight") and module.weight is not None:
+            if name in layer_configs:
+                sharding_pattern = layer_configs[name]
+                xs.mark_sharding(module.weight, mesh, sharding_pattern)
+                print(f"Sharded {name}.weight with pattern {sharding_pattern}")
+
+    # LayerNorms are replicated (no sharding needed)
+    torch_xla.sync(wait=True)
+
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -91,6 +142,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
+    # print me model parameters with their names and shapes
+    #exit(0)
+
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
@@ -113,7 +167,10 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     global_step = 0
     running_loss = 0.0
-    mesh = get_mesh(config)
+    if config.parallelism != "single":
+        mesh = get_mesh(config)
+        #print(f"Using mesh: {mesh}")
+        #exit(0)
 
     try:
         model.train()
@@ -137,16 +194,27 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     )
 
                     # Apply sharding on inputs.
-                    import torch_xla.distributed.spmd as xs
 
                     xs.mark_sharding(input_ids, mesh, ("data", None))
                     xs.mark_sharding(attention_mask, mesh, ("data", None))
                     xs.mark_sharding(expected_output, mesh, ("data", None, None))
                     xs.mark_sharding(labels_mask, mesh, ("data", None))
+                
+                if config.parallelism == "tensor":
+                    expected_output, labels_mask = transform_labels(
+                        batch, config.ignored_index, model.model.config.vocab_size, device
+                    )
+                    #xs.mark_sharding(input_ids, mesh, (None,"model"))
+                    #xs.mark_sharding(attention_mask, mesh, (None,"model"))
+                    #xs.mark_sharding(expected_output, mesh, (None,"model", None))
+                    #xs.mark_sharding(labels_mask, mesh, (None,"model"))
+                    apply_tensor_parallel_sharding(model, mesh)
 
                 # Forward pass
                 output = model(input_ids=input_ids, attention_mask=attention_mask)
                 logits = output.logits
+
+                #print("LOGITS:", logits)
 
                 # Shift logits for causal LM: predict next token
                 # logits[:, :-1] predicts tokens at positions 1:
@@ -157,13 +225,14 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 else:
                     loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
 
-                running_loss += loss.item()
-                print(f"Step {global_step}, Loss: {loss.item()}", flush=True)
-
                 # Backward pass
                 loss.backward()
                 if config.use_tt:
                     torch_xla.sync(wait=True)
+
+                print("LOSS:", loss)
+                running_loss += loss.item()
+                print(f"Step {global_step}, Loss: {loss.item()}", flush=True)
 
                 # Optimizer step
                 optimizer.step()
@@ -179,11 +248,16 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     # Do validation
                     valid_loss = validate(model, eval_dataloader, loss_fn, logger, device, config, tokenizer)
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    print("pred model.train() sam")
                     model.train()
+                    print("prosao sam model.train()")
 
                     # Save step checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
+                        continue
+                        print("usao u checkpoint")
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                        print("izasao iz checkpoint?!")
 
             # Save epoch checkpoint
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
@@ -217,7 +291,8 @@ if __name__ == "__main__":
     assert config.parallelism in [
         "single",
         "data",
-    ], "Currently only 'single' and 'data' parallelism modes are supported."
+        "tensor"
+    ], "Currently only 'single', 'data', and 'tensor' parallelism modes are supported."
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
