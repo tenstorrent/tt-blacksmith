@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torch.nn as nn
 from transformers import AutoModelForCausalLM
 from peft import LoraConfig, get_peft_model
 
@@ -54,25 +55,36 @@ def _apply_adapters(model, config: TrainingConfig):
     for block_idx in adapter_layers:
         #### Insert first adapter
         original_layer_output = model.model.layers[block_idx].self_attn.o_proj
-        adapter = make_adapter(original_layer_output.out_features, original_layer_output.out_features, config)
-        new_layer_output = torch.nn.Sequential(original_layer_output, *adapter)
-        model.model.layers[block_idx].self_attn.o_proj = new_layer_output
+        adapted_layer = make_adapted_layer(original_layer_output, config)
+        model.model.layers[block_idx].self_attn.o_proj = adapted_layer
 
         #### Insert second adapter
         original_layer_output = model.model.layers[block_idx].mlp.down_proj
-        adapter = make_adapter(original_layer_output.out_features, original_layer_output.out_features, config)
-        new_layer_output = torch.nn.Sequential(original_layer_output, *adapter)
-        model.model.layers[block_idx].mlp.down_proj = new_layer_output
+        adapted_layer = make_adapted_layer(original_layer_output, config)
+        model.model.layers[block_idx].mlp.down_proj = adapted_layer
 
     return model
 
 
-def make_adapter(in_dim, out_dim, config: TrainingConfig):
-    bottleneck_dim = config.adapter_bottleneck_dim
-    adapter_layers = torch.nn.Sequential(
-        torch.nn.Linear(in_dim, bottleneck_dim),
-        eval(config.adapter_non_linearity)(),
-        torch.nn.Linear(bottleneck_dim, out_dim),
-    )
+def make_adapted_layer(linear, config: TrainingConfig):
+    class ResidualAdapter(nn.Module):
+        def __init__(self, linear, bottleneck_dim):
+            super().__init__()
+            self.linear = linear
+            d = linear.out_features
 
-    return adapter_layers
+            self.adapter = nn.Sequential(
+                nn.Linear(d, bottleneck_dim),
+                nn.GELU(),
+                nn.Linear(bottleneck_dim, d),
+            )
+
+            # Start as identity
+            nn.init.zeros_(self.adapter[-1].weight)
+            nn.init.zeros_(self.adapter[-1].bias)
+
+        def forward(self, x):
+            y = self.linear(x)
+            return y + self.adapter(y)
+
+    return ResidualAdapter(linear, config.adapter_bottleneck_dim)
