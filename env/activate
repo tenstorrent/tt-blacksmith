@@ -1,6 +1,5 @@
 TT_BLACKSMITH_HOME=$(pwd)
 
-EXPERIMENT_TYPE=-1
 EXPECTED_ARGS=1
 
 if [ "$#" -gt "$EXPECTED_ARGS" ]; then
@@ -12,15 +11,14 @@ case $1 in
     --ffe) EXPERIMENT_TYPE=0 ;;
     --xla) EXPERIMENT_TYPE=1 ;;
     --gpu) EXPERIMENT_TYPE=2 ;;
+    "")
+        # No argument provided, default to TT-XLA
+        echo "No type of experiment was specified, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+        echo "Defaulting to TT-XLA (--xla)"
+        EXPERIMENT_TYPE=1
+        ;;
     *) echo "Unknown parameter passed: $1"; return 1 ;;
 esac
-
-# if no experiment type is specified, default to TT-XLA
-if [ "$EXPERIMENT_TYPE" = -1 ]; then
-    echo "No type of experiment was specified, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
-    echo "Defaulting to TT-XLA (--xla)"
-    EXPERIMENT_TYPE=1
-fi
 
 export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
 export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
