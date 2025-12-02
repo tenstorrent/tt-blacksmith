@@ -7,7 +7,6 @@ import traceback
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
-import torch_xla.runtime as xr
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
@@ -18,6 +17,7 @@ from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 from blacksmith.tools.torch_helpers import collect_examples, show_examples
 
@@ -27,7 +27,7 @@ def validate(
     val_data_loader: DataLoader,
     loss_fn: torch.nn.Module,
     logger: TrainingLogger,
-    device: torch.device,
+    device_manager: DeviceManager,
     config: TrainingConfig,
     tokenizer: AutoTokenizer = None,
 ) -> float:
@@ -40,12 +40,10 @@ def validate(
     model.eval()
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["labels"].to(device)
+            batch = device_manager.prepare_batch(batch)
 
             # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
             logits = outputs.logits
 
             # Shift logits for causal LM: predict next token
@@ -53,7 +51,7 @@ def validate(
             shift_logits = logits[:, :-1, :].contiguous()
 
             # Loss
-            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), labels.view(-1))
+            loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), batch["labels"].view(-1))
             total_val_loss += loss.item()
 
             # Predictions
@@ -65,11 +63,11 @@ def validate(
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=labels.shape[0],
+                    batch_size=batch["labels"].shape[0],
                     collected_examples=collected_examples,
                     max_examples=max_examples,
-                    input_ids=input_ids,
-                    expected_output=labels,
+                    input_ids=batch["input_ids"],
+                    expected_output=batch["labels"],
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
@@ -84,11 +82,13 @@ def validate(
     return avg_val_loss
 
 
-def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
+def train(
+    config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
+):
     logger.info("Starting training...")
 
     # Load model
-    model = get_model(config, device)
+    model = get_model(config, device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -120,16 +120,14 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
             for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
-                labels = batch["labels"].to(device)
+                batch = device_manager.prepare_batch(batch)
 
                 # Forward pass
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+                outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
 
                 # Compute loss
                 shift_logits = outputs.logits[..., :-1, :].contiguous()
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), labels.view(-1))
+                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), batch["labels"].view(-1))
                 running_loss += loss.item()
 
                 # Backward pass
@@ -151,7 +149,13 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     # Do validation
                     if config.do_validation:
                         valid_loss = validate(
-                            model, eval_dataloader, loss_fn, logger, device, config, eval_dataset.tokenizer
+                            model,
+                            eval_dataloader,
+                            loss_fn,
+                            logger,
+                            device_manager.device,
+                            config,
+                            eval_dataset.tokenizer,
                         )
                         logger.log_metrics({"val/loss": valid_loss}, step=global_step)
                         model.train()
@@ -180,7 +184,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_qwen_1-5b_finetuning.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_qwen_finetuning.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
@@ -194,12 +198,8 @@ if __name__ == "__main__":
     checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup
-    if config.use_tt:
-        xr.runtime.set_device_type("TT")
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using device: {device}")
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
 
     # Start training
-    train(config, device, logger, checkpoint_manager)
+    train(config, device_manager, logger, checkpoint_manager)

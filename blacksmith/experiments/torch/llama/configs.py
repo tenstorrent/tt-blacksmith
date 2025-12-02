@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -67,9 +68,10 @@ class TrainingConfig(BaseModel):
     adapter_non_linearity: str = Field(default="torch.nn.GELU")  # [torch.nn.ReLU, torch.nn.GELU, torch.nn.SiLU]
     adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
-    # Multi-chip settings
-    parallelism: str = Field(default="single")  # [single, data, tensor]
-    mesh_shape: str = Field(default="8,1")  # Used if parallelism != single
+    # Device settings
+    parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
+    mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
+    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # Other settings
     output_dir: str = Field(default="experiments/results/llama32-1b")

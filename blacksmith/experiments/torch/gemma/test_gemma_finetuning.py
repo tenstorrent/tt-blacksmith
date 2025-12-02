@@ -6,7 +6,6 @@ import traceback
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.experiments.torch.gemma.configs import TrainingConfig
@@ -16,11 +15,12 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.torch_helpers import show_examples, collect_examples
 from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 
 
-def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=None):
+def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
     logger.info(f"\n=== Starting Validation ===")
     model.eval()
     total_val_loss = 0.0
@@ -30,12 +30,10 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            expected_output = batch["labels"].to(device)
+            batch = device_manager.prepare_batch(batch)
 
             # Forward pass + loss
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
             logits = outputs.logits
 
             # Shift logits to match pre-shifted labels from collate_fn
@@ -44,7 +42,7 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
             # Labels are already shifted by collate_fn
             loss = loss_fn(
                 shift_logits.view(-1, model.model.config.vocab_size),
-                expected_output.view(-1),
+                batch["labels"].view(-1),
             )
             total_val_loss += loss.item()
             predictions = shift_logits.argmax(dim=-1)
@@ -56,11 +54,11 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=expected_output.shape[0],
+                    batch_size=batch["labels"].shape[0],
                     collected_examples=collected_examples,
                     max_examples=max_examples,
-                    input_ids=input_ids,
-                    expected_output=expected_output,
+                    input_ids=batch["input_ids"],
+                    expected_output=batch["labels"],
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
@@ -76,14 +74,14 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
 
 def train(
     config: TrainingConfig,
-    device: torch.device,
+    device_manager: DeviceManager,
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
     logger.info("Starting training...")
 
     # Load model
-    model = get_model(config, device)
+    model = get_model(config, device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -116,12 +114,10 @@ def train(
             for batch in tqdm(train_dataloader):
                 optimizer.zero_grad()
 
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
-                labels = batch["labels"].to(device)
+                batch = device_manager.prepare_batch(batch)
 
                 # Forward pass
-                outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+                outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
 
                 logits = outputs.logits
 
@@ -131,7 +127,7 @@ def train(
 
                 loss = loss_fn(
                     shift_logits.view(-1, model.model.config.vocab_size),
-                    labels.view(-1),
+                    batch["labels"].view(-1),
                 )
                 loss_cpu = loss.item()
                 running_loss += loss_cpu
@@ -142,9 +138,7 @@ def train(
                     torch_xla.sync(wait=True)
 
                 # Update parameters
-                optimizer.step()
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
+                device_manager.optimizer_step(optimizer)
 
                 do_validation = global_step % config.val_steps_freq == 0
 
@@ -155,7 +149,7 @@ def train(
 
                 # Validation phase
                 if do_validation:
-                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device, config, logger, tokenizer)
+                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
                     model.train()
 
                     logger.log_metrics(
@@ -199,12 +193,8 @@ if __name__ == "__main__":
     checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup
-    if config.use_tt:
-        xr.runtime.set_device_type("TT")
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using device: {device}")
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
 
     # Start training
-    train(config, device, logger, checkpoint_manager)
+    train(config, device_manager, logger, checkpoint_manager)

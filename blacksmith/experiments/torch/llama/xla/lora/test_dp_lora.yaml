@@ -18,8 +18,8 @@ lora_alpha: 8
 lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
-# Multi-chip settings
-parallelism: "data"  # [single, data, tensor]
+# Device settings
+parallelism_strategy: "data_parallel"  # [single, data_parallel, tensor_parallel]
 mesh_shape: "8,1"  # T3K mesh, only used if parallelism != "single"
 
 # Reproducibility settings

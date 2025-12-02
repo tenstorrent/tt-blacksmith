@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -54,6 +55,11 @@ class TrainingConfig(BaseModel):
     # Reproducibility settings
     seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
+
+    # Device settings
+    parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
+    mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
+    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # LoRA setup
     lora_r: int = Field(default=4, ge=0)

@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import argparse
 import os
-import torch
 import traceback
 
+import torch
 import torch_xla
-
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -15,9 +14,9 @@ from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.torch_helpers import show_examples, collect_examples, collate_fn_for_causal_lm
-from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.device_manager import DeviceManager, ParallelStrategy
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
@@ -45,7 +44,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             # Loss
             # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
-            if config.parallelism != "single":
+            if config.parallelism_strategy != ParallelStrategy.SINGLE.value:
                 expected_output_one_hot, labels_mask = transform_labels(
                     batch, config.ignored_index, model.model.config.vocab_size, device
                 )
@@ -81,11 +80,13 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     return avg_val_loss
 
 
-def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, checkpoint_manager: CheckpointManager):
+def train(
+    config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
+):
     logger.info("Starting training...")
 
     # Load model
-    model = get_model(config, device)
+    model = get_model(config, device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -93,7 +94,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
@@ -112,10 +113,6 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     global_step = 0
     running_loss = 0.0
-
-    if config.parallelism != "single":
-        mesh = get_mesh(config)
-
     try:
         model.train()
         for epoch in range(config.num_epochs):
@@ -124,42 +121,33 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 # Zero out gradients
                 optimizer.zero_grad()
 
-                # Get input ids and attention mask
-                input_ids = batch["input_ids"].to(device)
-                attention_mask = batch["attention_mask"].to(device)
-
-                # Get expected output
-                expected_output = batch["labels"].to(device)
-
                 # TODO: Refactor when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
-                if config.parallelism == "data":
-                    expected_output, labels_mask = transform_labels(
-                        batch, config.ignored_index, model.model.config.vocab_size, device
-                    )
-
-                    # Apply sharding on inputs.
-                    import torch_xla.distributed.spmd as xs
-
-                    xs.mark_sharding(input_ids, mesh, ("data", None))
-                    xs.mark_sharding(attention_mask, mesh, ("data", None))
-                    xs.mark_sharding(expected_output, mesh, ("data", None, None))
-                    xs.mark_sharding(labels_mask, mesh, ("data", None))
+                expected_output, labels_mask = transform_labels(
+                    batch, config.ignored_index, model.model.config.vocab_size
+                )
+                batch = {
+                    "input_ids": batch["input_ids"],
+                    "attention_mask": batch["attention_mask"],
+                    "expected_output": expected_output,
+                    "labels_mask": labels_mask,
+                }
+                batch = device_manager.prepare_batch(batch)
 
                 # Forward pass
-                output = model(input_ids=input_ids, attention_mask=attention_mask)
+                output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
                 logits = output.logits
 
                 # Shift logits for causal LM: predict next token
                 # logits[:, :-1] predicts tokens at positions 1:
                 shift_logits = logits[:, :-1, :].contiguous()
 
-                if config.parallelism != "single":
-                    loss = cross_entropy_loss(shift_logits, expected_output, labels_mask)
+                if config.parallelism_strategy != ParallelStrategy.SINGLE.value:
+                    loss = cross_entropy_loss(shift_logits, batch["expected_output"], batch["labels_mask"])
                 else:
-                    loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
-
+                    loss = loss_fn(
+                        shift_logits.view(-1, model.model.config.vocab_size), batch["expected_output"].view(-1)
+                    )
                 running_loss += loss.item()
-                print(f"Step {global_step}, Loss: {loss.item()}", flush=True)
 
                 # Backward pass
                 loss.backward()
@@ -167,9 +155,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     torch_xla.sync(wait=True)
 
                 # Optimizer step
-                optimizer.step()
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
+                device_manager.optimizer_step(optimizer)
 
                 global_step += 1
                 if global_step % config.steps_freq == 0:
@@ -178,7 +164,9 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                     running_loss = 0.0
 
                     # Do validation
-                    valid_loss = validate(model, eval_dataloader, loss_fn, logger, device, config, tokenizer)
+                    valid_loss = validate(
+                        model, eval_dataloader, loss_fn, logger, device_manager.device, config, tokenizer
+                    )
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
                     model.train()
 
@@ -215,11 +203,6 @@ if __name__ == "__main__":
         config_file_path = os.path.join(os.path.dirname(__file__), "lora/test_lora.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
-    assert config.parallelism in [
-        "single",
-        "data",
-    ], "Currently only 'single' and 'data' parallelism modes are supported."
-
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
@@ -231,12 +214,8 @@ if __name__ == "__main__":
     checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup
-    if config.use_tt:
-        setup_tt_environment(config)
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using device: {device}")
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
 
     # Start training
-    train(config, device, logger, checkpoint_manager)
+    train(config, device_manager, logger, checkpoint_manager)

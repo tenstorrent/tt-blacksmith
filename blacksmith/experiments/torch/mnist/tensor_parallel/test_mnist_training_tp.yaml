@@ -51,9 +51,14 @@ sync_to_storage: false
 load_from_storage: false
 remote_path: ""
 
-# Multi-chip settings
-parallelism: "tensor"
+# Device settings
+parallelism_strategy: "tensor_parallel"
 mesh_shape: "2,1"
+tp_sharding_specs: {
+    "linear_relu_stack.0": (None, "model"),
+    "linear_relu_stack.2": ("model", None),
+    "linear_relu_stack.4": (None, "model"),
+}
 
 # Other settings
 device: "TT"

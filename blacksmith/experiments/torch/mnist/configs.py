@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -61,9 +62,10 @@ class TrainingConfig(BaseModel):
     seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
 
-    # Multi-chip settings
-    parallelism: str = Field(default="data")  # [single, data, tensor]
-    mesh_shape: str = Field(default="2,1")  # Used if parallelism != single
+    # Device settings
+    parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
+    mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
+    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # Other settings
     device: str = Field(default="TT")

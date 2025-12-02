@@ -49,6 +49,9 @@ remote_path: ""
 seed: 23
 deterministic: False
 
+# Device settings
+parallelism_strategy: "single"
+
 # Other settings
 framework: "pytorch"
 use_tt: True

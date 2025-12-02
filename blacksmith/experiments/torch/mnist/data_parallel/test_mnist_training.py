@@ -3,21 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import traceback
-
 from typing import Tuple
 
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.spmd as xs
 
 from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 from blacksmith.experiments.torch.mnist.data_parallel.utils import mse_loss
@@ -58,8 +55,7 @@ def validate(
 
 def train(
     config: TrainingConfig,
-    device: torch.device,
-    mesh: xs.Mesh,
+    device_manager: DeviceManager,
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
@@ -67,7 +63,7 @@ def train(
 
     # Load model
     model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
-    model = model.to(device)
+    model = model.to(device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -94,31 +90,24 @@ def train(
         for epoch in range(config.num_epochs):
             logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
             for inputs, targets in train_loader:
-                inputs = inputs.view(inputs.size(0), -1)
-                targets = targets.view(targets.size(0), -1)
-
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-
-                # Mark sharding for data parallelism
-                xs.mark_sharding(inputs, mesh, ("data", None))
-                xs.mark_sharding(targets, mesh, ("data", None))
+                batch = {"inputs": inputs.view(inputs.size(0), -1), "targets": targets.view(targets.size(0), -1)}
+                batch = device_manager.prepare_batch(batch)
 
                 # Zero out gradients
                 optimizer.zero_grad()
 
                 # Forward pass
-                outputs = model(inputs)
+                outputs = model(batch["inputs"])
 
                 # Compute loss
-                loss = mse_loss(outputs, targets)
+                loss = mse_loss(outputs, batch["targets"])
 
                 # Backward pass
                 loss.backward()
                 running_loss += loss.item()
 
-                # For multichip is better to use xm.optimizer_step - forces execution and ensures correct all-reduce operations
-                xm.optimizer_step(optimizer, barrier=True)
+                # Optimizer step
+                device_manager.optimizer_step(optimizer)
 
                 global_step += 1
 
@@ -128,7 +117,7 @@ def train(
                     running_loss = 0.0
 
                     # Run validation and log metrics
-                    val_loss, val_acc = validate(model, val_loader, device, logger, config)
+                    val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
                     logger.log_metrics(
                         {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc}, step=global_step
                     )
@@ -151,8 +140,7 @@ def train(
         logger.info("Training finished successfully.")
 
     except Exception as e:
-        tb = traceback.format_exc()
-        logger.error(f"Training failed with error: {e}", tb)
+        logger.error(f"Training failed with error: {e}", traceback.format_exc())
         raise
     finally:
         logger.finish()
@@ -167,14 +155,15 @@ if __name__ == "__main__":
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
-    # Setup TT environment and mesh
-    if config.use_tt:
-        setup_tt_environment(config)
-        mesh = get_mesh(config)
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        mesh = None
+    # Logger setup
+    logger = TrainingLogger(config)
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger)
+
+    # Setup device manager
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
 
     # Compile options
     options = {
@@ -184,9 +173,5 @@ if __name__ == "__main__":
     }
     torch_xla.set_custom_compile_options(options)
 
-    # Logger and checkpoint manager
-    logger = TrainingLogger(config)
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Start training
-    train(config, device, mesh, logger, checkpoint_manager)
+    train(config, device_manager, logger, checkpoint_manager)
