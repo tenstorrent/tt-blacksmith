@@ -199,8 +199,8 @@ if __name__ == "__main__":
     pipeline.setup()
     
     pipeline.generate(
-        prompt="a photo of a cat",
-        uncond_prompt="a photo of a dog",
+        prompt="A silly ChalkBoardDrawing  of The Mona Lisa ",
+        uncond_prompt="unfocused, blurry, grainy",
         do_cfg=True,
         cfg_scale=7.5,
         num_inference_steps=50,

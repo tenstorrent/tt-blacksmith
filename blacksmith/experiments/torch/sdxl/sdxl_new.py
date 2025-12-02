@@ -20,6 +20,7 @@ class TrainingConfig:
     # We define the global data type here
     DTYPE = torch.bfloat16 
 
+
 class DummyDataset(BaseDataset):
     def __init__(self, config: TrainingConfig):
         self.config = config
@@ -53,6 +54,75 @@ class DummyDataset(BaseDataset):
             shuffle = False,
             drop_last=True,
         )
+
+
+class LocalDataset(Dataset):
+    def __init__(self, config: TrainingConfig):
+        self.config = config
+        self.data_dir = config.data_dir # Ensure your config has this path
+        
+        # SDXL Transforms
+        self.transform = transforms.Compose([
+            transforms.Resize(
+                config.resolution, 
+                interpolation=transforms.InterpolationMode.BILINEAR
+            ),
+            transforms.CenterCrop(config.resolution),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]), # Normalize to [-1, 1]
+        ])
+        
+        self.data_pairs = []
+        self._prepare_dataset()
+
+    def __len__(self):
+        return len(self.data_pairs)
+
+    def __getitem__(self, idx):
+        image_path, prompt_path = self.data_pairs[idx]
+
+        # 1. Load and process image
+        # .convert("RGB") is crucial to handle PNGs with transparency or Grayscale
+        img = Image.open(image_path).convert("RGB")
+        pixel_values = self.transform(img)
+
+        # 2. Load prompt
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            prompt = f.read().strip()
+
+        return {"pixel_values": pixel_values, "prompt": prompt}
+    
+    def _prepare_dataset(self):
+        # Look for common image extensions
+        image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.webp']
+        image_files = []
+        
+        for ext in image_extensions:
+            # Recursive search in data_dir
+            image_files.extend(glob.glob(os.path.join(self.data_dir, ext)))
+
+        print(f"Found {len(image_files)} images in {self.data_dir}")
+
+        for img_path in image_files:
+            # Construct expected text path: 011.jpeg -> 011.txt
+            path_obj = Path(img_path)
+            txt_path = path_obj.with_suffix('.txt')
+
+            if txt_path.exists():
+                self.data_pairs.append((str(img_path), str(txt_path)))
+            else:
+                print(f"Warning: No prompt found for {img_path}, skipping.")
+
+    def get_dataloader(self) -> DataLoader:
+        return DataLoader(
+            self,
+            batch_size=self.config.batch_size,
+            # IMPORTANT: Shuffle should usually be True for training to prevent bias
+            shuffle=True, 
+            num_workers=4, # Adjust based on your CPU
+            drop_last=True,
+        )
+
 
 class SDXLTrainer:
     def __init__(self, device='cuda'):
