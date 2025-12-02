@@ -427,4 +427,6 @@ def train_mnist():
 
 
 if __name__ == "__main__":
+    jax.config.update("jax_num_cpu_devices", 32)
+    jax.config.update("jax_platforms",  ",".join(["cpu","tt"]))
     train_mnist()
