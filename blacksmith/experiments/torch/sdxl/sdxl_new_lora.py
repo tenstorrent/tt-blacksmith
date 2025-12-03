@@ -6,35 +6,43 @@ import glob
 import os
 from pathlib import Path
 from PIL import Image
+import numpy as np
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+
+# Diffusers & Transformers
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler
 from transformers import CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer
-from PIL import Image
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from datasets import load_dataset
-import numpy as np
+
+# PEFT Imports
+from peft import LoraConfig, get_peft_model, PeftModel
 
 # --- Configuration ---
 class TrainingConfig:
     MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
     RESOLUTION = 1024
-    TRAIN_BATCH_SIZE = 5
-    LEARNING_RATE = 1e-5
-    NUM_EPOCHS = 1
+    TRAIN_BATCH_SIZE = 1 # Lowered batch size as SDXL requires significant VRAM
+    LEARNING_RATE = 1e-4 # LoRA usually needs a higher LR than full finetuning (1e-5 -> 1e-4)
+    NUM_EPOCHS = 5
+    
+    # LoRA Specifics
+    LORA_RANK = 8
+    LORA_ALPHA = 8 # Usually set equal to rank or rank/2
+    
     # We define the global data type here
     DTYPE = torch.bfloat16 
     DATA_DIR = "data/sdxl-chalkboarddrawing-lora"
+    OUTPUT_DIR = "output_lora"
 
 
 class LocalDataset(Dataset):
     def __init__(self, config: TrainingConfig):
         self.config = config
-        self.data_dir = config.DATA_DIR # Ensure your config has this path
+        self.data_dir = config.DATA_DIR 
         
         # SDXL Transforms
         self.transform = transforms.Compose([
@@ -44,7 +52,7 @@ class LocalDataset(Dataset):
             ),
             transforms.CenterCrop(config.RESOLUTION),
             transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5]), # Normalize to [-1, 1]
+            transforms.Normalize([0.5], [0.5]), 
         ])
         
         self.data_pairs = []
@@ -56,30 +64,36 @@ class LocalDataset(Dataset):
     def __getitem__(self, idx):
         image_path, prompt_path = self.data_pairs[idx]
 
-        # 1. Load and process image
-        # .convert("RGB") is crucial to handle PNGs with transparency or Grayscale
-        img = Image.open(image_path).convert("RGB")
-        pixel_values = self.transform(img)
+        try:
+            # 1. Load and process image
+            img = Image.open(image_path).convert("RGB")
+            pixel_values = self.transform(img)
 
-        # 2. Load prompt
-        with open(prompt_path, 'r', encoding='utf-8') as f:
-            prompt = f.read().strip()
-
-        return {"pixel_values": pixel_values, "prompt": prompt}
+            # 2. Load prompt
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompt = f.read().strip()
+                
+            return {"pixel_values": pixel_values, "prompt": prompt}
+        except Exception as e:
+            print(f"Error loading {image_path}: {e}")
+            # Return a fallback or handle appropriately in real training
+            return self.__getitem__((idx + 1) % len(self))
     
     def _prepare_dataset(self):
-        # Look for common image extensions
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir, exist_ok=True)
+            print(f"Created {self.data_dir}. Please put images there.")
+            return
+
         image_extensions = ['*.jpg', '*.jpeg', '*.png', '*.webp']
         image_files = []
         
         for ext in image_extensions:
-            # Recursive search in data_dir
             image_files.extend(glob.glob(os.path.join(self.data_dir, ext)))
 
         print(f"Found {len(image_files)} images in {self.data_dir}")
 
         for img_path in image_files:
-            # Construct expected text path: 011.jpeg -> 011.txt
             path_obj = Path(img_path)
             txt_path = path_obj.with_suffix('.txt')
 
@@ -92,9 +106,8 @@ class LocalDataset(Dataset):
         return DataLoader(
             self,
             batch_size=self.config.TRAIN_BATCH_SIZE,
-            # IMPORTANT: Shuffle should usually be True for training to prevent bias
             shuffle=True, 
-            num_workers=4, # Adjust based on your CPU
+            num_workers=2, 
             drop_last=True,
         )
 
@@ -103,16 +116,16 @@ class SDXLTrainer:
     def __init__(self, device='cuda'):
         self.device = device
         self.config = TrainingConfig()
+        os.makedirs(self.config.OUTPUT_DIR, exist_ok=True)
         
     def setup(self):
         self.load_models()
         self.load_tokenizers()
         self.setup_scheduler()
         self.setup_optimizer()
-        # Note: No GradScaler needed for bfloat16
 
     def load_models(self):
-        # 1. Load VAE (Frozen) - Directly in bfloat16
+        # 1. Load VAE (Frozen)
         self.vae = AutoencoderKL.from_pretrained(
             self.config.MODEL_ID, 
             subfolder="vae", 
@@ -120,7 +133,7 @@ class SDXLTrainer:
         ).to(self.device)
         self.vae.requires_grad_(False)
 
-        # 2. Load Text Encoders (Frozen) - Directly in bfloat16
+        # 2. Load Text Encoders (Frozen)
         self.text_encoder_1 = CLIPTextModel.from_pretrained(
             self.config.MODEL_ID, 
             subfolder="text_encoder", 
@@ -136,14 +149,33 @@ class SDXLTrainer:
         self.text_encoder_1.requires_grad_(False)
         self.text_encoder_2.requires_grad_(False)
 
-        # 3. Load UNet (Trainable) - Directly in bfloat16
+        # 3. Load UNet and Config LoRA
         self.unet = UNet2DConditionModel.from_pretrained(
             self.config.MODEL_ID, 
             subfolder="unet", 
             torch_dtype=self.config.DTYPE
         ).to(self.device)
         
+        # FREEZE base UNet parameters
+        self.unet.requires_grad_(False)
+        
+        # Enable gradient checkpointing to save memory
         self.unet.enable_gradient_checkpointing()
+
+        # Define LoRA Config
+        lora_config = LoraConfig(
+            r=self.config.LORA_RANK,
+            lora_alpha=self.config.LORA_ALPHA,
+            init_lora_weights="gaussian",
+            target_modules=["to_k", "to_q", "to_v", "to_out.0"], # Standard attention targets for SDXL
+            bias="none"
+        )
+
+        # Wrap UNet with PEFT
+        self.unet = get_peft_model(self.unet, lora_config)
+        self.unet.print_trainable_parameters()
+        
+        # Ensure model is in training mode
         self.unet.train()
 
     def load_tokenizers(self):
@@ -154,7 +186,8 @@ class SDXLTrainer:
         self.noise_scheduler = DDPMScheduler.from_pretrained(self.config.MODEL_ID, subfolder="scheduler")
 
     def setup_optimizer(self):
-        # AdamW will handle BF16 parameters natively
+        # PEFT model automatically handles `requires_grad`. 
+        # Only LoRA layers have requires_grad=True.
         self.optimizer = torch.optim.AdamW(
             self.unet.parameters(),
             lr=self.config.LEARNING_RATE,
@@ -176,8 +209,6 @@ class SDXLTrainer:
                 input_ids = text_inputs.input_ids.to(self.device)
                 
                 output = text_encoder(input_ids, output_hidden_states=True)
-                
-                # The output here is already bfloat16 because the model is bfloat16
                 hidden_state = output.hidden_states[-2]
                 prompt_embeds_list.append(hidden_state)
                 
@@ -193,39 +224,44 @@ class SDXLTrainer:
         crop_coords = (0, 0)
         
         add_time_ids = list(original_size + crop_coords + target_size)
-        # IMPORTANT: Ensure these control parameters are bfloat16
         add_time_ids = torch.tensor([add_time_ids], dtype=self.config.DTYPE).to(self.device)
         add_time_ids = add_time_ids.repeat(batch_size, 1)
         return add_time_ids
 
+    def save_lora(self, step):
+        # Save only the adapters
+        save_path = os.path.join(self.config.OUTPUT_DIR, f"checkpoint-{step}")
+        self.unet.save_pretrained(save_path)
+        print(f"Saved LoRA weights to {save_path}")
+
     def train_one_epoch(self, dataloader, epoch_index):
         for step, batch in enumerate(dataloader):
-            # 1. Load Data and CAST to bfloat16 immediately
+            # 1. Load Data
             pixel_values = batch["pixel_values"].to(device=self.device, dtype=self.config.DTYPE)
             prompts = batch["prompt"]
             bsz = pixel_values.shape[0]
 
             # 2. Encode to Latents (VAE)
             with torch.no_grad():
-                # VAE is in bf16, input is bf16 -> output is bf16
                 latents = self.vae.encode(pixel_values).latent_dist.sample()
                 latents = latents * self.vae.config.scaling_factor
                 
-            # 3. Sample Noise (in bf16)
+            # 3. Sample Noise
             noise = torch.randn_like(latents, dtype=self.config.DTYPE)
             
             timesteps = torch.randint(
                 0, self.noise_scheduler.config.num_train_timesteps, (bsz,), device=self.device
             ).long()
 
-            # 4. Add Noise (bf16 math)
+            # 4. Add Noise
             noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
 
-            # 5. Get Conditions (bf16)
+            # 5. Get Conditions
             prompt_embeds, pooled_prompt_embeds = self.compute_text_embeddings(prompts)
             add_time_ids = self.compute_time_ids(bsz)
 
-            # 6. Forward Pass (Pure BF16)
+            # 6. Forward Pass
+            # LoRA layers are applied automatically inside self.unet
             model_pred = self.unet(
                 noisy_latents,
                 timesteps,
@@ -237,9 +273,6 @@ class SDXLTrainer:
             ).sample
 
             # 7. Loss Calculation
-            # Both model_pred and noise are bfloat16.
-            # MSE Loss works fine in bf16, though sometimes people cast to float32 just for the loss calculation
-            # to be ultra-precise, but for SDXL training, pure bf16 loss is usually fine.
             loss = F.mse_loss(model_pred, noise, reduction="mean")
 
             # 8. Backward Pass
@@ -251,16 +284,31 @@ class SDXLTrainer:
             self.optimizer.step()
             self.optimizer.zero_grad()
             
-            if step % 1 == 0:
+            if step % 5 == 0:
                 print(f"Epoch {epoch_index} | Step {step} | Loss: {loss.item():.4f}")
 
     def run(self):
         self.setup()
-        dataset = LocalDataset(num_samples=4)
-        dataloader = DataLoader(dataset, batch_size=self.config.TRAIN_BATCH_SIZE, shuffle=True)
+        
+        # Fixed: Initialize Dataset with Config, not num_samples
+        dataset = LocalDataset(self.config)
+        
+        if len(dataset) == 0:
+            print("No data found. Exiting.")
+            return
+
+        dataloader = dataset.get_dataloader()
+        
+        total_steps = 0
         for epoch in range(self.config.NUM_EPOCHS):
+            print(f"--- Starting Epoch {epoch} ---")
             self.train_one_epoch(dataloader, epoch)
+            # Save at the end of epoch
+            self.save_lora(f"epoch_{epoch}")
 
 if __name__ == "__main__":
-    trainer = SDXLTrainer(device='cuda')
-    trainer.run()
+    if torch.cuda.is_available():
+        trainer = SDXLTrainer(device='cuda')
+        trainer.run()
+    else:
+        print("CUDA not available. This script requires a GPU.")
