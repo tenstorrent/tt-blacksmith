@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch_xla
 
-from blacksmith.datasets.torch.torch_dataset import get_dataset
+from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager

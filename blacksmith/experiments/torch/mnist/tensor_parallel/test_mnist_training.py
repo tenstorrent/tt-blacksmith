@@ -8,19 +8,16 @@ from typing import Tuple
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.spmd as xs
 
-from blacksmith.datasets.torch.torch_dataset import get_dataset
+from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_xla_utils import setup_tt_environment, get_mesh
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
-from blacksmith.experiments.torch.mnist.tensor_parallel.utils import cross_entropy_loss, apply_tensor_parallel_sharding
+from blacksmith.experiments.torch.mnist.tensor_parallel.utils import cross_entropy_loss
 
 
 def validate(
