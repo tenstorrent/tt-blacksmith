@@ -30,6 +30,7 @@ jobs:
 
   # Run tests on TT hardware
   run-tests:
+    needs: generate-matrix-test
     timeout-minutes: 240
     strategy:
       fail-fast: false
