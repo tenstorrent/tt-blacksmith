@@ -67,7 +67,7 @@ def save_checkpoint(ckpt_path, state, epoch, log_on_wandb=True):
     with open(ckpt_path, "wb") as outfile:
         outfile.write(msgpack_serialize(to_state_dict(state)))
 
-    if log_on_wandb:
+    if log_on_wandb and not (wandb.run is None or wandb.run.disabled):
         artifact = wandb.Artifact(f"{wandb.run.name}-checkpoint-epoch-{epoch}", type="dataset")
         print(f"Uploading checkpoint to {ckpt_path}")
         artifact.add_reference(f"file://{ckpt_path}")
@@ -78,7 +78,7 @@ def save_checkpoint(ckpt_path, state, epoch, log_on_wandb=True):
 
 def load_checkpoint(ckpt_file, state, epoch, log_on_wandb=True):
 
-    if log_on_wandb:
+    if log_on_wandb and not (wandb.run is None or wandb.run.disabled):
         artifact = wandb.use_artifact(
             f"{wandb.run.name}-checkpoint-epoch-{epoch}:latest"
         )  # Reference to the specific epoch
