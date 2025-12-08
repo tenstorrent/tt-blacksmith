@@ -30,7 +30,7 @@ jobs:
         id: generate-test-matrix
         shell: bash
         run: |
-          matrix=$(cat ${{ inputs.test_suite }})
+          matrix=$(cat .github/workflows/test-matrix-presets/${{ inputs.test_suite }})
           echo "Generated matrix:"
           echo "$matrix" | jq .
           echo "test-matrix=$(echo "$matrix" | jq -c)" >> $GITHUB_OUTPUT
