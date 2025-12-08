@@ -1,0 +1,36 @@
+
+name: Generate Matrix (call)
+
+# This workflow generates a test matrix based on the provided test suite JSON file.
+# In future, this can be extended to support more complex logic for matrix generation.
+
+on:
+  workflow_call:
+    inputs:
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: string
+    outputs:
+      test_matrix:
+        description: 'Generated JSON test matrix'
+        value: ${{ jobs.generate.outputs.test-matrix }}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    outputs:
+      test-matrix: ${{ steps.generate-test-matrix.outputs.test-matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+      - name: Generate test matrix
+        id: generate-test-matrix
+        shell: bash
+        run: |
+          matrix=$(cat ${{ inputs.test_suite }})
+          echo "Generated matrix:"
+          echo "$matrix" | jq .
+          echo "test-matrix=$(echo "$matrix" | jq -c)" >> $GITHUB_OUTPUT

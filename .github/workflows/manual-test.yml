@@ -8,14 +8,25 @@ on:
         required: true
         default: false
         type: boolean
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: choice
+        options:
+          - 'basic-test.json'
+          - 'uplift-test.json'
 
 permissions:
   checks: write
 
+run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
+
 jobs:
+
   test:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
       use-shared-runners: ${{ inputs.use-shared-runners }}
+      test_suite: ${{ inputs.test_suite }}

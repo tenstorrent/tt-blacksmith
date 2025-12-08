@@ -12,6 +12,13 @@ permissions:
   deployments: write
 
 jobs:
+  test:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
+      use-shared-runners: ${{ inputs.use-shared-runners }}
+      test_suite: basic-test.json
 
   deploy-docs:
     uses: ./.github/workflows/call-build-docs.yml

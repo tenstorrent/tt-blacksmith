@@ -10,13 +10,25 @@ jobs:
     uses: ./.github/workflows/call-pre-commit.yml
     secrets: inherit
 
+  uplift-test:
+    if: ${{ github.head_ref == 'uplift' }}
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
+      use-shared-runners: false
+      test_suite: uplift-test.json
+
   check-all-green:
     if: always()
     needs:
       - pre-commit
+      - uplift-test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
+        allowed-skips: |
+          uplift-test
         jobs: ${{ toJSON(needs) }}
