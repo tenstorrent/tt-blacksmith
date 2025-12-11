@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+import re
 from typing import Optional, Tuple, Dict
 from enum import Enum
 
@@ -68,19 +69,34 @@ class DeviceManager:
             mesh_shape = (num_devices, 1)
             axis_names = ("data", "model")
         elif self.strategy == ParallelStrategy.TENSOR_PARALLEL.value:
-            mesh_shape = (num_devices,)
-            axis_names = ("model",)
+            mesh_shape = (2, num_devices // 2)
+            axis_names = ("data", "model")
         else:
             supported_strategies = [f.value for f in ParallelStrategy]
             raise ValueError(f"Invalid parallelism: {self.strategy}. Supported strategies: {supported_strategies}.")
 
         return xs.Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
 
+    def is_data_parallel(self) -> bool:
+        return (
+            self.mesh is not None
+            and "data" in self.mesh.axis_names
+            and self.mesh.shape()["data"] > 1
+        )
+
+    def is_tensor_parallel(self) -> bool:
+        return (
+            self.mesh is not None
+            and "model" in self.mesh.axis_names
+            and self.mesh.shape()["model"] > 1
+        )
+
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
 
     def shard_model(self, model: nn.Module) -> nn.Module:
-        if self.strategy == ParallelStrategy.TENSOR_PARALLEL:
+        if self.is_tensor_parallel():
+            print(f"[DeviceManager] Applying tensor parallelism to the model...", flush =True)
             return self._apply_tensor_parallelism(model)
 
         return model
@@ -88,16 +104,39 @@ class DeviceManager:
     def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
         torch_xla.sync(wait=True)
 
-        sharding_specs = self.config.tp_sharding_specs or {}
-        for name, param in model.named_parameters():
-            if param.dim() == 0:
+        # Regex → sharding pattern
+        rules = [
+            # === Attention ===
+            (r"\.self_attn\.q_proj\.base_layer$",      ("model", None)),
+            (r"\.self_attn\.q_proj\.lora_B\.default$", ("model", None)),
+
+            (r"\.self_attn\.k_proj$",                  ("model", None)),
+
+            (r"\.self_attn\.v_proj\.base_layer$",      ("model", None)),
+            (r"\.self_attn\.v_proj\.lora_B\.default$", ("model", None)),
+
+            (r"\.self_attn\.o_proj$",                  (None, "model")),
+
+            # === MLP ===
+            (r"\.mlp\.gate_proj$", ("model", None)),
+            (r"\.mlp\.up_proj$",   ("model", None)),
+            (r"\.mlp\.down_proj$", (None, "model")),
+        ]
+
+        # Iterate and match
+        for name, module in model.named_modules():
+            print(f"[TP] Checking module: {name}", flush=True)
+            if not hasattr(module, "weight") or module.weight is None:
                 continue
 
-            partition_spec = sharding_specs.get(name, None)
-            if partition_spec is not None:
-                xs.mark_sharding(param, self.mesh, partition_spec)
-
-        return model
+            for pattern, shard in rules:
+                if re.search(pattern, name):
+                    xs.mark_sharding(module.weight, self.mesh, shard)
+                    #print(f"[TP] {name}.weight → {shard}", flush=True)
+                    print(f"Sharded {name}.weight with spec {shard}", flush=True)
+                    break  # stop after first match
+        
+        torch_xla.sync(wait=True)
 
     def shard_optimizer(self, optimizer: torch.optim.Optimizer):
         raise NotImplementedError("Optimizer sharding is not implemented yet.")
@@ -105,7 +144,7 @@ class DeviceManager:
     def prepare_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         batch = {k: v.to(self.device) for k, v in batch.items()}
 
-        if self.strategy == ParallelStrategy.DATA_PARALLEL:
+        if self.is_data_parallel():
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
                     partition_spec = ("data",) + tuple([None] * (tensor.dim() - 1))
