@@ -15,7 +15,7 @@ from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_xla_utils import setup_tt_environment
+from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 
@@ -23,9 +23,8 @@ from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 def validate(
     model: torch.nn.Module,
     val_loader: DataLoader,
-    device: torch.device,
     logger: TrainingLogger,
-    config: TrainingConfig,
+    device_manager: DeviceManager,
     loss_fn: torch.nn.Module,
 ) -> Tuple[float, float]:
 
@@ -41,8 +40,8 @@ def validate(
             inputs = inputs.view(inputs.size(0), -1)
             targets = targets.view(targets.size(0), -1)
 
-            inputs = inputs.to(device)
-            targets = targets.to(device)
+            inputs = inputs.to(device_manager.device)
+            targets = targets.to(device_manager.device)
 
             outputs = model(inputs)
             loss = loss_fn(outputs, targets)
@@ -61,7 +60,7 @@ def validate(
 
 def train(
     config: TrainingConfig,
-    device: torch.device,
+    device_manager: DeviceManager,
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
@@ -69,7 +68,7 @@ def train(
 
     # Load model
     model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
-    model = model.to(device)
+    model = model.to(device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -100,8 +99,8 @@ def train(
                 inputs = inputs.view(inputs.size(0), -1)
                 targets = targets.view(targets.size(0), -1)
 
-                inputs = inputs.to(device)
-                targets = targets.to(device)
+                inputs = inputs.to(device_manager.device)
+                targets = targets.to(device_manager.device)
 
                 optimizer.zero_grad()
 
@@ -113,8 +112,7 @@ def train(
                 loss.backward()
                 running_loss += loss.item()
 
-                optimizer.step()
-                torch_xla.sync(wait=True)
+                device_manager.optimizer_step(optimizer)
 
                 global_step += 1
 
@@ -123,7 +121,7 @@ def train(
                     avg_loss = running_loss / config.steps_freq
                     running_loss = 0.0
 
-                    val_loss, val_acc = validate(model, val_loader, device, logger, config, loss_fn)
+                    val_loss, val_acc = validate(model, val_loader, logger, device_manager, loss_fn)
                     logger.log_metrics(
                         {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc},
                         step=global_step,
@@ -156,13 +154,6 @@ if __name__ == "__main__":
     config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training.yaml")
     config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
 
-    # Setup TT environment and device
-    if config.use_tt:
-        setup_tt_environment(config)
-        device = torch_xla.device()
-    else:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     # Reproducibility
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
@@ -170,6 +161,10 @@ if __name__ == "__main__":
     # Logging + checkpoints
     logger = TrainingLogger(config)
     checkpoint_manager = CheckpointManager(config, logger)
+    
+    # Device setup
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
 
     # Start training
-    train(config, device, logger, checkpoint_manager)
+    train(config, device_manager, logger, checkpoint_manager)
