@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # Logging + checkpoints
     logger = TrainingLogger(config)
     checkpoint_manager = CheckpointManager(config, logger)
-    
+
     # Device setup
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
