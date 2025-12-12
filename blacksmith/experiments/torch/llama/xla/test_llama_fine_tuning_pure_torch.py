@@ -33,33 +33,28 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
         for batch in tqdm(val_data_loader, desc="Validation"):
             import time
             start_time = time.time()
-            # Zero out gradients
-            #optimizer.zero_grad()
 
-            # print the shapes of batch tensors
-            print(f"Validation batch tensor shapes: { {k: v.shape for k, v in batch.items()} }", flush=True)
+            input_ids = batch["input_ids"].to(device)
+            #inputs_ids_cpu = input_ids.to("cpu")
 
-            expected_output, labels_mask = transform_labels(
-                    batch, config.ignored_index, model.model.config.vocab_size
-            )
-            batch = {
-                "input_ids": batch["input_ids"],
-                "attention_mask": batch["attention_mask"],
-                "expected_output": expected_output,
-                "labels_mask": labels_mask,
-            }
+            #print(f"wtf input ids: {inputs_ids_cpu}", flush=True)
+            #exit(0)
+            attention_mask = batch["attention_mask"].to(device)
+            expected_output = batch["labels"].to(device)
 
-            batch = device_manager.prepare_batch(batch)
             device_manager.shard_model(model)
             # Forward pass
-            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
 
             # Shift logits for causal LM: predict next token
             # logits[:, :-1] predicts tokens at positions 1:
             shift_logits = logits[:, :-1, :].contiguous()
 
-            loss = cross_entropy_loss(shift_logits, batch["expected_output"], batch["labels_mask"])
+            expected_output_one_hot, labels_mask = transform_labels(
+                batch, config.ignored_index, model.model.config.vocab_size
+            )
+            loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
@@ -69,7 +64,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             total_val_loss += loss.item()
 
             end_time = time.time()
-            print(f"Validation Step time: {end_time - start_time} seconds", flush=True)
 
             num_val_batches += 1
 
@@ -79,15 +73,17 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
                     batch_size=expected_output.shape[0],
                     collected_examples=collected_examples,
                     max_examples=10,
-                    input_ids=batch["input_ids"],
-                    expected_output=batch["expected_output"],
+                    input_ids=input_ids,
+                    expected_output=expected_output,
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
+                #print(f"Shapes collected examples: {[(ex['input_ids'].shape, ex['expected'].shape, ex['predicted'].shape) for ex in collected_examples]}", flush=True)
+                #print(f"Collected examples device: {[ex['input_ids'].device for ex in collected_examples]}", flush=True)
 
-    if config.print_examples and tokenizer is not None:
-        logger.info("Printing validation examples...")
-        show_examples(collected_examples, tokenizer, config, logger)
+        if config.print_examples and tokenizer is not None:
+            logger.info("Printing validation examples...")
+            show_examples(collected_examples, tokenizer, config, logger)
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")
@@ -178,10 +174,10 @@ def train(
                 print(f"Step time: {end_time - start_time} seconds", flush=True)
                 #if global_step > 30:
                 #    exit(0)
-                #global_step += 1
+                global_step += 1
                 #exit(0)
                 xr.clear_computation_cache()
-                if global_step % config.steps_freq == 0:
+                if global_step % config.steps_freq == 1:
                     #continue
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)

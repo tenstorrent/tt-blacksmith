@@ -58,11 +58,18 @@ def show_examples(examples, tokenizer, config, logger):
         logger.info(f"\nExample {i+1} (from batch {example['batch_num']}):")
 
         # NOTE: Move example tensors to CPU, because tokenizer does not work with tensors on TT device
-        input_ids = example["input_ids"].to("cpu")
-        expected = example["expected"].to("cpu")
-        predicted = example["predicted"].to("cpu")
+        #input_ids = example["input_ids"].to("cpu")
+        #expected = example["expected"].to("cpu")
+        #predicted = example["predicted"].to("cpu")
+        input_ids = example["input_ids"]
+        expected = example["expected"]
+        predicted = example["predicted"]
+
+        #print(f"input_ids device: {input_ids.device}, expected device: {expected.device}, predicted device: {predicted.device}")
+        #print(f"input_ids shape: {input_ids.shape}, expected shape: {expected.shape}, predicted shape: {predicted.shape}")
 
         valid_mask = expected != config.ignored_index
+        #print(f"valid_mask shape: {valid_mask.shape}")
         if not valid_mask.any():
             logger.info(f"  No valid tokens (all {config.ignored_index})")
             continue
@@ -96,6 +103,10 @@ def collect_examples(
 ):
     if len(collected_examples) < max_examples:
         import random
+
+        input_ids = input_ids.to("cpu")
+        expected_output = expected_output.to("cpu")
+        predictions = predictions.to("cpu")
 
         sample_indices = random.sample(range(batch_size), min(batch_size, max_examples - len(collected_examples)))
         for idx in sample_indices:
