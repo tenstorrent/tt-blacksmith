@@ -1,6 +1,7 @@
 from typing import Any, Optional, Tuple
 from dataclasses import dataclass
 from functools import partial
+import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
@@ -19,6 +20,34 @@ class GPTConfig:
     use_bias: bool = True
     dtype: Optional[str] = None
 
+class MatMulEmbed(nn.Module):
+    """
+    A 'Fallback' Embedding that uses Matrix Multiplication (supported on TT)
+    instead of Gather/Scatter (not supported on TT).
+    """
+    num_embeddings: int
+    features: int
+    dtype: any = jnp.bfloat16  # <--- Use bf16 to save memory (50MB vs 100MB)
+
+    @nn.compact
+    def __call__(self, inputs):
+        # 1. One-Hot Encode (Creates [B, T, V])
+        # This consumes memory, but JAX/XLA optimizes the lifetime better than PyTorch.
+        x = jax.nn.one_hot(inputs, self.num_embeddings, dtype=self.dtype)
+        
+        # 2. Define Weights [V, C]
+        embedding = self.param('embedding', 
+                               jax.nn.initializers.normal(stddev=0.02), 
+                               (self.num_embeddings, self.features),
+                               self.dtype)
+        
+        # 3. MatMul: [B, T, V] @ [V, C] -> [B, T, C]
+        return jnp.dot(x, embedding)
+
+    def attend(self, query):
+        # For the Language Model Head (Weight Tying)
+        embedding = self.variables['params']['embedding']
+        return jnp.dot(query, embedding.T)
 
 class SelfAttention(nn.Module):
 
@@ -42,7 +71,7 @@ class SelfAttention(nn.Module):
         scale = 1.0 / jnp.sqrt(head_dim).astype(self.dtype)
         # attn weight shape is (batch..., num_heads, q_length, kv_length)
         attn = jnp.einsum('...qhd,...khd->...hqk', q, k) * scale
-        attn = jnp.where(mask, attn, jnp.finfo(self.dtype).min)
+        attn = attn + mask  # add the causal mask
         attn = jax.nn.softmax(attn).astype(self.dtype)
         # attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
 
@@ -89,41 +118,53 @@ class GPT(nn.Module):
 
     def setup(self):
         # 1. Embeddings
-        self.wte = nn.Embed(self.config.vocab_size, self.config.num_embeds, dtype=self.config.dtype, name='wte')
-        self.wpe = nn.Embed(self.config.block_size, self.config.num_embeds, dtype=self.config.dtype, name='wpe')
+        self.wte = MatMulEmbed(self.config.vocab_size, self.config.num_embeds, name='wte')
+        self.wpe = MatMulEmbed(self.config.block_size, self.config.num_embeds, name='wpe')
         # self.drop = nn.Dropout(self.config.dropout_rate) # Removed for compiler safety
-        
+
         # 2. Transformer Blocks
         self.blocks = [Block(self.config, name=str(i)) for i in range(self.config.num_layers)]
         
         # 3. Final LayerNorm
         self.ln_f = nn.LayerNorm(1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias, name='ln_f')
 
+        def init_pos_ids(rng):
+            # shape: [1, Block_Size]
+            return jnp.array(np.arange(self.config.block_size, dtype=np.uint32)[None, :])
+
+        def init_causal_mask(rng):
+            # shape: [1, 1, Block_Size, Block_Size]
+            # Created via NumPy to avoid JAX boolean issues on TT backend
+            mask = np.tri(self.config.block_size, k=0, dtype=np.float32)
+            mask_bias = (1.0 - mask) * -1e9
+            return jnp.array(mask_bias[None, None, :, :], dtype=jnp.bfloat16)
+        
+        self.pos_ids = self.variable('cache', 'pos_ids', init_pos_ids, None)
+        self.mask = self.variable('cache', 'mask', init_causal_mask, None)
+
     def __call__(self, idx, deterministic=None):
-        # Full pass (mostly for initialization)
-        x = self.embed(idx, deterministic)
-        x = self.body(x, deterministic)
+        B, T = idx.shape
+
+        # Slice for current sequence length
+        pos_ids = self.pos_ids.value[:, :T]
+        mask = self.mask.value[:, :, :T, :T]
+
+        x = self.embed(idx, pos_ids, deterministic)
+        x = self.body(x, mask, deterministic)
         logits = self.head(x)
         return logits
 
-    def embed(self, idx, deterministic=None):
-        # CPU Friendly Part
-        B, T = idx.shape
-        pos = jnp.arange(0, T)[None]
-        
+    def embed(self, idx, pos_ids, deterministic=None):
         token_embed = self.wte(idx)
-        pos_embed = self.wpe(pos)
+        pos_embed = self.wpe(pos_ids)
         x = token_embed + pos_embed
         # x = self.drop(x, deterministic=deterministic) # Removed
         return x
 
-    def body(self, x, deterministic=None):
-        # TT Hardware Part
-        # We need to reconstruct the mask here since we split the call
+    def body(self, x, mask, deterministic=None):
         B, T, C = x.shape
-        # Note: We just use a standard causal mask for simplicity in the split
-        mask = nn.make_causal_mask(jnp.ones((B, T), dtype=jnp.int32), dtype=bool)
-
+        # mask = nn.make_causal_mask(jnp.ones((B, T), dtype=jnp.int32), dtype=bool)
+        # We crate the mask on CPU during runtime to avoid JAX boolean issues on TT backend
         for block in self.blocks:
             x = block(x, mask, deterministic=deterministic)
         
@@ -131,7 +172,6 @@ class GPT(nn.Module):
         return x
 
     def head(self, x):
-        # CPU Friendly Part (uses wte weights)
         return self.wte.attend(x)
     
     def init(self, rng):
