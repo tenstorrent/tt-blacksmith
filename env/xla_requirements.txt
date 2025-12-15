@@ -1,5 +1,5 @@
 --extra-index-url https://pypi.eng.aws.tenstorrent.com
-pjrt-plugin-tt==0.7.0.dev20251209
+pjrt-plugin-tt==0.7.0.dev20251215
 flax
 six
 torchdata
