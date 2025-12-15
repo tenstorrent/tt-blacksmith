@@ -65,7 +65,7 @@ class TrainingConfig(BaseModel):
     # Device settings
     parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
     mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
+    tp_sharding_specs: dict[str, list[Optional[str]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # Other settings
     device: str = Field(default="TT")

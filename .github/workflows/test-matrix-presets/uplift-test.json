@@ -13,5 +13,15 @@
         "runs-on": "n300",
         "frontend": "xla",
         "script": "blacksmith/experiments/torch/mnist/test_mnist_training.py"
+    },
+    {
+        "runs-on": "n300",
+        "frontend": "xla",
+        "script": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py"
+    },
+    {
+        "runs-on": "n300",
+        "frontend": "xla",
+        "script": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py"
     }
 ]
