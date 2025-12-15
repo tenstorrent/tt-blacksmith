@@ -10,7 +10,8 @@ def to_torch(x):
 
 def copy_jax_to_pt(params_jax, model_pt):
     
-    params_jax = unfreeze(params_jax)['params']
+    params_jax = unfreeze(params_jax)
+    params_jax = params_jax['params'] | params_jax['cache']
     state_dict_pt = model_pt.state_dict()
     new_state_dict = {}
 
@@ -51,7 +52,8 @@ def compare_weights(wei_pt, wei_jax):
         if not np.allclose(t1.cpu().numpy(), t2, rtol=rtol, atol=atol):
             miss.append(name)
 
-    wei_jax = unfreeze(wei_jax)['params']
+    wei_jax = unfreeze(wei_jax)
+    wei_jax = wei_jax['params'] | wei_jax['cache']
     miss = []
 
     compare(wei_pt['transformer.wte.weight'], wei_jax['wte']['embedding'], 'transformer.wte.weight')

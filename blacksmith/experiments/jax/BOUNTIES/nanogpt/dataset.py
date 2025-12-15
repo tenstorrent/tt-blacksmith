@@ -1,49 +1,35 @@
+import os
+import requests
+import numpy as np
+import tiktoken
 
-from typing import Optional
-import jax
-import tensorflow as tf
+# 1. Download the dataset
+input_file_path = os.path.join(os.path.dirname(__file__), 'input.txt')
+if not os.path.exists(input_file_path):
+    data_url = 'https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt'
+    with open(input_file_path, 'w') as f:
+        f.write(requests.get(data_url).text)
 
+with open(input_file_path, 'r') as f:
+    data = f.read()
+print(f"length of dataset in characters: {len(data):,}")
 
-OPTIONS = tf.data.Options()
-OPTIONS.deterministic = True
-OPTIONS.autotune.enabled = True
+# 2. Tokenize using GPT-2 BPE (Same as nanoGPT)
+enc = tiktoken.get_encoding("gpt2")
+train_data = data[:int(len(data)*0.9)]
+val_data = data[int(len(data)*0.9):]
 
+# encode with tiktoken
+train_ids = enc.encode_ordinary(train_data)
+val_ids = enc.encode_ordinary(val_data)
+print(f"train has {len(train_ids):,} tokens")
+print(f"val has {len(val_ids):,} tokens")
 
-def get_dataset(pattern: str,
-                batch_size: int = 8,
-                block_size: int = 1024,
-                shuffle_buffer_size: Optional[int] = None,
-                repeat: Optional[int]=None,
-                seed: Optional[int]=None) -> tf.data.Dataset:
+# 3. Export to bin files
+# We export to uint16 since vocab size < 65535
+train_ids = np.array(train_ids, dtype=np.uint16)
+val_ids = np.array(val_ids, dtype=np.uint16)
+train_ids.tofile(os.path.join(os.path.dirname(__file__), 'train.bin'))
+val_ids.tofile(os.path.join(os.path.dirname(__file__), 'val.bin'))
 
-    tf.random.set_seed(seed)
-
-    file_ds = tf.data.Dataset.list_files(pattern, shuffle=bool(shuffle_buffer_size))
-    file_ds = file_ds.shard(jax.process_count(), jax.process_index())
-    ds = tf.data.TFRecordDataset(file_ds, num_parallel_reads=tf.data.AUTOTUNE)
-    # each element of the dataset is a tokenized string
-    feature_description = {
-        'ids': tf.io.FixedLenFeature([], tf.string, default_value=''),
-    }
-    def parse_example(example_proto):
-        example = tf.io.parse_single_example(example_proto, feature_description)
-        return tf.io.decode_raw(example['ids'], tf.uint16)
-
-    ds = ds.map(parse_example, num_parallel_calls=tf.data.AUTOTUNE)
-    ds = ds.repeat(repeat)
-
-    # here we shuffle each group of tokens and then unbatch into a single
-    # contiguous sequence of ids, we then chunk the sequence into blocks
-    if shuffle_buffer_size is not None:
-        ds = ds.shuffle(shuffle_buffer_size)
-
-    ds = ds.unbatch().batch(block_size + 1, drop_remainder=True)
-
-    # each block is then shuffled and then batched
-    if shuffle_buffer_size is not None:
-        ds = ds.shuffle(shuffle_buffer_size)
-
-    ds = ds.batch(batch_size, drop_remainder=True)
-    ds = ds.batch(jax.local_device_count(), drop_remainder=True)
-    ds = ds.with_options(OPTIONS)
-    return ds.prefetch(2)
+print("Data saved to train.bin and val.bin")

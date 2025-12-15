@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from functools import partial  # <--- Added for the fix
 
 from model_jax import GPT as GPT_JAX, GPTConfig as Config_JAX
+import sys
+sys.path.append('/root/nanoGPT/')
 from model import GPT as GPT_PT, GPTConfig as Config_PT
 from .utils import to_torch, copy_jax_to_pt, compare_weights
 
@@ -16,7 +18,7 @@ from .utils import to_torch, copy_jax_to_pt, compare_weights
 np.random.seed(42)
 torch.manual_seed(42)
 key = jax.random.PRNGKey(42)
-
+breakpoint()
 # Use Full Layers!
 config_jax = Config_JAX(num_layers=0, dropout_rate=0.0)
 model_jax = GPT_JAX(config_jax)

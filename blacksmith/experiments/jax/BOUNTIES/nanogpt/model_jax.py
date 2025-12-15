@@ -12,7 +12,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 @dataclass(frozen=True)
 class GPTConfig:
     block_size: int = 1024
-    vocab_size: int = 50304 # 50304
+    vocab_size: int = 50304 # originally 50257 for gpt2, but padded to the minimal higher multiple of 64 for effeciency
     num_layers: int = 12
     num_heads: int = 12
     num_embeds: int = 768
@@ -73,13 +73,13 @@ class SelfAttention(nn.Module):
         attn = jnp.einsum('...qhd,...khd->...hqk', q, k) * scale
         attn = attn + mask  # add the causal mask
         attn = jax.nn.softmax(attn).astype(self.dtype)
-        # attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
+        attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
 
         # return weighted sum over values for each query position
         x = jnp.einsum('...hqk,...khd->...qhd', attn, v).reshape(B, T, C)
         x = nn.Dense(C, use_bias=self.use_proj_bias, dtype=self.dtype, name='c_proj')(x)
 
-        # x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
+        x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
         return x
 
 
@@ -92,7 +92,7 @@ class MLP(nn.Module):
         x = nn.Dense(4 * C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_fc')(x)
         x = nn.gelu(x, approximate=False)
         x = nn.Dense(C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_proj')(x)
-        # x = nn.Dropout(self.config.dropout_rate)(x, deterministic)
+        x = nn.Dropout(self.config.dropout_rate)(x, deterministic)
         return x
 
 
@@ -120,7 +120,7 @@ class GPT(nn.Module):
         # 1. Embeddings
         self.wte = MatMulEmbed(self.config.vocab_size, self.config.num_embeds, name='wte')
         self.wpe = MatMulEmbed(self.config.block_size, self.config.num_embeds, name='wpe')
-        # self.drop = nn.Dropout(self.config.dropout_rate) # Removed for compiler safety
+        self.drop = nn.Dropout(self.config.dropout_rate) # Removed for compiler safety
 
         # 2. Transformer Blocks
         self.blocks = [Block(self.config, name=str(i)) for i in range(self.config.num_layers)]
@@ -158,7 +158,7 @@ class GPT(nn.Module):
         token_embed = self.wte(idx)
         pos_embed = self.wpe(pos_ids)
         x = token_embed + pos_embed
-        # x = self.drop(x, deterministic=deterministic) # Removed
+        x = self.drop(x, deterministic=deterministic) # Removed
         return x
 
     def body(self, x, mask, deterministic=None):
