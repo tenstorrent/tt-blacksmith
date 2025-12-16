@@ -15,6 +15,7 @@ on:
         options:
           - 'basic-test.json'
           - 'uplift-test.json'
+          - 'regressed-test.json'
 
 permissions:
   checks: write
