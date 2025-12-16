@@ -80,10 +80,10 @@ class DeviceManager:
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
 
     def shard_model(self, model: nn.Module) -> nn.Module:
-        return self._apply_tensor_parallelism(model)
-        # if self.strategy == ParallelStrategy.TENSOR_PARALLEL.value:
+        if self.strategy == ParallelStrategy.TENSOR_PARALLEL.value:
+            return self._apply_tensor_parallelism(model)
 
-        # return model
+        return model
 
     def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
         torch_xla.sync(wait=True)
@@ -108,7 +108,7 @@ class DeviceManager:
     def prepare_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         batch = {k: v.to(self.device) for k, v in batch.items()}
 
-        if self.strategy == ParallelStrategy.DATA_PARALLEL.value:
+        if self.strategy == ParallelStrategy.DATA_PARALLEL:
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
                     partition_spec = ("data",) + tuple([None] * (tensor.dim() - 1))
@@ -117,7 +117,7 @@ class DeviceManager:
         return batch
 
     def optimizer_step(self, optimizer: torch.optim.Optimizer):
-        if self.strategy == ParallelStrategy.SINGLE.value:
+        if self.strategy == ParallelStrategy.SINGLE:
             optimizer.step()
             if self.config.use_tt:
                 torch_xla.sync(wait=True)
