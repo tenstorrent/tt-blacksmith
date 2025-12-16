@@ -67,7 +67,6 @@ def train(
     # Build model
     model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
     model = model.to(device_manager.device)
-    device_manager.shard_model(model)
 
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
@@ -95,6 +94,7 @@ def train(
         for epoch in range(config.num_epochs):
             logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
             for inputs, targets in train_loader:
+                device_manager.shard_model(model)
                 batch = {"inputs": inputs.view(inputs.size(0), -1), "targets": targets.view(targets.size(0), -1)}
                 batch = device_manager.prepare_batch(batch)
 

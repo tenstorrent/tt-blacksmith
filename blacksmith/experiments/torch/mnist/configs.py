@@ -4,6 +4,7 @@
 
 from typing import Optional
 from pydantic import BaseModel, Field
+from blacksmith.tools.device_manager import ParallelStrategy
 
 
 class TrainingConfig(BaseModel):
@@ -63,9 +64,9 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
+    parallelism_strategy: ParallelStrategy = Field(default="single")  # [single, data_parallel, tensor_parallel]
     mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
-    tp_sharding_specs: dict[str, list[Optional[str]]] = Field(default_factory=dict)  # Used for model tp sharding
+    tp_sharding_specs: dict[str, tuple[Optional[str], Optional[str]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # Other settings
     device: str = Field(default="TT")

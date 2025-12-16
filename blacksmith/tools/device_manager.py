@@ -48,7 +48,7 @@ class DeviceManager:
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
         # Additional setup for multichip
-        if self.strategy != ParallelStrategy.SINGLE.value:
+        if self.strategy != ParallelStrategy.SINGLE:
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
             os.environ["MESH_SHAPE"] = self.config.mesh_shape
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
@@ -56,7 +56,7 @@ class DeviceManager:
             xr.use_spmd()
 
     def _create_mesh(self) -> Optional[xs.Mesh]:
-        if self.strategy == ParallelStrategy.SINGLE.value:
+        if self.strategy == ParallelStrategy.SINGLE:
             return None
 
         num_devices = xr.global_runtime_device_count()
@@ -64,12 +64,12 @@ class DeviceManager:
         mesh_shape = None
         axis_names = None
 
-        if self.strategy == ParallelStrategy.DATA_PARALLEL.value:
+        if self.strategy == ParallelStrategy.DATA_PARALLEL:
             mesh_shape = (num_devices, 1)
             axis_names = ("data", "model")
-        elif self.strategy == ParallelStrategy.TENSOR_PARALLEL.value:
-            mesh_shape = (num_devices,)
-            axis_names = ("model",)
+        elif self.strategy == ParallelStrategy.TENSOR_PARALLEL:
+            mesh_shape = (1, num_devices)
+            axis_names = ("data", "model")
         else:
             supported_strategies = [f.value for f in ParallelStrategy]
             raise ValueError(f"Invalid parallelism: {self.strategy}. Supported strategies: {supported_strategies}.")
@@ -80,21 +80,24 @@ class DeviceManager:
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
 
     def shard_model(self, model: nn.Module) -> nn.Module:
-        if self.strategy == ParallelStrategy.TENSOR_PARALLEL:
-            return self._apply_tensor_parallelism(model)
+        return self._apply_tensor_parallelism(model)
+        # if self.strategy == ParallelStrategy.TENSOR_PARALLEL.value:
 
-        return model
+        # return model
 
     def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
         torch_xla.sync(wait=True)
 
         sharding_specs = self.config.tp_sharding_specs or {}
+        print(f"Sharding specs: {sharding_specs}")
         for name, param in model.named_parameters():
+            print(f"Sharding {name} with partition spec {param.dim()}")
             if param.dim() == 0:
                 continue
 
             partition_spec = sharding_specs.get(name, None)
             if partition_spec is not None:
+                print(f"Sharding {name} with partition spec {partition_spec}")
                 xs.mark_sharding(param, self.mesh, partition_spec)
 
         return model
@@ -105,7 +108,7 @@ class DeviceManager:
     def prepare_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         batch = {k: v.to(self.device) for k, v in batch.items()}
 
-        if self.strategy == ParallelStrategy.DATA_PARALLEL:
+        if self.strategy == ParallelStrategy.DATA_PARALLEL.value:
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
                     partition_spec = ("data",) + tuple([None] * (tensor.dim() - 1))
