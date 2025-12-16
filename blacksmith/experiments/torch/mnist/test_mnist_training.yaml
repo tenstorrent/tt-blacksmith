@@ -52,7 +52,7 @@ load_from_storage: false
 remote_path: ""
 
 # Multi-chip settings
-parallelism: "single"
+parallelism_strategy: "single"
 
 # Other settings
 device: "TT"

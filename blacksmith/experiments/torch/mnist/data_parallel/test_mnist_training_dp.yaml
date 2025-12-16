@@ -52,8 +52,8 @@ load_from_storage: false
 remote_path: ""
 
 # Multi-chip settings
-parallelism: "data"
-mesh_shape: "2,1"
+parallelism_strategy: "data_parallel"
+mesh_shape: "1,2"
 
 # Other settings
 device: "TT"
