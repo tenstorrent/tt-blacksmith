@@ -64,7 +64,7 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    parallelism_strategy: ParallelStrategy = Field(default="single")  # [single, data_parallel, tensor_parallel]
+    parallelism_strategy: ParallelStrategy  # [single, data_parallel, tensor_parallel]
     mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
     tp_sharding_specs: dict[str, tuple[Optional[str], Optional[str]]] = Field(default_factory=dict)  # Used for model tp sharding
 

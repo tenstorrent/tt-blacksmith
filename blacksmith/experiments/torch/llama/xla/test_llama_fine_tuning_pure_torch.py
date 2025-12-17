@@ -44,7 +44,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             # Loss
             # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
-            if config.parallelism_strategy != ParallelStrategy.SINGLE.value:
+            if config.parallelism_strategy != ParallelStrategy.SINGLE:
                 expected_output_one_hot, labels_mask = transform_labels(
                     batch, config.ignored_index, model.model.config.vocab_size
                 )
@@ -141,7 +141,7 @@ def train(
                 # logits[:, :-1] predicts tokens at positions 1:
                 shift_logits = logits[:, :-1, :].contiguous()
 
-                if config.parallelism_strategy != ParallelStrategy.SINGLE.value:
+                if config.parallelism_strategy != ParallelStrategy.SINGLE:
                     loss = cross_entropy_loss(shift_logits, batch["expected_output"], batch["labels_mask"])
                 else:
                     loss = loss_fn(

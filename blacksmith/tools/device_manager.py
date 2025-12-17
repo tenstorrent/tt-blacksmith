@@ -71,7 +71,7 @@ class DeviceManager:
             mesh_shape = (1, num_devices)
             axis_names = ("data", "model")
         else:
-            supported_strategies = [f.value for f in ParallelStrategy]
+            supported_strategies = [f for f in ParallelStrategy]
             raise ValueError(f"Invalid parallelism: {self.strategy}. Supported strategies: {supported_strategies}.")
 
         return xs.Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
@@ -80,7 +80,7 @@ class DeviceManager:
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
 
     def shard_model(self, model: nn.Module) -> nn.Module:
-        if self.strategy == ParallelStrategy.TENSOR_PARALLEL.value:
+        if self.strategy == ParallelStrategy.TENSOR_PARALLEL:
             return self._apply_tensor_parallelism(model)
 
         return model
