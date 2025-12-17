@@ -21,7 +21,11 @@ from blacksmith.experiments.torch.mnist.tensor_parallel.utils import cross_entro
 
 
 def validate(
-    model: torch.nn.Module, val_loader: DataLoader, device_manager: DeviceManager, logger: TrainingLogger, config: TrainingConfig
+    model: torch.nn.Module,
+    val_loader: DataLoader,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    config: TrainingConfig,
 ) -> Tuple[float, float]:
     logger.info("Starting validation...")
 
@@ -37,7 +41,7 @@ def validate(
             targets = targets.view(targets.size(0), -1)
 
             batch = device_manager.prepare_batch({"inputs": inputs, "targets": targets})
-            
+
             # Forward pass
             outputs = model(batch["inputs"])
 
