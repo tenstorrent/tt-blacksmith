@@ -89,15 +89,12 @@ class DeviceManager:
         torch_xla.sync(wait=True)
 
         sharding_specs = self.config.tp_sharding_specs or {}
-        print(f"Sharding specs: {sharding_specs}")
         for name, param in model.named_parameters():
-            print(f"Sharding {name} with partition spec {param.dim()}")
             if param.dim() == 0:
                 continue
 
             partition_spec = sharding_specs.get(name, None)
             if partition_spec is not None:
-                print(f"Sharding {name} with partition spec {partition_spec}")
                 xs.mark_sharding(param, self.mesh, partition_spec)
 
         return model
