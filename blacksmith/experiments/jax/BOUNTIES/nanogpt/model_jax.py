@@ -12,12 +12,13 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 @dataclass(frozen=True)
 class GPTConfig:
     block_size: int = 1024
-    vocab_size: int = 50304 # originally 50257 for gpt2, but padded to the minimal higher multiple of 64 for effeciency
+    vocab_size: int = 50304 #5 originally 50257 for gpt2, but padded to the minimal higher multiple of 64 for effeciency
     num_layers: int = 12
     num_heads: int = 12
     num_embeds: int = 768
     dropout_rate: float = 0.0
     use_bias: bool = True
+    use_matmul_embed: bool = False
     dtype: Optional[str] = None
 
 class MatMulEmbed(nn.Module):
@@ -118,8 +119,12 @@ class GPT(nn.Module):
 
     def setup(self):
         # 1. Embeddings
-        self.wte = MatMulEmbed(self.config.vocab_size, self.config.num_embeds, name='wte')
-        self.wpe = MatMulEmbed(self.config.block_size, self.config.num_embeds, name='wpe')
+        if self.config.use_matmul_embed:
+            self.wte = MatMulEmbed(self.config.vocab_size, self.config.num_embeds, name='wte')
+            self.wpe = MatMulEmbed(self.config.block_size, self.config.num_embeds, name='wpe')
+        else:
+            self.wte = nn.Embed(self.config.vocab_size, self.config.num_embeds, name='wte')
+            self.wpe = nn.Embed(self.config.block_size, self.config.num_embeds, name='wpe')
         self.drop = nn.Dropout(self.config.dropout_rate) # Removed for compiler safety
 
         # 2. Transformer Blocks
