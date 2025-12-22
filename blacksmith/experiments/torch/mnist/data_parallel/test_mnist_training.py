@@ -104,10 +104,13 @@ def train(
 
                 # Backward pass
                 loss.backward()
-                running_loss += loss.item()
+
+                torch_xla.sync(wait=True)
 
                 # Optimizer step
                 device_manager.optimizer_step(optimizer)
+
+                running_loss += loss.item()
 
                 global_step += 1
 

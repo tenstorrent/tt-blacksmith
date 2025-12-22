@@ -110,11 +110,15 @@ def train(
 
                 # Compute loss
                 loss = cross_entropy_loss(outputs, batch["targets"])
+
                 loss.backward()
-                running_loss += loss.item()
+
+                torch_xla.sync(wait=True)
 
                 # Optimizer step
                 device_manager.optimizer_step(optimizer)
+
+                running_loss += loss.item()
 
                 global_step += 1
 
