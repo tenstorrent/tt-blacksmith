@@ -8,6 +8,7 @@ import jax.numpy as jnp
 from jax import random
 from flax.training import train_state
 import numpy as np
+from pathlib import Path
 from PIL import Image
 
 
@@ -16,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import os
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 from blacksmith.datasets.jax.nerf.blender import BlenderDataset, create_dataloader, create_dataloader_val
 from nerf_rendering import render_rays, generate_ray_samples
@@ -910,9 +911,9 @@ def save_rendered_images(system, output_dir):
 
 
 if __name__ == "__main__":
-
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
-    config = generate_config(NerfConfig, config_file_path)
+    default_config = Path(__file__).parent / "test_nerf.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: NerfConfig = generate_config(NerfConfig, args.config)
     if config.training.render:
         render(config)
     else:

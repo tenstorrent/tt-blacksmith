@@ -7,11 +7,12 @@ import jax
 import optax
 import jax.numpy as jnp
 import wandb
+from pathlib import Path
 
 from flax import nnx
 from typing import Dict, Optional, Tuple, Callable, Any
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
@@ -24,11 +25,7 @@ DEFAULT_RUN_NAME = "test-run"
 DEFAULT_WANDB_DIR = "./wandb_logs"
 
 
-def init_configs(config_path: Optional[str] = None) -> ExperimentConfig:
-    if config_path is None:
-        config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
-
-    config = generate_config(ExperimentConfig, config_path)
+def init_configs(config: ExperimentConfig) -> ExperimentConfig:
     return config
 
 
@@ -242,10 +239,10 @@ def run_final_test(
     log_to_wandb(final_test_logs, global_step)
 
 
-def train() -> None:
+def train(config: ExperimentConfig) -> None:
     """Main training function."""
 
-    config = init_configs()
+    config = init_configs(config)
     wandb_run = setup_wandb(config)
 
     try:
@@ -305,4 +302,7 @@ def train() -> None:
 
 
 if __name__ == "__main__":
-    train()
+    default_config = Path(__file__).parent.parent / "test_mnist.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    train(config)

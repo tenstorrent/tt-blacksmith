@@ -4,13 +4,14 @@
 
 import os
 import traceback
+from pathlib import Path
 from typing import Tuple
 
 import torch
 from torch.utils.data import DataLoader
 import torch_xla
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -151,8 +152,10 @@ def train(
 
 
 if __name__ == "__main__":
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_mnist_training.yaml")
-    config: TrainingConfig = generate_config(TrainingConfig, config_file_path)
+    default_config = Path(__file__).parent / "test_mnist_training.yaml"
+
+    args = parse_cli_options(default_config=default_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
     # Reproducibility
     repro_manager = ReproducibilityManager(config)

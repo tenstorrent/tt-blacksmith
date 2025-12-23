@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import traceback
+from pathlib import Path
 
 import torch
 import torch_xla
@@ -11,7 +12,7 @@ from tqdm import tqdm
 from blacksmith.experiments.torch.phi.configs import TrainingConfig
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -177,8 +178,9 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_phi1_finetuning_sst2.yaml")
-    config = generate_config(TrainingConfig, config_file_path)
+    default_config = Path(__file__).parent / "test_phi1_finetuning_sst2.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

@@ -4,6 +4,7 @@
 
 import warnings
 import os
+from pathlib import Path
 from typing import Tuple, Dict, Any, Optional
 
 import jax
@@ -18,7 +19,7 @@ from lorax import LORA_FREEZE
 
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 import wandb
 
 
@@ -190,11 +191,8 @@ def create_compute_grads_fn(loss_fn: Any) -> Any:
     return compute_grads_tt
 
 
-def main() -> None:
+def main(training_config: TrainingConfig) -> None:
     """Main training function with configurable parameters."""
-
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_jax.yaml")
-    training_config = generate_config(TrainingConfig, config_file_path)
 
     cpu_device = jax.devices("cpu")[0]
     current_device, device_kind = _select_preferred_device()
@@ -322,4 +320,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    default_config = Path(__file__).parent / "test_llama_fine_tuning_jax.yaml"
+    args = parse_cli_options(default_config=default_config)
+    training_config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    main(training_config)

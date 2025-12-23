@@ -14,7 +14,7 @@ import wandb
 
 from transformers import AutoTokenizer
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.jax_helpers import build_schedule, ce_with_labels, kl_divergence, cosine_embedding_loss
 from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 
@@ -278,6 +278,7 @@ def train(config: ExperimentConfig):
 
 
 if __name__ == "__main__":
-    config_file_path = Path(__file__).parent.parent / "test_distil_bert_flax.yaml"
-    config = generate_config(ExperimentConfig, config_file_path)
+    default_config = Path(__file__).parent.parent / "test_distil_bert_flax.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
     train(config)
