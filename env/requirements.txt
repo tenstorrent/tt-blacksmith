@@ -6,3 +6,4 @@ tqdm
 datasets
 transformers
 torchdata
+kornia
