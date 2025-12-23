@@ -2,5 +2,4 @@
 pjrt-plugin-tt==0.8.0.dev20251223
 flax
 six
-torchdata
 kornia
