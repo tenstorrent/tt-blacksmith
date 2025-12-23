@@ -13,7 +13,11 @@ def get_model(config: TrainingConfig, device: torch.device):
     # This will be replaced with forge models loader, we should add adapter functions to modify the model as needed
 
     # Load a model
-    model = AutoModelForCausalLM.from_pretrained(config.model_name, use_cache=config.gradient_checkpointing)
+    model = AutoModelForCausalLM.from_pretrained(config.model_name, use_cache=False)
+
+    if config.gradient_checkpointing:
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        model.enable_input_require_grads()
 
     # Apply training specific modifications
     # Apply LoRA if rank is specified
