@@ -51,9 +51,9 @@ sync_to_storage: false
 load_from_storage: false
 remote_path: ""
 
-# Multi-chip settings
-parallelism_strategy: "data_parallel"
-mesh_shape: "1,2"
+# Device settings - Data Parallel with 2 devices
+mesh_shape: [1, 2]  # [model, data]
+mesh_axis_names: ["model", "data"]
 
 # Other settings
 device: "TT"

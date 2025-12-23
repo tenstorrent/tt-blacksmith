@@ -51,13 +51,15 @@ sync_to_storage: false
 load_from_storage: false
 remote_path: ""
 
-# Device settings
-parallelism_strategy: "tensor_parallel"
-mesh_shape: "1,2"
-tp_sharding_specs:
-    linear_relu_stack.0.weight: [null, "model"]
-    linear_relu_stack.2.weight: ["model", null]
-    linear_relu_stack.4.weight: [null, "model"]
+# Device settings - Tensor Parallel with 2 devices
+mesh_shape: [1, 2]  # [data, model]
+mesh_axis_names: ["data", "model"]
+
+# Model sharding patterns using regex (matches module names from model.named_modules())
+model_sharding_patterns:
+    - ["linear_relu_stack\\.0$", [null, "model"]]
+    - ["linear_relu_stack\\.2$", ["model", null]]
+    - ["linear_relu_stack\\.4$", [null, "model"]]
 
 # Other settings
 device: "TT"

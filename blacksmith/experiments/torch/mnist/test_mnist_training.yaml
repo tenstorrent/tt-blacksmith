@@ -51,8 +51,9 @@ sync_to_storage: false
 load_from_storage: false
 remote_path: ""
 
-# Multi-chip settings
-parallelism_strategy: "single"
+# Device settings - Single device (no parallelism)
+mesh_shape: null
+mesh_axis_names: null
 
 # Other settings
 device: "TT"
