@@ -63,11 +63,8 @@ class DeviceManager:
         # Read mesh_shape from config.
         mesh_shape = tuple(self.config.mesh_shape)
 
-        # Parse mesh_axis_names from config.
-        if isinstance(self.config.mesh_axis_names, (list, tuple)):
-            axis_names = tuple(self.config.mesh_axis_names)
-        else:
-            axis_names = self.config.mesh_axis_names
+        # Read mesh axis names from config.
+        axis_names = tuple(self.config.mesh_axis_names)
 
         return xs.Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
 
@@ -93,22 +90,22 @@ class DeviceManager:
         """Apply tensor parallelism using regex pattern matching from config."""
         torch_xla.sync(wait=True)
 
-        # Get sharding patterns from config (list of [pattern, spec] pairs)
+        # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
+        assert sharding_patterns is not None, "model_sharding_patterns must be provided for tensor parallelism"
 
-        if sharding_patterns:
-            # Use regex pattern matching on named_modules.
-            for name, module in model.named_modules():
-                if not hasattr(module, "weight") or module.weight is None:
-                    continue
+        # Use regex pattern matching on named_modules.
+        for name, module in model.named_modules():
+            if not hasattr(module, "weight") or module.weight is None:
+                continue
 
-                for pattern_spec in sharding_patterns:
-                    pattern = pattern_spec[0]
-                    shard_spec = tuple(pattern_spec[1])
+            for pattern_spec in sharding_patterns:
+                pattern = pattern_spec[0]
+                shard_spec = tuple(pattern_spec[1])
 
-                    if re.search(pattern, name):
-                        xs.mark_sharding(module.weight, self.mesh, shard_spec)
-                        break  # Stop after first match.
+                if re.search(pattern, name):
+                    xs.mark_sharding(module.weight, self.mesh, shard_spec)
+                    break  # Stop after first match.
 
         torch_xla.sync(wait=True)
         return model

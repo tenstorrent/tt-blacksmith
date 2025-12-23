@@ -52,8 +52,8 @@ load_from_storage: false
 remote_path: ""
 
 # Device settings - Data Parallel with 2 devices
-mesh_shape: [2, 1]  # [data_dim, model_dim]
-mesh_axis_names: ["data", "model"]
+mesh_shape: [1, 2]  # [model, data]
+mesh_axis_names: ["model", "data"]
 
 # Other settings
 device: "TT"
