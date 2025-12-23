@@ -8,6 +8,7 @@ dtype: "torch.bfloat16"
 ignored_index: -100
 
 # Training hyperparameters
+training_type: "lora"
 learning_rate: 6e-5
 batch_size: 4
 gradient_checkpointing: False
@@ -17,8 +18,8 @@ optim: "adamw_torch"
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "gemma11-finetuning"
-wandb_run_name: "tt-gemma11-sst2"
+wandb_project: "gemma11-recompute"
+wandb_run_name: "tt-gemma11-recompute"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
