@@ -70,6 +70,6 @@ jobs:
       run: |
         export WANDB_MODE=disabled
         export LOGURU_LEVEL=ERROR
-        export LOGGER_LEVEL=DEBUG
+        export LOGGER_LEVEL=ERROR
         source env/activate --${{ matrix.build.frontend }}
         python3 ${{ matrix.build.script }}
