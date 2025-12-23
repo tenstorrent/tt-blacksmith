@@ -88,6 +88,7 @@ class CheckpointManager:
             checkpoint_name = f"checkpoint_step{step}_epoch{epoch}_{timestamp}.pt"
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
+        print(f"Saving checkpoint to: {checkpoint_path}", flush=True)
 
         checkpoint_data = {
             "step": step,

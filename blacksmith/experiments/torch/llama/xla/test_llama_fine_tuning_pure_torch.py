@@ -7,6 +7,7 @@ import traceback
 
 import torch
 import torch_xla
+import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -16,7 +17,7 @@ from blacksmith.tools.cli import generate_config
 from blacksmith.tools.torch_helpers import show_examples, collect_examples, collate_fn_for_causal_lm
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
-from blacksmith.tools.device_manager import DeviceManager, ParallelStrategy
+from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
@@ -42,21 +43,17 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # logits[:, :-1] predicts tokens at positions 1:
             shift_logits = logits[:, :-1, :].contiguous()
 
-            # Loss
-            # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
-            if config.parallelism_strategy != ParallelStrategy.SINGLE:
-                expected_output_one_hot, labels_mask = transform_labels(
-                    batch, config.ignored_index, model.model.config.vocab_size
-                )
-                loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
-            else:
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
-            total_val_loss += loss.item()
+            expected_output_one_hot, labels_mask = transform_labels(
+                batch, config.ignored_index, model.model.config.vocab_size
+            )
+            loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
             if config.use_tt:
                 torch_xla.sync(wait=True)
+
+            total_val_loss += loss.item()
 
             num_val_batches += 1
 
@@ -78,6 +75,18 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
+
+def training_step_inner(batch, model, loss_fn):
+    output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+    logits = output.logits
+    # Shift logits for causal LM: predict next token
+    shift_logits = logits[:, :-1, :].contiguous()
+    # Compute loss
+    loss = cross_entropy_loss(shift_logits, batch["expected_output"], batch["labels_mask"])
+    # Backward pass
+    loss.backward()
+    # Return detached loss - function scope cleans up logits, shift_logits, output
+    return loss.detach()
 
 
 def train(
@@ -119,6 +128,8 @@ def train(
 
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients
+                import time 
+                start_time = time.time()
                 optimizer.zero_grad()
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
@@ -132,33 +143,26 @@ def train(
                     "labels_mask": labels_mask,
                 }
                 batch = device_manager.prepare_batch(batch)
+                device_manager.shard_model(model)
 
                 # Forward pass
-                output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-                logits = output.logits
+                loss_tensor = training_step_inner(batch, model, cross_entropy_loss)
 
-                # Shift logits for causal LM: predict next token
-                # logits[:, :-1] predicts tokens at positions 1:
-                shift_logits = logits[:, :-1, :].contiguous()
-
-                if config.parallelism_strategy != ParallelStrategy.SINGLE:
-                    loss = cross_entropy_loss(shift_logits, batch["expected_output"], batch["labels_mask"])
-                else:
-                    loss = loss_fn(
-                        shift_logits.view(-1, model.model.config.vocab_size), batch["expected_output"].view(-1)
-                    )
-                running_loss += loss.item()
-
-                # Backward pass
-                loss.backward()
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
                 # Optimizer step
                 device_manager.optimizer_step(optimizer)
+                running_loss += loss_tensor.item()
 
                 global_step += 1
+                print(f"global_step: {global_step}")
+                print(f"Loss: {loss_tensor.item()}") 
+                print(f"Time: {time.time() - start_time}")
+                xr.clear_computation_cache()
+                #checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
                 if global_step % config.steps_freq == 0:
+                    continue
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0

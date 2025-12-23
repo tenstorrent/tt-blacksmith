@@ -81,6 +81,7 @@ class DeviceManager:
 
     def shard_model(self, model: nn.Module) -> nn.Module:
         """Shard model based on mesh configuration."""
+        print(f"[DeviceManager] shard_model called, is_tensor_parallel={self.is_tensor_parallel()}, mesh={self.mesh}", flush=True)
         if self.is_tensor_parallel():
             return self._apply_tensor_parallelism(model)
 
@@ -92,9 +93,11 @@ class DeviceManager:
 
         # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
+        print(f"[DeviceManager] _apply_tensor_parallelism called, sharding_patterns={sharding_patterns}", flush=True)
         assert sharding_patterns is not None, "model_sharding_patterns must be provided for tensor parallelism"
 
         # Use regex pattern matching on named_modules.
+        matched_count = 0
         for name, module in model.named_modules():
             if not hasattr(module, "weight") or module.weight is None:
                 continue
@@ -104,8 +107,12 @@ class DeviceManager:
                 shard_spec = tuple(pattern_spec[1])
 
                 if re.search(pattern, name):
+                    print(f"[DeviceManager] Sharding '{name}' weight {tuple(module.weight.shape)} with spec {shard_spec}", flush=True)
                     xs.mark_sharding(module.weight, self.mesh, shard_spec)
+                    matched_count += 1
                     break  # Stop after first match.
+        
+        print(f"[DeviceManager] Total modules sharded: {matched_count}", flush=True)
 
         torch_xla.sync(wait=True)
         return model
