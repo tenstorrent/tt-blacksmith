@@ -11,9 +11,7 @@ DPO is a training objective (loss function), orthogonal to PEFT methods like LoR
 Use `peft_method` to specify the parameter-efficient fine-tuning approach.
 """
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
-
-from blacksmith.tools.device_manager import ParallelStrategy
+from pydantic import BaseModel, Field
 
 
 class DPOTrainingConfig(BaseModel):
@@ -95,25 +93,15 @@ class DPOTrainingConfig(BaseModel):
     seed: int = Field(default=42)
     deterministic: bool = Field(default=False)
 
-    # Device settings
-    parallelism_strategy: ParallelStrategy = Field(default=ParallelStrategy.SINGLE)
-    mesh_shape: str = Field(default="8,1")
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)
-
-    @field_validator("parallelism_strategy", mode="before")
-    @classmethod
-    def parse_parallelism_strategy(cls, v):
-        if isinstance(v, ParallelStrategy):
-            return v
-        if isinstance(v, str):
-            return ParallelStrategy(v.lower())
-        raise ValueError(f"Invalid parallelism_strategy: {v}")
+    # Device settings (mesh configuration for parallelism)
+    mesh_shape: Optional[list[int]] = Field(default=None, description="Mesh shape for SPMD parallelism, e.g. [8, 1]")
+    mesh_axis_names: Optional[list[str]] = Field(default=None, description="Axis names for mesh, e.g. ['data', 'model']")
 
     # LoRA setup (used when peft_method="lora")
     lora_r: int = Field(default=16, gt=0)
     lora_alpha: int = Field(default=32, gt=0)
     lora_target_modules: list[str] = Field(
-        default_factory=lambda: ["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+        default_factory=lambda: ["q_proj", "v_proj"]
     )
     lora_task_type: str = Field(default="CAUSAL_LM")
     lora_dropout: float = Field(default=0.05, ge=0, le=1)

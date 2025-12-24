@@ -72,8 +72,10 @@ remote_path: ""
 seed: 42
 deterministic: False
 
-# Device settings
-parallelism_strategy: "single"
+# Device settings (mesh configuration for parallelism)
+# Leave mesh_shape and mesh_axis_names as null for single device
+mesh_shape: null
+mesh_axis_names: null
 
 # LoRA setup - larger rank for DPO to capture preference learning
 lora_r: 16
