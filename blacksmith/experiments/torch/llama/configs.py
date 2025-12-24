@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Optional
+from typing import Optional, List, Tuple
 from pydantic import BaseModel, Field
 
 
@@ -69,9 +69,12 @@ class TrainingConfig(BaseModel):
     adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
     # Device settings
-    parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
-    mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
+    mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
+    mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
+
+    # Model sharding patterns (regex pattern based - matches module names).
+    # Format: List of tuples (regex_pattern, sharding_spec_tuple).
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Other settings
     output_dir: str = Field(default="experiments/results/llama32-1b")
