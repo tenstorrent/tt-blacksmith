@@ -7,17 +7,15 @@ from jax import random
 
 import wandb
 import os
+from pathlib import Path
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 
-def train_mnist():
-
-    config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
-    config = generate_config(ExperimentConfig, config_path)
+def train_mnist(config: ExperimentConfig):
 
     training_config = config.training_config
     net_config = config.net_config
@@ -240,4 +238,7 @@ def train_mnist():
 
 
 if __name__ == "__main__":
-    train_mnist()
+    default_config = Path(__file__).parent.parent / "test_mnist.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    train_mnist(config)

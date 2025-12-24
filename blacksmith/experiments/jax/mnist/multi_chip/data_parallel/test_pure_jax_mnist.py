@@ -11,10 +11,11 @@ import numpy as np
 
 import wandb
 import os
+from pathlib import Path
 
 import jax.tree_util as tree_util
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
@@ -29,11 +30,8 @@ class ShardingConfig:
         self.scalar_sharding = NamedSharding(self.mesh, PartitionSpec())
 
 
-def train_mnist():
+def train_mnist(config: ExperimentConfig):
     jax.config.update("jax_use_shardy_partitioner", True)
-
-    config_path = os.path.join(os.path.dirname(__file__), "..", "..", "test_mnist.yaml")
-    config = generate_config(ExperimentConfig, config_path)
 
     training_config = config.training_config
     net_config = config.net_config
@@ -323,4 +321,7 @@ def train_mnist():
 
 
 if __name__ == "__main__":
-    train_mnist()
+    default_config = Path(__file__).parent.parent.parent / "test_mnist.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    train_mnist(config)

@@ -11,8 +11,9 @@ import optax
 
 import wandb
 import os
+from pathlib import Path
 
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 from blacksmith.models.jax.mnist.model import Models
 
@@ -38,11 +39,7 @@ from blacksmith.experiments.jax.mnist.single_chip.train_utils.train_functions im
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
 
-def init_configs(config_path=None):
-    if config_path is None:
-        config_path = os.path.join(os.path.dirname(__file__), "..", "test_mnist.yaml")
-
-    config = generate_config(ExperimentConfig, config_path)
+def init_configs(config: ExperimentConfig):
 
     if config.logger_config.log_on_wandb:
         config_wandb = init_wandb(
@@ -112,8 +109,8 @@ def init_training(config):
     }
 
 
-def train(config_path=None):
-    config, base_checkpoint_dir = init_configs(config_path)
+def train(config: ExperimentConfig):
+    config, base_checkpoint_dir = init_configs(config)
 
     training_components = init_training(config)
 
@@ -255,4 +252,7 @@ def train(config_path=None):
 
 
 if __name__ == "__main__":
-    train()
+    default_config = Path(__file__).parent.parent / "test_mnist.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    train(config)

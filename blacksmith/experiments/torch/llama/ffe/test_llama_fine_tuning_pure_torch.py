@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import traceback
+from pathlib import Path
 
 import torch
 from tqdm import tqdm
@@ -11,7 +12,7 @@ import wandb
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
 def show_examples(examples, tokenizer, config):
@@ -292,8 +293,9 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
 
 if __name__ == "__main__":
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_llama_fine_tuning_pure_torch.yaml")
-    config = generate_config(TrainingConfig, config_file_path)
+    default_config = Path(__file__).parent / "test_llama_fine_tuning_pure_torch.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
     os.makedirs(os.path.join(config.output_dir, "checkpoints"), exist_ok=True)
 

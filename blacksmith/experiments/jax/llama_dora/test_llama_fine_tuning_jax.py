@@ -16,7 +16,7 @@ from lorax import DORA_FREEZE
 
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
 def create_batches(data: jnp.ndarray, batch_size: int = 8) -> jnp.ndarray:
@@ -307,6 +307,7 @@ def train(config):
 
 
 if __name__ == "__main__":
-    config_file_path = Path(__file__).parent / "test_llama_fine_tuning_jax.yaml"
-    config = generate_config(TrainingConfig, config_file_path)
+    default_config = Path(__file__).parent / "test_llama_fine_tuning_jax.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config)
     train(config)

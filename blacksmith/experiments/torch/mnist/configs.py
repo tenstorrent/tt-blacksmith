@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional
+from typing import Optional, List, Tuple
 from pydantic import BaseModel, Field
-from blacksmith.tools.device_manager import ParallelStrategy
 
 
 class TrainingConfig(BaseModel):
@@ -64,11 +63,12 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    parallelism_strategy: ParallelStrategy  # [single, data_parallel, tensor_parallel]
-    mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
-    tp_sharding_specs: dict[str, tuple[Optional[str], Optional[str]]] = Field(
-        default_factory=dict
-    )  # Used for model tp sharding
+    mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
+    mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
+
+    # Model sharding patterns (regex pattern based - matches module names).
+    # Format: List of tuples (regex_pattern, sharding_spec_tuple).
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Other settings
     device: str = Field(default="TT")

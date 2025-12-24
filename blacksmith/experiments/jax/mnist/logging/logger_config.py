@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
+from pathlib import Path
 from typing import Union
 
 from pydantic import BaseModel, Field, model_validator
@@ -51,5 +51,5 @@ class LoggerConfig(BaseModel):
 
 
 def get_default_logger_config() -> LoggerConfig:
-    logger_config = os.path.join(os.path.dirname(__file__), "logger_config.yaml")
+    logger_config = Path(__file__).parent / "logger_config.yaml"
     return generate_config(LoggerConfig, logger_config)

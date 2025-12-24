@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import argparse
 import os
 import traceback
+from pathlib import Path
 
 import torch
 import torch_xla
@@ -12,7 +12,7 @@ from tqdm import tqdm
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.torch_helpers import show_examples, collect_examples, collate_fn_for_causal_lm
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -194,14 +194,9 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    parser = argparse.ArgumentParser(description="LLaMA Fine-Tuning with PyTorch and XLA")
-    parser.add_argument("--config", type=str, required=False, help="Path to the configuration YAML file.")
-    args = parser.parse_args()
-    if args.config:
-        config_file_path = args.config
-    else:
-        config_file_path = os.path.join(os.path.dirname(__file__), "lora/test_lora.yaml")
-    config = generate_config(TrainingConfig, config_file_path)
+    default_config = Path(__file__).parent / "lora" / "test_lora.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
