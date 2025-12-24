@@ -9,6 +9,7 @@ from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.datasets.torch.squadV2.squadV2_dataset import SquadV2Dataset
+from blacksmith.datasets.torch.dpo.math_preference_dataset import MathPreferenceDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
@@ -19,6 +20,8 @@ class AvailableDataset(Enum):
     TEXT2SQL = "text2sql"
     BANKING77 = "banking77"
     SQUADV2 = "squadv2"
+    MATH_DPO = "math_dpo"
+    MATH_SFT = "math_sft"  # SFT on chosen responses (stage 1 of DPO pipeline)
 
 
 def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
@@ -37,6 +40,10 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return Banking77Dataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.SQUADV2.value:
         return SquadV2Dataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.MATH_DPO.value:
+        return MathPreferenceDataset(config, split, collate_fn=collate_fn, mode="dpo")
+    elif dataset_id == AvailableDataset.MATH_SFT.value:
+        return MathPreferenceDataset(config, split, collate_fn=collate_fn, mode="sft")
     else:
         available_datasets = [ds.value for ds in AvailableDataset]
         raise ValueError(f"Unsupported dataset: {dataset_id}. Available options are: {available_datasets}")

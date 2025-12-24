@@ -1,6 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+"""
+Gemma 1.1 2B LoRA fine-tuning script.
+
+This script fine-tunes Gemma 1.1 2B using LoRA on various datasets.
+
+Model: https://huggingface.co/google/gemma-1.1-2b-it
+LoRA paper: https://arxiv.org/pdf/2106.09685
+"""
 import os
 import traceback
 
@@ -8,7 +16,7 @@ import torch
 import torch_xla
 from tqdm import tqdm
 
-from blacksmith.experiments.torch.gemma11.configs import TrainingConfig
+from blacksmith.experiments.torch.gemma11.lora.configs import TrainingConfig
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.cli import generate_config
@@ -95,9 +103,14 @@ def train(
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
-    eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    # Load validation dataset only if validation is enabled
+    eval_dataloader = None
+    if config.do_validation:
+        eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+        eval_dataloader = eval_dataset.get_dataloader()
+        logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    else:
+        logger.info("Validation disabled - skipping validation dataset loading")
 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
@@ -136,15 +149,15 @@ def train(
                 # Update parameters
                 device_manager.optimizer_step(optimizer)
 
-                do_validation = global_step % config.val_steps_freq == 0
+                do_validation = config.do_validation and global_step % config.val_steps_freq == 0
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
                     logger.log_metrics({"train/loss": avg_loss}, commit=not do_validation, step=global_step)
                     running_loss = 0.0
 
-                # Validation phase
-                if do_validation:
+                # Validation phase (only if validation is enabled)
+                if do_validation and eval_dataloader is not None:
                     avg_val_loss = validate(
                         model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
@@ -177,7 +190,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_gemma11_finetuning_sst2.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "test_lora_math_sft.yaml")
     config = generate_config(TrainingConfig, config_file_path)
 
     # Reproducibility setup
@@ -196,3 +209,4 @@ if __name__ == "__main__":
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)
+

@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 
 class TrainingConfig(BaseModel):
+    # Training type
+    peft_method: str = Field(default="lora")  # PEFT method: lora, adapters, full
+
     # Dataset settings
     dataset_id: str = Field(default="sst2")
 
@@ -45,7 +48,7 @@ class TrainingConfig(BaseModel):
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="epoch")
-    project_dir: str = Field(default="blacksmith/experiments/torch/gemma11")
+    project_dir: str = Field(default="blacksmith/experiments/torch/gemma11/lora")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
     sync_to_storage: bool = Field(default=False)
@@ -67,6 +70,14 @@ class TrainingConfig(BaseModel):
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
     lora_task_type: str = Field(default="CAUSAL_LM")
 
+    # Adapter setup (if peft_method is "adapters")
+    adapter_bottleneck_dim: int = Field(default=32)
+    adapter_layers: list[int] = Field(default_factory=list)
+
+    # Validation settings
+    do_validation: bool = Field(default=True)  # Whether to run validation during training
+
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
+

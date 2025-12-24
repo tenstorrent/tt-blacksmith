@@ -1,0 +1,75 @@
+# Gemma 1.1 2B LoRA Fine-tuning Configuration (Math SFT - Stage 1 of DPO Pipeline)
+# Model: https://huggingface.co/google/gemma-1.1-2b-it
+# LoRA paper: https://arxiv.org/pdf/2106.09685
+# Dataset: argilla/distilabel-math-preference-dpo (chosen responses only)
+#
+# This is the first stage of the DPO pipeline:
+# 1. Train SFT on chosen responses → get π_SFT (this config)
+# 2. Use π_SFT as reference model for DPO training
+
+# Dataset settings
+dataset_id: "math_sft"
+
+# Model settings
+model_name: "google/gemma-1.1-2b-it"
+max_length: 128
+dtype: "torch.bfloat16"
+ignored_index: -100
+
+# Training hyperparameters
+learning_rate: 5e-5
+batch_size: 1
+gradient_checkpointing: False
+num_epochs: 3
+optim: "adamw_torch"
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gemma11-lora"
+wandb_run_name: "tt-gemma11-lora-math-sft"
+wandb_tags: ["lora", "math", "sft", "dpo-stage1"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+epoch_freq: 1
+val_steps_freq: 100
+print_examples: False
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: "" # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gemma11/lora"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 42
+deterministic: False
+
+# Device settings
+parallelism_strategy: "single"
+
+# LoRA setup - use same config as DPO for consistency
+lora_r: 16
+lora_alpha: 32
+lora_target_modules: ["q_proj", "v_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Validation settings
+do_validation: False  # Math SFT dataset has no validation split
+
+# Other settings
+framework: "pytorch"
+use_tt: True
+
