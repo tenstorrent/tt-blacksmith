@@ -53,7 +53,7 @@ steps_freq: 5
 epoch_freq: 1
 
 # Checkpoint settings
-resume_from_checkpoint: True
+resume_from_checkpoint: False
 resume_option: "last"  # [last, best, path]
 checkpoint_path: "" # path to checkpoint if resume_option is "path"
 checkpoint_metric: "eval/loss"
