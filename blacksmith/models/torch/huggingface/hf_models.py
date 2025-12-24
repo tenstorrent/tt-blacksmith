@@ -19,7 +19,7 @@ def get_model(config: TrainingConfig, device: torch.device):
     # - Use peft_method if available (for DPO configs)
     # - Fall back to training_type for backward compatibility
     peft_method = getattr(config, "peft_method", None) or config.training_type
-    
+
     # Apply training specific modifications
     if peft_method == "lora":
         model = _apply_lora(model, config)

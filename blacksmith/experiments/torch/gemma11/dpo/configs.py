@@ -17,17 +17,17 @@ from pydantic import BaseModel, Field
 class DPOTrainingConfig(BaseModel):
     """
     Configuration for DPO training.
-    
+
     training_type: "dpo" - indicates DPO objective
     peft_method: "lora", "adapters", "full" - indicates the fine-tuning approach
     """
-    
+
     # Training type - DPO objective
     training_type: str = Field(default="dpo")  # [sft, dpo]
-    
+
     # PEFT method (orthogonal to training_type)
     peft_method: str = Field(default="lora")  # [lora, adapters, full]
-    
+
     # Dataset settings
     dataset_id: str = Field(default="math_dpo")
 
@@ -40,12 +40,16 @@ class DPOTrainingConfig(BaseModel):
     # DPO-specific hyperparameters
     dpo_beta: float = Field(default=0.1, gt=0, description="DPO temperature parameter (higher = more conservative)")
     dpo_label_smoothing: float = Field(default=0.0, ge=0, le=0.5, description="Label smoothing for DPO loss")
-    dpo_reference_free: bool = Field(default=False, description="If True, skip reference model (use implicit reference)")
-    
+    dpo_reference_free: bool = Field(
+        default=False, description="If True, skip reference model (use implicit reference)"
+    )
+
     # Reference model settings
     # Standard DPO requires π_ref to be an SFT model trained on chosen responses.
     # If sft_checkpoint_path is empty, π_ref is initialized from the base model (less ideal but works).
-    sft_checkpoint_path: str = Field(default="", description="Path to SFT checkpoint for reference model. If empty, uses base model.")
+    sft_checkpoint_path: str = Field(
+        default="", description="Path to SFT checkpoint for reference model. If empty, uses base model."
+    )
 
     # Training hyperparameters
     learning_rate: float = Field(default=5e-6, gt=0)  # Lower LR typical for DPO
@@ -95,14 +99,14 @@ class DPOTrainingConfig(BaseModel):
 
     # Device settings (mesh configuration for parallelism)
     mesh_shape: Optional[list[int]] = Field(default=None, description="Mesh shape for SPMD parallelism, e.g. [8, 1]")
-    mesh_axis_names: Optional[list[str]] = Field(default=None, description="Axis names for mesh, e.g. ['data', 'model']")
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None, description="Axis names for mesh, e.g. ['data', 'model']"
+    )
 
     # LoRA setup (used when peft_method="lora")
     lora_r: int = Field(default=16, gt=0)
     lora_alpha: int = Field(default=32, gt=0)
-    lora_target_modules: list[str] = Field(
-        default_factory=lambda: ["q_proj", "v_proj"]
-    )
+    lora_target_modules: list[str] = Field(default_factory=lambda: ["q_proj", "v_proj"])
     lora_task_type: str = Field(default="CAUSAL_LM")
     lora_dropout: float = Field(default=0.05, ge=0, le=1)
 
@@ -115,9 +119,3 @@ class DPOTrainingConfig(BaseModel):
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
     do_validation: bool = Field(default=False)  # DPO typically doesn't do validation in same way
-
-
-
-
-
-

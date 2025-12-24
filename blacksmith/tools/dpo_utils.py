@@ -57,11 +57,7 @@ def get_batch_logps(
     target_tokens[target_tokens == -100] = 0
 
     # Get log prob for the target tokens using gather
-    per_token_logps = torch.gather(
-        log_probs,
-        dim=-1,
-        index=target_tokens.unsqueeze(-1)
-    ).squeeze(-1)
+    per_token_logps = torch.gather(log_probs, dim=-1, index=target_tokens.unsqueeze(-1)).squeeze(-1)
 
     # Apply mask and sum over sequence
     per_token_logps = per_token_logps * loss_mask
@@ -103,10 +99,7 @@ def dpo_loss(
 
     if label_smoothing > 0:
         # Soft labels for label smoothing
-        losses = (
-            -F.logsigmoid(logits) * (1 - label_smoothing)
-            - F.logsigmoid(-logits) * label_smoothing
-        )
+        losses = -F.logsigmoid(logits) * (1 - label_smoothing) - F.logsigmoid(-logits) * label_smoothing
     else:
         losses = -F.logsigmoid(logits)
 
@@ -126,13 +119,13 @@ def create_reference_model(model: nn.Module) -> nn.Module:
         A frozen copy of the model
     """
     reference_model = copy.deepcopy(model)
-    
+
     # Freeze all parameters
     for param in reference_model.parameters():
         param.requires_grad = False
-    
+
     reference_model.eval()
-    
+
     return reference_model
 
 
@@ -206,7 +199,7 @@ def compute_dpo_loss_from_batch(
 
         if use_tt:
             torch_xla.sync(wait=True)
-        
+
     # Compute DPO loss
     loss, chosen_rewards, rejected_rewards = dpo_loss(
         policy_chosen_logps,
@@ -230,6 +223,3 @@ def compute_dpo_loss_from_batch(
     }
 
     return loss, metrics
-
-
-

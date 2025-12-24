@@ -99,9 +99,3 @@ During training, the following metrics are logged:
 - `dpo/chosen_rewards`: Implicit rewards for chosen responses
 - `dpo/rejected_rewards`: Implicit rewards for rejected responses
 - `dpo/accuracy`: How often the model prefers chosen over rejected
-
-
-
-
-
-

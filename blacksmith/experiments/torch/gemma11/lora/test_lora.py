@@ -211,4 +211,3 @@ if __name__ == "__main__":
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)
-

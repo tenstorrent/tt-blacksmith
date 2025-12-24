@@ -80,4 +80,3 @@ class TrainingConfig(BaseModel):
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-

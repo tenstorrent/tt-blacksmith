@@ -43,4 +43,3 @@ Key LoRA parameters in the config:
 - `lora_alpha`: Scaling factor (default: 8)
 - `lora_target_modules`: Which modules to apply LoRA to (default: ["q_proj", "v_proj"])
 - `lora_task_type`: Task type for LoRA (default: "CAUSAL_LM")
-

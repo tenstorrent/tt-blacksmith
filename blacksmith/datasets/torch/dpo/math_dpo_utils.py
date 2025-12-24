@@ -23,7 +23,7 @@ IGNORED_LABEL_ID = -100
 # Required columns for DPO training
 REQUIRED_COLUMNS = [
     "chosen_input_ids",
-    "chosen_attention_mask", 
+    "chosen_attention_mask",
     "chosen_labels",
     "rejected_input_ids",
     "rejected_attention_mask",
@@ -38,6 +38,3 @@ SOURCE_COLUMNS = [
     "chosen_rating",
     "rejected_rating",
 ]
-
-
-

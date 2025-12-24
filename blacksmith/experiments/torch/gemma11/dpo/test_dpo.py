@@ -90,7 +90,7 @@ def train_dpo(
             "For best results, first train an SFT model on chosen responses."
         )
         reference_model = create_reference_model(policy_model)
-    
+
     # Freeze reference model
     for param in reference_model.parameters():
         param.requires_grad = False
@@ -178,20 +178,19 @@ def train_dpo(
 
                 # Logging
                 if global_step % config.steps_freq == 0:
-                    avg_metrics = {
-                        f"dpo/{k}": v / config.steps_freq
-                        for k, v in running_metrics.items()
-                    }
+                    avg_metrics = {f"dpo/{k}": v / config.steps_freq for k, v in running_metrics.items()}
                     avg_metrics["train/learning_rate"] = config.learning_rate
                     avg_metrics["train/epoch"] = epoch + 1
 
                     logger.log_metrics(avg_metrics, step=global_step)
 
                     # Update progress bar
-                    progress_bar.set_postfix({
-                        "loss": f"{avg_metrics['dpo/loss']:.4f}",
-                        "acc": f"{avg_metrics['dpo/accuracy']:.3f}",
-                    })
+                    progress_bar.set_postfix(
+                        {
+                            "loss": f"{avg_metrics['dpo/loss']:.4f}",
+                            "acc": f"{avg_metrics['dpo/accuracy']:.3f}",
+                        }
+                    )
 
                     # Reset running metrics
                     for key in running_metrics:
@@ -200,9 +199,7 @@ def train_dpo(
                 # Save checkpoint
                 if global_step % config.save_steps == 0:
                     if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(
-                            policy_model, global_step, epoch, optimizer
-                        )
+                        checkpoint_manager.save_checkpoint(policy_model, global_step, epoch, optimizer)
 
             # End of epoch - check max steps
             if config.max_steps > 0 and global_step >= config.max_steps:
@@ -250,9 +247,3 @@ if __name__ == "__main__":
 
     # Start DPO training
     train_dpo(config, device_manager, logger, checkpoint_manager)
-
-
-
-
-
-

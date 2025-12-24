@@ -72,4 +72,3 @@ do_validation: False  # Math SFT dataset has no validation split
 # Other settings
 framework: "pytorch"
 use_tt: True
-
