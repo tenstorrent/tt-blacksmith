@@ -22,6 +22,7 @@ Dataset: argilla/distilabel-math-preference-dpo
 """
 import os
 import traceback
+from pathlib import Path
 
 import torch
 import torch_xla
@@ -230,7 +231,7 @@ def train_dpo(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_dpo.yaml")
+    config_file_path = Path(__file__).parent / "test_dpo.yaml"
     config = generate_config(DPOTrainingConfig, config_file_path)
 
     # Reproducibility setup
