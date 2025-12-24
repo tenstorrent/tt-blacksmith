@@ -159,8 +159,8 @@ def train(
                 print(f"global_step: {global_step}")
                 print(f"Loss: {loss_tensor.item()}") 
                 print(f"Time: {time.time() - start_time}")
-                xr.clear_computation_cache()
-                #checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                #xr.clear_computation_cache()
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
                 if global_step % config.steps_freq == 0:
                     continue
                     avg_loss = running_loss / config.steps_freq

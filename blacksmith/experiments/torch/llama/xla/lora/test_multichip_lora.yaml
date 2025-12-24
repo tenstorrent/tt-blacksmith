@@ -2,8 +2,8 @@
 dataset_id: "sst2"
 
 # Model settings
-#model_name: "meta-llama/Llama-3.2-1B"
-model_name: "meta-llama/Llama-3.1-8B"
+model_name: "meta-llama/Llama-3.2-1B"
+#model_name: "meta-llama/Llama-3.1-8B"
 max_length: 64
 dtype: "torch.bfloat16"
 
