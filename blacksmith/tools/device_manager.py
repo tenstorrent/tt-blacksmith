@@ -21,15 +21,7 @@ class DeviceManager:
 
     def __init__(self, config: TrainingConfig):
         self.config = config
-<<<<<<< HEAD
-        # Convert string to enum if necessary
-        if isinstance(config.parallelism_strategy, str):
-            self.strategy = ParallelStrategy(config.parallelism_strategy)
-        else:
-            self.strategy = config.parallelism_strategy
-=======
         self.mesh = None
->>>>>>> main
 
         self._setup()
 
