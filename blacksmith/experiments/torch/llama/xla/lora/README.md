@@ -37,7 +37,7 @@ The experiment supports different parallelism strategies through mesh configurat
 
 ### Mesh Shape Configuration
 - **Single Chip**: No mesh configuration needed (runs on single device)
-- **QuietBox**: `mesh_shape: [2, 4]` with `mesh_axis_names: ["data", "model"]` 
+- **QuietBox**: `mesh_shape: [2, 4]` with `mesh_axis_names: ["data", "model"]`
 - **Galaxy**: `mesh_shape: [8, 4]` with `mesh_axis_names: ["model", "data"]`
 
 ### Custom Mesh Configuration
@@ -56,7 +56,7 @@ mesh_axis_names: ["data", "model"]
 # Sharding patterns for tensor parallelism
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
-  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]  
+  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.o_proj$',                  [null, "model"]]
   - ['\.mlp\.gate_proj$',                     ["model", null]]
   - ['\.mlp\.up_proj$',                       ["model", null]]
@@ -81,7 +81,6 @@ Example
 ```
 - sentence: A short movie review or phrase.
 - label: Sentiment label (1 for positive, 0 for negative).
-
 
 ## Configuration
 
