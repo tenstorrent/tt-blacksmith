@@ -57,7 +57,6 @@ def show_examples(examples, tokenizer, config, logger):
     for i, example in enumerate(examples):
         logger.info(f"\nExample {i+1} (from batch {example['batch_num']}):")
 
-        # NOTE: Move example tensors to CPU, because tokenizer does not work with tensors on TT device
         input_ids = example["input_ids"]
         expected = example["expected"]
         predicted = example["predicted"]

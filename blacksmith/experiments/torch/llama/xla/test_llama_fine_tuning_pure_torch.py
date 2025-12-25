@@ -79,14 +79,16 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     return avg_val_loss
 
 
+# Training step extracted into a separate function to keep large vocab-sized
+# tensors (e.g. logits) scoped locally. This ensures they do not propagate beyond
+# the step via the computation graph, avoiding unnecessary and expensive
+# CCLs in multi-chip setups.
+# Issue itself should be investigated further.
 def training_step_inner(batch, model, loss_fn):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
-    # Shift logits for causal LM: predict next token.
     shift_logits = logits[:, :-1, :].contiguous()
-    # Compute loss.
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Backward pass.
     loss.backward()
     return loss.detach()
 
@@ -198,7 +200,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "test_lora.yaml"
+    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_1b.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

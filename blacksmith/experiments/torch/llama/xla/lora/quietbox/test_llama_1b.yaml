@@ -7,8 +7,8 @@ max_length: 64
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-learning_rate: 1e-4
-batch_size: 16
+learning_rate: 2e-4
+batch_size: 32
 num_epochs: 1
 ignored_index: -100
 
@@ -18,6 +18,24 @@ lora_alpha: 8
 lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
+# Device settings
+mesh_shape: [2, 4]  # QuietBox mesh.
+mesh_axis_names: ["data", "model"]
+
+# Sharding patterns for tensor parallelism (regex pattern -> partition spec)
+model_sharding_patterns:
+  # === Attention ===
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.k_proj$',                  ["model", null]]
+  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.v_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.o_proj$',                  [null, "model"]]
+  # === MLP ===
+  - ['\.mlp\.gate_proj$', ["model", null]]
+  - ['\.mlp\.up_proj$',   ["model", null]]
+  - ['\.mlp\.down_proj$', [null, "model"]]
+
 # Reproducibility settings
 seed: 23
 deterministic: False
@@ -25,7 +43,7 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "llama1b-singlechip-lora-galaxy"
+wandb_project: "llama1b-multichip-lora-quietbox"
 wandb_run_name: "tt-llama1b-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
