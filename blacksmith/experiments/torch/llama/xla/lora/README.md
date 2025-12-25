@@ -11,15 +11,58 @@ The experiment is designed to run on the Huggingface framework.
 
 ## Training
 
+The experiment supports different hardware configurations with pre-configured YAML files:
+
+### Single Chip Training
+For single chip (no parallelism):
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_1b.yaml
 ```
 
-To run data parallel training, use the following command:
-
+### QuietBox Training
+For QuietBox systems with data + model parallelism:
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/lora/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/test_dp_lora.yaml
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_1b.yaml
 ```
+
+### Galaxy Training
+For Galaxy systems with data + model parallelism:
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_1b.yaml
+```
+
+## Mesh and Sharding Configuration
+
+The experiment supports different parallelism strategies through mesh configurations:
+
+### Mesh Shape Configuration
+- **Single Chip**: No mesh configuration needed (runs on single device)
+- **QuietBox**: `mesh_shape: [2, 4]` with `mesh_axis_names: ["data", "model"]` 
+- **Galaxy**: `mesh_shape: [8, 4]` with `mesh_axis_names: ["model", "data"]`
+
+### Custom Mesh Configuration
+You can customize the mesh and sharding patterns in the YAML configuration files:
+
+1. **Mesh Shape**: Modify `mesh_shape` to define the device grid dimensions
+2. **Axis Names**: Adjust `mesh_axis_names` to specify parallelism types (`["data", "model"]` or `["model", "data"]`)
+3. **Sharding Patterns**: Configure `model_sharding_patterns` to control how model parameters are distributed across devices
+
+Example mesh configuration:
+```yaml
+# Device settings
+mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
+mesh_axis_names: ["data", "model"]
+
+# Sharding patterns for tensor parallelism
+model_sharding_patterns:
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]  
+  - ['\.self_attn\.o_proj$',                  [null, "model"]]
+  - ['\.mlp\.gate_proj$',                     ["model", null]]
+  - ['\.mlp\.up_proj$',                       ["model", null]]
+  - ['\.mlp\.down_proj$',                     [null, "model"]]
+```
+
 ## Data
 
 GLUE, the General Language Understanding Evaluation benchmark (https://gluebenchmark.com/) is a collection of resources for training, evaluating, and analyzing natural language understanding systems.
