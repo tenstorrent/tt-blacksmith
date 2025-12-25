@@ -81,6 +81,10 @@ class CheckpointManager:
         Returns:
             Path to saved checkpoint
         """
+        if hasattr(self.config, 'disable_checkpointing') and self.config.disable_checkpointing:
+            self.logger.info("Checkpointing disabled, skipping save")
+            return ""
+
         metrics = metrics or {}
 
         if checkpoint_name is None:

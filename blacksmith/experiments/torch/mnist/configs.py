@@ -43,6 +43,7 @@ class TrainingConfig(BaseModel):
     epoch_freq: int = Field(default=5)
 
     # Checkpoint settings
+    disable_checkpointing: bool = Field(default=False, description="Disable checkpoint saving (useful for testing)")
     resume_from_checkpoint: bool = Field(default=False)
     resume_option: str = Field(default="last")
     checkpoint_path: str = Field(default="")
@@ -76,3 +77,6 @@ class TrainingConfig(BaseModel):
     output_dir: str = Field(default="experiments/results/mnist")
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
+
+    # Test configuration (optional, only used during testing)
+    test_config: Optional[TestConfig] = Field(default=None)
