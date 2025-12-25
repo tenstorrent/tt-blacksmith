@@ -1,0 +1,74 @@
+# Dataset settings
+dataset_id: "sst2"
+
+# Model settings
+model_name: "meta-llama/Llama-3.1-8B"
+max_length: 64
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+learning_rate: 2e-4
+batch_size: 64
+num_epochs: 1
+ignored_index: -100
+
+# LoRA setup
+lora_r: 4
+lora_alpha: 8
+lora_target_modules: ["q_proj", "v_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Device settings
+mesh_shape: [8, 4]  # Galaxy mesh.
+mesh_axis_names: ["model", "data"]
+
+# Sharding patterns for tensor parallelism (regex pattern -> partition spec)
+model_sharding_patterns:
+  # === Attention ===
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.k_proj$',                  ["model", null]]
+  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.v_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.o_proj$',                  [null, "model"]]
+  # === MLP ===
+  - ['\.mlp\.gate_proj$', ["model", null]]
+  - ['\.mlp\.up_proj$',   ["model", null]]
+  - ['\.mlp\.down_proj$', [null, "model"]]
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "llama8b-multichip-lora-galaxy"
+wandb_run_name: "tt-llama8b-test"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 5
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: "" # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 2
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/llama/xla/lora"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other settings
+framework: "pytorch"
+print_examples: True
+use_tt: True

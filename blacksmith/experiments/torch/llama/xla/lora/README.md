@@ -31,6 +31,11 @@ For Galaxy systems with data + model parallelism:
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_1b.yaml
 ```
 
+### Running with Llama 8B Model
+For larger model training, you can use the 8B model configurations by replacing `test_llama_1b.yaml` with `test_llama_8b.yaml`:
+
+*Note: 8B model configurations are available for QuietBox and Galaxy systems only, as training requires more memory than typically available on a single device.*
+
 ## Mesh and Sharding Configuration
 
 The experiment supports different parallelism strategies through mesh configurations:
