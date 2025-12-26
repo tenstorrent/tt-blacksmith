@@ -63,7 +63,7 @@ Working mesh shapes: `[1, 2]`, `[2, 1]` (both `mesh_axis_names` orderings suppor
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_8b.yaml
 ```
-Working mesh shapes: `[1, 8]` (data, model), `[8, 1]` (model, data), `[2, 4]` (both `mesh_axis_names` orderings supported)
+Working mesh shapes: `[1, 8]` (data, model), `[8, 1]` (model, data), `[2, 4]` (data, model)
 
 *Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
 
