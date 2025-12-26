@@ -13,51 +13,9 @@ The experiment is designed to run on the Huggingface framework.
 
 The experiment supports different hardware configurations with per-model training setups.
 
-### Llama 1B Training
-
-Llama 1B supports training on all hardware configurations:
-
-**Single Chip Training:**
-```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_1b.yaml
-```
-
-**QuietBox Training:**
-```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_1b.yaml
-```
-Working mesh shapes: `[1, 8]`, `[8, 1]`, `[2, 4]`
-
-**Galaxy Training:**
-```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_1b.yaml
-```
-Working mesh shape: `[8, 4]`
-
-**N300 Training:**
-Working mesh shapes: `[1, 2]`, `[2, 1]`
-
-### Llama 8B Training
-
-Llama 8B requires multi-chip configurations (not supported on single chip):
-
-**QuietBox Training:**
-```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_8b.yaml
-```
-Working mesh shapes: `[1, 8]`, `[2, 4]`
-
-**Galaxy Training:**
-```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_8b.yaml
-```
-Working mesh shape: `[8, 4]`
-
 ### Mesh and Sharding Configuration
 
-Mesh configurations define the parallelism strategy with `mesh_axis_names: ["data", "model"]`:
-- First dimension: data parallelism
-- Second dimension: model (tensor) parallelism
+Mesh configurations define the parallelism strategy. The `mesh_axis_names` can be either `["data", "model"]` or `["model", "data"]` depending on which dimension corresponds to which type of parallelism.
 
 Example mesh configuration in YAML:
 ```yaml
@@ -72,6 +30,48 @@ model_sharding_patterns:
   - ['\.mlp\.up_proj$',                       ["model", null]]
   - ['\.mlp\.down_proj$',                     [null, "model"]]
 ```
+
+### Llama 1B Training
+
+Llama 1B supports training on all hardware configurations:
+
+**Single Chip Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_1b.yaml
+```
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_1b.yaml
+```
+Working mesh shapes: `[1, 8]`, `[8, 1]`, `[2, 4]` (both `mesh_axis_names` orderings supported)
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_1b.yaml
+```
+Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
+
+**N300 Training:**
+Working mesh shapes: `[1, 2]`, `[2, 1]` (both `mesh_axis_names` orderings supported)
+
+### Llama 8B Training
+
+**Llama 8B requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_8b.yaml
+```
+Working mesh shapes: `[1, 8]` (data, model), `[8, 1]` (model, data), `[2, 4]` (both `mesh_axis_names` orderings supported)
+
+*Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_8b.yaml
+```
+Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
 
 ## Data
 
