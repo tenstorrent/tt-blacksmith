@@ -11,54 +11,59 @@ The experiment is designed to run on the Huggingface framework.
 
 ## Training
 
-The experiment supports different hardware configurations with pre-configured YAML files:
+The experiment supports different hardware configurations with per-model training setups.
 
-### Single Chip Training
-For single chip (no parallelism):
+### Llama 1B Training
+
+Llama 1B supports training on all hardware configurations:
+
+**Single Chip Training:**
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_1b.yaml
 ```
 
-### QuietBox Training
-For QuietBox systems with data + model parallelism:
+**QuietBox Training:**
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_1b.yaml
 ```
+Working mesh shapes: `[1, 8]`, `[8, 1]`, `[2, 4]`
 
-### Galaxy Training
-For Galaxy systems with data + model parallelism:
+**Galaxy Training:**
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_1b.yaml
 ```
+Working mesh shape: `[8, 4]`
 
-### Running with Llama 8B Model
-For larger model training, you can use the 8B model configurations by replacing `test_llama_1b.yaml` with `test_llama_8b.yaml`:
+**N300 Training:**
+Working mesh shapes: `[1, 2]`, `[2, 1]`
 
-*Note: 8B model configurations are available for QuietBox and Galaxy systems only, as training requires more memory than typically available on a single device.*
+### Llama 8B Training
 
-## Mesh and Sharding Configuration
+Llama 8B requires multi-chip configurations (not supported on single chip):
 
-The experiment supports different parallelism strategies through mesh configurations:
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_8b.yaml
+```
+Working mesh shapes: `[1, 8]`, `[2, 4]`
 
-### Mesh Shape Configuration
-- **Single Chip**: No mesh configuration needed (runs on single device)
-- **QuietBox**: `mesh_shape: [2, 4]` with `mesh_axis_names: ["data", "model"]`
-- **Galaxy**: `mesh_shape: [8, 4]` with `mesh_axis_names: ["model", "data"]`
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_8b.yaml
+```
+Working mesh shape: `[8, 4]`
 
-### Custom Mesh Configuration
-You can customize the mesh and sharding patterns in the YAML configuration files:
+### Mesh and Sharding Configuration
 
-1. **Mesh Shape**: Modify `mesh_shape` to define the device grid dimensions
-2. **Axis Names**: Adjust `mesh_axis_names` to specify parallelism types (`["data", "model"]` or `["model", "data"]`)
-3. **Sharding Patterns**: Configure `model_sharding_patterns` to control how model parameters are distributed across devices
+Mesh configurations define the parallelism strategy with `mesh_axis_names: ["data", "model"]`:
+- First dimension: data parallelism
+- Second dimension: model (tensor) parallelism
 
-Example mesh configuration:
+Example mesh configuration in YAML:
 ```yaml
-# Device settings
 mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
 mesh_axis_names: ["data", "model"]
 
-# Sharding patterns for tensor parallelism
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
