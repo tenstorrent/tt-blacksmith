@@ -23,5 +23,10 @@
         "runs-on": "n300",
         "frontend": "xla",
         "script": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py"
+    },
+    {
+        "runs-on": "n300",
+        "frontend": "xla",
+        "script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py"
     }
 ]

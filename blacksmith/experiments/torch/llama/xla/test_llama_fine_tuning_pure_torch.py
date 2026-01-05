@@ -7,6 +7,7 @@ from pathlib import Path
 
 import torch
 import torch_xla
+import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -16,7 +17,7 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.torch_helpers import show_examples, collect_examples, collate_fn_for_causal_lm
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.checkpoints_manager import CheckpointManager
-from blacksmith.tools.device_manager import DeviceManager, ParallelStrategy
+from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
@@ -34,7 +35,10 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             attention_mask = batch["attention_mask"].to(device)
             expected_output = batch["labels"].to(device)
 
-            # Forward pass
+            # Shard model if tensor parallelism is used.
+            device_manager.shard_model(model)
+
+            # Forward pass.
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
 
@@ -42,22 +46,17 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # logits[:, :-1] predicts tokens at positions 1:
             shift_logits = logits[:, :-1, :].contiguous()
 
-            # Loss
-            # TODO: Remove when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
-            if config.parallelism_strategy != ParallelStrategy.SINGLE:
-                expected_output_one_hot, labels_mask = transform_labels(
-                    batch, config.ignored_index, model.model.config.vocab_size
-                )
-                loss = cross_entropy_loss(shift_logits, expected_output_one_hot, labels_mask)
-            else:
-                loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), expected_output.view(-1))
-            total_val_loss += loss.item()
+            expected_output_one_hot, labels_mask = transform_labels(
+                batch, config.ignored_index, model.model.config.vocab_size
+            )
+            loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
             if config.use_tt:
                 torch_xla.sync(wait=True)
 
+            total_val_loss += loss.item()
             num_val_batches += 1
 
             if config.print_examples:
@@ -78,6 +77,20 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
+
+
+# Training step extracted into a separate function to keep large vocab-sized
+# tensors (e.g. logits) scoped locally. This ensures they do not propagate beyond
+# the step via the computation graph, avoiding unnecessary and expensive
+# CCLs in multi-chip setups.
+# Issue itself should be investigated further.
+def training_step_inner(batch, model, loss_fn):
+    output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+    logits = output.logits
+    shift_logits = logits[:, :-1, :].contiguous()
+    loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
+    loss.backward()
+    return loss.detach()
 
 
 def train(
@@ -118,10 +131,10 @@ def train(
         for epoch in range(config.num_epochs):
 
             for batch in tqdm(train_dataloader, desc="Training"):
-                # Zero out gradients
+                # Zero out gradients.
                 optimizer.zero_grad()
 
-                # TODO: Refactor when https://github.com/tenstorrent/tt-xla/issues/1993 is resolved.
+                # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
                     batch, config.ignored_index, model.model.config.vocab_size
                 )
@@ -131,31 +144,20 @@ def train(
                     "expected_output": expected_output,
                     "labels_mask": labels_mask,
                 }
+                # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
+                # Shard model if tensor parallelism is used.
+                device_manager.shard_model(model)
 
-                # Forward pass
-                output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-                logits = output.logits
+                # Training step.
+                loss_ = training_step_inner(batch, model, cross_entropy_loss)
 
-                # Shift logits for causal LM: predict next token
-                # logits[:, :-1] predicts tokens at positions 1:
-                shift_logits = logits[:, :-1, :].contiguous()
-
-                if config.parallelism_strategy != ParallelStrategy.SINGLE:
-                    loss = cross_entropy_loss(shift_logits, batch["expected_output"], batch["labels_mask"])
-                else:
-                    loss = loss_fn(
-                        shift_logits.view(-1, model.model.config.vocab_size), batch["expected_output"].view(-1)
-                    )
-                running_loss += loss.item()
-
-                # Backward pass
-                loss.backward()
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                # Optimizer step
+                # Optimizer step.
                 device_manager.optimizer_step(optimizer)
+                running_loss += loss_.item()
 
                 global_step += 1
                 if global_step % config.steps_freq == 0:
@@ -163,22 +165,26 @@ def train(
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Do validation
+                    # Do validation.
                     valid_loss = validate(
-                        model, eval_dataloader, loss_fn, logger, device_manager.device, config, tokenizer
+                        model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
                     )
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+
+                    # Clear XLA computation cache to avoid memory issues.
+                    xr.clear_computation_cache()
+
                     model.train()
 
                     # Save step checkpoint
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-            # Save epoch checkpoint
+            # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-        # Save final model
+        # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(
             model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
         )
@@ -194,7 +200,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "test_lora.yaml"
+    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_1b.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

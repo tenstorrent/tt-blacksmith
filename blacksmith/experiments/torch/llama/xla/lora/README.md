@@ -11,15 +11,68 @@ The experiment is designed to run on the Huggingface framework.
 
 ## Training
 
-```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py
+The experiment supports different hardware configurations with per-model training setups.
+
+### Mesh and Sharding Configuration
+
+Mesh configurations define the parallelism strategy. The `mesh_axis_names` can be either `["data", "model"]` or `["model", "data"]` depending on which dimension corresponds to which type of parallelism.
+
+Example mesh configuration in YAML:
+```yaml
+mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
+mesh_axis_names: ["data", "model"]
+
+model_sharding_patterns:
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.o_proj$',                  [null, "model"]]
+  - ['\.mlp\.gate_proj$',                     ["model", null]]
+  - ['\.mlp\.up_proj$',                       ["model", null]]
+  - ['\.mlp\.down_proj$',                     [null, "model"]]
 ```
 
-To run data parallel training, use the following command:
+### Llama 1B Training
 
+Llama 1B supports training on all hardware configurations:
+
+**Single Chip Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/lora/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/test_dp_lora.yaml
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_1b.yaml
 ```
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_1b.yaml
+```
+Working mesh shapes: `[1, 8]`, `[8, 1]`, `[2, 4]` (both `mesh_axis_names` orderings supported)
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_1b.yaml
+```
+Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
+
+**N300 Training:**
+Working mesh shapes: `[1, 2]`, `[2, 1]` (both `mesh_axis_names` orderings supported)
+
+### Llama 8B Training
+
+**Llama 8B requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_8b.yaml
+```
+Working mesh shapes: `[1, 8]` (data, model), `[8, 1]` (model, data), `[2, 4]` (data, model)
+
+*Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_8b.yaml
+```
+Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
+
 ## Data
 
 GLUE, the General Language Understanding Evaluation benchmark (https://gluebenchmark.com/) is a collection of resources for training, evaluating, and analyzing natural language understanding systems.
@@ -38,7 +91,6 @@ Example
 ```
 - sentence: A short movie review or phrase.
 - label: Sentiment label (1 for positive, 0 for negative).
-
 
 ## Configuration
 
