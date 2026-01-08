@@ -12,7 +12,7 @@
     {
         "runs-on": "n300",
         "frontend": "xla",
-        "script": "blacksmith/experiments/torch/mnist/test_mnist_training.py  --test-config tests/configs/test_mnist_training_fast.yaml"
+        "script": "blacksmith/experiments/torch/mnist/test_mnist_training.py --test-config tests/configs/test_mnist_training_fast.yaml"
     },
     {
         "runs-on": "n300",
