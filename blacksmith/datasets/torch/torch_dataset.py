@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from abc import ABC, abstractmethod
 from itertools import islice
-from typing import Dict
+from typing import Dict, Union
 
 from torch.utils.data import DataLoader, Dataset
 
@@ -68,7 +68,7 @@ class BaseDataset(Dataset, ABC):
         """Get a single example from the dataset"""
         pass
 
-    def _maybe_wrap_test_dataloader(self, dataloader: DataLoader) -> DataLoader:
+    def _wrap_test_dataloader_if_test_config(self, dataloader: DataLoader) -> Union[DataLoader, TestDataLoaderWrapper]:
         """
         Wrap dataloader with TestDataLoaderWrapper if test_config is present.
 

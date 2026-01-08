@@ -60,4 +60,4 @@ class MNISTDataset(BaseDataset):
         dataloader = DataLoader(
             self.dataset, batch_size=self.config.batch_size, shuffle=self.split == "train", drop_last=True
         )
-        return self._maybe_wrap_test_dataloader(dataloader)
+        return self._wrap_test_dataloader_if_test_config(dataloader)
