@@ -2,31 +2,53 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from string import Template
-from typing import Dict
 
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq
-
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
+from torch.utils.data import DataLoader
+
+from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
+
 
 PROMPT_TEMPLATE = Template(
     """
-Context: $context\n
-Question: $question\n
-Answer:
+Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+### Instruction:
+$instruction
+
+### Input:
+$input
+
+### Response:
 """
 )
-DATASET_PATH = "rajpurkar/squad_v2"
+
+PROMPT_TEMPLATE_NO_INPUT = Template(
+    """
+Below is an instruction that describes a task. Write a response that appropriately completes the request.
+
+### Instruction:
+$instruction
+
+### Response:
+"""
+)
+
+DATASET_PATH = "tatsu-lab/alpaca"
 
 
-class SquadV2Dataset(BaseDataset):
+class AlpacaDataset(BaseDataset):
+    # Alpaca dataset only has train split, so we create validation/test from it.
+    # This is used to avoid reloading the dataset multiple times.
+    _shared_dataset = None
+
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: TrainingConfig (ensure config.dataset_id is set to "squadv2")
-            split: Dataset split to use ("train", "validation")
+            config: TrainingConfig (ensure config.dataset_id is set to "alpaca")
+            split: Dataset split to use ("train")
             collate_fn: Collate function to use for the dataset
         """
         self.config = config
@@ -39,17 +61,17 @@ class SquadV2Dataset(BaseDataset):
         self._prepare_dataset()
 
     def _tokenize_function(self, example):
-        context = example["context"]
-        question = example["question"]
-        prompt = PROMPT_TEMPLATE.substitute(context=context, question=question)
+        instruction = example["instruction"]
+        input_text = example.get("input", "")
+        output = example["output"]
 
-        # Determine the response
-        # SQuAD v2.0 has unanswerable questions, indicated by an empty 'text' list.
-        if example["answers"]["text"]:
-            response = example["answers"]["text"][0]
+        # Use different template based on whether there's an input field.
+        if input_text and input_text.strip():
+            prompt = PROMPT_TEMPLATE.substitute(instruction=instruction, input=input_text)
         else:
-            response = "unanswerable"
+            prompt = PROMPT_TEMPLATE_NO_INPUT.substitute(instruction=instruction)
 
+        response = output
         full_text = prompt + response
 
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
@@ -70,19 +92,30 @@ class SquadV2Dataset(BaseDataset):
         example["len"] = input_ids.size(0)
 
         return example
-
+    
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(DATASET_PATH, split=self.split)
+        # Alpaca only has train split, so we create validation/test from it.
+        if AlpacaDataset._shared_dataset is None:
+            raw_dataset = load_dataset(DATASET_PATH, split="train")
+            tokenized_dataset = raw_dataset.map(self._tokenize_function)
+            filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
+            filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
+            filtered_dataset = filtered_dataset.remove_columns(
+                [col for col in filtered_dataset.column_names if col not in self.required_columns]
+            )
+            AlpacaDataset._shared_dataset = filtered_dataset
+        
+        full_dataset = AlpacaDataset._shared_dataset
+        n = len(full_dataset)
+        train_end = int(0.98 * n)
+        val_end = n
+        if self.split == "train":
+            self.dataset = full_dataset.select(range(0, train_end))
+        elif self.split == "validation":
+            self.dataset = full_dataset.select(range(train_end, val_end))
+        else:
+            raise ValueError(f"Invalid split '{self.split}' for AlpacaDataset. Only 'train' and 'validation' are supported.")
 
-        # reduce the size of the validation dataset
-        if self.split == "validation":
-            raw_dataset = raw_dataset.train_test_split(test_size=0.02, seed=self.config.seed)["test"]
-
-        tokenized_dataset = raw_dataset.map(self._tokenize_function)
-        self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
-        self.dataset = self.full_dataset.remove_columns(
-            [col for col in self.full_dataset.column_names if col not in self.required_columns]
-        )
 
     def __len__(self):
         return len(self.dataset)
@@ -96,7 +129,7 @@ class SquadV2Dataset(BaseDataset):
             "labels": sample["labels"],
         }
 
-    def _get_dataloader(self) -> DataLoader:
+    def get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorForSeq2Seq(
             tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
         )
