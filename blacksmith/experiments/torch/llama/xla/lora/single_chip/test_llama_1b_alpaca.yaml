@@ -7,14 +7,15 @@ max_length: 64
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-learning_rate: 1e-4
+learning_rate: 3e-5
 batch_size: 16
-num_epochs: 1
+gradient_accumulation_steps: 8
+num_epochs: 3
 ignored_index: -100
 
 # LoRA setup
-lora_r: 4
-lora_alpha: 8
+lora_r: 8
+lora_alpha: 16
 lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
@@ -26,12 +27,12 @@ deterministic: False
 log_level: "INFO"
 use_wandb: True
 wandb_project: "llama1b-singlechip-lora"
-wandb_run_name: "tt-llama1b-test"
+wandb_run_name: "gpu-llama1b-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 50
+steps_freq: 10
 epoch_freq: 1
 
 # Checkpoint settings
@@ -53,4 +54,4 @@ remote_path: ""
 # Other settings
 framework: "pytorch"
 print_examples: True
-use_tt: True
+use_tt: False
