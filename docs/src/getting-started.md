@@ -21,10 +21,10 @@ On the first activation, script will automatically install all dependencies.
 
 ### Activating frontend environment
 
-To activate python environment for specific frontend (TT-XLA or TT-Forge-FE), you need to run:
+To activate python environment for specific frontend (TT-XLA, TT-Forge-FE or GPU), you need to run:
 
 ```bash
-source env/activate {--xla | --ffe}
+source env/activate {--xla | --ffe | --gpu}
 ```
 
 ## Running Experiments
