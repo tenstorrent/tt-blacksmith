@@ -14,6 +14,7 @@ def generate_config(config: BaseModel, yaml_path: Path, test_yaml_path: Optional
         data = yaml.safe_load(file)
 
     if test_yaml_path is not None:
+        # This enables test config to overwrite some fields in original config or add new ones for example `test_config`.
         assert test_yaml_path.exists(), f"Test config file {yaml_path} does not exist"
         with test_yaml_path.open() as file:
             data |= yaml.safe_load(file)
