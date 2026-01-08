@@ -57,6 +57,7 @@ class MNISTDataset(BaseDataset):
         return len(self.dataset)
 
     def get_dataloader(self) -> DataLoader:
-        return DataLoader(
+        dataloader = DataLoader(
             self.dataset, batch_size=self.config.batch_size, shuffle=self.split == "train", drop_last=True
         )
+        return self._maybe_wrap_test_dataloader(dataloader)

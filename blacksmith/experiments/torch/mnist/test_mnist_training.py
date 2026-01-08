@@ -155,7 +155,7 @@ if __name__ == "__main__":
     default_config = Path(__file__).parent / "test_mnist_training.yaml"
 
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility
     repro_manager = ReproducibilityManager(config)
