@@ -46,7 +46,6 @@ class TrainingConfig(BaseModel):
     epoch_freq: int = Field(default=5)
 
     # Checkpoint settings
-    disable_checkpointing: bool = Field(default=False, description="Disable checkpoint saving (useful for testing)")
     resume_from_checkpoint: bool = Field(default=False)
     resume_option: str = Field(default="last")
     checkpoint_path: str = Field(default="")
