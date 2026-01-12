@@ -158,7 +158,7 @@ def train(
                     running_loss = 0.0
 
                 # Validation phase (only if validation is enabled)
-                if do_validation and eval_dataloader is not None:
+                if do_validation:
                     avg_val_loss = validate(
                         model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
@@ -191,7 +191,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "test_lora_math_sft.yaml"
+    default_config = Path(__file__).parent / "test_lora_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

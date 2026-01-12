@@ -26,13 +26,13 @@ python3 blacksmith/experiments/torch/gemma11/lora/test_lora.py
 
 ### SQuADv2 Dataset
 ```bash
-python3 blacksmith/experiments/torch/gemma11/lora/test_lora.py --config test_lora_squadV2.yaml
+python3 blacksmith/experiments/torch/gemma11/lora/test_lora.py --config blacksmith/experiments/torch/gemma11/lora/test_lora_squadV2.yaml
 ```
 
 ### Math SFT (for DPO Pipeline)
 This is the first stage of the DPO pipeline - trains on chosen responses to create the reference model (π_ref).
 ```bash
-python3 blacksmith/experiments/torch/gemma11/lora/test_lora.py --config test_lora_math_sft.yaml
+python3 blacksmith/experiments/torch/gemma11/lora/test_lora.py --config blacksmith/experiments/torch/gemma11/lora/test_lora_math_sft.yaml
 ```
 After training, use the checkpoint path as `sft_checkpoint_path` in the DPO config.
 
