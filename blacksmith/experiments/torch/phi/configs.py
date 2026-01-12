@@ -16,6 +16,7 @@ class TrainingConfig(BaseModel):
     ignored_index: int = Field(default=-100)
 
     # Training hyperparameters
+    training_type: str = Field(default="lora")  # [lora, adapters]
     learning_rate: float = Field(default=6e-5, gt=0)
     batch_size: int = Field(default=8, gt=0)
     gradient_checkpointing: bool = Field(default=False)

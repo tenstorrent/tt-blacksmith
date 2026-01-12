@@ -8,6 +8,7 @@ dtype: "torch.bfloat16"
 ignored_index: -100
 
 # Training hyperparameters
+training_type: "lora"
 learning_rate: 6e-5
 batch_size: 4
 gradient_checkpointing: False
