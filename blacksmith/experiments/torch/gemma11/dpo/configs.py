@@ -23,7 +23,7 @@ class DPOTrainingConfig(BaseModel):
     """
 
     # Training type - DPO objective
-    training_type: str = Field(default="dpo")  # [sft, dpo]
+    training_type: str = Field(default="dpo")  # [dpo, adapters, lora]
 
     # PEFT method (orthogonal to training_type)
     peft_method: str = Field(default="lora")  # [lora, adapters, full]
