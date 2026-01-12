@@ -7,6 +7,7 @@ max_length: 128
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
+training_type: "lora"
 learning_rate: 2e-5
 batch_size: 8
 gradient_accumulation_steps: 1

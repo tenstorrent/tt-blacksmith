@@ -15,6 +15,7 @@ class TrainingConfig(BaseModel):
     dtype: str = Field(default="torch.bfloat16")
 
     # Training hyperparameters
+    training_type: str = Field(default="lora")  # [lora, adapters]
     learning_rate: float = Field(default=2e-5, gt=0)
     batch_size: int = Field(default=32, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
