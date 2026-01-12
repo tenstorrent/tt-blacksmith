@@ -15,21 +15,21 @@ def get_model(config: TrainingConfig, device: torch.device):
     # Load a model
     model = AutoModelForCausalLM.from_pretrained(config.model_name, use_cache=config.gradient_checkpointing)
 
-    # Determine PEFT method:
-    # - Use peft_method if available (for DPO configs)
-    # - Fall back to training_type for backward compatibility
-    peft_method = getattr(config, "peft_method", None) or config.training_type
-
     # Apply training specific modifications
-    if peft_method == "lora":
+    # Apply LoRA if rank is specified
+    if config.training_type == "lora":
         model = _apply_lora(model, config)
-    elif peft_method == "adapters":
+    elif config.training_type == "adapters":
         _apply_adapters(model, config)
-    elif peft_method == "full":
-        # Full fine-tuning - no PEFT, all parameters trainable
-        pass
+    elif config.training_type == "dpo":
+        if config.peft_method == "lora":
+            model = _apply_lora(model, config)
+        elif config.peft_method == "adapters":
+            model = _apply_adapters(model, config)
+        else:
+            raise ValueError(f"Invalid PEFT method: {config.peft_method}")
     else:
-        raise ValueError(f"Invalid PEFT method: {peft_method}. Supported: lora, adapters, full")
+        raise ValueError(f"Invalid training type: {config.training_type}")
 
     model.to(eval(config.dtype))
     model.to(device)

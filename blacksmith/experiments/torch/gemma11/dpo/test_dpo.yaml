@@ -24,7 +24,7 @@ dpo_reference_free: False
 # Reference model settings
 # Standard DPO requires π_ref to be an SFT model trained on chosen responses.
 # Set this to your SFT checkpoint path. If empty, base pretrained model is used (less ideal).
-sft_checkpoint_path: "blacksmith/experiments/torch/gemma11/lora/checkpoints/checkpoint_step210_epoch2_20251223_121749.pt"
+sft_checkpoint_path: "blacksmith/experiments/torch/gemma11/lora/checkpoints/checkpoint_step210_epoch2_20251224_101320.pt"
 
 # Training hyperparameters
 learning_rate: 5e-5  # Learning rate for DPO
