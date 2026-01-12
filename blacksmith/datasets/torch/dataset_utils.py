@@ -9,6 +9,7 @@ from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.datasets.torch.squadV2.squadV2_dataset import SquadV2Dataset
+from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
@@ -19,7 +20,7 @@ class AvailableDataset(Enum):
     TEXT2SQL = "text2sql"
     BANKING77 = "banking77"
     SQUADV2 = "squadv2"
-
+    ALPACA = "alpaca"
 
 def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
     """Factory function to get the appropriate dataset based on the config"""
@@ -33,6 +34,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return SSTDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.TEXT2SQL.value:
         return TextToSQLDataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.ALPACA.value:
+        return AlpacaDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.BANKING77.value:
         return Banking77Dataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.SQUADV2.value:

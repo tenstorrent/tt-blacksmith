@@ -1,0 +1,32 @@
+Using PJRT plugin directory: /home/umales/tt-xla/python_package/pjrt_plugin_tt
+Using TT-Metal from the source tree: /home/umales/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+WARNING: TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-01-12 12:42:15 | INFO | Initializing Weights & Biases (W&B)...
+INFO:tt-llama8b-test:Initializing Weights & Biases (W&B)...
+wandb: Currently logged in as: umales (tenstorrent-ml) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 0cgw4tpb
+wandb: Tracking run with wandb version 0.23.1
+wandb: Run data is saved locally in /home/umales/tt-blacksmith/wandb/run-20260112_124215-0cgw4tpb
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run tt-llama8b-test
+wandb: ⭐️ View project at https://wandb.ai/tenstorrent-ml/llama8b-multichip-lora-galaxy
+wandb: 🚀 View run at https://wandb.ai/tenstorrent-ml/llama8b-multichip-lora-galaxy/runs/0cgw4tpb
+2026-01-12 12:43:29.966884: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-01-12 12:43:29 | INFO | Using device: xla:0
+INFO:tt-llama8b-test:Using device: xla:0
+2026-01-12 12:43:29 | INFO | Starting training...
+INFO:tt-llama8b-test:Starting training...
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:04,  1.46s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:03<00:03,  1.52s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.51s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.01s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.19s/it]
+2026-01-12 12:43:39 | INFO | Loaded meta-llama/Llama-3.1-8B model.
+INFO:tt-llama8b-test:Loaded meta-llama/Llama-3.1-8B model.
+2026-01-12 12:43:39 | INFO | Model parameters: 8031965184
+INFO:tt-llama8b-test:Model parameters: 8031965184
+2026-01-12 12:43:39 | INFO | Trainable parameters: 1703936
+INFO:tt-llama8b-test:Trainable parameters: 1703936
+2026-01-12 12:43:41 | INFO | Loaded alpaca dataset. Train dataset size: 50960
+INFO:tt-llama8b-test:Loaded alpaca dataset. Train dataset size: 50960
+2026-01-12 12:43:42 | INFO | Loaded alpaca dataset. Eval dataset size: 1040
+INFO:tt-llama8b-test:Loaded alpaca dataset. Eval dataset size: 1040
+
+================================================================================
+Training:   0%|          | 0/6370 [00:00<?, ?it/s]

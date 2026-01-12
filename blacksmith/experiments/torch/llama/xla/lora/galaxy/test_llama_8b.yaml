@@ -1,15 +1,15 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "alpaca"
 
 # Model settings
 model_name: "meta-llama/Llama-3.1-8B"
-max_length: 64
+max_length: 2048
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
 training_type: "lora"
-learning_rate: 2e-4
-batch_size: 64
+learning_rate: 5e-5
+batch_size: 8
 num_epochs: 1
 ignored_index: -100
 
@@ -71,5 +71,5 @@ remote_path: ""
 
 # Other settings
 framework: "pytorch"
-print_examples: True
+print_examples: False
 use_tt: True
