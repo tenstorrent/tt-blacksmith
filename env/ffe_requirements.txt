@@ -1,3 +1,10 @@
 tt-tvm @ https://pypi.eng.aws.tenstorrent.com/tt-tvm/tt_tvm-0.4.0.dev20250923-cp311-cp311-linux_x86_64.whl#sha256=abcac4f58b97e20f4832e61c76e6becc45cbed9cbf484a20d6d7a65abc05d8ae
 tt-forge-fe @ https://pypi.eng.aws.tenstorrent.com/tt-forge-fe/tt_forge_fe-0.4.0.dev20250923-cp311-cp311-linux_x86_64.whl#sha256=e5b96220ec6ff942d628244fd691c7ec26322f7728b36f2e1d1ff1ac513cdf55
 torchdata
+wandb>=0.12.10
+pydantic>2.0
+torchvision
+peft
+tqdm
+datasets
+transformers

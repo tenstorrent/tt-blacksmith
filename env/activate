@@ -63,7 +63,7 @@ pip install --upgrade pip
 # Install dependencies based on experiment type
 case $EXPERIMENT_TYPE in
     0)
-        pip install -r env/ffe_requirements.txt -r env/requirements.txt
+        pip install -r env/ffe_requirements.txt
         ;;
     1)
         pip install -r env/xla_requirements.txt -r env/requirements.txt
