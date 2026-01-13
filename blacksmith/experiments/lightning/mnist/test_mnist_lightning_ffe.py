@@ -1,22 +1,22 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import forge
 import lightning as L
+import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
+
+from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
+from blacksmith.experiments.lightning.mnist.configs import ExperimentConfig
+from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
+from blacksmith.tools.cli import generate_config
 from blacksmith.tools.forge_tooling import disable_forge_logger
 from blacksmith.tools.torch_lightning import (
-    TTLightningModel,
     GradientCheckpoint,
-    TTWandbLogger,
     SaveCheckpointArtifact,
+    TTLightningModel,
+    TTWandbLogger,
 )
-from blacksmith.tools.cli import generate_config
-from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
-from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
-from blacksmith.experiments.lightning.mnist.configs import ExperimentConfig
-
-import forge
-import torch
 
 
 def test_training():

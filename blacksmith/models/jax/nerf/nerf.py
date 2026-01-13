@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Any, Tuple
+
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
-import flax.linen as nn
-from typing import Tuple, Any
 
 from blacksmith.models.jax.nerf.sh import eval_sh
 

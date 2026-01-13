@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+
+import numpy as np
 import torch
 import torch.profiler
-from transformers import TrainerCallback
-import numpy as np
 import wandb
+from transformers import TrainerCallback
 
 
 class WandbMemoryCallback(TrainerCallback):

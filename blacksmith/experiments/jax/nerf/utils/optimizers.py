@@ -2,10 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from typing import Any, List, Optional, Tuple
+
 import jax
 import jax.numpy as jnp
 import optax
-from typing import Any, Tuple, Optional, List
 
 
 def get_optimizer(config, models: List[Any]) -> optax.GradientTransformation:

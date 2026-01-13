@@ -2,37 +2,35 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-
-import torch
-from nerf_rendering import render_rays
-import wandb
-
 from collections import defaultdict
-from torchvision import transforms
 
-
-from blacksmith.datasets.torch.torch_dataset import get_dataset
-from blacksmith.models.torch.nerf import Embedding, NeRF
-from blacksmith.models.torch.nerf.nerftree import NerfTree
-from blacksmith.experiments.lightning.nerf.configs import NerfConfig, load_config
-from blacksmith.experiments.lightning.nerf.utils.losses import loss_dict
-from blacksmith.experiments.lightning.nerf.utils.metrics import *
-from blacksmith.experiments.lightning.nerf.utils import *
-from blacksmith.experiments.lightning.nerf.utils.log import log_gradients, log_training_metrics
-
+import matplotlib
+import torch
+import wandb
+from nerf_rendering import render_rays
+from pytorch_lightning import LightningModule, Trainer, seed_everything
 
 # pytorch-lightning
 from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning import LightningModule, Trainer
-from pytorch_lightning import seed_everything
 from pytorch_lightning.loggers.wandb import WandbLogger
+from torchvision import transforms
 
-import matplotlib
+from blacksmith.datasets.torch.torch_dataset import get_dataset
+from blacksmith.experiments.lightning.nerf.configs import NerfConfig, load_config
+from blacksmith.experiments.lightning.nerf.utils import *
+from blacksmith.experiments.lightning.nerf.utils.log import (
+    log_gradients,
+    log_training_metrics,
+)
+from blacksmith.experiments.lightning.nerf.utils.losses import loss_dict
+from blacksmith.experiments.lightning.nerf.utils.metrics import *
+from blacksmith.models.torch.nerf import Embedding, NeRF
+from blacksmith.models.torch.nerf.nerftree import NerfTree
 
 matplotlib.use("Agg")
-import numpy as np
-
 import logging
+
+import numpy as np
 
 logging.getLogger("lightning").setLevel(logging.DEBUG)
 from loguru import logger

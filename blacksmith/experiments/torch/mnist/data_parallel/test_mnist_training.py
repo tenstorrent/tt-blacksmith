@@ -7,18 +7,18 @@ from pathlib import Path
 from typing import Tuple
 
 import torch
-from torch.utils.data import DataLoader
 import torch_xla
+from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
-from blacksmith.tools.cli import generate_config, parse_cli_options
-from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.checkpoints_manager import CheckpointManager
-from blacksmith.tools.device_manager import DeviceManager
-from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 from blacksmith.experiments.torch.mnist.data_parallel.utils import mse_loss
+from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.device_manager import DeviceManager
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
 def validate(

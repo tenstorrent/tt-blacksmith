@@ -6,12 +6,12 @@ import traceback
 from pathlib import Path
 
 import torch
-from tqdm import tqdm
 import wandb
+from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.experiments.torch.llama.ffe.utils import get_model, TextModelWrapper
+from blacksmith.experiments.torch.llama.ffe.utils import TextModelWrapper, get_model
 from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
@@ -130,9 +130,9 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
     if config.use_tt:
         import forge
-        from forge.config import CompilerConfig
         from forge._C import DataFormat
-        from forge._C.runtime.experimental import configure_devices, DeviceSettings
+        from forge._C.runtime.experimental import DeviceSettings, configure_devices
+        from forge.config import CompilerConfig
 
         compiler_cfg = CompilerConfig()
         if config.dtype == "torch.bfloat16":

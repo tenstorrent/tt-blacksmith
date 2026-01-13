@@ -1,10 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Dict
+
 import jax
 import jax.numpy as jnp
 from flax import linen as nn
-from typing import Dict
 
 
 class MSELoss(nn.Module):

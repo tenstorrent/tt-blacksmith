@@ -2,30 +2,35 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 import math
+import os
 from pathlib import Path
+
 import jax
 import jax.numpy as jnp
-from jax.sharding import PartitionSpec, NamedSharding
-from jax.experimental import shard_map
 import numpy as np
 import optax
-from flax import linen as nn
 import wandb
-
+from flax import linen as nn
+from jax.experimental import shard_map
+from jax.sharding import NamedSharding, PartitionSpec
 from transformers import AutoTokenizer
 
-from blacksmith.tools.cli import generate_config, parse_cli_options
-from blacksmith.tools.jax_helpers import build_schedule, ce_with_labels, kl_divergence, cosine_embedding_loss
-from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
-from blacksmith.experiments.jax.distil_bert.multi_chip.data_parallel.sharding_config import ShardingConfig
-
-from blacksmith.models.jax.distil_bert.model import init_model
-from blacksmith.models.jax.distil_bert.model_utils import split_params, combine_params
 from blacksmith.datasets.jax.distil_bert.sst2_dataset import *
-
 from blacksmith.experiments.jax.distil_bert.checkpoint_utils import *
+from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
+from blacksmith.experiments.jax.distil_bert.multi_chip.data_parallel.sharding_config import (
+    ShardingConfig,
+)
+from blacksmith.models.jax.distil_bert.model import init_model
+from blacksmith.models.jax.distil_bert.model_utils import combine_params, split_params
+from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.jax_helpers import (
+    build_schedule,
+    ce_with_labels,
+    cosine_embedding_loss,
+    kl_divergence,
+)
 
 
 def create_sharded_teacher_forward(teacher, sharding_config: ShardingConfig):

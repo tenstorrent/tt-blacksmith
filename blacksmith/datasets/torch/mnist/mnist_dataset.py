@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torchvision
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
-import torchvision
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
 

@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import logging
+import os
 import sys
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import torch
 import wandb

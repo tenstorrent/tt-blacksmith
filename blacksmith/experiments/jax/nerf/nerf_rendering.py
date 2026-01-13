@@ -4,6 +4,7 @@
 import jax
 import jax.numpy as jnp
 from jax import random
+
 from blacksmith.models.jax.nerf.nerf import inference
 from blacksmith.models.jax.nerf.nerftree import (  # Import the standalone functions
     query_coarse_out,

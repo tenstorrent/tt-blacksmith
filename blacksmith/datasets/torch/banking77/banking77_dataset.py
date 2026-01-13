@@ -3,14 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from typing import Dict
+
 import torch
 from torch.utils.data import DataLoader
-from datasets import load_dataset
 from transformers import AutoTokenizer, DataCollatorWithPadding
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
-
+from datasets import load_dataset
 
 DATASET_PATH = "mteb/banking77"
 

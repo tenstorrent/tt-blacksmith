@@ -3,18 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import jax
-import optax
-import jax.numpy as jnp
-import wandb
 from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple
 
+import jax
+import jax.numpy as jnp
+import optax
+import wandb
 from flax import nnx
-from typing import Dict, Optional, Tuple, Callable, Any
 
-from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 NUM_CLASSES = 10
 DEFAULT_MOMENTUM = 0.9

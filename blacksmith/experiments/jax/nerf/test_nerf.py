@@ -3,33 +3,30 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+from pathlib import Path
+from typing import Callable
+
 import jax
 import jax.numpy as jnp
-from jax import random
-from flax.training import train_state
 import numpy as np
-from pathlib import Path
+import wandb
+from configs import NerfConfig
+from flax import serialization
+from flax.serialization import from_state_dict
+from flax.training import train_state
+from jax import random
+from nerf_rendering import generate_ray_samples, render_rays
 from PIL import Image
 
-
-from flax.serialization import from_state_dict
-import jax
-import jax.numpy as jnp
-import os
-
-from blacksmith.tools.cli import generate_config, parse_cli_options
-
-from blacksmith.datasets.jax.nerf.blender import BlenderDataset, create_dataloader, create_dataloader_val
-from nerf_rendering import render_rays, generate_ray_samples
+from blacksmith.datasets.jax.nerf.blender import (
+    BlenderDataset,
+    create_dataloader,
+    create_dataloader_val,
+)
+from blacksmith.experiments.jax.nerf.utils.optimizers import get_optimizer
 from blacksmith.models.jax.nerf.nerf import Embedding, NeRF
 from blacksmith.models.jax.nerf.nerftree import NerfTree
-from configs import NerfConfig
-from blacksmith.experiments.jax.nerf.utils.optimizers import get_optimizer
-
-import wandb
-
-from flax import serialization
-from typing import Callable
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
 class EfficientNeRFSystem:
