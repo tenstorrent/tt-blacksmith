@@ -269,12 +269,19 @@ When importing, make sure to adhere to the following:
 - Import length:
     - **If importing ≤ 5 items**: 
     Import them directly.
-`from torch import Tensor, nn, optim`{:.python}
+    ```python
+    from torch import Tensor, nn, optim
+    ```
     - **If importing > 5 items**: 
     Import the parent module instead to keep the namespace clean.
-`import torch.nn.functional as F` {:.python}
+    ```python
+    import torch.nn.functional as F
+    ```
 - Avoid wildcards
-Example: from module import *
+    Example: 
+    ```python
+    from module import *
+    ```
 
 Example:
 ```python
