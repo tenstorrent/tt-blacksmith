@@ -252,7 +252,7 @@ Write comments as full sentences when possible.
 Use a consistent TODO format that is searchable and includes your GitHub username as well as the issue for accountability:
 
 ```python
-# TODO(pglusac): Support sharded training checkpoints. See https://github.com/tenstorrent/tt-blacksmith/issues/...
+# TODO(pglusacTT): Support sharded training checkpoints. See https://github.com/tenstorrent/tt-blacksmith/issues/...
 ```
 
 If there is a corresponding GitHub issue or ticket, reference it. If not, create one.
