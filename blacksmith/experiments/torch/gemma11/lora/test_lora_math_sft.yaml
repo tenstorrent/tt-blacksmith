@@ -12,7 +12,7 @@ dataset_id: "math_sft"
 
 # Model settings
 model_name: "google/gemma-1.1-2b-it"
-max_length: 128
+max_length: 256
 dtype: "torch.bfloat16"
 ignored_index: -100
 

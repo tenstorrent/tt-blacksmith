@@ -17,17 +17,17 @@ from enum import Enum
 from typing import Dict, List
 
 import torch
-from datasets import load_dataset
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.datasets.torch.dpo.math_dpo_utils import (
     DATASET_PATH,
-    PROMPT_TEMPLATE,
     IGNORED_LABEL_ID,
+    PROMPT_TEMPLATE,
 )
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
+from datasets import load_dataset
 
 
 class DatasetMode(Enum):
