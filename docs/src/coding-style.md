@@ -54,14 +54,14 @@ Example:
 from abc import ABC, abstractmethod
 from typing import override
 
-class Model(ABC): 
-    @abstractmethod 
-    def predict(self, x): 
-        pass 
+class Model(ABC):
+    @abstractmethod
+    def predict(self, x):
+        pass
 
-class MyModel(Model): 
-    @override 
-    def predict(self, x): 
+class MyModel(Model):
+    @override
+    def predict(self, x):
         return x * 2
 ```
 
@@ -182,7 +182,7 @@ def add(a: int, b: int) -> int:
     Args:
         a: The first number.
         b: The second number.
-    
+
     Returns:
         The sum of the two numbers.
     """
@@ -245,10 +245,10 @@ warmup_steps = int(0.1 * total_steps)
 Keep comments up to date. Outdated comments are worse than none.
 Write comments as full sentences when possible.
 
-Use a consistent TODO format that is searchable and includes your GitHub username as well as the issue for accountability: 
+Use a consistent TODO format that is searchable and includes your GitHub username as well as the issue for accountability:
 
 ```python
-# TODO(pglusac): Support sharded training checkpoints. See https://github.com/tenstorrent/tt-blacksmith/issues/... 
+# TODO(pglusac): Support sharded training checkpoints. See https://github.com/tenstorrent/tt-blacksmith/issues/...
 ```
 
 If there is a corresponding GitHub issue or ticket, reference it. If not, create one.
@@ -256,7 +256,7 @@ If there is a corresponding GitHub issue or ticket, reference it. If not, create
 Hacks or temporary solutions should be clearly marked with a `# HACK` comment, along with an explanation and a reference to a GitHub issue.
 
 ```python
-# HACK(pglusacTT): Fix by doing something ugly. See https://github.com/tenstorrent/tt-blacksmith/issues/... 
+# HACK(pglusacTT): Fix by doing something ugly. See https://github.com/tenstorrent/tt-blacksmith/issues/...
 ```
 
 
@@ -267,18 +267,18 @@ All code must be organized into packages and modules. If it is not a package/mod
 When importing, make sure to adhere to the following:
 - Use absolute imports whenever possible. This improves readability and avoids potential issues with relative imports.
 - Import length:
-    - **If importing ≤ 5 items**: 
+    - **If importing ≤ 5 items**:
     Import them directly.
     ```python
     from torch import Tensor, nn, optim
     ```
-    - **If importing > 5 items**: 
+    - **If importing > 5 items**:
     Import the parent module instead to keep the namespace clean.
     ```python
     import torch.nn.functional as F
     ```
 - Avoid wildcards
-    Example: 
+    Example:
     ```python
     from module import *
     ```
@@ -295,5 +295,4 @@ Avoid:
 ```python
 from blacksmith.module import *
 import blacksmith.module
-``` 
-
+```
