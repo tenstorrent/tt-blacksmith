@@ -1,4 +1,4 @@
-# Coding Style Guidelines
+# Coding Guidelines
 
 ## Introduction
 This document outlines the coding style guidelines for the TT-Blacksmith project. Every contributor is expected to adhere to these standards to ensure code consistency and maintainability.
