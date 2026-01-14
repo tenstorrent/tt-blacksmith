@@ -185,6 +185,10 @@ def add(a: int, b: int) -> int:
 
     Returns:
         The sum of the two numbers.
+
+    Raises:
+        ValueError: If `param2` is equal to `param1`
+
     """
     return a + b
 ```
