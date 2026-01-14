@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import jax
-from jax import export
-import jax.numpy as jnp
-
 import re
+
+import jax
+import jax.numpy as jnp
+from jax import export
 
 
 class ExportSHLO:

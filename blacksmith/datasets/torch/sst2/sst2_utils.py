@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from string import Template
 
-
 LONG_PROMPT_TEMPLATE = Template(
     """
 Your task is to perform binary sentiment analysis and determine whether the sentiment of the review is negative or positive.

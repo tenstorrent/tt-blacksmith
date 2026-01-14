@@ -1,12 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from torch.optim import SGD, Adam, AdamW
-
 from configs import NerfConfig
+from torch.optim import SGD, Adam, AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR, MultiStepLR
+
 from blacksmith.experiments.lightning.nerf.utils.optimizers import *
-from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR, LambdaLR
-from blacksmith.experiments.lightning.nerf.utils.warmup_scheduler import GradualWarmupScheduler
+from blacksmith.experiments.lightning.nerf.utils.warmup_scheduler import (
+    GradualWarmupScheduler,
+)
 
 
 def get_optimizer(hparams: NerfConfig, models: list[torch.nn.Module]):

@@ -7,16 +7,16 @@ Copyright (c) 2023 davisyoshida
 Source: https://github.com/davisyoshida/lorax
 See THIRD_PARTY_NOTICES.md for the full MIT license text.
 """
+from typing import Any, Dict, Tuple
+
 import jax
 import jax.numpy as jnp
-from jax.tree_util import tree_map_with_path, DictKey, SequenceKey
-
 import optax
 import quax
+from jax.tree_util import DictKey, SequenceKey, tree_map_with_path
 
 from .constants import LORA_FREEZE, LORA_FULL
 from .transform import LoraWeight
-from typing import Any, Tuple, Dict
 
 
 def init_lora(param_tree, spec, rng, stddev=0.01, dtype=jnp.float32, alpha=1.0, is_leaf=None) -> Any:

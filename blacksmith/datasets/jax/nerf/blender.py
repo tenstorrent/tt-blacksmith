@@ -2,18 +2,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
+import os
+from functools import partial
+from typing import Any, Dict, Tuple
+
 import jax
 import jax.numpy as jnp
-import json
 import numpy as np
-from PIL import Image
-from typing import Tuple, Dict, Any
-from functools import partial
-from datasets import load_dataset
 from huggingface_hub import hf_hub_download
-import os
+from PIL import Image
 
 from blacksmith.datasets.jax.nerf.ray_utils import get_ray_directions, get_rays
+from datasets import load_dataset
 
 
 def trans_t(t: float) -> jnp.ndarray:

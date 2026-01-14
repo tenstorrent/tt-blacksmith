@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
+
 from pydantic import BaseModel, Field
 
 

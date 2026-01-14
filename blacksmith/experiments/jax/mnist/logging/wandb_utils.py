@@ -1,14 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import numpy as np
-import jax
-import jax.numpy as jnp
-
-import wandb
 import os
 
-from flax.serialization import msgpack_serialize, from_bytes, to_state_dict
+import jax
+import jax.numpy as jnp
+import numpy as np
+import wandb
+from flax.serialization import from_bytes, msgpack_serialize, to_state_dict
 
 
 def init_wandb(project_name, job_type, dir_path):

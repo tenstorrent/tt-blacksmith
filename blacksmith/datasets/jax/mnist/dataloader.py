@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torchvision
-from torchvision import transforms
-from torchvision.datasets import MNIST as mnist_dataset
-from torch.utils.data import DataLoader
-from torch.nn import functional as F
-import torch
 import jax
 import jax.numpy as jnp
+import torch
+import torchvision
+from torch.nn import functional as F
+from torch.utils.data import DataLoader
+from torchvision import transforms
+from torchvision.datasets import MNIST as mnist_dataset
 
 
 def load_mnist_jax():

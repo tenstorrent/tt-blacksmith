@@ -8,14 +8,14 @@ Source: https://github.com/davisyoshida/lorax
 See THIRD_PARTY_NOTICES.md for the full MIT license text.
 """
 import warnings
+from dataclasses import dataclass
+from functools import partial
+from typing import Any, Callable
+
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
 import quax
-
-from typing import Any, Callable
-from dataclasses import dataclass
-from functools import partial
 
 
 def dora(f: Callable[..., Any]) -> Callable[..., Any]:

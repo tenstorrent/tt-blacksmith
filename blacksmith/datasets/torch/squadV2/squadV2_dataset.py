@@ -4,12 +4,12 @@
 from string import Template
 from typing import Dict
 
-from datasets import load_dataset
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
-from blacksmith.tools.templates.configs import TrainingConfig
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
+from blacksmith.datasets.torch.torch_dataset import BaseDataset
+from blacksmith.tools.templates.configs import TrainingConfig
+from datasets import load_dataset
 
 PROMPT_TEMPLATE = Template(
     """
