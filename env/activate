@@ -42,16 +42,56 @@ case $EXPERIMENT_TYPE in
         return 1
 esac
 
-# If environment directory already exists, activate it
+# Function to get expected package version from requirements file
+# Usage: get_expected_version <package_name> <requirements_file>
+get_expected_version() {
+    grep -oP "${1}==\K[^\s]+" "$2" 2>/dev/null || echo ""
+}
+
+# Function to get installed package version
+# Usage: get_installed_version <package_name>
+get_installed_version() {
+    $TT_BLACKSMITH_ENV_DIR/bin/pip show "$1" 2>/dev/null | grep -oP '^Version: \K.*' || echo ""
+}
+
+# Function to check package version and reinstall if mismatch
+# Usage: check_package_version <package_name> <requirements_file>
+# Returns 0 if versions match or no check needed, 1 if reinstall required
+check_package_version() {
+    local package="$1"
+    local requirements="$2"
+    local expected=$(get_expected_version "$package" "$requirements")
+    local installed=$(get_installed_version "$package")
+
+    if [ -n "$expected" ] && [ "$expected" != "$installed" ]; then
+        echo "${package} version mismatch detected!"
+        echo "  Installed: ${installed:-none}"
+        echo "  Expected:  $expected"
+        echo "Reinstalling environment..."
+        rm -rf $TT_BLACKSMITH_ENV_DIR
+        return 1
+    fi
+    return 0
+}
+
+# If environment directory already exists, check versions and activate
 if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
-    if [ -f $TT_BLACKSMITH_ENV_DIR/bin/activate ]; then
-        source $TT_BLACKSMITH_ENV_DIR/bin/activate
-    else
+    if [ ! -f $TT_BLACKSMITH_ENV_DIR/bin/activate ]; then
         echo "Virtual environment directory exists but does not contain activate script,"
         echo "please remove the $TT_BLACKSMITH_ENV_DIR directory and try again"
         return
     fi
-    return
+
+    # Check package versions based on experiment type
+    NEEDS_REINSTALL=0
+    case $EXPERIMENT_TYPE in
+        1) check_package_version "pjrt-plugin-tt" "env/xla_requirements.txt" || NEEDS_REINSTALL=1 ;;
+    esac
+
+    if [ "$NEEDS_REINSTALL" -eq 0 ]; then
+        source $TT_BLACKSMITH_ENV_DIR/bin/activate
+        return
+    fi
 fi
 
 # Otherwise create it
