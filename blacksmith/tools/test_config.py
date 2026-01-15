@@ -12,6 +12,7 @@ class TestConfig(BaseModel):
     This config is used during pytest runs to speed up tests by limiting
     the number of batches processed per epoch.
     """
+
     model_config = ConfigDict(extra="forbid")
 
     max_steps_per_epoch: Optional[int] = Field(
