@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Test configuration for limiting training runs during testing."""
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
