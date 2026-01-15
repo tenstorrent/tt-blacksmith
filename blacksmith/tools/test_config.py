@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TestConfig(BaseModel):
-    """Configuration for test mode to limit training duration.
+    """
+    Configuration for test mode to limit training duration.
 
     This config is used during pytest runs to speed up tests by limiting
     the number of batches processed per epoch.

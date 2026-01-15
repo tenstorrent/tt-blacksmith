@@ -73,15 +73,20 @@ class BaseDataset(Dataset, ABC):
         """Get a single example from the dataset"""
         pass
 
-    def _clip_test_dataloader(self, dataloader: DataLoader) -> Union[DataLoader, TestDataLoaderWrapper]:
+    def _prepare_test_dataloader(self, dataloader: DataLoader) -> Union[DataLoader, TestDataLoaderWrapper]:
         """
-        Wrap dataloader with TestDataLoaderWrapper if test_config is present.
+        Prepare a dataloader for test runs.
+
+        If `self.config.test_config.max_steps_per_epoch` is set, returns a
+        `TestDataLoaderWrapper` that yields at most that many batches per epoch.
+        Otherwise, returns the original dataloader unchanged.
 
         Args:
-            dataloader: The DataLoader to potentially wrap
+            dataloader: The DataLoader to optionally wrap.
 
         Returns:
-            Either the original dataloader or a TestDataLoaderWrapper
+            The original `dataloader`, or a `TestDataLoaderWrapper` that limits the
+            number of batches yielded per epoch.
         """
         if hasattr(self.config, "test_config") and self.config.test_config:
             max_steps = self.config.test_config.max_steps_per_epoch
@@ -90,4 +95,4 @@ class BaseDataset(Dataset, ABC):
         return dataloader
 
     def get_dataloader(self) -> DataLoader:
-        return self._clip_test_dataloader(self._get_dataloader())
+        return self._prepare_test_dataloader(self._get_dataloader())
