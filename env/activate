@@ -20,10 +20,8 @@ case $1 in
     *) echo "Unknown parameter passed: $1"; return 1 ;;
 esac
 
-export SYSTEM_DIST_PACKAGES="/usr/local/lib/python3.11/dist-packages"
-export PYTHONPATH="$(pwd):$(pwd)/tests:$SYSTEM_DIST_PACKAGES"
 # pytest alias for venv interpreter
-alias pytest='python -m pytest'
+alias pytest='python3.11 -m pytest'
 
 # Set environment directory based on experiment type
 case $EXPERIMENT_TYPE in
@@ -115,6 +113,3 @@ case $EXPERIMENT_TYPE in
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
         return 1
 esac
-
-# Install base dependencies
-pip install -e $TT_BLACKSMITH_HOME
