@@ -52,9 +52,9 @@ get_installed_version() {
     $TT_BLACKSMITH_ENV_DIR/bin/pip show "$1" 2>/dev/null | grep -oP '^Version: \K.*' || echo ""
 }
 
-# Function to check package version and reinstall if mismatch
+# Function to check package version and force reinstall if mismatch
 # Usage: check_package_version <package_name> <requirements_file>
-# Returns 0 if versions match or no check needed, 1 if reinstall required
+# Returns 0 if versions match or package was updated
 check_package_version() {
     local package="$1"
     local requirements="$2"
@@ -65,9 +65,8 @@ check_package_version() {
         echo "${package} version mismatch detected!"
         echo "  Installed: ${installed:-none}"
         echo "  Expected:  $expected"
-        echo "Reinstalling environment..."
-        rm -rf $TT_BLACKSMITH_ENV_DIR
-        return 1
+        echo "Upgrading ${package} to version ${expected}..."
+        pip install --force-reinstall "${package}==${expected}"
     fi
     return 0
 }
@@ -80,16 +79,15 @@ if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
         return
     fi
 
-    # Check package versions based on experiment type
-    NEEDS_REINSTALL=0
+    # Activate environment
+    source $TT_BLACKSMITH_ENV_DIR/bin/activate
+
+    # Check and upgrade packages if needed based on experiment type
     case $EXPERIMENT_TYPE in
-        1) check_package_version "pjrt-plugin-tt" "env/xla_requirements.txt" || NEEDS_REINSTALL=1 ;;
+        1) check_package_version "pjrt-plugin-tt" "env/xla_requirements.txt" ;;
     esac
 
-    if [ "$NEEDS_REINSTALL" -eq 0 ]; then
-        source $TT_BLACKSMITH_ENV_DIR/bin/activate
-        return
-    fi
+    return
 fi
 
 # Otherwise create it
