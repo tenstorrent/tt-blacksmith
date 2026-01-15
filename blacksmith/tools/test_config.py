@@ -4,7 +4,7 @@
 """Test configuration for limiting training runs during testing."""
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TestConfig(BaseModel):
@@ -13,11 +13,9 @@ class TestConfig(BaseModel):
     This config is used during pytest runs to speed up tests by limiting
     the number of batches processed per epoch.
     """
+    model_config = ConfigDict(extra="forbid")
 
     max_steps_per_epoch: Optional[int] = Field(
         default=None,
         description="Maximum number of batches to process per epoch.",
     )
-
-    class Config:
-        extra = "forbid"  # Prevent typos in config files
