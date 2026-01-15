@@ -145,7 +145,7 @@ class BlenderDataset(BaseDataset):
 
         return sample
 
-    def get_dataloader(self):
+    def _get_dataloader(self):
         return StatefulDataLoader(
             self,
             shuffle=self.split == "train",

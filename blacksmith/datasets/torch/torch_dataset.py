@@ -60,6 +60,11 @@ class BaseDataset(Dataset, ABC):
         """Load and prepare the dataset"""
         pass
 
+    @abstractmethod
+    def _get_dataloader(self) -> DataLoader:
+        """Create and return a DataLoader for this dataset"""
+        raise NotImplementedError("Please Implement this method in the subclass")
+
     def __len__(self) -> int:
         """Return the number of examples in the dataset"""
         return len(self.dataset)
@@ -68,7 +73,7 @@ class BaseDataset(Dataset, ABC):
         """Get a single example from the dataset"""
         pass
 
-    def _wrap_test_dataloader_if_test_config(self, dataloader: DataLoader) -> Union[DataLoader, TestDataLoaderWrapper]:
+    def _clip_test_dataloader(self, dataloader: DataLoader) -> Union[DataLoader, TestDataLoaderWrapper]:
         """
         Wrap dataloader with TestDataLoaderWrapper if test_config is present.
 
@@ -84,7 +89,5 @@ class BaseDataset(Dataset, ABC):
                 return TestDataLoaderWrapper(dataloader, max_steps)
         return dataloader
 
-    @abstractmethod
     def get_dataloader(self) -> DataLoader:
-        """Create and return a DataLoader for this dataset"""
-        pass
+        return self._clip_test_dataloader(self._get_dataloader())

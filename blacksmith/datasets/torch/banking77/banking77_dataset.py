@@ -57,7 +57,7 @@ class Banking77Dataset(BaseDataset):
     def __getitem__(self, idx: int) -> Dict:
         return self.dataset[idx]
 
-    def get_dataloader(self) -> DataLoader:
+    def _get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorWithPadding(
             tokenizer=self.tokenizer, padding=True, max_length=self.config.max_length
         )

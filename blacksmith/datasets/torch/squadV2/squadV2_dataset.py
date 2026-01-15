@@ -96,7 +96,7 @@ class SquadV2Dataset(BaseDataset):
             "labels": sample["labels"],
         }
 
-    def get_dataloader(self) -> DataLoader:
+    def _get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorForSeq2Seq(
             tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
         )
