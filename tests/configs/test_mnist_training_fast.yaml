@@ -1,3 +1,2 @@
-# Test-specific configuration
 test_config:
-  max_steps_per_epoch: 5  # Only run 5 batches per epoch
+  max_steps_per_epoch: 5
