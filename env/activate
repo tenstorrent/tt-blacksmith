@@ -52,6 +52,22 @@ get_installed_version() {
     $TT_BLACKSMITH_ENV_DIR/bin/pip show "$1" 2>/dev/null | grep -oP '^Version: \K.*' || echo ""
 }
 
+# Function to get index URLs from requirements file
+# Usage: get_index_urls <requirements_file>
+get_index_urls() {
+    local index_url=$(grep -oP '^--index-url\s+\K\S+' "$1" 2>/dev/null)
+    local extra_index_urls=$(grep -oP '^--extra-index-url\s+\K\S+' "$1" 2>/dev/null)
+
+    local result=""
+    if [ -n "$index_url" ]; then
+        result="--index-url $index_url"
+    fi
+    for url in $extra_index_urls; do
+        result="$result --extra-index-url $url"
+    done
+    echo "$result"
+}
+
 # Function to check package version and force reinstall if mismatch
 # Usage: check_package_version <package_name> <requirements_file>
 # Returns 0 if versions match or package was updated
@@ -66,7 +82,8 @@ check_package_version() {
         echo "  Installed: ${installed:-none}"
         echo "  Expected:  $expected"
         echo "Upgrading ${package} to version ${expected}..."
-        pip install --force-reinstall "${package}==${expected}"
+        local index_urls=$(get_index_urls "$requirements")
+        pip install --force-reinstall $index_urls "${package}==${expected}"
     fi
     return 0
 }
