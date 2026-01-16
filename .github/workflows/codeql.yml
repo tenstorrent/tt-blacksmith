@@ -24,8 +24,6 @@ jobs:
           build-mode: none
         - language: python
           build-mode: none
-        - language: c-cpp
-          build-mode: none
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
