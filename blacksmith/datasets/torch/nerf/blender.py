@@ -4,6 +4,7 @@
 import json
 import os
 from random import random
+from typing import overload
 
 import numpy as np
 import torch
@@ -145,6 +146,7 @@ class BlenderDataset(BaseDataset):
 
         return sample
 
+    @overload
     def _get_dataloader(self):
         return StatefulDataLoader(
             self,

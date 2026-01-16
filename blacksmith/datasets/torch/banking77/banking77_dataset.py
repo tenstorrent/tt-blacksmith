@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Dict
+from typing import Dict, overload
 
 import torch
 from torch.utils.data import DataLoader
@@ -57,6 +57,7 @@ class Banking77Dataset(BaseDataset):
     def __getitem__(self, idx: int) -> Dict:
         return self.dataset[idx]
 
+    @overload
     def _get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorWithPadding(
             tokenizer=self.tokenizer, padding=True, max_length=self.config.max_length
