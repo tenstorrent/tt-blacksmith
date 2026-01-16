@@ -21,7 +21,7 @@ case $1 in
 esac
 
 # pytest alias for venv interpreter
-alias pytest='python3.11 -m pytest'
+alias pytest='python -m pytest'
 
 # Set environment directory based on experiment type
 case $EXPERIMENT_TYPE in
@@ -128,3 +128,5 @@ case $EXPERIMENT_TYPE in
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
         return 1
 esac
+
+pip install -e $TT_BLACKSMITH_HOME
