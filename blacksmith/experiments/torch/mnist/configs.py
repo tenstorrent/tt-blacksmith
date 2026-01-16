@@ -15,12 +15,19 @@ class TrainingConfig(BaseModel):
     train_ratio: float = Field(default=0.8, gt=0, lt=1)
     dtype: str = Field(default="torch.bfloat16")
 
-    # Model settings
+    # Model settings (for MNISTLinear)
     model_name: str = Field(default="MNISTLinear")
     input_size: int = Field(default=784, gt=0)
     hidden_size: int = Field(default=512, gt=0)
     output_size: int = Field(default=10, gt=0)
     bias: bool = Field(default=False)
+    
+    # CNN model settings (for MNISTCNN)
+    conv1_channels: int = Field(default=32, gt=0)
+    conv2_channels: int = Field(default=64, gt=0)
+    fc1_size: int = Field(default=128, gt=0)
+    dropout1_rate: float = Field(default=0.25, ge=0, le=1)
+    dropout2_rate: float = Field(default=0.5, ge=0, le=1)
 
     # Training hyperparameters
     learning_rate: float = Field(default=0.01, gt=0)
