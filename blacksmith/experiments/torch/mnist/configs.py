@@ -25,6 +25,8 @@ class TrainingConfig(BaseModel):
     # CNN model settings (for MNISTCNN)
     conv1_channels: int = Field(default=32, gt=0)
     conv2_channels: int = Field(default=64, gt=0)
+    kernel_size: int = Field(default=3, gt=0)
+    stride: int = Field(default=1, gt=0)
     fc1_size: int = Field(default=128, gt=0)
     dropout1_rate: float = Field(default=0.25, ge=0, le=1)
     dropout2_rate: float = Field(default=0.5, ge=0, le=1)

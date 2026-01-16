@@ -7,6 +7,8 @@ dtype: "torch.bfloat16"
 model_name: "MNISTCNN"
 conv1_channels: 32
 conv2_channels: 64
+kernel_size: 3
+stride: 1
 fc1_size: 128
 output_size: 10
 dropout1_rate: 0.25
@@ -19,7 +21,7 @@ batch_size: 256
 num_epochs: 16
 train_log_steps: 100
 val_log_epochs: 5
-loss_fn: "torch.nn.MSELoss"
+loss_fn: "torch.nn.CrossEntropyLoss"
 optim: "sgd"
 
 # Reproducibility settings
@@ -59,9 +61,8 @@ mesh_shape: null
 mesh_axis_names: null
 
 # Other settings
-device: "TT"
 experiment_name: "torch-mnist-cnn"
 framework: "pytorch"
 output_dir: "experiments/results/mnist_cnn"
-use_tt: false
+use_tt: true
 print_examples: false

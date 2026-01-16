@@ -117,7 +117,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change 
 
 ### CNN Model Configuration
 
-In `blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.yaml` you can change default values for following parameters.
+In `blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.yaml` you can change values for following parameters.
 
 Most parameters are the same as the Linear model configuration above, with the following CNN-specific model settings:
 

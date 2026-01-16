@@ -71,6 +71,8 @@ def train(
     model = MNISTCNN(
         conv1_channels=config.conv1_channels,
         conv2_channels=config.conv2_channels,
+        kernel_size=config.kernel_size,
+        stride=config.stride,
         fc1_size=config.fc1_size,
         output_size=config.output_size,
         dropout1_rate=config.dropout1_rate,
