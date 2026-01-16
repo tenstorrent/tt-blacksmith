@@ -7,8 +7,7 @@ import torch.nn.functional as F
 
 
 class MNISTCNN(nn.Module):
-    def __init__(self, conv1_channels, conv2_channels, fc1_size, output_size, 
-                 dropout1_rate, dropout2_rate, bias):
+    def __init__(self, conv1_channels, conv2_channels, fc1_size, output_size, dropout1_rate, dropout2_rate, bias):
         super(MNISTCNN, self).__init__()
         self.conv1 = nn.Conv2d(1, conv1_channels, 3, 1, bias=bias)
         self.conv2 = nn.Conv2d(conv1_channels, conv2_channels, 3, 1, bias=bias)
@@ -17,7 +16,7 @@ class MNISTCNN(nn.Module):
         self.fc1_input_size = 12 * 12 * conv2_channels
         self.fc1 = nn.Linear(self.fc1_input_size, fc1_size, bias=bias)
         self.fc2 = nn.Linear(fc1_size, output_size, bias=bias)
-        
+
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(x)
@@ -30,6 +29,5 @@ class MNISTCNN(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        
-        return x
 
+        return x

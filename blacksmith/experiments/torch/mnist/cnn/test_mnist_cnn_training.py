@@ -8,17 +8,17 @@ from pathlib import Path
 from typing import Tuple
 
 import torch
-from torch.utils.data import DataLoader
 import torch_xla
+from torch.utils.data import DataLoader
 
-from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.datasets.torch.dataset_utils import get_dataset
-from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.checkpoints_manager import CheckpointManager
-from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.device_manager import DeviceManager
-from blacksmith.models.torch.mnist.mnist_cnn import MNISTCNN
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
+from blacksmith.models.torch.mnist.mnist_cnn import MNISTCNN
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.device_manager import DeviceManager
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
 def validate(
@@ -75,9 +75,16 @@ def train(
         output_size=config.output_size,
         dropout1_rate=config.dropout1_rate,
         dropout2_rate=config.dropout2_rate,
-        bias=config.bias
+        bias=config.bias,
     )
-    model = model.to(device_manager.device)
+
+    # Convert model to specified dtype if configured
+    dtype = eval(config.dtype) if hasattr(config, "dtype") and config.dtype else None
+    if dtype:
+        model = model.to(device=device_manager.device, dtype=dtype)
+    else:
+        model = model.to(device_manager.device)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -179,4 +186,3 @@ if __name__ == "__main__":
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)
-

@@ -5,12 +5,12 @@ dtype: "torch.bfloat16"
 
 # Model settings
 model_name: "MNISTCNN"
-conv1_channels: 32    
-conv2_channels: 64    
-fc1_size: 128         
+conv1_channels: 32
+conv2_channels: 64
+fc1_size: 128
 output_size: 10
-dropout1_rate: 0.25  
-dropout2_rate: 0.5   
+dropout1_rate: 0.25
+dropout2_rate: 0.5
 bias: false
 
 # Training hyperparameters
@@ -63,6 +63,5 @@ device: "TT"
 experiment_name: "torch-mnist-cnn"
 framework: "pytorch"
 output_dir: "experiments/results/mnist_cnn"
-use_tt: true
+use_tt: false
 print_examples: false
-

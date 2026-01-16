@@ -21,7 +21,7 @@ class TrainingConfig(BaseModel):
     hidden_size: int = Field(default=512, gt=0)
     output_size: int = Field(default=10, gt=0)
     bias: bool = Field(default=False)
-    
+
     # CNN model settings (for MNISTCNN)
     conv1_channels: int = Field(default=32, gt=0)
     conv2_channels: int = Field(default=64, gt=0)
