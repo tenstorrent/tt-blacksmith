@@ -32,6 +32,33 @@ def process_data(data):
     # Continue processing data
 ```
 
+### Magic Numbers
+Avoid using magic numbers directly in the code. Instead, define them as named constants at the top of the module or in a separate configuration file. This improves code readability and makes it easier to update values in the future.
+
+Bad example:
+```python
+def do_compute(x):
+    return 14 * x + 52.33
+```
+
+### Complex Conditionals
+For complex conditional statements, break them down into smaller, well-named boolean variables.
+
+Bad example:
+```python
+if (tensor.shape[0] > 0 and tensor.dtype == torch.float32 and tensor.device.type == 'tt'):
+    pass
+```
+
+Good example:
+```python
+is_non_empty = tensor.shape[0] > 0
+is_float32 = tensor.dtype == torch.float32
+is_tt = tensor.device.type == 'tt'
+if is_non_empty and is_float32 and is_tt:
+    pass
+```
+
 ### Keyword Arguments
 When calling functions with multiple parameters, especially when some parameters have default values, use keyword arguments for clarity.
 
@@ -78,7 +105,7 @@ Bad example:
 ```python
 message = f"The answer is {calculate_answer()}."  # Avoid complex expressions
 
-message = "The answer is {value * 2}."  # Avoid using expressions inside f-strings
+message = f"The answer is {value * 2}."  # Avoid using expressions inside f-strings
 ```
 
 ### Library Standards
@@ -137,10 +164,10 @@ Use the provided logging utilities from `blacksmith.tools.logging` for all loggi
 
 ## Naming Conventions
 Follow the PEP 8 naming conventions with the following specifics:
-- Classes: Use PascalCase (e.g., DataManager).
-- Functions & Variables: Use snake_case (e.g., calculate_offset).
-- Constants: Use SCREAMING_SNAKE_CASE (e.g., MAX_RETRIES = 5).
-- Private Members: Prefix with a single underscore for internal package/class use (e.g., _internal_method).
+- Classes: Use PascalCase (e.g., `DataManager`).
+- Functions & Variables: Use snake_case (e.g., `calculate_offset`).
+- Constants: Use SCREAMING_SNAKE_CASE (e.g., `MAX_RETRIES = 5`).
+- Private Members: Prefix with a single underscore for internal package/class use (e.g., `_internal_method`).
 
 Bad examples:
 ```python
@@ -158,6 +185,12 @@ class Data:
 # overly long names
 def calculate_the_total_sum_of_all_elements(input_list):
     pass
+
+# overly short names
+def lv(num):
+    if num > 10:
+        print("Value is greater than ten")
+
 
 # names that explain the logic
 def log_if_value_is_greater_than_ten(num):
@@ -281,22 +314,16 @@ When importing, make sure to adhere to the following:
     ```python
     import torch.nn.functional as F
     ```
-- Avoid wildcards
-    Example:
+- Avoid wildcards and import only what is necessary.
+
+    Bad example:
     ```python
     from module import *
+    import blacksmith.module
     ```
 
 Example:
 ```python
 from blacksmith.module import MyClass
-from blacksmith.utils.helpers import my_function
-```
-
-Make sure to import only what is necessary to keep the namespace clean.
-
-Avoid:
-```python
-from blacksmith.module import *
-import blacksmith.module
+from blacksmith.utils.helpers import my_function, another_function
 ```
