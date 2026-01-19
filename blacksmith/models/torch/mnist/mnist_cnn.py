@@ -5,28 +5,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from blacksmith.experiments.torch.mnist.configs import TrainingConfig
+
 
 class MNISTCNN(nn.Module):
-    def __init__(
-        self,
-        conv1_channels,
-        conv2_channels,
-        kernel_size,
-        stride,
-        fc1_size,
-        output_size,
-        dropout1_rate,
-        dropout2_rate,
-        bias,
-    ):
+    def __init__(self, config: TrainingConfig):
         super(MNISTCNN, self).__init__()
-        self.conv1 = nn.Conv2d(1, conv1_channels, kernel_size, stride, bias=bias)
-        self.conv2 = nn.Conv2d(conv1_channels, conv2_channels, kernel_size, stride, bias=bias)
-        self.dropout1 = nn.Dropout(dropout1_rate)
-        self.dropout2 = nn.Dropout(dropout2_rate)
-        self.fc1_input_size = 12 * 12 * conv2_channels
-        self.fc1 = nn.Linear(self.fc1_input_size, fc1_size, bias=bias)
-        self.fc2 = nn.Linear(fc1_size, output_size, bias=bias)
+        self.conv1 = nn.Conv2d(1, config.conv1_channels, config.kernel_size, config.stride, bias=config.bias)
+        self.conv2 = nn.Conv2d(
+            config.conv1_channels, config.conv2_channels, config.kernel_size, config.stride, bias=config.bias
+        )
+        self.dropout1 = nn.Dropout(config.dropout1_rate)
+        self.dropout2 = nn.Dropout(config.dropout2_rate)
+        self.fc1_input_size = 12 * 12 * config.conv2_channels
+        self.fc1 = nn.Linear(self.fc1_input_size, config.fc1_size, bias=config.bias)
+        self.fc2 = nn.Linear(config.fc1_size, config.output_size, bias=config.bias)
 
     def forward(self, x):
         x = self.conv1(x)

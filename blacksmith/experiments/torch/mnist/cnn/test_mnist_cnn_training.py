@@ -68,24 +68,13 @@ def train(
     logger.info("Starting MNIST training with CNN model (single chip)")
 
     # Load model
-    model = MNISTCNN(
-        conv1_channels=config.conv1_channels,
-        conv2_channels=config.conv2_channels,
-        kernel_size=config.kernel_size,
-        stride=config.stride,
-        fc1_size=config.fc1_size,
-        output_size=config.output_size,
-        dropout1_rate=config.dropout1_rate,
-        dropout2_rate=config.dropout2_rate,
-        bias=config.bias,
-    )
+    model = MNISTCNN(config=config)
 
     # Convert model to specified dtype if configured
-    dtype = eval(config.dtype) if hasattr(config, "dtype") and config.dtype else None
-    if dtype:
-        model = model.to(device=device_manager.device, dtype=dtype)
-    else:
-        model = model.to(device_manager.device)
+    if hasattr(config, "dtype") and config.dtype:
+        dtype = eval(config.dtype)
+        model = model.to(dtype=dtype)
+    model = model.to(device_manager.device)
 
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
