@@ -1,0 +1,2 @@
+test_config:
+  max_steps_per_epoch: 5

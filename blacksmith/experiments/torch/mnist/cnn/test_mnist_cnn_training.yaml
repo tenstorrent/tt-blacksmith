@@ -1,0 +1,68 @@
+# Dataset settings
+dataset_id: "mnist"
+train_ratio: 0.8
+dtype: "torch.bfloat16"
+
+# Model settings
+model_name: "MNISTCNN"
+conv1_channels: 32
+conv2_channels: 64
+kernel_size: 3
+stride: 1
+fc1_size: 128
+output_size: 10
+dropout1_rate: 0.25
+dropout2_rate: 0.5
+bias: false
+
+# Training hyperparameters
+learning_rate: 0.01
+batch_size: 256
+num_epochs: 16
+train_log_steps: 100
+val_log_epochs: 5
+loss_fn: "torch.nn.CrossEntropyLoss"
+optim: "sgd"
+
+# Reproducibility settings
+seed: 23
+deterministic: false
+
+# Logging settings
+log_level: "INFO"
+use_wandb: true
+wandb_project: "blacksmith-mnist-cnn"
+wandb_run_name: "mnist_cnn_single_chip"
+wandb_tags: ["tt-xla", "model:torch", "cnn", "plugin", "wandb"]
+wandb_watch_mode: "all"
+wandb_log_freq: 100
+model_to_wandb: false
+steps_freq: 100
+epoch_freq: 5
+
+# Checkpoint settings
+resume_from_checkpoint: false
+resume_option: "last"        # [last, best, path]
+checkpoint_path: ""          # path to checkpoint if resume_option is "path"
+checkpoint_metric: "val/loss"
+checkpoint_metric_mode: "min" # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "epoch"
+project_dir: "blacksmith/experiments/torch/mnist"
+save_optim: false
+storage_backend: "local"
+sync_to_storage: false
+load_from_storage: false
+remote_path: ""
+
+# Device settings - Single device (no parallelism)
+mesh_shape: null
+mesh_axis_names: null
+
+# Other settings
+experiment_name: "torch-mnist-cnn"
+framework: "pytorch"
+output_dir: "experiments/results/mnist_cnn"
+use_tt: true
+print_examples: false

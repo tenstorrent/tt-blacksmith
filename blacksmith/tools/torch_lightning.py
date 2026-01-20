@@ -2,14 +2,15 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import forge
-from forge.tensor import to_forge_tensors
 import lightning as L
+import numpy as np
+import torch
+import wandb
+from forge.tensor import to_forge_tensors
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.loggers.utilities import _scan_checkpoints
-import torch
 from torch import nn
-import numpy as np
-import wandb
+
 from blacksmith.tools.logging.configs import LoggerConfig
 
 

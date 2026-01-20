@@ -1,7 +1,11 @@
 wandb>=0.12.10
 pydantic>2.0
 torchvision
+torchdata
 peft
 tqdm
 datasets
 transformers
+flax
+six
+kornia

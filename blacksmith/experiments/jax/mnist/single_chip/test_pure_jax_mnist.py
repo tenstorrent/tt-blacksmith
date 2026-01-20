@@ -1,18 +1,18 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import jax
-import jax.numpy as jnp
-from jax import random
-
-import wandb
 import os
 from pathlib import Path
 
-from blacksmith.tools.cli import generate_config, parse_cli_options
+import jax
+import jax.numpy as jnp
+import wandb
+from jax import random
+
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
-from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
+from blacksmith.experiments.jax.mnist.logging.wandb_utils import init_wandb
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
 def train_mnist(config: ExperimentConfig):

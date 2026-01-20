@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torchvision
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
-import torchvision
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
 
@@ -56,7 +56,7 @@ class MNISTDataset(BaseDataset):
     def __len__(self):
         return len(self.dataset)
 
-    def get_dataloader(self) -> DataLoader:
+    def _get_dataloader(self) -> DataLoader:
         return DataLoader(
             self.dataset, batch_size=self.config.batch_size, shuffle=self.split == "train", drop_last=True
         )

@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import random
 
-import torch
 import numpy as np
+import torch
 
 from blacksmith.tools.templates.configs import TrainingConfig
 

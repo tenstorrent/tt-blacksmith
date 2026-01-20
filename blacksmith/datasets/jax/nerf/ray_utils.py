@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Tuple
+
 import jax
 import jax.numpy as jnp
-from typing import Tuple
 
 
 # JAX equivalent of kornia.create_meshgrid

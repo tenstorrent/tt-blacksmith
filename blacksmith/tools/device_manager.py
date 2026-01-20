@@ -3,15 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import re
-from typing import Optional, Tuple, Dict, List
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-import numpy as np
 
 from blacksmith.tools.templates.configs import TrainingConfig
 

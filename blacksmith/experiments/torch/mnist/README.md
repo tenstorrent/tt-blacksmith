@@ -1,7 +1,9 @@
-# MNIST Linear model training experiment
+# MNIST Model Training Experiments
 
-This directory contains the code for the training linear model for MNIST dataset, using torch_xla environment.
-Linear model is from *tt-blacksmith/blacksmith/models/torch/mnist/mnist_linear.py*
+This directory contains the code for training models on the MNIST dataset using the torch_xla environment. Two model architectures are supported:
+
+1. **Linear model** (`MNISTLinear`) - A simple fully-connected network from `tt-blacksmith/blacksmith/models/torch/mnist/mnist_linear.py`
+2. **Convolutional model** (`MNISTCNN`) - A CNN with convolutional layers from `tt-blacksmith/blacksmith/models/torch/mnist/mnist_cnn.py`
 
 ## Setup
 
@@ -9,25 +11,33 @@ Activate `tt-xla` environment using the provided scripts from `tt-blacksmith` do
 
 ## Training
 
-### 1. Single chip
+### 1. Single Chip - Linear Model
 
-Test MNIST training running [test_mnist_training.py].
+Test MNIST training with linear model running [test_mnist_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/test_mnist_training.py
 ```
 
-### 2. Multichip - data parallel
+### 2. Single Chip - CNN Model
 
-Test MNIST DP training running [test_mnist_training.py].
+Test MNIST training with convolutional model running [test_mnist_cnn_training.py].
+
+```bash
+python blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.py
+```
+
+### 3. Multichip - data parallel
+
+Test MNIST DP training with linear model running [test_mnist_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py
 ```
 
-### 3. Multichip - tensor parallel
+### 4. Multichip - tensor parallel
 
-Test MNIST TP training running [test_mnist_training.py].
+Test MNIST TP training with linear model running [test_mnist_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py
@@ -37,11 +47,14 @@ python blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py
 ## Configuration
 
 For each training you can change default values in configuration files:
-1. Single chip - `blacksmith/experiments/torch/mnist/test_mnist_training.yaml`
-2. Data parallel - `blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training_dp.yaml`
-3. Tensor parallel - `blacksmith/experiments/torch/mnist/tesnor_parallel/test_mnist_training_tp.yaml`
+1. Single chip - Linear - `blacksmith/experiments/torch/mnist/test_mnist_training.yaml`
+2. Single chip - CNN - `blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.yaml`
+3. Data parallel - `blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training_dp.yaml`
+4. Tensor parallel - `blacksmith/experiments/torch/mnist/tesnor_parallel/test_mnist_training_tp.yaml`
 
-In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for example change default values for following parameters.
+### Linear Model Configuration
+
+In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change default values for following parameters.
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
@@ -101,3 +114,26 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can for exa
 | `framework` | Framework being used. | "pytorch" |
 | `output_dir` | Output directory for results. | "experiments/results/mnist" |
 | `use_tt` | Whether to use TT device. | true |
+
+### CNN Model Configuration
+
+In `blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.yaml` you can change values for following parameters.
+
+Most parameters are the same as the Linear model configuration above, with the following CNN-specific model settings:
+
+| Parameter | Description | Default Value |
+| --- | --- | --- |
+|  **Model Settings (CNN-specific)** |
+| `model_name` | Name of the model architecture. | "MNISTCNN" |
+| `conv1_channels` | Output channels from first convolutional layer. | 32 |
+| `conv2_channels` | Output channels from second convolutional layer. | 64 |
+| `fc1_size` | Size of first fully connected layer. | 128 |
+| `output_size` | Number of output classes. | 10 |
+| `dropout1_rate` | Dropout rate after max pooling. | 0.25 |
+| `dropout2_rate` | Dropout rate before final layer. | 0.5 |
+| `bias` | Whether to include bias terms in the layers. | false |
+|  **Other Settings** |
+| `experiment_name` | The name of the experiment used for tracking and logging. | "torch-mnist-cnn" |
+| `output_dir` | Output directory for results. | "experiments/results/mnist_cnn" |
+| `wandb_project` | W&B project name. | "blacksmith-mnist-cnn" |
+| `wandb_run_name` | W&B run name. | "mnist_cnn_single_chip" |

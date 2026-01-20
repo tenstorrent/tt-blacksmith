@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import numpy as np
-
 import jax
-from jax.sharding import Mesh, PartitionSpec, NamedSharding
+import numpy as np
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 
 class ShardingConfig:

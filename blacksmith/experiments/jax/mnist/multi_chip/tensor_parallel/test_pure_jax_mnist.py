@@ -1,21 +1,21 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import jax
-import jax.numpy as jnp
-from jax import random
-from jax.sharding import Mesh, PartitionSpec, NamedSharding
-from jax.experimental import shard_map
-import jax.lax as lax
-import numpy as np
-
-import wandb
 import os
 from pathlib import Path
 
-from blacksmith.tools.cli import generate_config, parse_cli_options
+import jax
+import jax.lax as lax
+import jax.numpy as jnp
+import numpy as np
+import wandb
+from jax import random
+from jax.experimental import shard_map
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
+
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
 class ShardingConfig:

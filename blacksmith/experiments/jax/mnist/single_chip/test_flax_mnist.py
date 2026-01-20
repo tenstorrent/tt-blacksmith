@@ -1,42 +1,36 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import jax
-import jax.numpy as jnp
-from jax import random
-
-from flax.training import train_state
-
-import optax
-
-import wandb
 import os
 from pathlib import Path
 
-from blacksmith.tools.cli import generate_config, parse_cli_options
-
-from blacksmith.models.jax.mnist.model import Models
+import jax
+import jax.numpy as jnp
+import optax
+import wandb
+from flax.training import train_state
+from jax import random
 
 from blacksmith.datasets.jax.mnist.dataloader import load_mnist_jax
-
+from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 from blacksmith.experiments.jax.mnist.logging.shlo_ops_logging import ExportSHLO
 from blacksmith.experiments.jax.mnist.logging.wandb_utils import (
     init_wandb,
+    load_checkpoint,
     log_metrics,
     save_checkpoint,
-    load_checkpoint,
 )
 from blacksmith.experiments.jax.mnist.single_chip.train_utils.train_functions import (
+    accumulate_metrics,
+    calculate_metrics_val,
+    compute_loss_grads_and_logits,
     cross_entropy,
+    eval_step,
     forward_pass,
     optimizer_step,
-    eval_step,
-    compute_loss_grads_and_logits,
-    calculate_metrics_val,
-    accumulate_metrics,
 )
-
-from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
+from blacksmith.models.jax.mnist.model import Models
+from blacksmith.tools.cli import generate_config, parse_cli_options
 
 
 def init_configs(config: ExperimentConfig):
