@@ -17,12 +17,13 @@ Where:
     - pi_ref is the reference model (frozen)
     - beta is the temperature parameter
 """
+import copy
+from typing import Dict, Tuple
+
 import torch
-import torch_xla
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict, Tuple
-import copy
+import torch_xla
 
 
 def get_batch_logps(

@@ -9,7 +9,6 @@ https://arxiv.org/pdf/2305.18290
 """
 from string import Template
 
-
 # Dataset source
 DATASET_PATH = "argilla/distilabel-math-preference-dpo"
 DATASET_NAME = "distilabel-math-preference-dpo"
