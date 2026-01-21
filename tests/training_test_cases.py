@@ -17,7 +17,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.tensor_parallel,
         ],
-        id="mnist-tensor-parallel"
+        id="mnist-tensor-parallel",
     ),
     pytest.param(
         "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
@@ -31,7 +31,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
-        id="mnist-data-parallel"
+        id="mnist-data-parallel",
     ),
     pytest.param(
         "blacksmith/experiments/torch/mnist/test_mnist_training.py",
@@ -44,6 +44,6 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="mnist-single-chip"
+        id="mnist-single-chip",
     ),
 ]

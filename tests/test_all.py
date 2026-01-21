@@ -21,7 +21,7 @@ def assert_wandb_history_equals_with_tolerance(
         "val/loss": 0.002,
         "val/accuracy": 0.002,
         "train/loss": 0.002,
-    }
+    },
 ):
     """
     Assert that the history is equal to the golden history with a tolerance.
@@ -32,13 +32,12 @@ def assert_wandb_history_equals_with_tolerance(
 
         if not ok:
             # TODO: (agobeljicTT) Add a more detailed explanation of the failure.
-            pytest.fail(f"Wandb history is not equal to the golden history with a tolerance of {tolerance} for column {col}")
+            pytest.fail(
+                f"Wandb history is not equal to the golden history with a tolerance of {tolerance} for column {col}"
+            )
 
 
-@pytest.mark.parametrize(
-    "test_script,test_config,timeout",
-    TRAINING_TEST_CASES
-)
+@pytest.mark.parametrize("test_script,test_config,timeout", TRAINING_TEST_CASES)
 def test_training_script(test_script, test_config, timeout, request):
     """
     Test that training script runs successfully with test configuration.
@@ -54,12 +53,7 @@ def test_training_script(test_script, test_config, timeout, request):
     assert Path(test_config).exists(), f"Config not found: {test_config}"
 
     # Build command
-    cmd = [
-        sys.executable,
-        str(test_script),
-        "--test-config",
-        str(test_config)
-    ]
+    cmd = [sys.executable, str(test_script), "--test-config", str(test_config)]
 
     try:
         result = subprocess.run(
@@ -82,19 +76,19 @@ def test_training_script(test_script, test_config, timeout, request):
             pytest.fail(f"Training script exited with code {result.returncode}")
 
         # Get the last run from the project
-        #api = wandb.Api()
-        #runs = api.runs("test-all-wandb-project") # Universally unique identifier
-        #run = runs[len(runs) - 1]
-        #history = run.history()
+        # api = wandb.Api()
+        # runs = api.runs("test-all-wandb-project") # Universally unique identifier
+        # run = runs[len(runs) - 1]
+        # history = run.history()
 
         # TODO: (agobeljicTT) Add golden file functionality.
         # If the golden CSV file exists, compare the history to the golden CSV file
-        #if golden_csv_path.exists():
+        # if golden_csv_path.exists():
         #    golden_history = pd.read_csv(golden_csv_path)
         #    assert_wandb_history_equals_with_tolerance(history, golden_history)
         #
         # If the golden CSV file does not exist, save the history to the golden CSV file
-        #else:
+        # else:
         #    history.to_csv(golden_csv_path, index=False)
         #    pytest.skip(f"Golden CSV file not found, generated new one: {golden_csv_path}. Please rerun the test.")
 
