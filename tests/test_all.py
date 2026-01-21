@@ -28,9 +28,7 @@ def assert_wandb_history_equals_with_tolerance(history, golden_history, toleranc
             )
 
 
-@pytest.mark.parametrize(
-    "test_script,test_config,timeout,tolerances", TRAINING_TEST_CASES
-)
+@pytest.mark.parametrize("test_script,test_config,timeout,tolerances", TRAINING_TEST_CASES)
 def test_training_script(test_script, test_config, timeout, tolerances, request):
     """
     Test that training script runs successfully with test configuration.
