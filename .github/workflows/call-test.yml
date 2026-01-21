@@ -68,7 +68,7 @@ jobs:
     - name: Run tests
       shell: bash
       run: |
-        export WANDB_MODE=disabled
+        export WANDB_MODE=disabled # figure out if we can use offline mode
         export LOGURU_LEVEL=ERROR
         export LOGGER_LEVEL=ERROR
         source env/activate --${{ matrix.build.frontend }}
