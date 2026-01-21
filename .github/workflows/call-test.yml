@@ -18,7 +18,7 @@ on:
         type: string
 
 env:
-  WANDB_MODE: dryrun # to log the data to wandb but not send it to the server
+  WANDB_MODE: online
 
 jobs:
 
