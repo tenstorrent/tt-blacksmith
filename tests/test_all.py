@@ -1,12 +1,17 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Integration tests for training scripts."""
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pandas as pd
 import pytest
 import wandb
-import subprocess
-from pathlib import Path
-import sys
-import os
-import pandas as pd
 from training_test_cases import TRAINING_TEST_CASES
+
 
 def assert_wandb_history_equals_with_tolerance(
     history,
