@@ -18,7 +18,7 @@ on:
         type: string
 
 env:
-  WANDB_MODE: disabled # to not log the data to wandb
+  WANDB_MODE: dryrun # to log the data to wandb but not send it to the server
 
 jobs:
 

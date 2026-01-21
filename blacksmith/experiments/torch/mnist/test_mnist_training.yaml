@@ -60,5 +60,5 @@ device: "TT"
 experiment_name: "torch-mnist"
 framework: "pytorch"
 output_dir: "experiments/results/mnist"
-use_tt: true
+use_tt: false
 print_examples: false
