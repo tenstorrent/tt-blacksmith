@@ -13,11 +13,7 @@ import wandb
 from training_test_cases import TRAINING_TEST_CASES
 
 
-def assert_wandb_history_equals_with_tolerance(
-    history,
-    golden_history,
-    tolerances
-):
+def assert_wandb_history_equals_with_tolerance(history, golden_history, tolerances):
     """
     Assert that the history is equal to the golden history with a tolerance.
     """
@@ -32,7 +28,9 @@ def assert_wandb_history_equals_with_tolerance(
             )
 
 
-@pytest.mark.parametrize("test_script,test_config,timeout,tolerances", TRAINING_TEST_CASES)
+@pytest.mark.parametrize(
+    "test_script,test_config,timeout,tolerances", TRAINING_TEST_CASES
+)
 def test_training_script(test_script, test_config, timeout, tolerances, request):
     """
     Test that training script runs successfully with test configuration.
@@ -81,10 +79,10 @@ def test_training_script(test_script, test_config, timeout, tolerances, request)
         # if golden_csv_path.exists():
         #    golden_history = pd.read_csv(golden_csv_path)
         #    tolerances = {
-        #"_runtime": 0.1,
-        #"val/loss": 0.002,
-        #"val/accuracy": 0.002,
-        #"train/loss": 0.002,
+        #        "_runtime": 0.1,
+        #        "val/loss": 0.002,
+        #        "val/accuracy": 0.002,
+        #        "train/loss": 0.002,
         #    } | tolerances
         #    assert_wandb_history_equals_with_tolerance(history, golden_history, tolerances)
         #
