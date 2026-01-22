@@ -84,7 +84,7 @@ TRAINING_TEST_CASES = [
         id="mnist-single-chip-jax-flax",
     ),
     pytest.param(
-        "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py"
+        "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
         "tests/configs/test_training_fast.yaml",
         1800,
         marks=[
