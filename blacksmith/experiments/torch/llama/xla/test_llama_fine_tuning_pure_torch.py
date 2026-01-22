@@ -28,9 +28,9 @@ from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labe
 
 def generate_text_samples(model, val_data_loader, logger, device, config, tokenizer, num_samples=3):
     """Generate actual text from the model to see real output quality."""
-    logger.info("\n" + "="*80)
+    logger.info("\n" + "=" * 80)
     logger.info("GENERATING TEXT SAMPLES FROM MODEL")
-    logger.info("="*80)
+    logger.info("=" * 80)
 
     model.eval()
     samples_generated = 0
@@ -53,7 +53,7 @@ def generate_text_samples(model, val_data_loader, logger, device, config, tokeni
                     continue
 
                 prompt_end = response_start_idx[0].item()
-                prompt_ids = input_ids[i:i+1, :prompt_end]
+                prompt_ids = input_ids[i : i + 1, :prompt_end]
 
                 # Generate from the prompt
                 generated_ids = model.generate(
@@ -80,7 +80,7 @@ def generate_text_samples(model, val_data_loader, logger, device, config, tokeni
 
                 samples_generated += 1
 
-    logger.info("="*80 + "\n")
+    logger.info("=" * 80 + "\n")
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -203,13 +203,13 @@ def train(
     running_grad_norm = 0.0
     try:
         # Test base model BEFORE training
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("TESTING UNTRAINED BASE MODEL")
-        logger.info("="*80)
+        logger.info("=" * 80)
         generate_text_samples(model, eval_dataloader, logger, device_manager.device, config, tokenizer, num_samples=3)
 
         model.train()
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
@@ -263,7 +263,7 @@ def train(
                         if p.grad is not None:
                             param_norm = p.grad.data.norm(2)
                             total_norm += param_norm.item() ** 2
-                    total_norm = total_norm ** 0.5
+                    total_norm = total_norm**0.5
 
                     # Optimizer step.
                     device_manager.optimizer_step(optimizer)
@@ -276,7 +276,9 @@ def train(
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         avg_grad_norm = running_grad_norm / config.steps_freq
-                        logger.log_metrics({"train/loss": avg_loss, "train/grad_norm": avg_grad_norm}, commit=False, step=global_step)
+                        logger.log_metrics(
+                            {"train/loss": avg_loss, "train/grad_norm": avg_grad_norm}, commit=False, step=global_step
+                        )
                         running_loss = 0.0
                         running_grad_norm = 0.0
 
@@ -324,7 +326,7 @@ if __name__ == "__main__":
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
-    # Logger setup
+    # Logger setup.
     logger = TrainingLogger(config)
 
     # Checkpoint manager setup
@@ -334,5 +336,8 @@ if __name__ == "__main__":
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
 
-    # Start training
+    # Use the highest numerical precision in computation.
+    torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+
+    # Start training.
     train(config, device_manager, logger, checkpoint_manager)
