@@ -12,6 +12,7 @@ Keep all lines (including imports and comments) to a maximum of **88 characters*
 To maintain a consistent style across the codebase, we use the following tools:
 - Black: The uncompromising code formatter that ensures a uniform layout.
 - isort: Automatically sorts and categorizes your imports.
+- flake8: A linting tool that checks for style violations and potential errors.
 
 ### Pre-commit Hooks
 We use pre-commit to automate these checks. This ensures that every commit meets our quality standards before it even leaves your local machine.
