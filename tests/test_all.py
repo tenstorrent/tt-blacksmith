@@ -2,14 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """Integration tests for training scripts."""
-import os
 import subprocess
 import sys
 from pathlib import Path
 
-import pandas as pd
 import pytest
-import wandb
 from training_test_cases import TRAINING_TEST_CASES
 
 
@@ -50,12 +47,6 @@ def test_training_script(test_script, test_config, timeout, request):
             print(f"\nSTDERR:\n{result.stderr}")
             print(f"{'='*60}\n")
             pytest.fail(f"Training script exited with code {result.returncode}")
-
-        # Get the last run from the project
-        api = wandb.Api()
-        runs = api.runs("test-all-wandb-project")  # Universally unique identifier
-        run = runs[len(runs) - 1]
-        history = run.history()  # TODO: (agobeljicTT) For Superset
 
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {timeout} seconds")
