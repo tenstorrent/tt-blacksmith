@@ -1,7 +1,8 @@
 [
-    {"runs-on": "n150", "frontend": "xla", "script": "-m pytest -sm 'single_chip and uplift and n150 and jax' tests/"},
-    {"runs-on": "n300", "frontend": "xla", "script": "-m pytest -sm 'single_chip and uplift and n300 and torch' tests/"},
-    {"runs-on": "n300", "frontend": "xla", "script": "-m pytest -sm 'tensor_parallel and uplift and n300 and torch' tests/"},
-    {"runs-on": "n300", "frontend": "xla", "script": "-m pytest -sm 'data_parallel and uplift and n300 and torch' tests/"},
-    {"runs-on": "n300", "frontend": "xla", "script": "-m pytest -sm 'data_parallel and uplift and n300 and jax' tests/"}
+    {"runs-on": "n150", "frontend": "xla", "marks": "single_chip and uplift and n150 and jax"},
+    {"runs-on": "n300", "frontend": "xla", "marks": "single_chip and uplift and n300 and torch"},
+    {"runs-on": "n300", "frontend": "xla", "marks": "tensor_parallel and uplift and n300 and torch"},
+    {"runs-on": "n300", "frontend": "xla", "marks": "data_parallel and uplift and n300 and torch"},
+    {"runs-on": "n300", "frontend": "xla", "marks": "data_parallel and uplift and n300 and jax"},
+    {"runs-on": "n300", "frontend": "xla", "marks": "tensor_parallel and uplift and n300 and jax"}
 ]
