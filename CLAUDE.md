@@ -23,3 +23,15 @@ pre-commit run --all-files   # Lint code before commits
 - Prefer editing existing files over creating new ones
 - Use shared tools from `blacksmith/tools/` when possible
 - Prefer pure torch over lightning if not specified otherwise
+
+## Debugging
+For debugging the following environment variable:
+- TTXLA_LOGGER_LEVEL: DEBUG or VERBOSE.
+
+If compilation fails, it is useful to use:
+```python
+torch_xla.set_custom_compile_options({
+    "export_path": "./irs",
+})
+```
+But only use this at start of the epoch, as doing this once is enough.
