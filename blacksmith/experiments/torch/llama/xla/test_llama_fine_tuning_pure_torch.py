@@ -133,7 +133,13 @@ def train(
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
+    tokenizer = train_dataset.tokenizer
+
     model.train()
+
+    global_step = 0
+    running_loss = 0.0
+
     try:
         for epoch in range(config.num_epochs):
             accumulation_step = 0
@@ -159,7 +165,7 @@ def train(
                 device_manager.shard_model(model)
 
                 # Training step.
-                loss_ = training_step_inner(batch, model, loss_fn, config.gradient_accumulation_steps)
+                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
@@ -178,16 +184,12 @@ def train(
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
-                        avg_grad_norm = running_grad_norm / config.steps_freq
-                        logger.log_metrics(
-                            {"train/loss": avg_loss, "train/grad_norm": avg_grad_norm}, commit=False, step=global_step
-                        )
+                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
-                        running_grad_norm = 0.0
 
                         # Do validation.
                         valid_loss = validate(
-                            model, eval_dataloader, loss_fn, logger, device_manager.device, config, tokenizer
+                            model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
                         )
                         logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
