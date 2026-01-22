@@ -1,2 +1,2 @@
 --extra-index-url https://pypi.eng.aws.tenstorrent.com
-pjrt-plugin-tt==0.8.0.dev20260121
+pjrt-plugin-tt==0.8.0.dev20260122
