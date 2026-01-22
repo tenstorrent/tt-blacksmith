@@ -25,7 +25,6 @@ class AvailableDataset(Enum):
     SQUADV2 = "squadv2"
     STANFORDCARS = "stanfordcars"
     ALPACA = "alpaca"
-    FUSECHAT = "fusechat"
 
 
 def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):

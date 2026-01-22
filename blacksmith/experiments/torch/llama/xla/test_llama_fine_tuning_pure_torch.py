@@ -26,63 +26,6 @@ from blacksmith.tools.torch_helpers import (
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
 
-def generate_text_samples(model, val_data_loader, logger, device, config, tokenizer, num_samples=3):
-    """Generate actual text from the model to see real output quality."""
-    logger.info("\n" + "=" * 80)
-    logger.info("GENERATING TEXT SAMPLES FROM MODEL")
-    logger.info("=" * 80)
-
-    model.eval()
-    samples_generated = 0
-
-    with torch.no_grad():
-        for batch in val_data_loader:
-            if samples_generated >= num_samples:
-                break
-
-            input_ids = batch["input_ids"].to(device)
-            labels = batch["labels"]
-
-            # For each sample in batch, find where the response starts (first non -100 label)
-            for i in range(min(input_ids.shape[0], num_samples - samples_generated)):
-                # Find where response starts (first unmasked token)
-                label_row = labels[i]
-                response_start_idx = (label_row != -100).nonzero(as_tuple=True)[0]
-
-                if len(response_start_idx) == 0:
-                    continue
-
-                prompt_end = response_start_idx[0].item()
-                prompt_ids = input_ids[i : i + 1, :prompt_end]
-
-                # Generate from the prompt
-                generated_ids = model.generate(
-                    prompt_ids,
-                    max_new_tokens=50,
-                    do_sample=False,
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                )
-
-                # Decode texts
-                full_input = tokenizer.decode(input_ids[i], skip_special_tokens=True)
-                prompt_text = tokenizer.decode(prompt_ids[0], skip_special_tokens=True)
-                generated_text = tokenizer.decode(generated_ids[0][prompt_end:], skip_special_tokens=True)
-
-                # Get expected response
-                response_labels = label_row[label_row != -100]
-                expected_response = tokenizer.decode(response_labels, skip_special_tokens=True)
-
-                logger.info(f"\n--- Sample {samples_generated + 1} ---")
-                logger.info(f"PROMPT:\n{prompt_text}\n")
-                logger.info(f"EXPECTED RESPONSE:\n{expected_response}\n")
-                logger.info(f"GENERATED RESPONSE:\n{generated_text}\n")
-
-                samples_generated += 1
-
-    logger.info("=" * 80 + "\n")
-
-
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
     logger.info("Starting validation...")
     total_val_loss = 0.0
@@ -138,10 +81,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
         logger.info("Printing validation examples...")
         show_examples(collected_examples, tokenizer, config, logger)
 
-    # Generate actual text samples to see quality
-    if tokenizer is not None:
-        generate_text_samples(model, val_data_loader, logger, device, config, tokenizer, num_samples=3)
-
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
@@ -181,8 +120,6 @@ def train(
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    loss_fn = cross_entropy_loss
-
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
@@ -196,30 +133,12 @@ def train(
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
-    tokenizer = train_dataset.tokenizer
-
-    global_step = 0
-    running_loss = 0.0
-    running_grad_norm = 0.0
+    model.train()
     try:
-        # Test base model BEFORE training
-        logger.info("\n" + "=" * 80)
-        logger.info("TESTING UNTRAINED BASE MODEL")
-        logger.info("=" * 80)
-        generate_text_samples(model, eval_dataloader, logger, device_manager.device, config, tokenizer, num_samples=3)
-
-        model.train()
-        print("\n" + "=" * 80)
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
             for batch in tqdm(train_dataloader, desc="Training"):
-                if epoch == 0 and global_step == 0:
-                    print(f"\nProcessing first batch:")
-                    print(f"  - Original labels shape: {batch['labels'].shape}")
-                    print(f"  - Labels contain -100: {(batch['labels'] == -100).any().item()}")
-                    print(f"  - Labels min/max: {batch['labels'].min().item()}/{batch['labels'].max().item()}")
-
                 # Zero out gradients at the start of accumulation cycle
                 if accumulation_step == 0:
                     optimizer.zero_grad()
@@ -228,13 +147,6 @@ def train(
                 expected_output, labels_mask = transform_labels(
                     batch["labels"], config.ignored_index, model.model.config.vocab_size
                 )
-                if epoch == 0 and global_step == 0:
-                    print(f"\nAfter transform_labels:")
-                    print(f"  - expected_output shape: {expected_output.shape}")
-                    print(f"  - labels_mask shape: {labels_mask.shape}")
-                    print(f"  - expected_output min/max: {expected_output.min().item()}/{expected_output.max().item()}")
-                    print(f"  - labels_mask sum (valid positions): {labels_mask.sum().item()}")
-
                 batch = {
                     "input_ids": batch["input_ids"],
                     "attention_mask": batch["attention_mask"],
@@ -257,17 +169,8 @@ def train(
 
                 # Only step the optimizer after accumulating gradients
                 if accumulation_step == config.gradient_accumulation_steps:
-                    # Compute gradient norm for monitoring (before clipping)
-                    total_norm = 0.0
-                    for p in model.parameters():
-                        if p.grad is not None:
-                            param_norm = p.grad.data.norm(2)
-                            total_norm += param_norm.item() ** 2
-                    total_norm = total_norm**0.5
-
                     # Optimizer step.
                     device_manager.optimizer_step(optimizer)
-                    running_grad_norm += total_norm
 
                     # Reset accumulation counter
                     accumulation_step = 0
