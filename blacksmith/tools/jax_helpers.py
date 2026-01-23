@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import jax
 import jax.numpy as jnp
-import numpy as np
 import optax
 from flax import linen as nn
 

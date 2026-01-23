@@ -4,12 +4,10 @@
 
 import json
 import os
-from functools import partial
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from huggingface_hub import hf_hub_download
 from PIL import Image
 

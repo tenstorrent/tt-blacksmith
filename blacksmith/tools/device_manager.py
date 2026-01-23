@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch

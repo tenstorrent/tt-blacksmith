@@ -8,7 +8,6 @@ from random import random
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import Dataset
 from torchdata.stateful_dataloader import StatefulDataLoader
 from torchvision import transforms as T
 

@@ -11,9 +11,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 import wandb
-from flax import linen as nn
 from jax.experimental import shard_map
-from jax.sharding import NamedSharding, PartitionSpec
 from transformers import AutoTokenizer
 
 from blacksmith.datasets.jax.distil_bert.sst2_dataset import *
