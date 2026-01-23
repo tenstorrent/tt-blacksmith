@@ -1,5 +1,5 @@
-### Ticket
-Link to Github Issue
+### Issue
+Closes [GitHub Issue Link]
 
 ### Problem description
 Provide context for the problem.

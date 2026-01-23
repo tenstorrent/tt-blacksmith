@@ -1,5 +1,5 @@
-### Ticket
-Link to the issue or ticket if available.
+### Issue
+Closes [GitHub Issue Link]
 
 ### Bug Description
 Brief description of the bug being fixed.
