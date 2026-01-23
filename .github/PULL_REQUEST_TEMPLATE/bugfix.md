@@ -4,7 +4,7 @@ Closes [GitHub Issue Link]
 ### Bug Description
 Brief description of the bug being fixed.
 
-### Solution
+### What's Changed
 Describe how this PR fixes the bug.
 
 ### Environment
