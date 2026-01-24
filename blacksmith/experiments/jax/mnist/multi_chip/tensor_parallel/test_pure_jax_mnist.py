@@ -388,7 +388,6 @@ def evaluate(params, x_test, y_test, sharding_config, param_in_specs, batch_size
 
 def train_mnist(config: ExperimentConfig):
     jax.config.update("jax_use_shardy_partitioner", True)
-    os.environ["WANDB_MODE"] = "online" if config.logger_config.log_on_wandb else "disabled"
 
     sharding_config = ShardingConfig()
 
