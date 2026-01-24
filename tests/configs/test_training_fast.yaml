@@ -5,3 +5,4 @@ steps_freq: 1
 
 use_tt: true
 wandb_project: "test-all-wandb-project"
+log_on_wandb: false
