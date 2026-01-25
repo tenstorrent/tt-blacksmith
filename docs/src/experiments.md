@@ -31,13 +31,11 @@ The following table provides an overview of different model and dataset combinat
 | JAX | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | MLP | MNIST | Full-model, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | MLP | MNIST | Full-model, Tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
-| JAX | MLP | MNIST | Full-model, Data parallel | WH Galaxy | [W&B run](https://wandb.ai/tenstorrent-ml/DP%20-%20Pure%20JAX%20MLP%20training/runs/r2tfckk9?nw=nwuserpglusac). Not yet in main, code on this [branch](https://github.com/tenstorrent/tt-blacksmith/tree/pglusac/mnist-galaxy-jax) |
 | JAX | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |
 | JAX | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/README.md) |
 | JAX | Llama 3.2 1B | SST-2 | DoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama_dora/README.md) |
 | JAX | DistilBERT | SST-2 | Distillation | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/distil_bert/README.md) |
 | JAX | DistilBERT | SST-2 | Distillation, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/distil_bert/README.md) |
-| Lightning | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/tree/main/blacksmith/experiments/lightning/mnist/README.md) |
 | Lightning | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
 
 

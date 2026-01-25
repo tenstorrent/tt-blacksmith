@@ -1,0 +1,71 @@
+name: "CodeQL Analysis"
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for all workflows.
+      security-events: write
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: actions
+          build-mode: none
+        - language: python
+          build-mode: none
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        clean: true
+        fetch-depth: 1
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        queries: security-and-quality
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
+
+  pyflakes:
+    name: Py Flake8
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        shell: bash
+        run: pip install flake8 flake8-sarif
+      - name: Run Flake8
+        shell: bash
+        run: |
+          flake8 --version
+          flake8 --output-file=.flake-output.sarif --format=sarif --config=.flake8-config || true
+          cat .flake-output.sarif
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: .flake-output.sarif
+          category: "/language:python"
