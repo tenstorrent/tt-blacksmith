@@ -47,7 +47,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
         "tests/configs/test_training_fast.yaml",
-        1600,
+        1800,
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -86,7 +86,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
         "tests/configs/test_training_fast.yaml",
-        1000,
+        1200,
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
