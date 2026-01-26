@@ -22,7 +22,7 @@ jobs:
       test_suite: 'uplift-test.json'
   
   basic-test:
-    if: ${{ github.head_ref != 'uplift' && github.event.comment.body == 'trigger' }}
+    if: ${{ github.head_ref != 'uplift' && contains(github.event.comment.body, 'trigger') }}
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
