@@ -10,8 +10,8 @@ import pytest
 from training_test_cases import TRAINING_TEST_CASES
 
 
-@pytest.mark.parametrize("test_script,test_config,timeout", TRAINING_TEST_CASES)
-def test_training_script(test_script, test_config, timeout, request):
+@pytest.mark.parametrize("test_script,experiment_config,test_config,timeout", TRAINING_TEST_CASES)
+def test_training_script(test_script, experiment_config, test_config, timeout, request):
     """
     Test that training script runs successfully with test configuration.
 
@@ -19,14 +19,16 @@ def test_training_script(test_script, test_config, timeout, request):
     """
 
     test_id = request.node.callspec.id
-    golden_csv_path = Path(f"tests/golden_files/{test_id}.csv")
 
     # Verify files exist
     assert Path(test_script).exists(), f"Script not found: {test_script}"
     assert Path(test_config).exists(), f"Config not found: {test_config}"
 
     # Build command
-    cmd = [sys.executable, str(test_script), "--test-config", str(test_config)]
+    if experiment_config is not None:
+        cmd = [sys.executable, str(test_script), "--config", str(experiment_config), "--test-config", str(test_config)]
+    else:
+        cmd = [sys.executable, str(test_script), "--test-config", str(test_config)]
 
     try:
         result = subprocess.run(

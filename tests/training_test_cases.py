@@ -7,8 +7,9 @@ import pytest
 TRAINING_TEST_CASES = [
     pytest.param(
         "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py",
+        None,
         "tests/configs/test_training_fast.yaml",
-        1200,
+        800,
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -20,8 +21,9 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
+        None,
         "tests/configs/test_training_fast.yaml",
-        1200,
+        800,
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -33,6 +35,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         "blacksmith/experiments/torch/mnist/test_mnist_training.py",
+        None,
         "tests/configs/test_training_fast.yaml",
         300,
         marks=[
@@ -46,6 +49,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
+        None,
         "tests/configs/test_training_fast.yaml",
         1800,
         marks=[
@@ -59,6 +63,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
+        None,
         "tests/configs/test_training_fast.yaml",
         300,
         marks=[
@@ -72,6 +77,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
+        None,
         "tests/configs/test_training_fast.yaml",
         300,
         marks=[
@@ -85,6 +91,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
+        None,
         "tests/configs/test_training_fast.yaml",
         1200,
         marks=[
