@@ -4,8 +4,6 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ "main" ]
-  issue_comment:
-    types: [created]
 
 jobs:
   pre-commit:
@@ -22,7 +20,7 @@ jobs:
       test_suite: 'uplift-test.json'
 
   basic-test:
-    if: ${{ github.head_ref != 'uplift' && contains(github.event.comment.body, 'trigger') }}
+    if: ${{ github.head_ref != 'uplift' }}
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
