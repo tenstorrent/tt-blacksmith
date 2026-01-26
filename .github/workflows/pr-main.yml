@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [ "main" ]
+  issue_comment:
+    types: [created]
 
 jobs:
   pre-commit:
@@ -11,35 +13,23 @@ jobs:
     secrets: inherit
 
   uplift-test:
-    if: ${{ github.head_ref == 'uplift' }}
+    if: ${{ github.head_ref == 'uplift' || (github.event.comment.body == 'trigger' && github.event.issue.user.login == github.actor) }}
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
       docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
       use-shared-runners: false
-      test_suite: uplift-test.json
-
-  basic-test:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.head_ref != 'uplift' }}
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    with:
-      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
-      use-shared-runners: false
-      test_suite: basic-test.json
+      test_suite: ${{ github.head_ref == 'uplift' ? 'uplift-test.json' : 'basic-test.json' }}
 
   check-all-green:
     if: always()
     needs:
       - pre-commit
       - uplift-test
-      - basic-test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: |
-          uplift-test
-          basic-test
+        allowed-skips: ''
         jobs: ${{ toJSON(needs) }}
