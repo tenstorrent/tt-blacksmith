@@ -19,7 +19,7 @@ jobs:
     with:
       docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
       use-shared-runners: false
-      test_suite: ${{ github.head_ref == 'uplift' ? 'uplift-test.json' : 'basic-test.json' }}
+      test_suite: ${{ if(github.head_ref == 'uplift') 'uplift-test.json' else 'basic-test.json' }}
 
   check-all-green:
     if: always()
@@ -31,5 +31,5 @@ jobs:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: ''
+        allowed-skips: '[]'
         jobs: ${{ toJSON(needs) }}
