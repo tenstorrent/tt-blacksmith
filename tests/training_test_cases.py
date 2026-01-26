@@ -45,6 +45,20 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
+        id="mnist-single-chip-torch-n300",
+    ),
+    pytest.param(
+        "blacksmith/experiments/torch/mnist/test_mnist_training.py",
+        None,
+        "tests/configs/test_training_fast.yaml",
+        300,
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.push,
+            pytest.mark.n150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
         id="mnist-single-chip-torch",
     ),
     pytest.param(
