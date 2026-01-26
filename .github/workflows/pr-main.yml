@@ -19,7 +19,7 @@ jobs:
     with:
       docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
       use-shared-runners: false
-      test_suite: ${{ github.head_ref == 'uplift' ? 'uplift-test.json' : 'basic-test.json' }}
+      test_suite: ${{ if(github.head_ref == 'uplift') 'uplift-test.json' else 'basic-test.json' }}
 
   check-all-green:
     if: always()
