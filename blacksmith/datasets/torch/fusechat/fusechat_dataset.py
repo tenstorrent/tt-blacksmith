@@ -32,8 +32,8 @@ class FuseChatDataset(BaseDataset):
         self._prepare_dataset()
 
     def _tokenize_function(self, example):
-        input = example[0]["value"]
-        output = example[1]["output"]
+        input = example["conversations"][0]["value"]
+        output = example["conversations"][1]["value"]
 
         prompt = PROMPT_TEMPLATE.substitute(input=input)
 
