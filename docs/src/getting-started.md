@@ -38,4 +38,4 @@ This section guides you through the process of running experiments included in t
 
 ## Visual Demo: 3D Reconstruction with NeRF
 
-<img src="docs/shared/images/nerf_demo.gif" alt="nerf demo" height="230"/>
+<img src="../shared/images/nerf_demo.gif" alt="nerf demo" height="230"/>
