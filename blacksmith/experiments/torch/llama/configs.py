@@ -78,7 +78,7 @@ class TrainingConfig(BaseModel):
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Other settings
-    output_dir: str = Field(default="experiments/results/llama32-1b")
+    output_dir: str = Field(default="experiments/results/llama_3_2_1b")
     logging_steps: int = Field(default=10, gt=0)
     do_train: bool = Field(default=True)
     print_examples: bool = Field(default=False)

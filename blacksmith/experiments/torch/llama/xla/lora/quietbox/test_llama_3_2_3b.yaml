@@ -1,8 +1,9 @@
 # Dataset settings
+# TODO(mmilosevicTT): Add different dataset for this fine-tuning. (https://github.com/tenstorrent/tt-blacksmith/issues/422)
 dataset_id: "sst2"
 
 # Model settings
-model_name: "meta-llama/Llama-3.2-1B"
+model_name: "meta-llama/Llama-3.2-3B"
 max_length: 64
 dtype: "torch.bfloat16"
 
@@ -20,7 +21,7 @@ lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Device settings
-mesh_shape: [2, 4]  # QuietBox mesh.
+mesh_shape: [1, 4]  # Blackhole QuietBox mesh.
 mesh_axis_names: ["data", "model"]
 
 # Sharding patterns for tensor parallelism (regex pattern -> partition spec)
@@ -44,8 +45,8 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "llama1b-multichip-lora-quietbox"
-wandb_run_name: "tt-llama1b-test"
+wandb_project: "llama3b-multichip-lora-quietbox"
+wandb_run_name: "tt-llama3b-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
