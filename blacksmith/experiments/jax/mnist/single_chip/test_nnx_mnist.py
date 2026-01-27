@@ -29,7 +29,9 @@ def init_configs(config: ExperimentConfig) -> ExperimentConfig:
     return config
 
 
-def get_dataset(config: ExperimentConfig = None) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+def get_dataset(
+    config: ExperimentConfig = None
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Returns the MNIST dataset with integer labels (not one-hot)."""
     train_images, train_labels, val_images, val_labels, test_images, test_labels = load_mnist_jax(config)
 

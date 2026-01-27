@@ -4,15 +4,13 @@
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from training_test_cases import TRAINING_TEST_CASES, Seconds
-from typing import Optional
 
 
-@pytest.mark.parametrize(
-    "test_script,experiment_config,test_config,timeout", TRAINING_TEST_CASES
-)
+@pytest.mark.parametrize("test_script,experiment_config,test_config,timeout", TRAINING_TEST_CASES)
 def test_training_script(
     test_script: str,
     experiment_config: Optional[str],
