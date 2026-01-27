@@ -40,6 +40,7 @@ jobs:
       uses: re-actors/alls-green@release/v1
       with:
         allowed-skips:
-          - uplift-test
-          - basic-test
+          uplift-test
+        allowed-skips:
+          basic-test
         jobs: ${{ toJSON(needs) }}
