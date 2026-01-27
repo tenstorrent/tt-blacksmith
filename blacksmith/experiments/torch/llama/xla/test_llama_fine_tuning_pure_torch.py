@@ -204,7 +204,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_1b.yaml"
+    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

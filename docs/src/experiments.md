@@ -15,9 +15,10 @@ The following table provides an overview of different model and dataset combinat
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA, Data + Tensor parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA, Data + Tensor parallel| WH/BH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.2 1B | SST-2 | Adapters | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/adapters/README.md) |
+| PyTorch | Llama 3.2 3B | SST-2 | LoRA, Tensor parallel| BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA, Data + Tensor parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA, Data + Tensor parallel| BH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
-| PyTorch | Llama 3.2 1B | SST-2 | Adapters | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/adapters/README.md) |
 | PyTorch | Qwen 2.5 0.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Qwen 2.5 1.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Gemma 3 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
