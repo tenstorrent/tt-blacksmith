@@ -41,26 +41,26 @@ def test_training_script(
 
     test_id = request.node.callspec.id
 
-    assert Path(setup_dict['test_script']).exists(), f"Script not found: {setup_dict['test_script']}"
-    assert Path(setup_dict['test_config']).exists(), f"Config not found: {setup_dict['test_config']}"
+    assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
+    assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
 
-    if setup_dict['experiment_config'] is not None:
+    if setup_dict["experiment_config"] is not None:
         cmd = [
             sys.executable,
-            str(setup_dict['test_script']),
+            str(setup_dict["test_script"]),
             "--config",
-            str(setup_dict['experiment_config']),
+            str(setup_dict["experiment_config"]),
             "--test-config",
-            str(setup_dict['test_config']),
+            str(setup_dict["test_config"]),
         ]
     else:
-        cmd = [sys.executable, str(setup_dict['test_script']), "--test-config", str(setup_dict['test_config'])]
+        cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
 
     try:
         result = subprocess.run(
             cmd,
             cwd=str(Path.cwd()),
-            timeout=setup_dict['timeout'],
+            timeout=setup_dict["timeout"],
             capture_output=True,
             text=True,
             check=False,
@@ -76,4 +76,4 @@ def test_training_script(
             pytest.fail(f"Training script exited with code {result.returncode}")
 
     except subprocess.TimeoutExpired:
-        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
+        pytest.fail(f"Training script timed out after {setup_dict["timeout"]} seconds")
