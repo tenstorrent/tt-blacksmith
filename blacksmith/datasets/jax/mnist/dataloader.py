@@ -64,7 +64,7 @@ def load_mnist_jax(experiment_config: Optional[ExperimentConfig] = None):
         train_labels[train_size : train_size + val_size],
     )
 
-    # Conditional truncation of train data
+    # Testing truncation
     if experiment_config and experiment_config.test_config:
         batch_size = experiment_config.training_config.batch_size
         max_steps_per_epoch = experiment_config.test_config.max_steps_per_epoch

@@ -1,19 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import NewType
-
 import pytest
-
-Seconds = NewType("Seconds", int)
 
 # Test cases with individual marks for each configuration
 TRAINING_TEST_CASES = [
     pytest.param(
-        "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(800),
+        {
+            "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py",
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -24,10 +19,9 @@ TRAINING_TEST_CASES = [
         id="mnist-tensor-parallel-torch",
     ),
     pytest.param(
-        "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(800),
+        {
+            "test_script": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -38,10 +32,10 @@ TRAINING_TEST_CASES = [
         id="mnist-data-parallel-torch",
     ),
     pytest.param(
-        "blacksmith/experiments/torch/mnist/test_mnist_training.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(300),
+        {
+            "test_script": "blacksmith/experiments/torch/mnist/test_mnist_training.py",
+            "timeout": 300,
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -52,10 +46,10 @@ TRAINING_TEST_CASES = [
         id="mnist-single-chip-torch-n300",
     ),
     pytest.param(
-        "blacksmith/experiments/torch/mnist/test_mnist_training.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(300),
+        {
+            "test_script": "blacksmith/experiments/torch/mnist/test_mnist_training.py",
+            "timeout": 300,
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -66,10 +60,10 @@ TRAINING_TEST_CASES = [
         id="mnist-single-chip-torch",
     ),
     pytest.param(
-        "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(1800),
+        {
+            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
+            "timeout": 1800,
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -80,10 +74,10 @@ TRAINING_TEST_CASES = [
         id="mnist-data-parallel-jax",
     ),
     pytest.param(
-        "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(300),
+        {
+            "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
+            "timeout": 300,
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -94,10 +88,10 @@ TRAINING_TEST_CASES = [
         id="mnist-single-chip-jax",
     ),
     pytest.param(
-        "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(300),
+        {
+            "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
+            "timeout": 300,
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,
@@ -108,10 +102,10 @@ TRAINING_TEST_CASES = [
         id="mnist-single-chip-jax-flax",
     ),
     pytest.param(
-        "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
-        None,
-        "tests/configs/test_training_fast.yaml",
-        Seconds(1200),
+        {
+            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
+            "timeout": 1200,
+        },
         marks=[
             pytest.mark.uplift,
             pytest.mark.push,

@@ -4,18 +4,14 @@
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import pytest
-from training_test_cases import TRAINING_TEST_CASES, Seconds
+from training_test_cases import TRAINING_TEST_CASES
 
 
-@pytest.mark.parametrize("test_script,experiment_config,test_config,timeout", TRAINING_TEST_CASES)
+@pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
 def test_training_script(
-    test_script: str,
-    experiment_config: Optional[str],
-    test_config: Optional[str],
-    timeout: Seconds,
+    setup_dict: dict,
     request: pytest.FixtureRequest,
 ):
     """
@@ -24,35 +20,47 @@ def test_training_script(
     Spawns subprocess to execute training script, verifies exit code 0.
 
     Args:
-        test_script: Path to the training script.
-        experiment_config: Path to the experiment configuration.
-        test_config: Path to the test configuration.
-        timeout: Timeout in seconds.
+        setup_dict: Dictionary containing the test setup:
+            - test_script: Path to the training script.
+            - experiment_config: Path to the experiment configuration.
+            - test_config: Path to the test configuration.
+            - tolerance: Tolerance for loss and accuracy metrics.
+            - timeout: Timeout in seconds.
         request: pytest request object.
     """
 
+    default_setup_dict = {
+        "test_script": None,
+        "experiment_config": None,
+        "test_config": 'tests/configs/test_training_fast.yaml',
+        "tolerance": 0.1,
+        "timeout": 800.0,
+    }
+
+    setup_dict = default_setup_dict | setup_dict
+
     test_id = request.node.callspec.id
 
-    assert Path(test_script).exists(), f"Script not found: {test_script}"
-    assert Path(test_config).exists(), f"Config not found: {test_config}"
+    assert Path(setup_dict['test_script']).exists(), f"Script not found: {setup_dict['test_script']}"
+    assert Path(setup_dict['test_config']).exists(), f"Config not found: {setup_dict['test_config']}"
 
-    if experiment_config is not None:
+    if setup_dict['experiment_config'] is not None:
         cmd = [
             sys.executable,
-            str(test_script),
+            str(setup_dict['test_script']),
             "--config",
-            str(experiment_config),
+            str(setup_dict['experiment_config']),
             "--test-config",
-            str(test_config),
+            str(setup_dict['test_config']),
         ]
     else:
-        cmd = [sys.executable, str(test_script), "--test-config", str(test_config)]
+        cmd = [sys.executable, str(setup_dict['test_script']), "--test-config", str(setup_dict['test_config'])]
 
     try:
         result = subprocess.run(
             cmd,
             cwd=str(Path.cwd()),
-            timeout=timeout,
+            timeout=setup_dict['timeout'],
             capture_output=True,
             text=True,
             check=False,
@@ -68,4 +76,4 @@ def test_training_script(
             pytest.fail(f"Training script exited with code {result.returncode}")
 
     except subprocess.TimeoutExpired:
-        pytest.fail(f"Training script timed out after {timeout} seconds")
+        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
