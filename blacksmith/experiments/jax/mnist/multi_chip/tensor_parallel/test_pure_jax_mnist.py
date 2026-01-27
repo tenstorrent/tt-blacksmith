@@ -396,7 +396,7 @@ def train_mnist(config: ExperimentConfig):
     # which is currently not supported on device, as it fails on stablehlo.custom_call operation
     # (https://github.com/tenstorrent/tt-mlir/issues/2768).
     with jax.default_device(jax.devices("cpu")[0]):
-        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax()
+        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax(config)
 
     train_mlp(
         x_train_host,

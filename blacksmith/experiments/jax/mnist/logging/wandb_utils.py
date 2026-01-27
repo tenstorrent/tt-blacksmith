@@ -66,6 +66,7 @@ def save_checkpoint(ckpt_path, state, epoch, log_on_wandb=True):
     with open(ckpt_path, "wb") as outfile:
         outfile.write(msgpack_serialize(to_state_dict(state)))
 
+    # TODO(agobeljicTT): Remove offline check once the checkpointing is implemented.
     if log_on_wandb and not (wandb.run is None or wandb.run.disabled or wandb.run.offline):
         artifact = wandb.Artifact(f"{wandb.run.name}-checkpoint-epoch-{epoch}", type="dataset")
         print(f"Uploading checkpoint to {ckpt_path}")
@@ -77,6 +78,7 @@ def save_checkpoint(ckpt_path, state, epoch, log_on_wandb=True):
 
 def load_checkpoint(ckpt_file, state, epoch, log_on_wandb=True):
 
+    # TODO(agobeljicTT): Remove offline check once the checkpointing is implemented.
     if log_on_wandb and not (wandb.run is None or wandb.run.disabled or wandb.run.offline):
         artifact = wandb.use_artifact(
             f"{wandb.run.name}-checkpoint-epoch-{epoch}:latest"
