@@ -240,7 +240,7 @@ def train(config: ExperimentConfig):
         export_it.export_loss_to_StableHLO_and_get_ops(
             cross_entropy, training_components["shapes"]["output"], print_stablehlo=False
         )
-        export_it.export_optimizer_to_StableHLO_and_get_ops(update_params, state, grads, print_stablehlo=False)
+        export_it.export_optimizer_to_StableHLO_and_get_ops(optimizer_step, state, grads, print_stablehlo=False)
 
     return state, best_epoch, best_val_loss
 

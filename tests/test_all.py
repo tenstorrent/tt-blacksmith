@@ -22,6 +22,13 @@ def test_training_script(
     Test that training script runs successfully with test configuration.
 
     Spawns subprocess to execute training script, verifies exit code 0.
+
+    Args:
+        test_script: Path to the training script.
+        experiment_config: Path to the experiment configuration.
+        test_config: Path to the test configuration.
+        timeout: Timeout in seconds.
+        request: pytest request object.
     """
 
     test_id = request.node.callspec.id
