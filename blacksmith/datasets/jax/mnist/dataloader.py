@@ -13,6 +13,7 @@ from torchvision.datasets import MNIST as mnist_dataset
 
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
+
 def load_mnist_jax(experiment_config: Optional[ExperimentConfig] = None):
     # Load MNIST data using torchvision
     mnist = {
@@ -24,7 +25,10 @@ def load_mnist_jax(experiment_config: Optional[ExperimentConfig] = None):
 
     for split in ["train", "test"]:
         # Get the images and labels
-        ds[split] = {"image": mnist[split].data.numpy(), "label": mnist[split].targets.numpy()}
+        ds[split] = {
+            "image": mnist[split].data.numpy(),
+            "label": mnist[split].targets.numpy(),
+        }
 
         # Normalize the images by scaling them to [0, 1]
         ds[split]["image"] = jnp.float32(ds[split]["image"]) / 255
@@ -50,8 +54,14 @@ def load_mnist_jax(experiment_config: Optional[ExperimentConfig] = None):
     train_size = int(0.8 * len(train_images))
     val_size = len(train_images) - train_size
 
-    train_images, val_images = train_images[:train_size], train_images[train_size : train_size + val_size]
-    train_labels, val_labels = train_labels[:train_size], train_labels[train_size : train_size + val_size]
+    train_images, val_images = (
+        train_images[:train_size],
+        train_images[train_size : train_size + val_size],
+    )
+    train_labels, val_labels = (
+        train_labels[:train_size],
+        train_labels[train_size : train_size + val_size],
+    )
 
     # Conditional truncation of train data
     if experiment_config and experiment_config.test_config:

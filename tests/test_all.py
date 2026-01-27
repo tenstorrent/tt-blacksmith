@@ -10,8 +10,16 @@ from training_test_cases import TRAINING_TEST_CASES, Seconds
 from typing import Optional
 
 
-@pytest.mark.parametrize("test_script,experiment_config,test_config,timeout", TRAINING_TEST_CASES)
-def test_training_script(test_script: str, experiment_config: Optional[str], test_config: Optional[str], timeout: Seconds, request: pytest.FixtureRequest):
+@pytest.mark.parametrize(
+    "test_script,experiment_config,test_config,timeout", TRAINING_TEST_CASES
+)
+def test_training_script(
+    test_script: str,
+    experiment_config: Optional[str],
+    test_config: Optional[str],
+    timeout: Seconds,
+    request: pytest.FixtureRequest,
+):
     """
     Test that training script runs successfully with test configuration.
 
@@ -24,7 +32,14 @@ def test_training_script(test_script: str, experiment_config: Optional[str], tes
     assert Path(test_config).exists(), f"Config not found: {test_config}"
 
     if experiment_config is not None:
-        cmd = [sys.executable, str(test_script), "--config", str(experiment_config), "--test-config", str(test_config)]
+        cmd = [
+            sys.executable,
+            str(test_script),
+            "--config",
+            str(experiment_config),
+            "--test-config",
+            str(test_config),
+        ]
     else:
         cmd = [sys.executable, str(test_script), "--test-config", str(test_config)]
 
