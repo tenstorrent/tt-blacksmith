@@ -76,4 +76,4 @@ def test_training_script(
             pytest.fail(f"Training script exited with code {result.returncode}")
 
     except subprocess.TimeoutExpired:
-        pytest.fail(f"Training script timed out after {setup_dict["timeout"]} seconds")
+        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
