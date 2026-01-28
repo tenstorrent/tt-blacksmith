@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import wandb
 from training_test_cases import TRAINING_TEST_CASES
 
 
@@ -70,3 +71,11 @@ def test_training_script(
 
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
+    
+    api = wandb.Api()
+    runs = api.runs("test-all-wandb-project")
+    run = runs[len(runs) - 1]
+    # We use "_step" here in order to support parity for trainings with checkpoints
+    # where _step doesn't match the row number.
+    history = run.history()[["_step", "train/loss", "val/loss"]]
+    history.to_csv(f"tests/golden_files/{run.name}_history.csv")
