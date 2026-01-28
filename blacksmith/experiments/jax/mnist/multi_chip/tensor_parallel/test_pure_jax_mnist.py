@@ -156,7 +156,6 @@ def train_mlp(
     net_config,
     logger_config,
     early_stopping_config,
-    test_config,
 ):
     input_size = net_config.input_size
     hidden_size = net_config.hidden_size
@@ -173,8 +172,7 @@ def train_mlp(
 
     params = jax.tree_util.tree_map(lambda p, s: jax.device_put(p, s), params_host, sharding_config.param_sharding)
 
-    batch_limit = test_config.max_steps_per_epoch if test_config else x_train_host.shape[0]
-    num_batches = min(x_train_host.shape[0] // batch_size, batch_limit)
+    num_batches = x_train_host.shape[0] // batch_size
 
     param_in_specs = (
         PartitionSpec(None, "tp"),  # w1
@@ -411,7 +409,6 @@ def train_mnist(config: ExperimentConfig):
         config.net_config,
         config.logger_config,
         config.early_stopping,
-        config.test_config,
     )
 
 
