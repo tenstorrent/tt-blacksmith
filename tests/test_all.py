@@ -44,17 +44,10 @@ def test_training_script(
     assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
     assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
 
+    cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
     if setup_dict["experiment_config"] is not None:
-        cmd = [
-            sys.executable,
-            str(setup_dict["test_script"]),
-            "--config",
-            str(setup_dict["experiment_config"]),
-            "--test-config",
-            str(setup_dict["test_config"]),
-        ]
-    else:
-        cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
+        cmd.append("--config")
+        cmd.append(str(setup_dict["experiment_config"]))
 
     try:
         result = subprocess.run(
