@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import pandas as pd
 import wandb
 from training_test_cases import TRAINING_TEST_CASES
 
@@ -78,4 +79,14 @@ def test_training_script(
     # We use "_step" here in order to support parity for trainings with checkpoints
     # where _step doesn't match the row number.
     history = run.history()[["_step", "train/loss", "val/loss"]]
-    history.to_csv(f"tests/golden_files/{run.name}_history.csv")
+    golden_file = Path(f"tests/golden_files/{run.name}_history.csv")
+    
+    if golden_file.exists():
+        # Golden file already exists, so we can compare the history to it.
+        golden_history = pd.read_csv(golden_file, index_col=0)
+        print(history)
+        print(golden_history)
+        pd.testing.assert_frame_equal(history, golden_history, rtol=setup_dict["tolerance"])
+    else:
+        # Golden file doesn't exist, so we can save the history to it.
+        history.to_csv(golden_file)
