@@ -42,7 +42,9 @@ class DeviceManager:
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
         # Additional setup for multichip (if mesh configuration is provided).
-        if self.config.mesh_shape is not None and self.config.parallelism_strategy != "single":
+        if self.config.parallelism_strategy != "single":
+            assert self.config.mesh_shape is not None, "Mesh shape must be provided for multichip parallelism."
+
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
             os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
