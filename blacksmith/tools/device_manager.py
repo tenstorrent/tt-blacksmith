@@ -42,9 +42,7 @@ class DeviceManager:
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
         # Additional setup for multichip (if mesh configuration is provided).
-        if self.config.parallelism_strategy != "single":
-            assert self.config.mesh_shape is not None, "Mesh shape must be provided for multichip parallelism."
-
+        if self.config.mesh_shape is not None:
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
             os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
@@ -55,17 +53,18 @@ class DeviceManager:
         if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
             return None
 
-        if not hasattr(self.config, "mesh_axis_names") or not self.config.mesh_axis_names:
-            return None
+        assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
         # Read mesh_shape from config.
-        mesh_shape = tuple(self.config.mesh_shape)
+        mesh_shape = tuple[int](int(n) for n in self.config.mesh_shape.split(','))
 
         # Read mesh axis names from config.
-        axis_names = tuple(self.config.mesh_axis_names)
+        axis_names = tuple[str](self.config.mesh_axis_names.split(','))
+
+        assert len(mesh_shape) == len(axis_names), "Mesh shape and axis names must have the same length."
 
         return xs.Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
 

@@ -51,7 +51,8 @@ seed: 23
 deterministic: False
 
 # Device settings
-parallelism_strategy: "single"
+mesh_shape: None
+mesh_axis_names: None
 
 # Other settings
 framework: "pytorch"
