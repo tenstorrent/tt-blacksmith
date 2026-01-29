@@ -21,8 +21,8 @@ Mesh configurations define the parallelism strategy. The `mesh_axis_names` can b
 
 Example mesh configuration in YAML:
 ```yaml
-mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
-mesh_axis_names: ["data", "model"]
+mesh_shape: "2, 4"  # 2 data parallel, 4 model parallel
+mesh_axis_names: "'data', 'model'"
 
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
