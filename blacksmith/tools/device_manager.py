@@ -42,7 +42,7 @@ class DeviceManager:
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
         # Additional setup for multichip (if mesh configuration is provided).
-        if hasattr(self.config, "mesh_shape") and self.config.mesh_shape:
+        if self.config.mesh_shape is not None and self.config.parallelism_strategy != "single":
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
             os.environ["MESH_SHAPE"] = ",".join(map(str, self.config.mesh_shape))
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
