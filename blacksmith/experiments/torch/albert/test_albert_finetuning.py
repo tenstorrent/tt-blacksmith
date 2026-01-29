@@ -147,7 +147,7 @@ if __name__ == "__main__":
     # Config setup
     default_config = Path(__file__).parent / "test_albert_finetuning.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

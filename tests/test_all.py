@@ -84,9 +84,8 @@ def test_training_script(
     if golden_file.exists():
         # Golden file already exists, so we can compare the history to it.
         golden_history = pd.read_csv(golden_file, index_col=0)
-        print(history)
-        print(golden_history)
         pd.testing.assert_frame_equal(history, golden_history, rtol=setup_dict["tolerance"])
-    else:
+    # else:
         # Golden file doesn't exist, so we can save the history to it.
-        history.to_csv(golden_file)
+        # TODO: Uncomment this when on GPU.
+        # history.to_csv(golden_file)
