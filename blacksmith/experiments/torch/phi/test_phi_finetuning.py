@@ -86,6 +86,8 @@ def train(
 
     # Load model
     model = get_model(config, device_manager.device)
+    if config.use_tt:
+        model = torch.compile(model, backend="tt", options={"tt_enable_torch_fx_fusion_pass": False})
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -150,7 +152,7 @@ def train(
                 # Validation phase
                 if do_validation:
                     avg_val_loss = validate(
-                        model, eval_dataloader, loss_fn, device_manager.device, config, logger, train_dataset.tokenizer
+                        model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
                     model.train()
 
@@ -181,7 +183,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "test_phi1_finetuning_sst2.yaml"
+    default_config = Path(__file__).parent / "test_phi15_finetuning_squadV2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
