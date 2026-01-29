@@ -53,28 +53,38 @@ class DeviceManager:
         if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
             return None
 
-        assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
+        assert (
+            self.config.mesh_axis_names is not None
+        ), "Mesh axis names must be provided for multichip parallelism."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
 
-        # Read mesh_shape from config.
-        mesh_shape = tuple[int](int(n) for n in self.config.mesh_shape.split(","))
+        assert len(self.config.mesh_shape) == len(
+            self.config.mesh_axis_names
+        ), "Mesh shape and axis names must have the same length."
 
-        # Read mesh axis names from config.
-        axis_names = tuple[str](self.config.mesh_axis_names.split(","))
-
-        assert len(mesh_shape) == len(axis_names), "Mesh shape and axis names must have the same length."
-
-        return xs.Mesh(device_ids=device_ids, mesh_shape=mesh_shape, axis_names=axis_names)
+        return xs.Mesh(
+            device_ids=device_ids,
+            mesh_shape=self.config.mesh_shape,
+            axis_names=self.config.mesh_axis_names,
+        )
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1
+        return (
+            self.mesh is not None
+            and "data" in self.mesh.axis_names
+            and self.mesh.shape()["data"] > 1
+        )
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1
+        return (
+            self.mesh is not None
+            and "model" in self.mesh.axis_names
+            and self.mesh.shape()["model"] > 1
+        )
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
@@ -92,7 +102,9 @@ class DeviceManager:
 
         # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
-        assert sharding_patterns is not None, "model_sharding_patterns must be provided for tensor parallelism"
+        assert (
+            sharding_patterns is not None
+        ), "model_sharding_patterns must be provided for tensor parallelism"
 
         # Use regex pattern matching on named_modules.
         for name, module in model.named_modules():

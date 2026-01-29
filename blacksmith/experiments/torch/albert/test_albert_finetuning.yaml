@@ -51,8 +51,8 @@ seed: 23
 deterministic: False
 
 # Device settings
-mesh_shape: None
-mesh_axis_names: None
+mesh_shape: null
+mesh_axis_names: null
 
 # Other settings
 framework: "pytorch"

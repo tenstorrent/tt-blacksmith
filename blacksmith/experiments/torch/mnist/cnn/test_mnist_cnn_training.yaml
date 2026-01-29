@@ -57,8 +57,8 @@ load_from_storage: false
 remote_path: ""
 
 # Device settings - Single device (no parallelism)
-mesh_shape: None
-mesh_axis_names: None
+mesh_shape: null
+mesh_axis_names: null
 
 # Other settings
 experiment_name: "torch-mnist-cnn"
