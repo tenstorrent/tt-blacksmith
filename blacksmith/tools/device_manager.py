@@ -59,10 +59,10 @@ class DeviceManager:
         device_ids = np.array(range(num_devices))
 
         # Read mesh_shape from config.
-        mesh_shape = tuple[int](int(n) for n in self.config.mesh_shape.split(','))
+        mesh_shape = tuple[int](int(n) for n in self.config.mesh_shape.split(","))
 
         # Read mesh axis names from config.
-        axis_names = tuple[str](self.config.mesh_axis_names.split(','))
+        axis_names = tuple[str](self.config.mesh_axis_names.split(","))
 
         assert len(mesh_shape) == len(axis_names), "Mesh shape and axis names must have the same length."
 
