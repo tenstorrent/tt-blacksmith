@@ -44,7 +44,6 @@ class DeviceManager:
         # Additional setup for multichip (if mesh configuration is provided).
         if self.config.mesh_shape is not None and self.config.parallelism_strategy != "single":
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
-            os.environ["MESH_SHAPE"] = ",".join(map(str, self.config.mesh_shape))
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
             os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
             xr.use_spmd()
