@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
 
+from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
 from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.nerf.blender import BlenderDataset
@@ -12,7 +13,6 @@ from blacksmith.datasets.torch.stanfordcars.stanfordcars_dataset import (
     StanfordCarsDataset,
 )
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
-from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 
 

@@ -3,16 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 from string import Template
 
-from datasets import load_dataset
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.tools.templates.configs import TrainingConfig
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
+from blacksmith.tools.templates.configs import TrainingConfig
+from datasets import load_dataset
 
-
-PROMPT_TEMPLATE = Template(
-    """
+PROMPT_TEMPLATE = Template("""
 Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
@@ -22,19 +20,16 @@ $instruction
 $input
 
 ### Response:
-"""
-)
+""")
 
-PROMPT_TEMPLATE_NO_INPUT = Template(
-    """
+PROMPT_TEMPLATE_NO_INPUT = Template("""
 Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
 $instruction
 
 ### Response:
-"""
-)
+""")
 
 DATASET_PATH = "tatsu-lab/alpaca"
 
@@ -92,7 +87,7 @@ class AlpacaDataset(BaseDataset):
         example["len"] = input_ids.size(0)
 
         return example
-    
+
     def _prepare_dataset(self):
         # Alpaca only has train split, so we create validation/test from it.
         if AlpacaDataset._shared_dataset is None:
@@ -104,7 +99,7 @@ class AlpacaDataset(BaseDataset):
                 [col for col in filtered_dataset.column_names if col not in self.required_columns]
             )
             AlpacaDataset._shared_dataset = filtered_dataset
-        
+
         full_dataset = AlpacaDataset._shared_dataset
         n = len(full_dataset)
         train_end = int(0.98 * n)
@@ -114,8 +109,9 @@ class AlpacaDataset(BaseDataset):
         elif self.split == "validation":
             self.dataset = full_dataset.select(range(train_end, val_end))
         else:
-            raise ValueError(f"Invalid split '{self.split}' for AlpacaDataset. Only 'train' and 'validation' are supported.")
-
+            raise ValueError(
+                f"Invalid split '{self.split}' for AlpacaDataset. Only 'train' and 'validation' are supported."
+            )
 
     def __len__(self):
         return len(self.dataset)
