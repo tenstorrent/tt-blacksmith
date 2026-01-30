@@ -42,7 +42,7 @@ class DeviceManager:
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
         # Additional setup for multichip (if mesh configuration is provided).
-        if self.config.mesh_shape is not None:
+        if hasattr(self.config, "mesh_shape") and self.config.mesh_shape is not None:
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
             os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
@@ -53,9 +53,7 @@ class DeviceManager:
         if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
             return None
 
-        assert (
-            self.config.mesh_axis_names is not None
-        ), "Mesh axis names must be provided for multichip parallelism."
+        assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
@@ -72,19 +70,11 @@ class DeviceManager:
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        return (
-            self.mesh is not None
-            and "data" in self.mesh.axis_names
-            and self.mesh.shape()["data"] > 1
-        )
+        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return (
-            self.mesh is not None
-            and "model" in self.mesh.axis_names
-            and self.mesh.shape()["model"] > 1
-        )
+        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
@@ -102,9 +92,7 @@ class DeviceManager:
 
         # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
-        assert (
-            sharding_patterns is not None
-        ), "model_sharding_patterns must be provided for tensor parallelism"
+        assert sharding_patterns is not None, "model_sharding_patterns must be provided for tensor parallelism"
 
         # Use regex pattern matching on named_modules.
         for name, module in model.named_modules():

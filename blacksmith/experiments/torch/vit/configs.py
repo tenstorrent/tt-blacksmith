@@ -63,7 +63,9 @@ class TrainingConfig(BaseModel):
 
     # Device settings
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [2,1] for 2D mesh.
-    mesh_axis_names: Optional[list[str]] = Field(default=None)  # Use None for single device, ["data", "model"] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device, ["data", "model"] for 2D mesh.
     tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # LoRA setup
