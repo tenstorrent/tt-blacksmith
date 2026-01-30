@@ -163,7 +163,9 @@ class BlenderDataset:
         raise ValueError(f"Unknown split: {self.split}")
 
 
-def create_dataloader(dataset: BlenderDataset, batch_size: int, seed: int = 0, test_config: Optional[TestConfig] = None):
+def create_dataloader(
+    dataset: BlenderDataset, batch_size: int, seed: int = 0, test_config: Optional[TestConfig] = None
+):
     num_samples = len(dataset)
     steps_per_epoch = num_samples // batch_size
 
