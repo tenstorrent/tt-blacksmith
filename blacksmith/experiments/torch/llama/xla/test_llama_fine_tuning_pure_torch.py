@@ -52,12 +52,11 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             expected_output_one_hot, labels_mask = transform_labels(
                 expected_output.to("cpu"), config.ignored_index, model.model.config.vocab_size
             )
-            # Move to device
+
             expected_output_one_hot = expected_output_one_hot.to(device)
             labels_mask = labels_mask.to(device)
             loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
 
-            # Predictions
             predictions = shift_logits.argmax(dim=-1)
             if config.use_tt:
                 torch_xla.sync(wait=True)
@@ -95,7 +94,7 @@ def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps=1):
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale loss by accumulation steps to get correct effective batch size
+    # Scale loss by accumulation steps to get correct effective batch size.
     scaled_loss = loss / gradient_accumulation_steps
     scaled_loss.backward()
     return loss.detach()
@@ -109,21 +108,20 @@ def train(
 ):
     logger.info("Starting training...")
 
-    # Load model
+    # Load model.
     model = get_model(config, device_manager.device)
 
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    # Load checkpoint if needed
+    # Load checkpoint if needed.
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
 
-    # Load dataset
+    # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
@@ -172,12 +170,10 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
-                # Only step the optimizer after accumulating gradients
+                # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
-                    # Optimizer step.
                     device_manager.optimizer_step(optimizer)
 
-                    # Reset accumulation counter
                     accumulation_step = 0
                     global_step += 1
 
@@ -198,7 +194,7 @@ def train(
 
                     model.train()
 
-                    # Save step checkpoint
+                    # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
