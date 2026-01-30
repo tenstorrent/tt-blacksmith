@@ -72,7 +72,7 @@ def test_training_script(
 
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
-    
+
     api = wandb.Api()
     runs = api.runs("test-all-wandb-project")
     run = runs[len(runs) - 1]
@@ -80,7 +80,7 @@ def test_training_script(
     # where _step doesn't match the row number.
     history = run.history()[["_step", "train/loss", "val/loss"]]
     golden_file = Path(f"tests/golden_files/{run.name}_history.csv")
-    
+
     if golden_file.exists():
         # Golden file already exists, so we can compare the history to it.
         golden_history = pd.read_csv(golden_file, index_col=0)
