@@ -10,7 +10,8 @@ from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
 
-PROMPT_TEMPLATE = Template("""
+PROMPT_TEMPLATE = Template(
+    """
 Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
@@ -20,16 +21,19 @@ $instruction
 $input
 
 ### Response:
-""")
+"""
+)
 
-PROMPT_TEMPLATE_NO_INPUT = Template("""
+PROMPT_TEMPLATE_NO_INPUT = Template(
+    """
 Below is an instruction that describes a task. Write a response that appropriately completes the request.
 
 ### Instruction:
 $instruction
 
 ### Response:
-""")
+"""
+)
 
 DATASET_PATH = "tatsu-lab/alpaca"
 
