@@ -64,8 +64,8 @@ class DeviceManager:
 
         return xs.Mesh(
             device_ids=device_ids,
-            mesh_shape=self.config.mesh_shape,
-            axis_names=self.config.mesh_axis_names,
+            mesh_shape=tuple(self.config.mesh_shape),
+            axis_names=tuple(self.config.mesh_axis_names),
         )
 
     def is_data_parallel(self) -> bool:
