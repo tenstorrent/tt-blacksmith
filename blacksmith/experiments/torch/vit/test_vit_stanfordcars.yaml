@@ -1,32 +1,28 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "stanfordcars"
 
 # Model settings
-model_name: "microsoft/phi-1"
-max_length: 32
+model_name: "google/vit-base-patch16-224"
 dtype: "torch.bfloat16"
 ignored_index: -100
 
 # Training hyperparameters
-training_type: "lora"
-learning_rate: 6e-5
-batch_size: 8
-gradient_checkpointing: False
-num_epochs: 1
-optim: "adamw_torch"
+learning_rate: 1e-3
+batch_size: 10
+num_epochs: 8
 
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "phi1-finetuning"
-wandb_run_name: "tt-phi1-sst2"
+wandb_project: "vit-finetuning"
+wandb_run_name: "tt-vit-stanfordcars"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
 steps_freq: 10
 epoch_freq: 1
-val_steps_freq: 50
+val_steps_freq: 100
 
 # Checkpoint settings
 resume_from_checkpoint: False
@@ -53,10 +49,10 @@ mesh_shape: null
 mesh_axis_names: null
 
 # LoRA setup
-lora_r: 4
-lora_alpha: 8
-lora_target_modules: ["q_proj", "v_proj"]
-lora_task_type: "CAUSAL_LM"
+lora_r: 16
+lora_alpha: 16
+lora_target_modules: ["query", "value"]
+lora_dropout: 0.1
 
 # Other settings
 framework: "pytorch"

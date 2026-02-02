@@ -39,7 +39,7 @@ jobs:
 
     runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || matrix.build.runs-on }}
 
-    name: "test ${{ matrix.build.script }} (${{ matrix.build.frontend }}, ${{ matrix.build.runs-on }} )"
+    name: "test '${{ matrix.build.marks }}' (frontend: ${{ matrix.build.frontend }}, runs-on: ${{ matrix.build.runs-on }})"
 
     container:
       image: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) || inputs.docker_image }}
@@ -68,8 +68,8 @@ jobs:
     - name: Run tests
       shell: bash
       run: |
-        export WANDB_MODE=disabled
+        export WANDB_MODE=offline
         export LOGURU_LEVEL=ERROR
         export LOGGER_LEVEL=ERROR
         source env/activate --${{ matrix.build.frontend }}
-        python3 ${{ matrix.build.script }}
+        pytest -m '${{ matrix.build.marks }}' tests/

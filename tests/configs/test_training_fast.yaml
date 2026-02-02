@@ -1,0 +1,8 @@
+test_config:
+  max_steps_per_epoch: 5
+
+steps_freq: 1
+
+use_tt: true
+wandb_project: "test-all-wandb-project"
+log_on_wandb: false

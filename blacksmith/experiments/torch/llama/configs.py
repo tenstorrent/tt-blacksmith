@@ -70,15 +70,17 @@ class TrainingConfig(BaseModel):
     adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
     # Device settings
-    mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
-    mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device, ["data", "model"] for 2D mesh.
 
     # Model sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Other settings
-    output_dir: str = Field(default="experiments/results/llama32-1b")
+    output_dir: str = Field(default="experiments/results/llama_3_2_1b")
     logging_steps: int = Field(default=10, gt=0)
     do_train: bool = Field(default=True)
     print_examples: bool = Field(default=False)

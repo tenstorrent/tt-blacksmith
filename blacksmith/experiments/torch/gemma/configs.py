@@ -59,8 +59,10 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    parallelism_strategy: str = Field(default="single")  # [single, data_parallel, tensor_parallel]
-    mesh_shape: str = Field(default="8,1")  # Used if parallelism_strategy != single
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device, ["data", "model"] for 2D mesh.
     tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # LoRA setup

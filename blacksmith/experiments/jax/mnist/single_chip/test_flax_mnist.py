@@ -69,7 +69,7 @@ def init_training(config):
             eval_labels_host,
             test_images_host,
             test_labels_host,
-        ) = load_mnist_jax()
+        ) = load_mnist_jax(config)
 
         rng = random.PRNGKey(0)
         params_host = pred_model.model.init(rng, jnp.ones(input_shape))["params"]
@@ -240,7 +240,7 @@ def train(config: ExperimentConfig):
         export_it.export_loss_to_StableHLO_and_get_ops(
             cross_entropy, training_components["shapes"]["output"], print_stablehlo=False
         )
-        export_it.export_optimizer_to_StableHLO_and_get_ops(update_params, state, grads, print_stablehlo=False)
+        export_it.export_optimizer_to_StableHLO_and_get_ops(optimizer_step, state, grads, print_stablehlo=False)
 
     return state, best_epoch, best_val_loss
 
@@ -248,5 +248,5 @@ def train(config: ExperimentConfig):
 if __name__ == "__main__":
     default_config = Path(__file__).parent.parent / "test_mnist.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config, args.test_config)
     train(config)

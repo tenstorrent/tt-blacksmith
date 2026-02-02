@@ -98,12 +98,17 @@ def training_step_inner(batch, model, loss_fn):
 
 
 def train(
-    config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
+    config: TrainingConfig,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
 ):
     logger.info("Starting training...")
 
     # Load model
     model = get_model(config, device_manager.device)
+    if config.use_tt:
+        model = torch.compile(model, backend="tt", options={"tt_enable_torch_fx_fusion_pass": False})
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -171,7 +176,13 @@ def train(
 
                     # Do validation.
                     valid_loss = validate(
-                        model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
+                        model,
+                        eval_dataloader,
+                        cross_entropy_loss,
+                        logger,
+                        device_manager.device,
+                        config,
+                        tokenizer,
                     )
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
@@ -204,7 +215,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_1b.yaml"
+    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

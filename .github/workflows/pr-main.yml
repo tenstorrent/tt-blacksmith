@@ -5,6 +5,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pre-commit:
     uses: ./.github/workflows/call-pre-commit.yml
@@ -19,16 +23,25 @@ jobs:
       use-shared-runners: false
       test_suite: uplift-test.json
 
+  basic-test:
+    if: always()
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
+      use-shared-runners: false
+      test_suite: basic-test.json
+
   check-all-green:
     if: always()
     needs:
       - pre-commit
       - uplift-test
+      - basic-test
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: |
-          uplift-test
+        allowed-skips: uplift-test
         jobs: ${{ toJSON(needs) }}

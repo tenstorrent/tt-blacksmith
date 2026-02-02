@@ -28,3 +28,12 @@ repos:
     hooks:
       - id: isort
         args: ["--profile", "black", "--src-path", "blacksmith"]
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        name: Flake8
+        # Do not fail the commit on flake8 errors.
+        entry: bash -c 'flake8 --config=.flake8-config "$@" || true'
+        verbose: true
+        additional_dependencies: [flake8-sarif]
