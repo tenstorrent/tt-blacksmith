@@ -31,9 +31,7 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
     else:
         default_config_relative = default_config
 
-    parser.add_argument(
-        "--config", type=Path, default=default_config_relative, help="Path to YAML config file"
-    )
+    parser.add_argument("--config", type=Path, default=default_config_relative, help="Path to YAML config file")
 
     parser.add_argument(
         "--test-config", type=Path, required=False, help="[Testing utils] Configuration that is used for CI testing"
