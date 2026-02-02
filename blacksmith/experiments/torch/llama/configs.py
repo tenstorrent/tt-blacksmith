@@ -70,7 +70,7 @@ class TrainingConfig(BaseModel):
     adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
     # Device settings
-    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [2,1] for 2D mesh.
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
     mesh_axis_names: Optional[list[str]] = Field(
         default=None
     )  # Use None for single device, ["data", "model"] for 2D mesh.
