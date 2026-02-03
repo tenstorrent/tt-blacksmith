@@ -74,6 +74,4 @@ jobs:
         export HF_HOME=/mnt/dockercache/huggingface
         export HF_TOKEN=${{ secrets.HF_TOKEN }}
         source env/activate --${{ matrix.build.frontend }}
-        pip freeze | grep transformers
-        pip install transformers
         pytest -m '${{ matrix.build.marks }}' tests/
