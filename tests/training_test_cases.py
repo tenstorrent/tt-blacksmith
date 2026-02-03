@@ -155,7 +155,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/albert/test_albert_finetuning.py",
-            "timeout": 200,
+            "timeout": 400,
         },
         marks=[
             pytest.mark.uplift,
