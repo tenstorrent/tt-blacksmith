@@ -150,7 +150,7 @@ def train(
                 # Validation phase
                 if do_validation:
                     avg_val_loss = validate(
-                        model, eval_dataloader, loss_fn, device_manager.device, config, logger, train_dataset.tokenizer
+                        model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
                     model.train()
 

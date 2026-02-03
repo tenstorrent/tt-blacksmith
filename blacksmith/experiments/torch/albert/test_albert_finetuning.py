@@ -67,6 +67,8 @@ def train(
     model = AlbertWithMLP(config)
     model.to(eval(config.dtype))
     model.to(device_manager.device)
+    if config.use_tt:
+        model = torch.compile(model, backend="tt", options={"tt_enable_torch_fx_fusion_pass": False})
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -120,7 +122,7 @@ def train(
                     running_loss = 0.0
 
                     # Do validation
-                    valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager.device, loss_fn)
+                    valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
                     logger.log_metrics({"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]}, step=global_step)
                     model.train()
 
