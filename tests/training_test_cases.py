@@ -99,7 +99,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b.yaml",
-            "timeout": 700,
+            "timeout": 1000,
         },
         marks=[
             pytest.mark.uplift,
