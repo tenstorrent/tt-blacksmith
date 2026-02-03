@@ -31,6 +31,8 @@ jobs:
       docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
       use-shared-runners: false
       test_suite: basic-test.json
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
   check-all-green:
     if: always()
