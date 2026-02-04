@@ -119,7 +119,7 @@ TRAINING_TEST_CASES = [
         marks=[
             pytest.mark.skip(reason="Quietbox is not supported yet."),
             pytest.mark.uplift,
-            pytest.mark.t3k,
+            pytest.mark.n300_llmbox,
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
