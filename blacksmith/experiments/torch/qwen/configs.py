@@ -77,6 +77,4 @@ class TrainingConfig(BaseModel):
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
     do_validation: bool = Field(default=False)
-
-    # Test settings
     test_config: Optional[TestConfig] = Field(default=None)

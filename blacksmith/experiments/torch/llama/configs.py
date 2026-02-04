@@ -88,6 +88,4 @@ class TrainingConfig(BaseModel):
     print_examples: bool = Field(default=False)
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-
-    # Test settings
     test_config: Optional[TestConfig] = Field(default=None)

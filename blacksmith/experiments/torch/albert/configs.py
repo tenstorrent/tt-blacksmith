@@ -71,6 +71,4 @@ class TrainingConfig(BaseModel):
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-
-    # Test settings
     test_config: Optional[TestConfig] = Field(default=None)
