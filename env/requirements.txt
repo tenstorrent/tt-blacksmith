@@ -1,6 +1,7 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 wandb>=0.12.10
 pydantic>2.0
-torchvision==0.24.0
+torchvision==0.24.0+cpu
 torchdata
 peft
 tqdm
