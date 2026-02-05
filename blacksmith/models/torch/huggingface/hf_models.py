@@ -27,6 +27,10 @@ def get_model(config: TrainingConfig, device: torch.device):
     model.to(eval(config.dtype))
     model.to(device)
 
+    if config.use_tt:
+        compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_experimental_compile": False}
+        model = torch.compile(model, backend="tt", options=compile_options)
+
     return model
 
 

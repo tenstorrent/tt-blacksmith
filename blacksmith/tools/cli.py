@@ -27,11 +27,9 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
     parser = argparse.ArgumentParser("Experiment CLI", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     if default_config.is_relative_to(Path.cwd()):
-        default_config_relative = default_config.relative_to(Path.cwd())
-    else:
-        default_config_relative = default_config
+        default_config = default_config.relative_to(Path.cwd())
 
-    parser.add_argument("--config", type=Path, default=default_config_relative, help="Path to YAML config file")
+    parser.add_argument("--config", type=Path, default=default_config, help="Path to YAML config file")
 
     parser.add_argument(
         "--test-config", type=Path, required=False, help="[Testing utils] Configuration that is used for CI testing"

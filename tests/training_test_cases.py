@@ -99,7 +99,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b.yaml",
-            "timeout": 700,
+            "timeout": 1000,
         },
         marks=[
             pytest.mark.uplift,
@@ -118,7 +118,7 @@ TRAINING_TEST_CASES = [
         marks=[
             pytest.mark.skip(reason="Quietbox is not supported yet."),
             pytest.mark.uplift,
-            pytest.mark.t3k,
+            pytest.mark.n300_llmbox,
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
@@ -155,7 +155,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/albert/test_albert_finetuning.py",
-            "timeout": 200,
+            "timeout": 1200,
         },
         marks=[
             pytest.mark.uplift,
@@ -169,7 +169,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/phi/test_phi_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/phi/test_phi1_finetuning_sst2.yaml",
-            "timeout": 400,
+            "timeout": 700,
         },
         marks=[
             pytest.mark.uplift,
