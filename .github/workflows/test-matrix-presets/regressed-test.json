@@ -1,7 +1,2 @@
 [
-    {
-        "runs-on": "n300",
-        "frontend": "xla",
-        "script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py"
-    }
 ]

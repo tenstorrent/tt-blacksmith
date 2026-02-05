@@ -95,7 +95,7 @@ class EfficientNeRFSystem:
         self.far = self.train_dataset.far
 
         self.train_dataloader, self.train_steps_per_epoch = create_dataloader(
-            self.train_dataset, self.config.data_loading.batch_size
+            self.train_dataset, self.config.data_loading.batch_size, test_config=self.config.test_config
         )
         self.val_dataloader, self.val_steps_per_epoch = create_dataloader_val(
             self.val_dataset, self.config.data_loading.batch_size
@@ -910,7 +910,7 @@ def save_rendered_images(system, output_dir):
 if __name__ == "__main__":
     default_config = Path(__file__).parent / "test_nerf.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: NerfConfig = generate_config(NerfConfig, args.config)
+    config: NerfConfig = generate_config(NerfConfig, args.config, args.test_config)
     if config.training.render:
         render(config)
     else:

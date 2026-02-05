@@ -98,7 +98,10 @@ def training_step_inner(batch, model, loss_fn):
 
 
 def train(
-    config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
+    config: TrainingConfig,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
 ):
     logger.info("Starting training...")
 
@@ -134,7 +137,6 @@ def train(
     try:
         model.train()
         for epoch in range(config.num_epochs):
-
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients.
                 optimizer.zero_grad()
@@ -172,7 +174,13 @@ def train(
 
                     # Do validation.
                     valid_loss = validate(
-                        model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
+                        model,
+                        eval_dataloader,
+                        cross_entropy_loss,
+                        logger,
+                        device_manager.device,
+                        config,
+                        tokenizer,
                     )
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
@@ -207,7 +215,7 @@ if __name__ == "__main__":
     # Config setup
     default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

@@ -66,8 +66,8 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/tanganke/stan
 | `remote_path` | Remote storage path (if applicable). | "" |
 | `seed` | Random seed for reproducibility. | 23 |
 | `deterministic` | Whether to enforce deterministic behavior. | False |
-| `parallelism_strategy` | Parallelism strategy (`single`, `data_parallel`, or `tensor_parallel`). | "single" |
-| `mesh_shape` | Mesh shape for parallelism (used if `parallelism_strategy != single`). | "1,2" |
+| `mesh_shape` | Mesh shape for parallelism. | None |
+| `mesh_axis_names` | Axis names for the mesh. | None |
 | `tp_sharding_specs` | Tensor parallel sharding specifications. | {} |
 | `lora_r` | Rank of LoRA adaptation matrices. | 4 |
 | `lora_alpha` | Scaling factor for LoRA updates. | 8 |

@@ -157,5 +157,5 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
-| `parallelism`                 | Parallelism strategy (`single`, `data`, `tensor`).     | "single"                            |
-| `mesh_shape`                  | Mesh shape for distributed training.                   | "8,1"                               |
+| `mesh_shape`                  | Mesh shape for distributed training.                   | None                                |
+| `mesh_axis_names`             | Axis names for the mesh.                               | None                                |

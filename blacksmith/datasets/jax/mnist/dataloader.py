@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional
+
 import jax
 import jax.numpy as jnp
 import torch
@@ -10,8 +12,10 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
 
+from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 
-def load_mnist_jax():
+
+def load_mnist_jax(experiment_config: Optional[ExperimentConfig] = None):
     # Load MNIST data using torchvision
     mnist = {
         "train": torchvision.datasets.MNIST("./data", train=True, download=True),
@@ -22,7 +26,10 @@ def load_mnist_jax():
 
     for split in ["train", "test"]:
         # Get the images and labels
-        ds[split] = {"image": mnist[split].data.numpy(), "label": mnist[split].targets.numpy()}
+        ds[split] = {
+            "image": mnist[split].data.numpy(),
+            "label": mnist[split].targets.numpy(),
+        }
 
         # Normalize the images by scaling them to [0, 1]
         ds[split]["image"] = jnp.float32(ds[split]["image"]) / 255
@@ -48,8 +55,22 @@ def load_mnist_jax():
     train_size = int(0.8 * len(train_images))
     val_size = len(train_images) - train_size
 
-    train_images, val_images = train_images[:train_size], train_images[train_size : train_size + val_size]
-    train_labels, val_labels = train_labels[:train_size], train_labels[train_size : train_size + val_size]
+    train_images, val_images = (
+        train_images[:train_size],
+        train_images[train_size : train_size + val_size],
+    )
+    train_labels, val_labels = (
+        train_labels[:train_size],
+        train_labels[train_size : train_size + val_size],
+    )
+
+    # Testing truncation
+    if experiment_config and experiment_config.test_config:
+        batch_size = experiment_config.training_config.batch_size
+        max_steps_per_epoch = experiment_config.test_config.max_steps_per_epoch
+        total_steps = min(len(train_images), batch_size * max_steps_per_epoch)
+        train_images = train_images[:total_steps]
+        train_labels = train_labels[:total_steps]
 
     # Return all datasets
     return train_images, train_labels, val_images, val_labels, test_images, test_labels

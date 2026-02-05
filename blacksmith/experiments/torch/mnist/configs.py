@@ -75,8 +75,10 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
-    mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device, ["data", "model"] for 2D mesh.
 
     # Model sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).
@@ -88,6 +90,4 @@ class TrainingConfig(BaseModel):
     output_dir: str = Field(default="experiments/results/mnist")
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-
-    # Test configuration (optional, only used during testing)
     test_config: Optional[TestConfig] = Field(default=None)

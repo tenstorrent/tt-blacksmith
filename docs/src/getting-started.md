@@ -19,12 +19,12 @@ On the first activation, script will automatically install all dependencies.
 > git restore env
 > ```
 
-### Activating frontend environment
+### Activating Environment
 
-To activate python environment for specific frontend (TT-XLA, TT-Forge-FE or GPU), you need to run:
+To activate python environment for specific setup (TT-XLA or GPU), you need to run:
 
 ```bash
-source env/activate {--xla | --ffe | --gpu}
+source env/activate {--xla | --gpu}
 ```
 
 ## Running Experiments
@@ -38,4 +38,4 @@ This section guides you through the process of running experiments included in t
 
 ## Visual Demo: 3D Reconstruction with NeRF
 
-<img src="./imgs/nerf_demo.gif" alt="nerf demo" height="230"/>
+<img src="../shared/images/nerf_demo.gif" alt="nerf demo" height="230"/>

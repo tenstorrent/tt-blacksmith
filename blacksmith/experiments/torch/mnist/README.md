@@ -106,8 +106,8 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change 
 | `load_from_storage` | Whether to load checkpoints from storage. | false |
 | `remote_path` | Remote path for checkpoint storage. | "" |
 |  **Multi-chip settings** |
-| `parallelism` | Select experiment - "single"/"data"/"tensor". | "" |
-| `mesh_shape` | Mesh shape. | "2,1" |
+| `mesh_shape` | Mesh shape. | None |
+| `mesh_axis_names` | Axis names for the mesh. | None |
 |  **Other Settings** |
 | `device` | Select device "TT"/"CPU". | "TT" |
 | `experiment_name` | The name of the experiment used for tracking and logging. | "torch-mnist" |

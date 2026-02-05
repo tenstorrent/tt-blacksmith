@@ -3,7 +3,7 @@ dataset_id: "banking77"
 
 # Model settings
 model_name: "albert/albert-base-v2"
-max_length: 128
+max_length: 64 # TODO(agobeljicTT): https://github.com/tenstorrent/tt-blacksmith/issues/437
 num_labels: 77
 mlp_hidden_size: 256
 dtype: "torch.bfloat16"
@@ -51,7 +51,8 @@ seed: 23
 deterministic: False
 
 # Device settings
-parallelism_strategy: "single"
+mesh_shape: null
+mesh_axis_names: null
 
 # Other settings
 framework: "pytorch"

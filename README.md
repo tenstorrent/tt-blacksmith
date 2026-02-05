@@ -8,7 +8,7 @@
 
 </h1>
 <picture>
-  <img alt="Logo" src="docs/src/imgs/tt-blacksmith-logo.png" height="250">
+  <img alt="Logo" src="docs/shared/images/tt-blacksmith-logo.png" height="250">
 </picture>
 
 </div>
