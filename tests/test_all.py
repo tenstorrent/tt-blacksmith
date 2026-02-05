@@ -15,8 +15,7 @@ from training_test_cases import TRAINING_TEST_CASES
 def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
     log_df = pd.read_csv(log_file)
     golden_df = pd.read_csv(golden_file)
-    assert (pd.testing.assert_frame_equal(log_df, golden_df, rtol=tolerance),
-        f"Log file {log_file} does not match golden file {golden_file}")
+    pd.testing.assert_frame_equal(log_df, golden_df, rtol=tolerance)
 
 
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)

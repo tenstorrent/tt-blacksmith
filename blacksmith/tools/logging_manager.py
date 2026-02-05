@@ -21,9 +21,9 @@ class TrainingLogger:
 
         if self.config.use_wandb:
             self._setup_wandb()
-        
+
         self.test_logs_dir = "tests/training_logs"
-        
+
         if self.config.test_config is not None:
             self.val_log = []
             self.train_log = []
@@ -184,7 +184,7 @@ class TrainingLogger:
                 self.std_logger.info("W&B run finished")
             except Exception as e:
                 self.std_logger.warning(f"Failed to finish W&B run: {e}")
-        
+
         if self.config.test_config is not None:
             pd.DataFrame(self.train_log).to_csv(self.csv_path_train, index=False)
             pd.DataFrame(self.val_log).to_csv(self.csv_path_val, index=False)
