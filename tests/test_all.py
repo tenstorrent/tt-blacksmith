@@ -102,7 +102,6 @@ def test_training_script(
         elif "train" in name:
             train_log_file = name
 
-    
     # Compare the train and val log files in training_logs with those in golden_files.
     assert_loss_with_tolerance(
         os.path.join(log_dir, train_log_file),
