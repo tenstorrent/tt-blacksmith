@@ -96,23 +96,29 @@ def test_training_script(
     train_log_file = None
     val_log_file = None
     for f in most_recent_files:
-        name = f.name.lower()
+        name = f.name
         if "val" in name or "validation" in name:
             val_log_file = name
         elif "train" in name:
             train_log_file = name
 
-    # Compare the train and val log files in training_logs with those in golden_files.
-    assert_loss_with_tolerance(
-        os.path.join(log_dir, train_log_file),
-        os.path.join(golden_dir, train_log_file),
-        tolerance=setup_dict["tolerance"],
-    )
-    assert_loss_with_tolerance(
-        os.path.join(log_dir, val_log_file),
-        os.path.join(golden_dir, val_log_file),
-        tolerance=setup_dict["tolerance"],
-    )
+    if not os.path.exists(os.path.join(golden_dir, train_log_file)):
+        # Reference run, move the log files to golden_files.
+        # Sleep to ensure the files are touched after the test run.
+        os.rename(os.path.join(log_dir, train_log_file), os.path.join(golden_dir, train_log_file))
+        os.rename(os.path.join(log_dir, val_log_file), os.path.join(golden_dir, val_log_file))
+    else:
+        # Test run, compare the train and val log files in training_logs with those in golden_files.
+        assert_loss_with_tolerance(
+            os.path.join(log_dir, train_log_file),
+            os.path.join(golden_dir, train_log_file),
+            tolerance=setup_dict["tolerance"],
+        )
+        assert_loss_with_tolerance(
+            os.path.join(log_dir, val_log_file),
+            os.path.join(golden_dir, val_log_file),
+            tolerance=setup_dict["tolerance"],
+        )
 
-    os.unlink(os.path.join(log_dir, train_log_file))
-    os.unlink(os.path.join(log_dir, val_log_file))
+        os.unlink(os.path.join(log_dir, train_log_file))
+        os.unlink(os.path.join(log_dir, val_log_file))
