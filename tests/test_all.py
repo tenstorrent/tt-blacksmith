@@ -8,9 +8,11 @@ from pathlib import Path
 import pytest
 from training_test_cases import TRAINING_TEST_CASES
 
+
 @pytest.fixture
 def debug(request):
     return request.config.getoption("--debug-experiment", default=False)
+
 
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
 def test_training_script(
