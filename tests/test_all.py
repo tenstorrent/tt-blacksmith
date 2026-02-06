@@ -8,11 +8,15 @@ from pathlib import Path
 import pytest
 from training_test_cases import TRAINING_TEST_CASES
 
+@pytest.fixture
+def debug(request):
+    return request.config.getoption("--debug-experiment", default=False)
 
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
 def test_training_script(
     setup_dict: dict,
     request: pytest.FixtureRequest,
+    debug: bool,
 ):
     """
     Test that training script runs successfully with test configuration.
@@ -49,14 +53,22 @@ def test_training_script(
         cmd.append("--config")
         cmd.append(str(setup_dict["experiment_config"]))
 
+    debug_kwargs = {}
+    if debug:
+        debug_kwargs = {
+            "stdout": sys.stdout,
+            "stderr": sys.stderr,
+        }
+
     try:
         result = subprocess.run(
             cmd,
             cwd=str(Path.cwd()),
             timeout=setup_dict["timeout"],
-            capture_output=True,
+            capture_output=not debug,
             text=True,
             check=False,
+            **debug_kwargs,
         )
 
         if result.returncode != 0:
