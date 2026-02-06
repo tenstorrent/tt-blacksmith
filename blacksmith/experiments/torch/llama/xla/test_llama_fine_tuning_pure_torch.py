@@ -35,9 +35,10 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            expected_output = batch["labels"].to(device)
+            batch = device_manager.prepare_batch(batch)
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+            expected_output = batch["labels"]
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
@@ -185,7 +186,8 @@ def train(
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
-                    xr.clear_computation_cache()
+                    if config.use_tt:
+                        xr.clear_computation_cache()
 
                     model.train()
 
