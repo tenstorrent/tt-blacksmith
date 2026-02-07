@@ -36,15 +36,12 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
-            input_ids = batch["input_ids"]
-            attention_mask = batch["attention_mask"]
-            expected_output = batch["labels"]
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
 
             # Forward pass.
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
             logits = outputs.logits
 
             # Shift logits for causal LM: predict next token
@@ -66,11 +63,11 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=expected_output.shape[0],
+                    batch_size=batch["labels"].shape[0],
                     collected_examples=collected_examples,
                     max_examples=10,
-                    input_ids=input_ids,
-                    expected_output=expected_output,
+                    input_ids=batch["input_ids"],
+                    expected_output=batch["labels"],
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
