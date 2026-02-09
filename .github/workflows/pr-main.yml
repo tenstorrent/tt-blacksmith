@@ -20,7 +20,7 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
+      docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
       use-shared-runners: false
       test_suite: uplift-test.json
 
@@ -29,7 +29,7 @@ jobs:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
-      docker_image: "ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-22-04:latest"
+      docker_image: "ghcr.io/tenstorrent/tt-xla-slim:nightly-latest"
       use-shared-runners: false
       test_suite: basic-test.json
 
