@@ -4,6 +4,8 @@ test_config:
 steps_freq: 1
 val_steps_freq: 1
 
+do_validation: true
+
 use_tt: true
 wandb_project: "test-all-wandb-project"
 log_on_wandb: false
