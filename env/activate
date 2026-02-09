@@ -120,7 +120,6 @@ case $EXPERIMENT_TYPE in
         ;;
     1)
         pip install -r env/xla_requirements.txt -r env/requirements.txt
-        tt-forge-install  # Installs sfpi.
         ;;
     2)
         pip install -r env/gpu_requirements.txt -r env/requirements.txt
