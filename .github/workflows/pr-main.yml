@@ -15,7 +15,7 @@ jobs:
     secrets: inherit
 
   uplift-test:
-    if: always()
+    if: ${{ github.head_ref == 'uplift' }}
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
