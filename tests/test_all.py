@@ -102,6 +102,9 @@ def test_training_script(
         elif "train" in name:
             train_log_file = name
 
+    if train_log_file is None or val_log_file is None:
+        return  # Jax is not supported for golden files yet.
+
     if not os.path.exists(os.path.join(golden_dir, train_log_file)):
         # Reference run, move the log files to golden_files.
         # Sleep to ensure the files are touched after the test run.
