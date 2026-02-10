@@ -25,7 +25,7 @@ class SquadV2Dataset(BaseDataset):
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: TrainingConfig (ensure config.dataset_id is set to "squadv2")
+            config: TrainingConfig (ensure config.dataset_id is set to "squad_v2")
             split: Dataset split to use ("train", "validation")
             collate_fn: Collate function to use for the dataset
         """
