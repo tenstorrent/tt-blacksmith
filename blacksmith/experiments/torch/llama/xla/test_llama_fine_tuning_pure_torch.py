@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import traceback
 from pathlib import Path
 
@@ -105,14 +104,13 @@ def train(
 
     # Load model
     model = get_model(config, device_manager.device)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     # Load checkpoint if needed
     if config.resume_from_checkpoint:

@@ -2,13 +2,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
+
+from blacksmith.datasets.torch.fusechat.fusechat_utils import (
+    DATASET_PATH,
+    PROMPT_TEMPLATE,
+)
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
-from transformers import AutoTokenizer
 from datasets import load_dataset
-from blacksmith.datasets.torch.fusechat.fusechat_utils import DATASET_PATH, PROMPT_TEMPLATE
-from torch.utils.data import DataLoader
-from transformers import DataCollatorForSeq2Seq
+
 
 class FuseChatDataset(BaseDataset):
     # FuseChat dataset only has train split, so we create validation/test from it.
@@ -70,7 +74,7 @@ class FuseChatDataset(BaseDataset):
                 [col for col in filtered_dataset.column_names if col not in self.required_columns]
             )
             FuseChatDataset._shared_dataset = filtered_dataset
-        
+
         full_dataset = FuseChatDataset._shared_dataset
         n = len(full_dataset)
         train_end = int(0.98 * n)
@@ -80,7 +84,9 @@ class FuseChatDataset(BaseDataset):
         elif self.split == "validation":
             self.dataset = full_dataset.select(range(train_end, val_end))
         else:
-            raise ValueError(f"Invalid split '{self.split}' for AlpacaDataset. Only 'train' and 'validation' are supported.")
+            raise ValueError(
+                f"Invalid split '{self.split}' for AlpacaDataset. Only 'train' and 'validation' are supported."
+            )
 
     def __len__(self):
         return len(self.dataset)

@@ -45,7 +45,7 @@ deterministic: False
 log_level: "INFO"
 use_wandb: True
 wandb_project: "llama3b-multichip-lora-quietbox"
-wandb_run_name: "gpu-llama3b-fusechat-seq128-bsize16-test"
+wandb_run_name: "tt-llama3b-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
@@ -72,4 +72,4 @@ remote_path: ""
 # Other settings
 framework: "pytorch"
 print_examples: True
-use_tt: False
+use_tt: True
