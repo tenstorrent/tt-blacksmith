@@ -13,7 +13,7 @@ from datasets import load_dataset
 PROMPT_INTRO = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
 
 PROMPT_TEMPLATE = Template(
-    f"""
+f"""
 {PROMPT_INTRO}
 
 ### Instruction:
@@ -27,7 +27,7 @@ $input
 )
 
 PROMPT_TEMPLATE_NO_INPUT = Template(
-    f"""
+f"""
 {PROMPT_INTRO}
 
 ### Instruction:
