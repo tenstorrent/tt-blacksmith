@@ -89,7 +89,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 # the step via the computation graph, avoiding unnecessary and expensive
 # CCLs in multi-chip setups.
 # Issue itself should be investigated further.
-def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps=1):
+def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
@@ -235,7 +235,9 @@ if __name__ == "__main__":
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
 
-    # Use the highest numerical precision in computation.
+    # Use highest numerical precision for stable fine-tuning convergence.
+    # fp32_dest_acc_en: accumulate in FP32 to avoid precision loss.
+    # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
 
     # Start training.
