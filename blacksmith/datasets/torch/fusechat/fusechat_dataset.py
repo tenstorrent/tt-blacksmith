@@ -26,7 +26,7 @@ class FuseChatDataset(BaseDataset):
             split: Dataset split to use ("train")
             collate_fn: Collate function to use for the dataset
         """
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
