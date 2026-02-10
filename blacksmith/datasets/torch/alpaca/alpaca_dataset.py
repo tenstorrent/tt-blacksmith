@@ -10,9 +10,11 @@ from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
 
+PROMPT_INTRO = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
+
 PROMPT_TEMPLATE = Template(
-    """
-Below is an instruction that describes a task. Write a response that appropriately completes the request.
+    f"""
+{PROMPT_INTRO}
 
 ### Instruction:
 $instruction
@@ -25,8 +27,8 @@ $input
 )
 
 PROMPT_TEMPLATE_NO_INPUT = Template(
-    """
-Below is an instruction that describes a task. Write a response that appropriately completes the request.
+    f"""
+{PROMPT_INTRO}
 
 ### Instruction:
 $instruction
@@ -47,17 +49,14 @@ class AlpacaDataset(BaseDataset):
         """
         Args:
             config: TrainingConfig (ensure config.dataset_id is set to "alpaca")
-            split: Dataset split to use ("train")
+            split: Dataset split to use ("train" or "validation")
             collate_fn: Collate function to use for the dataset
         """
-        self.config = config
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
-        self.split = split
-        self.collate_fn = collate_fn
 
-        self._prepare_dataset()
+        super().__init__(config, split, collate_fn)
 
     def _tokenize_function(self, example):
         instruction = example["instruction"]
@@ -65,7 +64,7 @@ class AlpacaDataset(BaseDataset):
         output = example["output"]
 
         # Use different template based on whether there's an input field.
-        if input_text and input_text.strip():
+        if input_text.strip():
             prompt = PROMPT_TEMPLATE.substitute(instruction=instruction, input=input_text)
         else:
             prompt = PROMPT_TEMPLATE_NO_INPUT.substitute(instruction=instruction)
@@ -93,7 +92,6 @@ class AlpacaDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        # Alpaca only has train split, so we create validation/test from it.
         if AlpacaDataset._shared_dataset is None:
             raw_dataset = load_dataset(DATASET_PATH, split="train")
             tokenized_dataset = raw_dataset.map(self._tokenize_function)
