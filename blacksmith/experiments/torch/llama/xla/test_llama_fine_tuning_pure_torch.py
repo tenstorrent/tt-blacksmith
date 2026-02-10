@@ -35,13 +35,15 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            batch = device_manager.prepare_batch(batch)
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            expected_output = batch["labels"].to(device)
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
 
             # Forward pass.
-            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
 
             # Shift logits for causal LM: predict next token
@@ -49,7 +51,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                batch, config.ignored_index, model.model.config.vocab_size
+                expected_output.to("cpu"), config.ignored_index, model.model.config.vocab_size
             )
             loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
 
@@ -63,11 +65,11 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=batch["labels"].shape[0],
+                    batch_size=expected_output.shape[0],
                     collected_examples=collected_examples,
                     max_examples=10,
-                    input_ids=batch["input_ids"],
-                    expected_output=batch["labels"],
+                    input_ids=input_ids,
+                    expected_output=expected_output,
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
@@ -141,7 +143,7 @@ def train(
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
-                    batch, config.ignored_index, model.model.config.vocab_size
+                    batch["labels"], config.ignored_index, model.model.config.vocab_size
                 )
                 batch = {
                     "input_ids": batch["input_ids"],
