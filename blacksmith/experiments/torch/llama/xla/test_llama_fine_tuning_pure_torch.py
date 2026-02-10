@@ -49,7 +49,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                batch, config.ignored_index, model.model.config.vocab_size
+                {"labels": batch["labels"].to("cpu")}, config.ignored_index, model.model.config.vocab_size
             )
             loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
 
