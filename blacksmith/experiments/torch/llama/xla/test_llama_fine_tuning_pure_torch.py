@@ -53,7 +53,10 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             expected_output_one_hot, labels_mask = transform_labels(
                 expected_output.to("cpu"), config.ignored_index, model.model.config.vocab_size
             )
-            loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            if config.use_tt:
+                loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            else:
+                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)

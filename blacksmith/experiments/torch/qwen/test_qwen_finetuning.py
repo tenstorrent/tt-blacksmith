@@ -158,7 +158,7 @@ def train(
                             eval_dataloader,
                             loss_fn,
                             logger,
-                            device_manager.device,
+                            device_manager,
                             config,
                             eval_dataset.tokenizer,
                         )
