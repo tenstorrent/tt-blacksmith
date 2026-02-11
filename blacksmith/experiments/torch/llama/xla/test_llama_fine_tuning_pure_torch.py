@@ -182,10 +182,10 @@ def train(
                         running_loss = 0.0
 
                         # Do validation.
-                        valid_loss = validate(
+                        val_loss = validate(
                             model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
                         )
-                        logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                        logger.log_metrics({"val/loss": val_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
                     if config.use_tt:
