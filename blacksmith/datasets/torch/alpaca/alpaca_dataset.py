@@ -98,10 +98,10 @@ class AlpacaDataset(BaseDataset):
             raw_dataset = load_dataset(DATASET_PATH, split="train")
             tokenized_dataset = raw_dataset.map(self._tokenize_function)
             filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
-            filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
             filtered_dataset = filtered_dataset.remove_columns(
                 [col for col in filtered_dataset.column_names if col not in self.required_columns]
             )
+            filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
             AlpacaDataset._shared_dataset = filtered_dataset
 
         full_dataset = AlpacaDataset._shared_dataset
@@ -120,14 +120,6 @@ class AlpacaDataset(BaseDataset):
     def __len__(self):
         return len(self.dataset)
 
-    def __getitem__(self, idx):
-        sample = self.dataset[idx]
-
-        return {
-            "input_ids": sample["input_ids"],
-            "attention_mask": sample["attention_mask"],
-            "labels": sample["labels"],
-        }
 
     def _get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorForSeq2Seq(
