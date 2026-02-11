@@ -1,14 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 import subprocess
 import sys
 from pathlib import Path
-import os
 
-import pytest
 import pandas as pd
-
+import pytest
 from training_test_cases import TRAINING_TEST_CASES
 
 LOG_DIR = Path("tests/training_logs")
@@ -49,7 +48,7 @@ def get_log_files() -> tuple[str, str]:
             val_log_file = name
         elif "train" in name:
             train_log_file = name
-    
+
     return train_log_file, val_log_file
 
 
@@ -76,12 +75,14 @@ def test_training_script(
     default_setup_dict = {
         "test_script": None,
         "experiment_config": None,
-        "test_config": "tests/configs/test_training_fast.yaml",
+        "test_config": None,
         "tolerance": 0.5,
         "timeout": 800.0,
     }
 
     setup_dict = default_setup_dict | setup_dict
+
+    assert setup_dict["test_script"] is not None, "`test_script` is required."
 
     test_id = request.node.callspec.id
 

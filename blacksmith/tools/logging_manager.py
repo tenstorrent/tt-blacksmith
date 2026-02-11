@@ -6,9 +6,9 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
+import pandas as pd
 import torch
 import wandb
-import pandas as pd
 
 from blacksmith.tools.templates.configs import TrainingConfig
 
