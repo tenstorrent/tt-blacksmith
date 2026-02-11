@@ -236,7 +236,7 @@ if __name__ == "__main__":
     logger.info(f"Using device: {device_manager.device}")
 
     # Use highest numerical precision for stable fine-tuning convergence.
-    # fp32_dest_acc_en: accumulate in FP32 to avoid precision loss.
+    # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
 
