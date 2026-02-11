@@ -75,7 +75,7 @@ def test_training_script(
     default_setup_dict = {
         "test_script": None,
         "experiment_config": None,
-        "test_config": None,
+        "test_config": "tests/configs/test_training_fast.yaml",
         "tolerance": 0.5,
         "timeout": 800.0,
     }
