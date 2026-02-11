@@ -120,7 +120,6 @@ class AlpacaDataset(BaseDataset):
     def __len__(self):
         return len(self.dataset)
 
-
     def _get_dataloader(self) -> DataLoader:
         data_collator = DataCollatorForSeq2Seq(
             tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
