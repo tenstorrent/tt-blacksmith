@@ -1,9 +1,0 @@
-steps_freq: 1
-val_steps_freq: 10
-num_epochs: 1
-
-do_validation: true
-
-use_tt: true
-wandb_project: "test-all-wandb-project"
-log_on_wandb: false

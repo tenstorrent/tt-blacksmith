@@ -8,7 +8,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py",
-            "test_config": "tests/configs/test_training_fast.yaml",
         },
         marks=[
             pytest.mark.push,
@@ -21,7 +20,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
-            "test_config": "tests/configs/test_training_fast.yaml",
         },
         marks=[
             pytest.mark.push,
@@ -34,7 +32,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/test_mnist_training.py",
-            "test_config": "tests/configs/test_training_fast.yaml",
             "timeout": 300,
         },
         marks=[
@@ -49,7 +46,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 2500,
         },
         marks=[
@@ -63,7 +59,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 300,
         },
         marks=[
@@ -77,7 +72,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 300,
         },
         marks=[
@@ -91,7 +85,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 1400,
         },
         marks=[
@@ -106,7 +99,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 1000,
         },
         marks=[
@@ -121,7 +113,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_1b.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 2000,
         },
         marks=[
@@ -137,7 +128,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/qwen/test_qwen_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/qwen/test_qwen_1-5b_finetuning.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 1000,
         },
         marks=[
@@ -152,7 +142,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/gemma11/test_gemma11_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/gemma11/test_gemma11_finetuning_squadV2.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 1000,
         },
         marks=[
@@ -166,7 +155,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/albert/test_albert_finetuning.py",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 1200,
         },
         marks=[
@@ -181,7 +169,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/phi/test_phi_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/phi/test_phi1_finetuning_sst2.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 700,
         },
         marks=[
@@ -196,7 +183,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/jax/nerf/test_nerf.py",
             "experiment_config": "blacksmith/experiments/jax/nerf/test_nerf.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 2000,
         },
         marks=[
@@ -212,7 +198,6 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.py",
             "experiment_config": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.yaml",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 2000,
         },
         marks=[
@@ -227,7 +212,6 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py",
-            "test_config": "tests/configs/test_training_uplift.yaml",
             "timeout": 2000,
         },
         marks=[
