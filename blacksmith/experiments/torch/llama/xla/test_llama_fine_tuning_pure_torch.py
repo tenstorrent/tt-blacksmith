@@ -94,7 +94,7 @@ def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale loss by accumulation steps to get correct effective batch size.
+    # Scale loss by number of accumulation steps to get correct effective batch size.
     scaled_loss = loss / gradient_accumulation_steps
     scaled_loss.backward()
     return loss.detach()
