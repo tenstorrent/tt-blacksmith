@@ -184,10 +184,6 @@ def train(
                     )
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
-                    # Clear XLA computation cache to avoid memory issues.
-                    if config.use_tt:
-                        xr.clear_computation_cache()
-
                     model.train()
 
                     # Save step checkpoint
