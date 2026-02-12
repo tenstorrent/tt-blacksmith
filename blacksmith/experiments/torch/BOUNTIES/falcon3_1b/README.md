@@ -9,6 +9,14 @@ Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 The Falcon3-1B fine-tuning experiment applies the LoRA technique to adapt a pre-trained Falcon3-1B-Base model on the Wikitext-2 dataset for causal language modeling.
 The experiment is designed to run on TT-N150 hardware using the TT-XLA framework.
 
+### Embedding Unfreezing
+
+Falcon3-1B-Base is pre-trained on a limited set of languages (English, French, Portuguese, and Spanish).
+The Wikitext-2 dataset contains tokens from other languages (e.g., Japanese text in articles like Valkyria Chronicles)
+that the frozen embedding layer cannot represent well. To address this, the experiment unfreezes the embedding layer
+(`embed_tokens`) alongside LoRA adapters using PEFT's `modules_to_save` mechanism. This allows the model to adapt
+its token representations during fine-tuning, significantly improving loss convergence.
+
 ## Training
 
 ```bash
@@ -81,5 +89,6 @@ Current `test_falcon3_finetuning.yaml` has the recommended and tested hyperparam
 | `lora_alpha` | Scaling factor for LoRA updates. | 64 |
 | `lora_target_modules` | Target modules for LoRA adaptation. | ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"] |
 | `lora_task_type` | Training task type for LoRA. | "CAUSAL_LM" |
+| `unfreeze_embeddings` | Unfreeze embedding layer for better token adaptation. | True |
 | `framework` | Training framework. | "pytorch" |
 | `use_tt` | Whether to run on TT device (or CPU otherwise). | True |

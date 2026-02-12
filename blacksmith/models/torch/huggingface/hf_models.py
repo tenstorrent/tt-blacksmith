@@ -35,11 +35,20 @@ def get_model(config: TrainingConfig, device: torch.device):
 
 
 def _apply_lora(model, config: TrainingConfig):
+    # When unfreeze_embeddings is enabled, use modules_to_save to also train
+    # the embedding layer alongside LoRA adapters. This is needed for models
+    # like Falcon3 that have limited language coverage - unfreezing embeddings
+    # allows the model to adapt token representations for unseen languages.
+    modules_to_save = None
+    if getattr(config, "unfreeze_embeddings", False):
+        modules_to_save = ["embed_tokens"]
+
     lora_config = LoraConfig(
         r=config.lora_r,
         lora_alpha=config.lora_alpha,
         target_modules=config.lora_target_modules,
         task_type=config.lora_task_type,
+        modules_to_save=modules_to_save,
     )
 
     return get_peft_model(model, lora_config)

@@ -71,6 +71,12 @@ class TrainingConfig(BaseModel):
     )
     lora_task_type: str = Field(default="CAUSAL_LM")
 
+    # Embedding settings - Falcon3 is trained on limited languages (EN, FR, PT, ES).
+    # Wikitext contains tokens from other languages that the frozen embedding layer
+    # cannot represent well. Unfreezing embeddings allows the model to adapt its
+    # token representations during fine-tuning, improving loss convergence.
+    unfreeze_embeddings: bool = Field(default=True)
+
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)

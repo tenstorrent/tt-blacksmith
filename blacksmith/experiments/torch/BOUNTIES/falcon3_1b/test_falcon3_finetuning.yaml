@@ -55,6 +55,10 @@ lora_alpha: 64
 lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 lora_task_type: "CAUSAL_LM"
 
+# Embedding settings - Falcon3 is trained on limited languages (EN, FR, PT, ES).
+# Unfreezing embeddings allows adaptation for tokens from other languages in wikitext.
+unfreeze_embeddings: True
+
 # Other settings
 framework: "pytorch"
 use_tt: True
