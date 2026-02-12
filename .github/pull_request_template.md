@@ -1,12 +1,5 @@
-### Ticket
-Link to Github Issue
+Please go to the `Preview` tab and select the appropriate PR template:
 
-### Problem description
-Provide context for the problem.
-
-### What's changed
-Describe the approach used to solve the problem.
-Summarize the changes made and its impact.
-
-### Checklist
-- [ ] New/Existing tests provide coverage for changes
+* [Generic](?expand=1&template=generic.md)
+* [Adding an Experiment](?expand=1&template=adding_an_experiment.md)
+* [Bugfix](?expand=1&template=bugfix.md)

@@ -150,7 +150,7 @@ def train(
                 # Validation phase
                 if do_validation:
                     avg_val_loss = validate(
-                        model, eval_dataloader, loss_fn, device_manager.device, config, logger, train_dataset.tokenizer
+                        model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
                     model.train()
 
@@ -183,7 +183,7 @@ if __name__ == "__main__":
     # Config setup
     default_config = Path(__file__).parent / "test_phi1_finetuning_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

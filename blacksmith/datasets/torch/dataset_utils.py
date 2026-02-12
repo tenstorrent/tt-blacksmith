@@ -9,6 +9,9 @@ from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.nerf.blender import BlenderDataset
 from blacksmith.datasets.torch.squadV2.squadV2_dataset import SquadV2Dataset
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
+from blacksmith.datasets.torch.stanfordcars.stanfordcars_dataset import (
+    StanfordCarsDataset,
+)
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 
@@ -21,6 +24,7 @@ class AvailableDataset(Enum):
     BANKING77 = "banking77"
     SQUADV2 = "squadv2"
     WIKITEXT = "wikitext"
+    STANFORDCARS = "stanfordcars"
 
 
 def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
@@ -41,6 +45,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return SquadV2Dataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.WIKITEXT.value:
         return WikitextDataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.STANFORDCARS.value:
+        return StanfordCarsDataset(config, split)
     else:
         available_datasets = [ds.value for ds in AvailableDataset]
         raise ValueError(f"Unsupported dataset: {dataset_id}. Available options are: {available_datasets}")

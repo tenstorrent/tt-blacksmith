@@ -232,7 +232,7 @@ def train_mnist(config: ExperimentConfig):
 
     with jax.default_device(jax.devices("cpu")[0]):
         key = random.PRNGKey(0)
-        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax()
+        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax(config)
 
     params = train_mlp(x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host, key)
 
@@ -240,5 +240,5 @@ def train_mnist(config: ExperimentConfig):
 if __name__ == "__main__":
     default_config = Path(__file__).parent.parent / "test_mnist.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config, args.test_config)
     train_mnist(config)

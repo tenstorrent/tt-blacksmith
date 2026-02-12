@@ -6,6 +6,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from blacksmith.tools.test_config import TestConfig
+
 
 class TrainingConfig(BaseModel):
     # Dataset settings
@@ -13,12 +15,21 @@ class TrainingConfig(BaseModel):
     train_ratio: float = Field(default=0.8, gt=0, lt=1)
     dtype: str = Field(default="torch.bfloat16")
 
-    # Model settings
+    # Model settings (for MNISTLinear)
     model_name: str = Field(default="MNISTLinear")
     input_size: int = Field(default=784, gt=0)
     hidden_size: int = Field(default=512, gt=0)
     output_size: int = Field(default=10, gt=0)
     bias: bool = Field(default=False)
+
+    # CNN model settings (for MNISTCNN)
+    conv1_channels: int = Field(default=32, gt=0)
+    conv2_channels: int = Field(default=64, gt=0)
+    kernel_size: int = Field(default=3, gt=0)
+    stride: int = Field(default=1, gt=0)
+    fc1_size: int = Field(default=128, gt=0)
+    dropout1_rate: float = Field(default=0.25, ge=0, le=1)
+    dropout2_rate: float = Field(default=0.5, ge=0, le=1)
 
     # Training hyperparameters
     learning_rate: float = Field(default=0.01, gt=0)
@@ -64,8 +75,10 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
-    mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device, ["data", "model"] for 2D mesh.
 
     # Model sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).
@@ -77,3 +90,4 @@ class TrainingConfig(BaseModel):
     output_dir: str = Field(default="experiments/results/mnist")
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
+    test_config: Optional[TestConfig] = Field(default=None)

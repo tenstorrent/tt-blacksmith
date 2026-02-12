@@ -71,7 +71,10 @@ def train(
 
     # Build model
     model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
-    model = model.to(device_manager.device)
+
+    # Convert model to specified dtype if configured
+    dtype = eval(config.dtype) if hasattr(config, "dtype") and config.dtype else None
+    model = model.to(device=device_manager.device, dtype=dtype)
 
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
@@ -162,7 +165,7 @@ if __name__ == "__main__":
     # Generate config
     default_config = Path(__file__).parent / "test_mnist_training_tp.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility
     repro_manager = ReproducibilityManager(config)

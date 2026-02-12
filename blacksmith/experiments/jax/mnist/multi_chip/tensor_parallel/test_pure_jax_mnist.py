@@ -386,7 +386,6 @@ def evaluate(params, x_test, y_test, sharding_config, param_in_specs, batch_size
 
 def train_mnist(config: ExperimentConfig):
     jax.config.update("jax_use_shardy_partitioner", True)
-    os.environ["WANDB_MODE"] = "online" if config.logger_config.log_on_wandb else "disabled"
 
     sharding_config = ShardingConfig()
 
@@ -395,7 +394,7 @@ def train_mnist(config: ExperimentConfig):
     # which is currently not supported on device, as it fails on stablehlo.custom_call operation
     # (https://github.com/tenstorrent/tt-mlir/issues/2768).
     with jax.default_device(jax.devices("cpu")[0]):
-        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax()
+        x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax(config)
 
     train_mlp(
         x_train_host,
@@ -416,5 +415,5 @@ def train_mnist(config: ExperimentConfig):
 if __name__ == "__main__":
     default_config = Path(__file__).parent.parent.parent / "test_mnist.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config, args.test_config)
     train_mnist(config)

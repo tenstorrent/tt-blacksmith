@@ -1,0 +1,24 @@
+[flake8]
+max-line-length = 88
+
+# E262 inline comment should start with '# ' (used in shapes)
+# E501 line too long
+# W503 line break before binary operator
+# E731 do not assign a lambda expression, use a def
+# E302 expected 2 blank lines, found 1
+# E266 too many leading '#' for block comment
+# E203 whitespace before ':'
+# F405 'match_einsum_pattern' may be undefined, or defined from star imports
+ignore = E262,E501,W503,E731,E302,E266,E203,F405
+exclude =
+    .git,
+    __pycache__
+    .venv,
+    venv,
+    env,
+    build,
+    dist,
+    *.egg-info,
+    .pytest_cache,
+
+max-complexity = 10

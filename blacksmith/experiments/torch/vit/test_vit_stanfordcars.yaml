@@ -1,0 +1,59 @@
+# Dataset settings
+dataset_id: "stanfordcars"
+
+# Model settings
+model_name: "google/vit-base-patch16-224"
+dtype: "torch.bfloat16"
+ignored_index: -100
+
+# Training hyperparameters
+learning_rate: 1e-3
+batch_size: 10
+num_epochs: 8
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "vit-finetuning"
+wandb_run_name: "tt-vit-stanfordcars"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+epoch_freq: 1
+val_steps_freq: 100
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: "" # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/model"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Device settings
+mesh_shape: null
+mesh_axis_names: null
+
+# LoRA setup
+lora_r: 16
+lora_alpha: 16
+lora_target_modules: ["query", "value"]
+lora_dropout: 0.1
+
+# Other settings
+framework: "pytorch"
+use_tt: True

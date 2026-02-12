@@ -51,9 +51,12 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                batch, config.ignored_index, model.model.config.vocab_size
+                batch["labels"], config.ignored_index, model.model.config.vocab_size
             )
-            loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            if config.use_tt:
+                loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            else:
+                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
@@ -98,12 +101,16 @@ def training_step_inner(batch, model, loss_fn):
 
 
 def train(
-    config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
+    config: TrainingConfig,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
 ):
     logger.info("Starting training...")
 
     # Load model
     model = get_model(config, device_manager.device)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -133,14 +140,13 @@ def train(
     try:
         model.train()
         for epoch in range(config.num_epochs):
-
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients.
                 optimizer.zero_grad()
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
-                    batch, config.ignored_index, model.model.config.vocab_size
+                    batch["labels"], config.ignored_index, model.model.config.vocab_size
                 )
                 batch = {
                     "input_ids": batch["input_ids"],
@@ -171,12 +177,19 @@ def train(
 
                     # Do validation.
                     valid_loss = validate(
-                        model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
+                        model,
+                        eval_dataloader,
+                        cross_entropy_loss,
+                        logger,
+                        device_manager.device,
+                        config,
+                        tokenizer,
                     )
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
-                    xr.clear_computation_cache()
+                    if config.use_tt:
+                        xr.clear_computation_cache()
 
                     model.train()
 
@@ -204,9 +217,9 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_1b.yaml"
+    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

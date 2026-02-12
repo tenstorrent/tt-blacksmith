@@ -29,9 +29,11 @@ def init_configs(config: ExperimentConfig) -> ExperimentConfig:
     return config
 
 
-def get_dataset() -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+def get_dataset(
+    config: ExperimentConfig = None,
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Returns the MNIST dataset with integer labels (not one-hot)."""
-    train_images, train_labels, val_images, val_labels, test_images, test_labels = load_mnist_jax()
+    train_images, train_labels, val_images, val_labels, test_images, test_labels = load_mnist_jax(config)
 
     train_labels = jnp.argmax(train_labels, axis=-1)
     val_labels = jnp.argmax(val_labels, axis=-1)
@@ -252,7 +254,7 @@ def train(config: ExperimentConfig) -> None:
         # Load dataset on CPU because TT device has dtype restrictions (int16 not supported)
         # and one_hot encoding operations are not supported on TT device.
         with jax.default_device(cpu_device):
-            train_images, train_labels, val_images, val_labels, test_images, test_labels = get_dataset()
+            train_images, train_labels, val_images, val_labels, test_images, test_labels = get_dataset(config)
 
         model, optimizer = setup_model_and_optimizer(config, cpu_device, tt_device)
 
@@ -304,5 +306,5 @@ def train(config: ExperimentConfig) -> None:
 if __name__ == "__main__":
     default_config = Path(__file__).parent.parent / "test_mnist.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config, args.test_config)
     train(config)

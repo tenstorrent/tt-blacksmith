@@ -86,6 +86,7 @@ def train(
 
     # Load model
     model = get_model(config, device_manager.device)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")

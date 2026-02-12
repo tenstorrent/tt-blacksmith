@@ -13,6 +13,7 @@ Welcome to TT-Blacksmith documentation!
    :caption: User Guide
 
    src/experiments
+   src/coding-guidelines
 
 Indices and tables
 ==================
