@@ -7,11 +7,58 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import requests
 import pytest
 from training_test_cases import TRAINING_TEST_CASES
+from error_messages import TOLERANCE_CHECK_WARNING_MESSAGE, CORRECTNESS_FAILURE_MESSAGE, TIMED_OUT_MESSAGE, RUN_ERROR_MESSAGE
 
 LOG_DIR = Path("tests/training_logs")
 GOLDEN_DIR = Path("tests/golden_files")
+
+NOTIFICATION_TOKEN = os.getenv("NOTIFICATION_TOKEN")
+NOTIFICATION_TOLERANCE = 0.1
+
+
+def run_experiment(cmd: list[str], test_id: str, setup_dict: dict):
+    """
+    Run the main experiment script and report errors.
+
+    Args:
+        cmd: Command to run the experiment.
+        test_id: ID of the test.
+        setup_dict: Dictionary containing the test setup.
+    """
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(Path.cwd()),
+            timeout=setup_dict["timeout"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            error_msg = f"Exit code: {result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            print(f"\n{'='*60}")
+            print(error_msg)
+            print(f"{'='*60}\n")
+            send_notification(
+                RUN_ERROR_MESSAGE.format(
+                    test_id=test_id,
+                    error=error_msg
+                )
+            )
+            pytest.fail(f"Training script exited with code {result.returncode}")
+
+    except subprocess.TimeoutExpired:
+        send_notification(
+            TIMED_OUT_MESSAGE.format(
+                test_id=test_id,
+                timeout=setup_dict['timeout']
+            )
+        )
+        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
 
 
 def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
@@ -50,6 +97,27 @@ def get_log_files() -> tuple[str, str]:
             train_log_file = name
 
     return train_log_file, val_log_file
+
+
+def send_notification(message: str):
+    if NOTIFICATION_TOKEN is None or NOTIFICATION_TOKEN == "":
+        return
+    
+    token_parts = NOTIFICATION_TOKEN.split("_")
+    assert all(part.isalnum() for part in token_parts), "NOTIFICATION_TOKEN is not a valid token!"
+    token = "/".join(token_parts)
+
+    # Remove lines starting with [index], [left], [right]
+    # in order to avoid pollution on Slack.
+    if message is not None:
+        message = "\n".join(
+            line for line in message.splitlines() if not line.lstrip().startswith('[')
+        )
+
+    requests.post(
+        url=f"https://hooks.slack.com/triggers/{token}",
+        json={"message": message},
+    )
 
 
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
@@ -94,27 +162,7 @@ def test_training_script(
         cmd.append("--config")
         cmd.append(str(setup_dict["experiment_config"]))
 
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=str(Path.cwd()),
-            timeout=setup_dict["timeout"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            print(f"\n{'='*60}")
-            print(f"FAILED: {test_id}")
-            print(f"Exit code: {result.returncode}")
-            print(f"\nSTDOUT:\n{result.stdout}")
-            print(f"\nSTDERR:\n{result.stderr}")
-            print(f"{'='*60}\n")
-            pytest.fail(f"Training script exited with code {result.returncode}")
-
-    except subprocess.TimeoutExpired:
-        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
+    run_experiment(cmd, test_id, setup_dict)
 
     train_log_file, val_log_file = get_log_files()
 
@@ -128,16 +176,44 @@ def test_training_script(
         os.rename(os.path.join(LOG_DIR, val_log_file), os.path.join(GOLDEN_DIR, val_log_file))
     else:
         # Test run, compare the train and val log files in training_logs with those in golden_files.
-        assert_loss_with_tolerance(
-            os.path.join(LOG_DIR, train_log_file),
-            os.path.join(GOLDEN_DIR, train_log_file),
-            tolerance=setup_dict["tolerance"],
-        )
-        assert_loss_with_tolerance(
-            os.path.join(LOG_DIR, val_log_file),
-            os.path.join(GOLDEN_DIR, val_log_file),
-            tolerance=setup_dict["tolerance"],
-        )
+        try:
+            assert_loss_with_tolerance(
+                os.path.join(LOG_DIR, train_log_file),
+                os.path.join(GOLDEN_DIR, train_log_file),
+                tolerance=setup_dict["tolerance"],
+            )
+            assert_loss_with_tolerance(
+                os.path.join(LOG_DIR, val_log_file),
+                os.path.join(GOLDEN_DIR, val_log_file),
+                tolerance=setup_dict["tolerance"],
+            )
+        except Exception as e:
+            send_notification(
+                CORRECTNESS_FAILURE_MESSAGE.format(
+                    test_id=test_id,
+                    error=str(e)
+                )
+            )
+            pytest.fail(f"Loss curve mismatch: {str(e)}")
+        
+        try:
+            assert_loss_with_tolerance(
+                os.path.join(LOG_DIR, train_log_file),
+                os.path.join(GOLDEN_DIR, train_log_file),
+                tolerance=NOTIFICATION_TOLERANCE,
+            )
+            assert_loss_with_tolerance(
+                os.path.join(LOG_DIR, val_log_file),
+                os.path.join(GOLDEN_DIR, val_log_file),
+                tolerance=NOTIFICATION_TOLERANCE,
+            )
+        except Exception as e:
+            send_notification(
+                TOLERANCE_CHECK_WARNING_MESSAGE.format(
+                    test_id=test_id,
+                    error=str(e)
+                )
+            )
 
         os.unlink(os.path.join(LOG_DIR, train_log_file))
         os.unlink(os.path.join(LOG_DIR, val_log_file))
