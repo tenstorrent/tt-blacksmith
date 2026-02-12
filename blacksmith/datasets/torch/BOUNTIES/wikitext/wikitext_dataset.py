@@ -129,7 +129,7 @@ class WikitextDataset(BaseDataset):
             "labels": torch.tensor(sample["labels"]),
         }
 
-    def get_dataloader(self) -> DataLoader:
+    def _get_dataloader(self) -> DataLoader:
         """Create and return a DataLoader for this dataset."""
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer,
