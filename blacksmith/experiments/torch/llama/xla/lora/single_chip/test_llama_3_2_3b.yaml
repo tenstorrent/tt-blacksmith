@@ -9,7 +9,8 @@ dtype: "torch.bfloat16"
 # Training hyperparameters
 training_type: "lora"
 learning_rate: 2e-4
-batch_size: 16
+gradient_accumulation_steps: 16
+batch_size: 1
 num_epochs: 5
 ignored_index: -100
 
@@ -20,22 +21,8 @@ lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Device settings
-mesh_shape: [1, 4]  # Blackhole QuietBox mesh.
-mesh_axis_names: ["data", "model"]
-
-# Sharding patterns for tensor parallelism (regex pattern -> partition spec)
-model_sharding_patterns:
-  # === Attention ===
-  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
-  - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
-  - ['\.self_attn\.k_proj$',                  ["model", null]]
-  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
-  - ['\.self_attn\.v_proj\.lora_B\.default$', ["model", null]]
-  - ['\.self_attn\.o_proj$',                  [null, "model"]]
-  # === MLP ===
-  - ['\.mlp\.gate_proj$', ["model", null]]
-  - ['\.mlp\.up_proj$',   ["model", null]]
-  - ['\.mlp\.down_proj$', [null, "model"]]
+mesh_shape: null
+mesh_axis_names: null
 
 # Reproducibility settings
 seed: 23
@@ -44,7 +31,7 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "llama3b-multichip-lora-quietbox"
+wandb_project: "llama3b-singlechip-lora"
 wandb_run_name: "tt-llama3b-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
