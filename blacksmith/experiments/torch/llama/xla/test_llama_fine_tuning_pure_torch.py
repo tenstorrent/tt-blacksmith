@@ -51,9 +51,12 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                batch, config.ignored_index, model.model.config.vocab_size
+                batch["labels"], config.ignored_index, model.model.config.vocab_size
             )
-            loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            if config.use_tt:
+                loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            else:
+                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
@@ -143,7 +146,7 @@ def train(
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
-                    batch, config.ignored_index, model.model.config.vocab_size
+                    batch["labels"], config.ignored_index, model.model.config.vocab_size
                 )
                 batch = {
                     "input_ids": batch["input_ids"],
@@ -185,7 +188,8 @@ def train(
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
-                    xr.clear_computation_cache()
+                    if config.use_tt:
+                        xr.clear_computation_cache()
 
                     model.train()
 
