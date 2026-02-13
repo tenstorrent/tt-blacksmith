@@ -4,16 +4,15 @@
 
 import json
 import os
-from functools import partial
-from typing import Any, Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from huggingface_hub import hf_hub_download
 from PIL import Image
 
 from blacksmith.datasets.jax.nerf.ray_utils import get_ray_directions, get_rays
+from blacksmith.tools.test_config import TestConfig
 from datasets import load_dataset
 
 
@@ -164,9 +163,15 @@ class BlenderDataset:
         raise ValueError(f"Unknown split: {self.split}")
 
 
-def create_dataloader(dataset: BlenderDataset, batch_size: int, seed: int = 0):
+def create_dataloader(
+    dataset: BlenderDataset, batch_size: int, seed: int = 0, test_config: Optional[TestConfig] = None
+):
     num_samples = len(dataset)
     steps_per_epoch = num_samples // batch_size
+
+    if test_config and test_config.max_steps_per_epoch is not None:
+        steps_per_epoch = test_config.max_steps_per_epoch
+
     rng = jax.random.PRNGKey(seed)
 
     def data_generator():

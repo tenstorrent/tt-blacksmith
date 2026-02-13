@@ -5,6 +5,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from blacksmith.tools.test_config import TestConfig
+
 
 class NetConfig(BaseModel):
     depth: int = 4
@@ -73,3 +75,4 @@ class NerfConfig(BaseModel):
     data_loading: DataLoadingConfig = DataLoadingConfig()
     training: TrainingConfig = TrainingConfig()
     checkpoint: CheckpointConfig = CheckpointConfig()
+    test_config: Optional[TestConfig] = Field(default=None)

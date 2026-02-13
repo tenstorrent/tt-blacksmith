@@ -5,6 +5,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from blacksmith.tools.test_config import TestConfig
+
 
 class TrainingConfig(BaseModel):
     # Dataset settings
@@ -86,3 +88,4 @@ class TrainingConfig(BaseModel):
     print_examples: bool = Field(default=False)
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
+    test_config: Optional[TestConfig] = Field(default=None)

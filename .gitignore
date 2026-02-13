@@ -9,6 +9,7 @@ logs/
 docs/output
 generated/
 model/
+.vscode/
 
 # Python env
 env/*

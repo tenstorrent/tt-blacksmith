@@ -71,5 +71,7 @@ jobs:
         export WANDB_MODE=offline
         export LOGURU_LEVEL=ERROR
         export LOGGER_LEVEL=ERROR
+        export HF_HOME=/mnt/dockercache/huggingface
+        export HF_TOKEN=${{ secrets.HF_TOKEN }}
         source env/activate --${{ matrix.build.frontend }}
         pytest -m '${{ matrix.build.marks }}' tests/
