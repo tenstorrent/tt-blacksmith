@@ -100,14 +100,10 @@ class MathPreferenceDataset(BaseDataset):
             collate_fn: Optional additional collate function
             mode: "dpo" for DPO training, "sft" for SFT training
         """
-        self.config = config
+        super().__init__(config, split, collate_fn)
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        self.split = split
-        self.collate_fn = collate_fn
-        self.max_length = config.max_length
 
         # Set mode
         if isinstance(mode, str):
@@ -223,14 +219,15 @@ class MathPreferenceDataset(BaseDataset):
 
             # Filter samples that exceed max_length
             self.full_dataset = tokenized_dataset.filter(
-                lambda example: example["chosen_len"] <= self.max_length and example["rejected_len"] <= self.max_length
+                lambda example: example["chosen_len"] <= self.config.max_length
+                and example["rejected_len"] <= self.config.max_length
             )
         else:
             # Tokenize for SFT (chosen only)
             tokenized_dataset = raw_dataset.map(self._tokenize_sft, desc="Tokenizing chosen responses for SFT")
 
             # Filter samples that exceed max_length
-            self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.max_length)
+            self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
 
         # Remove columns not needed for training
         self.dataset = self.full_dataset.remove_columns(
@@ -256,10 +253,10 @@ class MathPreferenceDataset(BaseDataset):
     def get_dataloader(self) -> DataLoader:
         """Create DataLoader for training."""
         if self.mode == DatasetMode.DPO:
-            data_collator = DPODataCollator(tokenizer=self.tokenizer, max_length=self.max_length)
+            data_collator = DPODataCollator(tokenizer=self.tokenizer, max_length=self.config.max_length)
         else:
             data_collator = DataCollatorForSeq2Seq(
-                tokenizer=self.tokenizer, padding="max_length", max_length=self.max_length
+                tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
             )
 
         if self.collate_fn is not None:
