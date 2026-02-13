@@ -215,7 +215,7 @@ TRAINING_TEST_CASES = [
             "timeout": 2000,
         },
         marks=[
-            pytest.mark.uplift,
+            pytest.mark.push,
             pytest.mark.n150,
             pytest.mark.jax,
             pytest.mark.single_chip,
