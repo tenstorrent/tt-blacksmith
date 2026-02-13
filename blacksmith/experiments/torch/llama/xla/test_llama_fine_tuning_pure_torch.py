@@ -50,13 +50,14 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                expected_output.to("cpu"), config.ignored_index, model.model.config.vocab_size
+                batch["labels"], config.ignored_index, model.model.config.vocab_size
             )
+            if config.use_tt:
+                loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            else:
+                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
 
-            expected_output_one_hot = expected_output_one_hot.to(device)
-            labels_mask = labels_mask.to(device)
-            loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
-
+            # Predictions
             predictions = shift_logits.argmax(dim=-1)
             if config.use_tt:
                 torch_xla.sync(wait=True)
@@ -137,6 +138,7 @@ def train(
     running_loss = 0.0
 
     try:
+        model.train()
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
