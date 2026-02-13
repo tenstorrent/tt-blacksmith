@@ -215,7 +215,6 @@ TRAINING_TEST_CASES = [
             "timeout": 2000,
         },
         marks=[
-            pytest.mark.skip(reason="Jax tests are not supported yet."),
             pytest.mark.uplift,
             pytest.mark.n150,
             pytest.mark.jax,

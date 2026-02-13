@@ -197,7 +197,7 @@ def train(config: ExperimentConfig):
         checkpoint_dir = os.path.join(base_checkpoint_dir, epoch_dir)
         os.makedirs(checkpoint_dir, exist_ok=True)
         checkpoint_file_name = "checkpoint.msgpack"
-        checkpoint_file_path = os.path.join(checkpoint_dir, checkpoint_file_name)
+        checkpoint_file_path = os.path.join(os.getcwd(), checkpoint_dir, checkpoint_file_name)
         save_checkpoint(checkpoint_file_path, state, epoch, config.logger_config.log_on_wandb)
 
         if eval_batch_metrics_avg["loss"] < best_val_loss - early_stopping_config.min_delta:
@@ -212,7 +212,7 @@ def train(config: ExperimentConfig):
             break
 
     if training_config.run_test:
-        ckpt_file = os.path.join(base_checkpoint_dir, f"epoch={best_epoch:02d}", checkpoint_file_name)
+        ckpt_file = os.path.join(os.getcwd(), base_checkpoint_dir, f"epoch={best_epoch:02d}", checkpoint_file_name)
         restored_state = load_checkpoint(ckpt_file, state, best_epoch, config.logger_config.log_on_wandb)
         test_labels = jax.device_put(test_labels_host, current_device)
         test_images = jax.device_put(test_images_host, current_device)
