@@ -24,8 +24,7 @@ def cross_entropy_loss(shift_logits, expected_output, labels_mask):
 
 
 # Used in conjunction with cross_entropy_loss.
-def transform_labels(batch, ignored_index, vocab_size):
-    labels = batch["labels"]
+def transform_labels(labels, ignored_index, vocab_size):
     labels_mask = labels != ignored_index
     labels[labels == ignored_index] = 0
     expected_output = F.one_hot(labels, num_classes=vocab_size)
