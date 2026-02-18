@@ -20,11 +20,11 @@ def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float
     pd.testing.assert_frame_equal(log_df, golden_df, rtol=tolerance)
 
 
-def get_run_name(config_path: Path) -> str:
+def get_run_config(config_path: Path) -> str:
     with config_path.open() as file:
         config_data = yaml.safe_load(file)
 
-    return config_data["wandb_run_name"] if "wandb_run_name" in config_data else None
+    return config_data
 
 
 def get_log_files(run_name: str) -> tuple[Path, Path]:
@@ -110,7 +110,10 @@ def test_training_script(
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
 
-    run_name = get_run_name(Path(setup_dict["experiment_config"]))
+    run_config = get_run_config(Path(setup_dict["experiment_config"]))
+    test_config = get_run_config(Path(setup_dict["test_config"]))
+
+    run_name = run_config["wandb_run_name"] if "wandb_run_name" in run_config else None
     if run_name is None:
         return  # If a test does not support golden files yet.
 
@@ -119,7 +122,7 @@ def test_training_script(
     if not (LOG_DIR / train_log_file).exists() or not (LOG_DIR / val_log_file).exists():
         return  # If a test does not support golden files yet.
 
-    if not (GOLDEN_DIR / train_log_file).exists():
+    if not test_config["use_tt"] and not (GOLDEN_DIR / train_log_file).exists():
         # Reference run, move the log files to golden_files.
         (LOG_DIR / train_log_file).rename(GOLDEN_DIR / train_log_file)
         (LOG_DIR / val_log_file).rename(GOLDEN_DIR / val_log_file)
