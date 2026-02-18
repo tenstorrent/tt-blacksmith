@@ -8,6 +8,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training_tp.yaml",
         },
         marks=[
             pytest.mark.push,
@@ -20,6 +21,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training_dp.yaml",
         },
         marks=[
             pytest.mark.push,
@@ -32,6 +34,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/test_mnist_training.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/test_mnist_training.yaml",
             "timeout": 300,
         },
         marks=[
@@ -46,6 +49,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 2500,
         },
         marks=[
@@ -59,6 +63,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 300,
         },
         marks=[
@@ -72,6 +77,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 300,
         },
         marks=[
@@ -85,6 +91,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 1400,
         },
         marks=[
@@ -155,6 +162,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/albert/test_albert_finetuning.py",
+            "experiment_config": "blacksmith/experiments/torch/albert/test_albert_finetuning.yaml",
             "timeout": 1200,
         },
         marks=[
@@ -212,6 +220,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py",
+            "experiment_config": "blacksmith/experiments/jax/distil_bert/test_distil_bert_flax.yaml",
             "timeout": 2000,
         },
         marks=[
