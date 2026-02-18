@@ -20,7 +20,7 @@ def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float
     pd.testing.assert_frame_equal(log_df, golden_df, rtol=tolerance)
 
 
-def get_run_config(config_path: Path) -> str:
+def get_run_config(config_path: Path) -> dict:
     with config_path.open() as file:
         config_data = yaml.safe_load(file)
 
