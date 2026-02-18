@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 import torch_xla
+import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
@@ -94,7 +95,10 @@ def train(
 
     # Load model.
     model = get_model(config, device_manager.device)
-
+    if config.use_tt:
+        model = torch.compile(
+            model, backend="tt", options={"tt_enable_torch_fx_fusion_pass": False, "tt_experimental_compile": False}
+        )
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")

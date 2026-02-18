@@ -37,6 +37,38 @@ model_sharding_patterns:
   - ['\.mlp\.down_proj$',                     [null, "model"]]
 ```
 
+### Qwen 0.5B Training
+
+Qwen 0.5B is the default single chip example.
+
+**Single Chip Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_finetuning.yaml
+```
+
+### Qwen 1.5B Training
+
+Qwen 1.5B supports training on single chip configuration.
+
+**Single Chip Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml
+```
+
+### Qwen 3.4B Instruct 2507 Training
+
+Qwen 3.4B Instruct 2507 supports training on different configurations.
+
+**Single Chip Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml
+```
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml
+```
+
 ### Qwen 2.5 0.5B Training
 
 Qwen 2.5 0.5B is the default single chip example.
@@ -156,7 +188,7 @@ Example
 | `num_epochs`                  | Total number of training epochs.                       | 1                                   |
 | `optim`                       | Optimizer to use for training.                         | "adamw_torch"                       |
 | `log_level`                   | Logging verbosity level.                               | "INFO"                              |
-| `use_wandb`                   | Whether to enable Weights & Biases logging.            | True                                |
+| `use_wandb`                   | Whether to enable Weights & Biases logging.             | True                                |
 | `wandb_project`               | Project name for Weights & Biases logging.             | "qwen-finetuning"                   |
 | `wandb_run_name`              | Run name for Weights & Biases tracking.                | "tt-qwen"           |
 | `wandb_tags`                  | List of tags assigned to the W&B run.                  | ["test"]                            |
@@ -181,12 +213,12 @@ Example
 | `storage_backend`             | Storage backend for saving checkpoints.                | "local"                             |
 | `sync_to_storage`             | Whether to sync checkpoints to remote storage.         | False                               |
 | `load_from_storage`           | Whether to load checkpoints from remote storage.       | False                               |
-| `remote_path`                 | Remote storage path (if applicable).                   | ""                                  |
-| `seed`                        | Random seed for reproducibility.                       | 23                                  |
+| `remote_path`                 | Remote storage path (if applicable).                  | ""                                  |
+| `seed`                        | Random seed for reproducibility.                      | 23                                  |
 | `deterministic`               | Whether to enforce deterministic behavior.             | False                               |
-| `lora_r`                      | Rank of LoRA adaptation matrices.                      | 4                                   |
+| `lora_r`                      | Rank of LoRA adaptation matrices.                     | 4                                   |
 | `lora_alpha`                  | Scaling factor for LoRA updates.                       | 8                                   |
-| `lora_target_modules`         | Target modules for LoRA adaptation.                    | ["all-linear"]                      |
+| `lora_target_modules`         | Target modules for LoRA adaptation.                    | ["q_proj", "v_proj"]                |
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
