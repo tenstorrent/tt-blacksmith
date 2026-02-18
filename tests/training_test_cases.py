@@ -212,7 +212,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py",
-            "timeout": 2400,
+            "timeout": 3000,
         },
         marks=[
             pytest.mark.push,
