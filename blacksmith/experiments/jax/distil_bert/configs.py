@@ -1,7 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional
+
 from pydantic import BaseModel, Field
+
+from blacksmith.tools.test_config import TestConfig
 
 
 class ExperimentConfig(BaseModel):
@@ -42,3 +46,6 @@ class ExperimentConfig(BaseModel):
     checkpoint_every: int = Field(default=250, gt=0)
     keep_top_k_checkpoints: int = Field(default=2)
     output_dir: str = Field(default="blacksmith/experiments/jax/distil_bert")
+
+    # Test settings
+    test_config: Optional[TestConfig] = Field(default=None)
