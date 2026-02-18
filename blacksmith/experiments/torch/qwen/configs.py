@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -60,18 +60,19 @@ class TrainingConfig(BaseModel):
     seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
 
-    # Device settings
-    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
-    mesh_axis_names: Optional[list[str]] = Field(
-        default=None
-    )  # Use None for single device, ["data", "model"] for 2D mesh.
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
-
     # LoRA setup
     lora_r: int = Field(default=4, ge=0)
     lora_alpha: int = Field(default=8, gt=0)
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
     lora_task_type: str = Field(default="CAUSAL_LM")
+
+    # Device settings
+    mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
+    mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
+
+    # Model sharding patterns (regex pattern based - matches module names).
+    # Format: List of tuples (regex_pattern, sharding_spec_tuple).
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Other settings
     framework: str = Field(default="pytorch")
