@@ -36,7 +36,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
         for batch in tqdm(val_data_loader, desc="Validation"):
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
-            expected_output = batch["labels"]
+            expected_output = batch["labels"].clone()
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
