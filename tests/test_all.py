@@ -5,9 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-import yaml
 import pandas as pd
 import pytest
+import yaml
 from training_test_cases import TRAINING_TEST_CASES
 
 LOG_DIR = Path("tests/training_logs")
@@ -24,7 +24,7 @@ def get_run_name(config_path: Path) -> str:
     with config_path.open() as file:
         config_data = yaml.safe_load(file)
 
-    return config_data["wandb_run_name"]
+    return config_data["wandb_run_name"] if "wandb_run_name" in config_data else None
 
 
 def get_log_files(run_name: str) -> tuple[Path, Path]:
@@ -79,7 +79,7 @@ def test_training_script(
 
     assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
     assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
-    
+
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -110,13 +110,15 @@ def test_training_script(
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
 
-    train_log_file, val_log_file = get_log_files(
-        get_run_name(Path(setup_dict["experiment_config"]))
-    )
+    run_name = get_run_name(Path(setup_dict["experiment_config"]))
+    if run_name is None:
+        return  # If a test does not support golden files yet.
+
+    train_log_file, val_log_file = get_log_files(run_name)
 
     if not (LOG_DIR / train_log_file).exists() or not (LOG_DIR / val_log_file).exists():
         return  # If a test does not support golden files yet.
-    
+
     if not (GOLDEN_DIR / train_log_file).exists():
         # Reference run, move the log files to golden_files.
         (LOG_DIR / train_log_file).rename(GOLDEN_DIR / train_log_file)
