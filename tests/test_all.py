@@ -8,9 +8,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-
-from blacksmith.tools.logging_manager import TEST_LOGS_DIR, GOLDEN_LOGS_DIR
 from training_test_cases import TRAINING_TEST_CASES
+
+from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
 
 
 def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
