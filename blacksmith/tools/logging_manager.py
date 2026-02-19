@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import logging
 import os
+from pathlib import Path
 import sys
 from typing import Any, Dict, Optional
 
@@ -11,6 +12,9 @@ import torch
 import wandb
 
 from blacksmith.tools.templates.configs import TrainingConfig
+
+TEST_LOGS_DIR = Path("tests/training_logs")
+GOLDEN_LOGS_DIR = Path("tests/golden_files")
 
 
 class TrainingLogger:
@@ -22,16 +26,14 @@ class TrainingLogger:
         if self.config.use_wandb:
             self._setup_wandb()
 
-        self.test_logs_dir = "tests/training_logs"
-
         if self.config.test_config is not None:
             self.val_log = []
             self.train_log = []
 
-            os.makedirs(self.test_logs_dir, exist_ok=True)
+            TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-            self.csv_path_train = f"{self.test_logs_dir}/{self.config.wandb_run_name}_train.csv"
-            self.csv_path_val = f"{self.test_logs_dir}/{self.config.wandb_run_name}_val.csv"
+            self.csv_path_train = TEST_LOGS_DIR / f"{self.config.wandb_run_name}_train.csv"
+            self.csv_path_val = TEST_LOGS_DIR / f"{self.config.wandb_run_name}_val.csv"
 
     def _setup_std_logger(self):
         self.std_logger = logging.getLogger(self.config.wandb_run_name)

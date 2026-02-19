@@ -8,10 +8,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import yaml
-from training_test_cases import TRAINING_TEST_CASES
 
-LOG_DIR = Path("tests/training_logs")
-GOLDEN_DIR = Path("tests/golden_files")
+from blacksmith.tools.logging_manager import TEST_LOGS_DIR, GOLDEN_LOGS_DIR
+from training_test_cases import TRAINING_TEST_CASES
 
 
 def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
@@ -28,14 +27,6 @@ def get_run_config(config_path: Path) -> dict:
 
 
 def get_log_files(run_name: str) -> tuple[Path, Path]:
-    """
-    Get the names of the train and val log files for the given run name.
-
-    Returns:
-        train_log_file: Name of the train log file.
-        val_log_file: Name of the val log file.
-    """
-
     train_log_file = Path(f"{run_name}_train.csv")
     val_log_file = Path(f"{run_name}_val.csv")
 
@@ -80,8 +71,8 @@ def test_training_script(
     assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
     assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
 
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    GOLDEN_DIR.mkdir(parents=True, exist_ok=True)
+    TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    GOLDEN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
     cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
     if setup_dict["experiment_config"] is not None:
@@ -119,25 +110,26 @@ def test_training_script(
 
     train_log_file, val_log_file = get_log_files(run_name)
 
-    if not (LOG_DIR / train_log_file).exists() or not (LOG_DIR / val_log_file).exists():
+    if not (TEST_LOGS_DIR / train_log_file).exists() or not (TEST_LOGS_DIR / val_log_file).exists():
         return  # If a test does not support golden files yet.
 
-    if not test_config["use_tt"] and not (GOLDEN_DIR / train_log_file).exists():
+    if not test_config["use_tt"] and not (GOLDEN_LOGS_DIR / train_log_file).exists():
         # Reference run, move the log files to golden_files.
-        (LOG_DIR / train_log_file).rename(GOLDEN_DIR / train_log_file)
-        (LOG_DIR / val_log_file).rename(GOLDEN_DIR / val_log_file)
-    else:
-        # Test run, compare the train and val log files in training_logs with those in golden_files.
-        assert_loss_with_tolerance(
-            LOG_DIR / train_log_file,
-            GOLDEN_DIR / train_log_file,
-            tolerance=setup_dict["tolerance"],
-        )
-        assert_loss_with_tolerance(
-            LOG_DIR / val_log_file,
-            GOLDEN_DIR / val_log_file,
-            tolerance=setup_dict["tolerance"],
-        )
+        (TEST_LOGS_DIR / train_log_file).rename(GOLDEN_LOGS_DIR / train_log_file)
+        (TEST_LOGS_DIR / val_log_file).rename(GOLDEN_LOGS_DIR / val_log_file)
+        return
 
-        (LOG_DIR / train_log_file).unlink()
-        (LOG_DIR / val_log_file).unlink()
+    # Test run, compare the train and val log files in training_logs with those in golden_files.
+    assert_loss_with_tolerance(
+        TEST_LOGS_DIR / train_log_file,
+        GOLDEN_LOGS_DIR / train_log_file,
+        tolerance=setup_dict["tolerance"],
+    )
+    assert_loss_with_tolerance(
+        TEST_LOGS_DIR / val_log_file,
+        GOLDEN_LOGS_DIR / val_log_file,
+        tolerance=setup_dict["tolerance"],
+    )
+
+    (TEST_LOGS_DIR / train_log_file).unlink()
+    (TEST_LOGS_DIR / val_log_file).unlink()
