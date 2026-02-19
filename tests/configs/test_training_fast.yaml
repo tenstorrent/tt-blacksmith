@@ -2,6 +2,9 @@ test_config:
   max_steps_per_epoch: 5
 
 steps_freq: 1
+val_steps_freq: 1
+
+do_validation: true
 
 use_tt: true
 wandb_project: "test-all-wandb-project"

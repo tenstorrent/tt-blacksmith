@@ -6,6 +6,7 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
+import pandas as pd
 import torch
 import wandb
 
@@ -20,6 +21,17 @@ class TrainingLogger:
 
         if self.config.use_wandb:
             self._setup_wandb()
+
+        self.test_logs_dir = "tests/training_logs"
+
+        if self.config.test_config is not None:
+            self.val_log = []
+            self.train_log = []
+
+            os.makedirs(self.test_logs_dir, exist_ok=True)
+
+            self.csv_path_train = f"{self.test_logs_dir}/{self.config.wandb_run_name}_train.csv"
+            self.csv_path_val = f"{self.test_logs_dir}/{self.config.wandb_run_name}_val.csv"
 
     def _setup_std_logger(self):
         self.std_logger = logging.getLogger(self.config.wandb_run_name)
@@ -73,7 +85,7 @@ class TrainingLogger:
 
     def log_metrics(self, metrics: Dict[str, Any], step: Optional[int] = None, commit: bool = True):
         """
-        Log metrics to both stdout and W&B.
+        Log metrics to both stdout, CSV files (if test_config is set), and W&B.
 
         Args:
             metrics: Dictionary of metric names and values
@@ -89,6 +101,12 @@ class TrainingLogger:
                 self.wandb_run.log(metrics, step=step, commit=commit)
             except Exception as e:
                 self.std_logger.warning(f"Failed to log to W&B: {e}")
+
+        if self.config.test_config is not None:
+            if "train/loss" in metrics:
+                self.train_log.append({"_step": step, "train/loss": metrics["train/loss"]})
+            if "val/loss" in metrics:
+                self.val_log.append({"_step": step, "val/loss": metrics["val/loss"]})
 
     def log_model_info(self, model_info: Dict[str, Any]):
         """
@@ -166,3 +184,8 @@ class TrainingLogger:
                 self.std_logger.info("W&B run finished")
             except Exception as e:
                 self.std_logger.warning(f"Failed to finish W&B run: {e}")
+
+        if self.config.test_config is not None:
+            pd.DataFrame(self.train_log).to_csv(self.csv_path_train, index=False)
+            pd.DataFrame(self.val_log).to_csv(self.csv_path_val, index=False)
+            self.std_logger.info(f"Training and validation logs saved to {self.csv_path_train} and {self.csv_path_val}")

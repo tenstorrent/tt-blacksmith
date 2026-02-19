@@ -73,5 +73,6 @@ jobs:
         export LOGGER_LEVEL=ERROR
         export HF_HOME=/mnt/dockercache/huggingface
         export HF_TOKEN=${{ secrets.HF_TOKEN }}
+        export NOTIFICATION_TOKEN=${{ secrets.NOTIFICATION_TOKEN }}
         source env/activate --${{ matrix.build.frontend }}
         pytest -m '${{ matrix.build.marks }}' tests/
