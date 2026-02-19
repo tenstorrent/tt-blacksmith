@@ -36,7 +36,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
         for batch in tqdm(val_data_loader, desc="Validation"):
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
-            expected_output = batch["labels"].clone()
+            # Expected output must be prepared on CPU first due to an OOM issue.
+            # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
+            expected_output = batch["labels"]
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
@@ -50,7 +52,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                batch["labels"], config.ignored_index, model.model.config.vocab_size
+                expected_output, config.ignored_index, model.model.config.vocab_size
             )
             if config.use_tt:
                 loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)

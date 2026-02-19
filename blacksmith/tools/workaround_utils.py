@@ -33,7 +33,7 @@ def cross_entropy_loss(shift_logits, expected_output, labels_mask):
 # Used in conjunction with cross_entropy_loss.
 def transform_labels(labels, ignored_index, vocab_size):
     labels_mask = labels != ignored_index
-    labels[labels == ignored_index] = 0
+    labels = torch.where(labels_mask, labels, 0)
     expected_output = F.one_hot(labels, num_classes=vocab_size)
 
     return expected_output, labels_mask
