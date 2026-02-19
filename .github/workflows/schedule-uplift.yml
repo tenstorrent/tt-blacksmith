@@ -36,7 +36,7 @@ jobs:
           package=pjrt-plugin-tt
           versions=$(python3.11 -m pip index versions --disable-pip-version-check --no-python-version-warning \
             --extra-index-url https://pypi.eng.aws.tenstorrent.com pjrt-plugin-tt --pre)
-          latest_version=$(echo "$versions" | grep -oP '(?<=Available versions: ).*' | tr ', ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]{8}$' | sort -Vr | head -n1)
+          latest_version=$(echo "$versions" | grep -oP '(?<=Available versions: ).*' | tr ', ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]{14}$' | sort -Vr | head -n1)
           if [ -z "$latest_version" ]; then
             echo "::error::Unable to determine latest tt-xla nightly" >&2
             exit 1

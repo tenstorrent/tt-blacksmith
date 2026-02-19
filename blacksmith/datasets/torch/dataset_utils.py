@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
 
+from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
 from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.nerf.blender import BlenderDataset
@@ -23,6 +24,7 @@ class AvailableDataset(Enum):
     BANKING77 = "banking77"
     SQUADV2 = "squadv2"
     STANFORDCARS = "stanfordcars"
+    ALPACA = "alpaca"
 
 
 def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
@@ -43,6 +45,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return SquadV2Dataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.STANFORDCARS.value:
         return StanfordCarsDataset(config, split)
+    elif dataset_id == AvailableDataset.ALPACA.value:
+        return AlpacaDataset(config, split, collate_fn=collate_fn)
     else:
         available_datasets = [ds.value for ds in AvailableDataset]
         raise ValueError(f"Unsupported dataset: {dataset_id}. Available options are: {available_datasets}")
