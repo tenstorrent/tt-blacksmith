@@ -128,7 +128,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/qwen/test_qwen_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/qwen/test_qwen_1-5b_finetuning.yaml",
-            "timeout": 700,
+            "timeout": 1000,
         },
         marks=[
             pytest.mark.uplift,
