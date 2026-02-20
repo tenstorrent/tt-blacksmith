@@ -29,28 +29,14 @@ class WikitextDataset(BaseDataset):
     """
 
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
-        """
-        Initialize the Wikitext dataset.
-
-        Args:
-            config: Training configuration
-            split: Dataset split ("train", "validation", or "test")
-            collate_fn: Optional custom collate function
-        """
-        self.config = config
-        self.split = split
-        self.collate_fn = collate_fn
-
-        # Initialize tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
 
-        # Set pad token if not available
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
 
         self.required_columns = ["input_ids", "attention_mask", "labels"]
-        self._prepare_dataset()
+        super().__init__(config, split, collate_fn)
 
     def _prepare_dataset(self):
         """Load and prepare the Wikitext-2 dataset."""

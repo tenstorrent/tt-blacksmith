@@ -76,6 +76,51 @@ def validate(model, val_data_loader, loss_fn, device_manager, config, logger, to
     return avg_val_loss
 
 
+def train_step(model, batch, loss_fn, optimizer, device_manager, config):
+    """Execute a single training step: forward pass, loss computation, backward pass."""
+    optimizer.zero_grad()
+
+    batch = device_manager.prepare_batch(batch)
+    outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+
+    shift_logits = outputs.logits[:, :-1, :].contiguous()
+    loss = loss_fn(
+        shift_logits.view(-1, model.model.config.vocab_size),
+        batch["labels"].view(-1),
+    )
+
+    loss.backward()
+    if config.use_tt:
+        torch_xla.sync(wait=True)
+
+    device_manager.optimizer_step(optimizer)
+    return loss.item()
+
+
+def setup_training(config, device_manager, logger, checkpoint_manager):
+    """Load model, datasets, and initialize training components."""
+    model = get_model(config, device_manager.device)
+    logger.info(f"Loaded {config.model_name} model.")
+    logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    if config.resume_from_checkpoint:
+        checkpoint_manager.load_checkpoint()
+
+    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
+    train_dataloader = train_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
+
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataloader = eval_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
+
+    return model, train_dataloader, eval_dataloader, train_dataset.tokenizer, optimizer, loss_fn
+
+
 def train(
     config: TrainingConfig,
     device_manager: DeviceManager,
@@ -85,30 +130,9 @@ def train(
     """Main training loop for Falcon3-1B LoRA fine-tuning."""
     logger.info("Starting training...")
 
-    # Load model
-    model = get_model(config, device_manager.device)
-    logger.info(f"Loaded {config.model_name} model.")
-    logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
-
-    # Load checkpoint if needed
-    if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint()
-
-    # Load dataset
-    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
-    train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
-
-    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
-    eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
-
-    tokenizer = train_dataset.tokenizer
-
-    # Init training components (optimizer, lr scheduler, etc.)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
+    model, train_dataloader, eval_dataloader, tokenizer, optimizer, loss_fn = setup_training(
+        config, device_manager, logger, checkpoint_manager
+    )
 
     global_step = 0
     running_loss = 0.0
@@ -117,32 +141,7 @@ def train(
             model.train()
 
             for batch in tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{config.num_epochs}"):
-                optimizer.zero_grad()
-
-                batch = device_manager.prepare_batch(batch)
-
-                # Forward pass
-                outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-
-                logits = outputs.logits
-
-                # Shift logits to match pre-shifted labels from collate_fn
-                shift_logits = logits[:, :-1, :].contiguous()
-
-                loss = loss_fn(
-                    shift_logits.view(-1, model.model.config.vocab_size),
-                    batch["labels"].view(-1),
-                )
-                loss_cpu = loss.item()
-                running_loss += loss_cpu
-
-                # Backward pass
-                loss.backward()
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
-
-                # Update parameters
-                device_manager.optimizer_step(optimizer)
+                running_loss += train_step(model, batch, loss_fn, optimizer, device_manager, config)
 
                 do_validation = global_step % config.val_steps_freq == 0
 
@@ -151,15 +150,10 @@ def train(
                     logger.log_metrics({"train/loss": avg_loss}, commit=not do_validation, step=global_step)
                     running_loss = 0.0
 
-                # Validation phase
                 if do_validation:
                     avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
                     model.train()
-
-                    logger.log_metrics(
-                        {"epoch": epoch + 1, "val/loss": avg_val_loss},
-                        step=global_step,
-                    )
+                    logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step)
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
@@ -169,7 +163,6 @@ def train(
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-        # Save final model
         final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
         logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
