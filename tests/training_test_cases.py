@@ -98,7 +98,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml",
             "timeout": 1000,
         },
         marks=[
