@@ -130,6 +130,3 @@ def test_training_script(
         GOLDEN_LOGS_DIR / val_log_file,
         tolerance=setup_dict["tolerance"],
     )
-
-    (TEST_LOGS_DIR / train_log_file).unlink()
-    (TEST_LOGS_DIR / val_log_file).unlink()

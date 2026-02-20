@@ -13,7 +13,7 @@ import wandb
 
 from blacksmith.tools.templates.configs import TrainingConfig
 
-TEST_LOGS_DIR = Path("tests/training_logs")
+TEST_LOGS_DIR = Path("tests/test_logs")
 GOLDEN_LOGS_DIR = Path("tests/golden_files")
 
 
