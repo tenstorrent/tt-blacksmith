@@ -145,7 +145,7 @@ def train(
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                do_validation = global_step % config.val_steps_freq == 0
+                do_validation = global_step % config.steps_freq == 0
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
