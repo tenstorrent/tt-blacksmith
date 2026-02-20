@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -70,3 +72,21 @@ def test_training_script(
 
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
+
+    model_path = Path(f"tests/models/{'mnist_single_chip'}/irs")
+    ttirs = [path for path in model_path.glob("ttir_*.mlir")]
+    assert len(ttirs) == 3, f"Expected 3 TTIR files, got {len(ttirs)}"
+    for path in ttirs:
+        with open(path, "r") as f:
+            for line in f:
+                if line.strip().startswith("module @SyncTensorsGraph"):
+                    # Look for the pattern mesh = value inside <[<"mesh" = 1x1>]>.
+                    match = re.search(r'<\[\s*<"mesh"\s*=\s*([^>]*)>\]', line)
+                    assert match, f"Could not find mesh shape in line: {line.strip()}"
+                    mesh_shape = match.group(1)
+                    assert mesh_shape == "1x1", f"Expected mesh shape 1x1, got {mesh_shape}"
+                    break
+            else:
+                pytest.fail(f"Invalid TTIR file: {path}")
+
+    shutil.rmtree(model_path.parent)

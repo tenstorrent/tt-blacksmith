@@ -183,8 +183,8 @@ if __name__ == "__main__":
 
     # Compile options
     options = {
-        "export_path": "model",
-        "export_tensors": True,
+        "export_path": f"tests/models/{config.wandb_run_name}",
+        "export_tensors": False,
         "enable_const_eval": False,
     }
     torch_xla.set_custom_compile_options(options)
