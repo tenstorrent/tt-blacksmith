@@ -24,4 +24,5 @@ Example outputs:
 - [ ] CPU testing
 - [ ] GPU testing
 - [ ] TT device testing
-- [ ] CI testing
+- [ ] CI testing (if necessary)
+    - [ ] Verify if golden files are needed
