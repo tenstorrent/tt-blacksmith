@@ -94,12 +94,10 @@ def train(
     config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
 ):
     logger.info("Starting training...")
+
     # Load model
     model = get_model(config, device_manager.device)
-    if config.use_tt:
-        model = torch.compile(
-            model, backend="tt", options={"tt_enable_torch_fx_fusion_pass": False, "tt_experimental_compile": False}
-        )
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
