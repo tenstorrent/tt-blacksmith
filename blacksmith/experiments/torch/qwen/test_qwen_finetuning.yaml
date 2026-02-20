@@ -62,4 +62,3 @@ lora_task_type: "CAUSAL_LM"
 # Other settings
 framework: "pytorch"
 use_tt: True
-do_validation: False
