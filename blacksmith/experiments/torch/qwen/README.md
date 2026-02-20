@@ -1,12 +1,15 @@
 # Qwen with LoRA Experiment
 
 This directory contains the code for the Qwen model with LoRA fine-tuning experiment in TT-XLA.
-Qwen model specification can be found [here](https://huggingface.co/Qwen).
+Qwen 2.5 0.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-0.5B).
+Qwen 2.5 1.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-1.5B).
+Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
+Qwen 3 8B Base model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B-Base).
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
 
-The Qwen fine-tuning experiment applies the LoRA technique to adapt a pre-trained Qwen model on the SST sentiment analysis dataset.
+The Qwen fine-tuning experiment applies the LoRA technique to adapt a pre-trained Qwen model on the SST sentiment analysis or Text-to-SQL datasets.
 The experiment is designed to run on the Huggingface framework.
 
 ## Training
@@ -31,27 +34,27 @@ model_sharding_patterns:
   - ['\.mlp\.down_proj$',                     [null, "model"]]
 ```
 
-### Qwen 0.5B Training
+### Qwen 2.5 0.5B Training
 
-Qwen 0.5B is the default single chip example.
+Qwen 2.5 0.5B is the default single chip example.
 
 **Single Chip Training:**
 ```bash
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_finetuning.yaml
 ```
 
-### Qwen 1.5B Training
+### Qwen 2.5 1.5B Training
 
-Qwen 1.5B supports training on single chip configuration.
+Qwen 2.5 1.5B supports training on single chip configuration.
 
 **Single Chip Training:**
 ```bash
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml
 ```
 
-### Qwen 3.4B Instruct 2507 Training
+### Qwen 3 4B Instruct 2507 Training
 
-Qwen 3.4B Instruct 2507 supports training on different configurations.
+Qwen 3 4B Instruct 2507 supports training on different configurations.
 
 **Single Chip Training:**
 ```bash
@@ -62,13 +65,27 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 ```bash
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml
 ```
+Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 ## Data
 
 
-The experiment is configured using the configuration file `test_qwen_finetuning.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+GLUE, the General Language Understanding Evaluation benchmark (https://gluebenchmark.com/) is a collection of resources for training, evaluating, and analyzing natural language understanding systems.
+The Stanford Sentiment Treebank consists of sentences from movie reviews and human annotations of their sentiment. The task is to predict the sentiment of a given sentence. It uses the two-way (positive/negative) class split, with only sentence-level labels.
+Each example consists of a sentence from movie reviews labeled as either positive or negative sentiment.
+This dataset is commonly used to evaluate the performance of natural language understanding models on sentiment analysis tasks.
 
-Current `test_qwen_finetuning.yaml` has the recommended and tested hyperparameters for the experiment.
+Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/nyu-mll/glue)
+
+Example
+```
+{
+  "sentence": "A touching and insightful film.",
+  "label": 1
+}
+```
+- sentence: A short movie review or phrase.
+- label: Sentiment label (1 for positive, 0 for negative).
 
 ### Configuration Paramaters
 
@@ -88,7 +105,7 @@ Current `test_qwen_finetuning.yaml` has the recommended and tested hyperparamete
 | `log_level`                   | Logging verbosity level.                               | "INFO"                              |
 | `use_wandb`                   | Whether to enable Weights & Biases logging.            | True                                |
 | `wandb_project`               | Project name for Weights & Biases logging.             | "qwen-finetuning"                   |
-| `wandb_run_name`              | Run name for Weights & Biases tracking.                | "tt-qwen-test-full-T2SQL"           |
+| `wandb_run_name`              | Run name for Weights & Biases tracking.                | "tt-qwen"           |
 | `wandb_tags`                  | List of tags assigned to the W&B run.                  | ["test"]                            |
 | `wandb_watch_mode`            | Watch mode for model parameter logging.                | "all"                               |
 | `wandb_log_freq`              | Frequency of logging to Weights & Biases (in steps).   | 1000                                |
@@ -113,13 +130,12 @@ Current `test_qwen_finetuning.yaml` has the recommended and tested hyperparamete
 | `remote_path`                 | Remote storage path (if applicable).                   | ""                                  |
 | `seed`                        | Random seed for reproducibility.                       | 23                                  |
 | `deterministic`               | Whether to enforce deterministic behavior.             | False                               |
-| `mesh_shape`                  | Mesh shape for distributed training.                   | null                                |
-| `mesh_axis_names`             | Axis names for the mesh.                               | null                                |
-| `model_sharding_patterns`     | Sharding patterns for tensor parallelism.              | See example above                   |
 | `lora_r`                      | Rank of LoRA adaptation matrices.                      | 4                                   |
 | `lora_alpha`                  | Scaling factor for LoRA updates.                       | 8                                   |
-| `lora_target_modules`         | Target modules for LoRA adaptation.                    | ["q_proj", "v_proj"]                |
+| `lora_target_modules`         | Target modules for LoRA adaptation.                    | ["all-linear"]                      |
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
 | `do_validation`               | Whether to run validation during training.             | True                                |
+| `mesh_shape`                  | Mesh shape for distributed training.                   | None                                |
+| `mesh_axis_names`             | Axis names for the mesh.                               | None
