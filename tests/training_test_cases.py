@@ -116,7 +116,6 @@ TRAINING_TEST_CASES = [
             "timeout": 2000,
         },
         marks=[
-            pytest.mark.skip(reason="Quietbox is not supported yet."),
             pytest.mark.uplift,
             pytest.mark.n300_llmbox,
             pytest.mark.torch,

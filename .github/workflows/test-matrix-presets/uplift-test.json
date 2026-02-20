@@ -2,5 +2,6 @@
     {"runs-on": "n150", "frontend": "xla", "marks": "single_chip and uplift and n150 and jax"},
     {"runs-on": "n300", "frontend": "xla", "marks": "data_parallel and uplift and n300 and jax"},
     {"runs-on": "n300", "frontend": "xla", "marks": "tensor_parallel and uplift and n300 and jax"},
-    {"runs-on": "n150-high-memory", "frontend": "xla", "marks": "single_chip and uplift and n150 and torch"}
+    {"runs-on": "n150-high-memory", "frontend": "xla", "marks": "single_chip and uplift and n150 and torch"},
+    {"runs-on": "n300-llmbox", "frontend": "xla", "marks": "data_parallel and uplift and n300_llmbox and torch"}
 ]
