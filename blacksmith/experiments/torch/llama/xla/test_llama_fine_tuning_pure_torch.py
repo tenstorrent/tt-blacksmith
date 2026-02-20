@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import traceback
 from pathlib import Path
 
@@ -37,7 +36,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
         for batch in tqdm(val_data_loader, desc="Validation"):
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
-            expected_output = batch["labels"].to(device)
+            # Expected output must be prepared on CPU first due to an OOM issue.
+            # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
+            expected_output = batch["labels"]
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
@@ -51,8 +52,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             shift_logits = logits[:, :-1, :].contiguous()
 
             expected_output_one_hot, labels_mask = transform_labels(
-                batch["labels"], config.ignored_index, model.model.config.vocab_size
+                expected_output, config.ignored_index, model.model.config.vocab_size
             )
+
             if config.use_tt:
                 loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
             else:
@@ -91,12 +93,14 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 # the step via the computation graph, avoiding unnecessary and expensive
 # CCLs in multi-chip setups.
 # Issue itself should be investigated further.
-def training_step_inner(batch, model, loss_fn):
+def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    loss.backward()
+    # Scale loss by number of accumulation steps to get correct effective batch size.
+    scaled_loss = loss / gradient_accumulation_steps
+    scaled_loss.backward()
     return loss.detach()
 
 
@@ -108,23 +112,19 @@ def train(
 ):
     logger.info("Starting training...")
 
-    # Load model
+    # Load model.
     model = get_model(config, device_manager.device)
-
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
-
-    # Load checkpoint if needed
+    # Load checkpoint if needed.
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
 
-    # Load dataset
+    # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
@@ -135,14 +135,20 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
+    model.train()
+
     global_step = 0
     running_loss = 0.0
+
     try:
         model.train()
         for epoch in range(config.num_epochs):
+            accumulation_step = 0
+
             for batch in tqdm(train_dataloader, desc="Training"):
-                # Zero out gradients.
-                optimizer.zero_grad()
+                # Zero out gradients at the start of accumulation cycle
+                if accumulation_step == 0:
+                    optimizer.zero_grad()
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
@@ -160,32 +166,31 @@ def train(
                 device_manager.shard_model(model)
 
                 # Training step.
-                loss_ = training_step_inner(batch, model, cross_entropy_loss)
+                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                # Optimizer step.
-                device_manager.optimizer_step(optimizer)
                 running_loss += loss_.item()
+                accumulation_step += 1
 
-                global_step += 1
-                if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
-                    running_loss = 0.0
+                # Only step the optimizer after accumulating gradients.
+                if accumulation_step == config.gradient_accumulation_steps:
+                    device_manager.optimizer_step(optimizer)
 
-                    # Do validation.
-                    valid_loss = validate(
-                        model,
-                        eval_dataloader,
-                        cross_entropy_loss,
-                        logger,
-                        device_manager.device,
-                        config,
-                        tokenizer,
-                    )
-                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    accumulation_step = 0
+                    global_step += 1
+
+                    if global_step % config.steps_freq == 0:
+                        avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
+                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+                        running_loss = 0.0
+
+                        # Do validation.
+                        val_loss = validate(
+                            model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
+                        )
+                        logger.log_metrics({"val/loss": val_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
                     if config.use_tt:
@@ -193,7 +198,7 @@ def train(
 
                     model.train()
 
-                    # Save step checkpoint
+                    # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
@@ -217,7 +222,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b.yaml"
+    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
@@ -225,7 +230,7 @@ if __name__ == "__main__":
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
-    # Logger setup
+    # Logger setup.
     logger = TrainingLogger(config)
 
     # Checkpoint manager setup
@@ -235,5 +240,11 @@ if __name__ == "__main__":
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
 
-    # Start training
+    # Use highest numerical precision for stable fine-tuning convergence.
+    # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
+    # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
+    if config.use_tt:
+        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+
+    # Start training.
     train(config, device_manager, logger, checkpoint_manager)
