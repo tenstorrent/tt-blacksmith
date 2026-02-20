@@ -188,7 +188,7 @@ Example
 | `num_epochs`                  | Total number of training epochs.                       | 1                                   |
 | `optim`                       | Optimizer to use for training.                         | "adamw_torch"                       |
 | `log_level`                   | Logging verbosity level.                               | "INFO"                              |
-| `use_wandb`                   | Whether to enable Weights & Biases logging.             | True                                |
+| `use_wandb`                   | Whether to enable Weights & Biases logging.            | True                                |
 | `wandb_project`               | Project name for Weights & Biases logging.             | "qwen-finetuning"                   |
 | `wandb_run_name`              | Run name for Weights & Biases tracking.                | "tt-qwen"           |
 | `wandb_tags`                  | List of tags assigned to the W&B run.                  | ["test"]                            |
@@ -213,10 +213,13 @@ Example
 | `storage_backend`             | Storage backend for saving checkpoints.                | "local"                             |
 | `sync_to_storage`             | Whether to sync checkpoints to remote storage.         | False                               |
 | `load_from_storage`           | Whether to load checkpoints from remote storage.       | False                               |
-| `remote_path`                 | Remote storage path (if applicable).                  | ""                                  |
-| `seed`                        | Random seed for reproducibility.                      | 23                                  |
+| `remote_path`                 | Remote storage path (if applicable).                   | ""                                  |
+| `seed`                        | Random seed for reproducibility.                       | 23                                  |
 | `deterministic`               | Whether to enforce deterministic behavior.             | False                               |
-| `lora_r`                      | Rank of LoRA adaptation matrices.                     | 4                                   |
+| `mesh_shape`                  | Mesh shape for distributed training.                   | null                                |
+| `mesh_axis_names`             | Axis names for the mesh.                               | null                                |
+| `model_sharding_patterns`     | Sharding patterns for tensor parallelism.              | See example above                   |
+| `lora_r`                      | Rank of LoRA adaptation matrices.                      | 4                                   |
 | `lora_alpha`                  | Scaling factor for LoRA updates.                       | 8                                   |
 | `lora_target_modules`         | Target modules for LoRA adaptation.                    | ["q_proj", "v_proj"]                |
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
