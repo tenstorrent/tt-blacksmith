@@ -25,6 +25,7 @@ wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
 steps_freq: 10
+val_steps_freq: 10
 epoch_freq: 1
 print_examples: True
 ignored_index: -100

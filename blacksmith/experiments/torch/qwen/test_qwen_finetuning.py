@@ -123,6 +123,7 @@ def train(
             model.train()
 
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 batch = device_manager.prepare_batch(batch)
@@ -145,32 +146,28 @@ def train(
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                do_validation = global_step % config.steps_freq == 0
-
-                if global_step % config.steps_freq == 0:
+                if (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Do validation
-                    if do_validation:
-                        valid_loss = validate(
-                            model,
-                            eval_dataloader,
-                            loss_fn,
-                            logger,
-                            device_manager,
-                            config,
-                            eval_dataset.tokenizer,
-                        )
-                        logger.log_metrics({"val/loss": valid_loss}, step=global_step)
-                        model.train()
+                # Validation
+                if (global_step % config.val_steps_freq == 0) or (global_step == len(train_dataloader)):
+                    valid_loss = validate(
+                        model,
+                        eval_dataloader,
+                        loss_fn,
+                        logger,
+                        device_manager,
+                        config,
+                        eval_dataset.tokenizer,
+                    )
+                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    model.train()
 
-                    # Save step checkpoint
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
-
-                global_step += 1
+                # Save step checkpoint
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             # Save epoch checkpoint
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):

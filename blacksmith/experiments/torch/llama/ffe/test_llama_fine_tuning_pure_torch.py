@@ -207,6 +207,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
             model.train()
 
             for batch in tqdm(train_data_loader, desc="Training"):
+                global_step += 1
                 input_ids = batch["input_ids"]
                 attention_mask = batch["attention_mask"]
                 expected_output = batch["labels"]
@@ -240,8 +241,6 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
                     # Optimizer step
                     torch_optimizer.step()
                     torch_optimizer.zero_grad()
-
-                global_step += 1
 
                 # Log training loss at specified intervals
                 if global_step % config.logging_steps == 0:

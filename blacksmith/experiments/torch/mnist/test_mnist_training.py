@@ -101,6 +101,7 @@ def train(
         for epoch in range(config.num_epochs):
             logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
             for inputs, targets in train_loader:
+                global_step += 1
                 inputs = inputs.view(inputs.size(0), -1)
                 targets = targets.view(targets.size(0), -1)
 
@@ -119,16 +120,20 @@ def train(
 
                 device_manager.optimizer_step(optimizer)
 
-                global_step += 1
-
                 # Logging
-                if global_step % config.steps_freq == 0:
+                if (global_step % config.steps_freq == 0) or (global_step == len(train_loader)):
                     avg_loss = running_loss / config.steps_freq
+                    logger.log_metrics(
+                        {"train/loss": avg_loss},
+                        step=global_step,
+                    )
                     running_loss = 0.0
 
+                # Validation
+                if (global_step % config.val_steps_freq == 0) or (global_step == len(train_loader)):
                     val_loss, val_acc = validate(model, val_loader, logger, device_manager, loss_fn)
                     logger.log_metrics(
-                        {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc},
+                        {"val/loss": val_loss, "val/accuracy": val_acc},
                         step=global_step,
                     )
                     model.train()

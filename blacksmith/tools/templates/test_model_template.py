@@ -80,6 +80,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     try:
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 input_ids = batch["input_ids"].to(device)
@@ -103,20 +104,20 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                global_step += 1
-                if global_step % config.steps_freq == 0:
+                if (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Do validation
+                # Validation
+                if (global_step % config.val_steps_freq == 0) or (global_step == len(train_dataloader)):
                     valid_loss = validate(model, eval_dataloader, logger, device)
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
                     model.train()
 
-                    # Save checkpoint
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                # Save checkpoint
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)

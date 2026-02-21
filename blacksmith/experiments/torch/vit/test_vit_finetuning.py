@@ -117,6 +117,7 @@ def train(
     try:
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 batch = device_manager.prepare_batch(batch)
@@ -143,19 +144,16 @@ def train(
 
                 device_manager.optimizer_step(optimizer)
 
-                do_validation = global_step % config.val_steps_freq == 0
-
-                if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
+                if (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
+                    avg_loss = running_loss / config.steps_freq
                     logger.log_metrics(
                         {"train/loss": avg_loss, "train/accuracy": accuracy},
-                        commit=not do_validation,
                         step=global_step,
                     )
                     running_loss = 0.0
 
-                # Do validation.
-                if do_validation:
+                # Validation
+                if (global_step % config.val_steps_freq == 0) or (global_step == len(train_dataloader)):
                     avg_val_loss, accuracy = validate(
                         model,
                         eval_dataloader,
@@ -173,8 +171,6 @@ def train(
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
-
-                global_step += 1
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
