@@ -155,7 +155,6 @@ def train(
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step)
                     model.train()
 
-
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
