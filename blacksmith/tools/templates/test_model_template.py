@@ -104,7 +104,11 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                if (global_step == 1) or (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
+                if (
+                    (global_step == 1)
+                    or (global_step % config.steps_freq == 0)
+                    or (global_step == len(train_dataloader))
+                ):
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
