@@ -146,8 +146,6 @@ def train(
             accumulation_step = 0
 
             for batch in tqdm(train_dataloader, desc="Training"):
-                global_step += 1
-
                 # Zero out gradients at the start of accumulation cycle
                 if accumulation_step == 0:
                     optimizer.zero_grad()
@@ -181,10 +179,11 @@ def train(
                     device_manager.optimizer_step(optimizer)
 
                     accumulation_step = 0
+                    global_step += 1
 
                     if (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
-                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+                        logger.log_metrics({"train/loss": avg_loss}, step=global_step)
                         running_loss = 0.0
 
                     # Validation
