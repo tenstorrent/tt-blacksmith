@@ -117,9 +117,11 @@ def train(
                 # Update parameters
                 device_manager.optimizer_step(optimizer)
 
-                if (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
+                print(f"Global step: {global_step}\n")
+
+                if (global_step % config.steps_freq == 0):
                     avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, step=global_step)
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
                 # Validation
@@ -127,9 +129,12 @@ def train(
                     valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
                     logger.log_metrics(
                         {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
+                        commit=False,
                         step=global_step,
                     )
                     model.train()
+                
+                logger.log_metrics({}, commit=True, step=global_step)
 
                 # Save checkpoint
                 if checkpoint_manager.should_save_checkpoint(global_step):
