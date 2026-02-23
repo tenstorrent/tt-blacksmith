@@ -117,8 +117,6 @@ def train(
                 # Update parameters
                 device_manager.optimizer_step(optimizer)
 
-                print(f"Global step: {global_step}\n")
-
                 if (global_step % config.steps_freq == 0):
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
