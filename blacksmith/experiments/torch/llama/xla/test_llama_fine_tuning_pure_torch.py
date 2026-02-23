@@ -181,13 +181,21 @@ def train(
                     accumulation_step = 0
                     global_step += 1
 
-                    if (global_step == 1) or (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
+                    if (
+                        (global_step == 1)
+                        or (global_step % config.steps_freq == 0)
+                        or (global_step == len(train_dataloader))
+                    ):
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
 
                     # Validation
-                    if (global_step == 1) or (global_step % config.val_steps_freq == 0) or (global_step == len(train_dataloader)):
+                    if (
+                        (global_step == 1)
+                        or (global_step % config.val_steps_freq == 0)
+                        or (global_step == len(train_dataloader))
+                    ):
                         val_loss = validate(
                             model,
                             eval_dataloader,
