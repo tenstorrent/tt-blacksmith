@@ -131,7 +131,7 @@ def train(
                         step=global_step,
                     )
                     model.train()
-                
+
                 logger.log_metrics({}, commit=True, step=global_step)
 
                 # Save checkpoint
