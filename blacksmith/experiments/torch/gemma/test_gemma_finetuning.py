@@ -146,13 +146,13 @@ def train(
                 # Update parameters
                 device_manager.optimizer_step(optimizer)
 
-                if (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
+                if (global_step == 1) or (global_step % config.steps_freq == 0) or (global_step == len(train_dataloader)):
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
                 # Validation
-                if (global_step % config.val_steps_freq == 0) or (global_step == len(train_dataloader)):
+                if (global_step == 1) or (global_step % config.val_steps_freq == 0) or (global_step == len(train_dataloader)):
                     avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, commit=False, step=global_step)
                     model.train()
