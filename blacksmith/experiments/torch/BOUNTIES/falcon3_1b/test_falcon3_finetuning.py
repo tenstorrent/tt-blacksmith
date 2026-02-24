@@ -23,46 +23,44 @@ from blacksmith.tools.torch_helpers import (
 )
 
 
-def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
-    """Run validation and compute metrics."""
+def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=None):
     logger.info("\n=== Starting Validation ===")
     model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
-    max_examples = 10
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            batch = device_manager.prepare_batch(batch)
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            # Keep labels on CPU to avoid TT device holding extra tensors (OOM).
+            # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
+            labels = batch["labels"]
 
-            # Forward pass + loss
-            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-            logits = outputs.logits
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            shift_logits = outputs.logits[:, :-1, :].contiguous()
 
-            # Shift logits to match pre-shifted labels from collate_fn
-            shift_logits = logits[:, :-1, :].contiguous()
-
-            # Labels are already shifted by collate_fn
             loss = loss_fn(
                 shift_logits.view(-1, model.model.config.vocab_size),
-                batch["labels"].view(-1),
+                labels.view(-1).to(shift_logits.device),
             )
-            total_val_loss += loss.item()
+
             predictions = shift_logits.argmax(dim=-1)
 
             if config.use_tt:
                 torch_xla.sync(wait=True)
 
+            total_val_loss += loss.item()
             num_val_batches += 1
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=batch["labels"].shape[0],
+                    batch_size=labels.shape[0],
                     collected_examples=collected_examples,
-                    max_examples=max_examples,
-                    input_ids=batch["input_ids"],
-                    expected_output=batch["labels"],
+                    max_examples=10,
+                    input_ids=input_ids,
+                    expected_output=labels,
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
@@ -77,7 +75,6 @@ def validate(model, val_data_loader, loss_fn, device_manager, config, logger, to
 
 
 def train_step(model, batch, loss_fn, optimizer, device_manager, config):
-    """Execute a single training step: forward pass, loss computation, backward pass."""
     optimizer.zero_grad()
 
     batch = device_manager.prepare_batch(batch)
@@ -90,10 +87,11 @@ def train_step(model, batch, loss_fn, optimizer, device_manager, config):
     )
 
     loss.backward()
+    device_manager.optimizer_step(optimizer)
+
     if config.use_tt:
         torch_xla.sync(wait=True)
 
-    device_manager.optimizer_step(optimizer)
     return loss.item()
 
 
@@ -142,23 +140,22 @@ def train(
 
             for batch in tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{config.num_epochs}"):
                 running_loss += train_step(model, batch, loss_fn, optimizer, device_manager, config)
+                global_step += 1
 
                 do_validation = global_step % config.val_steps_freq == 0
 
                 if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
+                    avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=not do_validation, step=global_step)
                     running_loss = 0.0
 
                 if do_validation:
-                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
+                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager.device, config, logger, tokenizer)
                     model.train()
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step)
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
-
-                global_step += 1
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
