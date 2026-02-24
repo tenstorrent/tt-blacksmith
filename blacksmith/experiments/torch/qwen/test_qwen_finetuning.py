@@ -45,7 +45,10 @@ def validate(
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
 
-            # Forward pass
+            # Shard model if tensor parallelism is used.
+            device_manager.shard_model(model)
+
+            # Forward pass.
             outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
             logits = outputs.logits
 
@@ -90,28 +93,27 @@ def train(
 ):
     logger.info("Starting training...")
 
-    # Load model
+    # Load model.
     model = get_model(config, device_manager.device)
 
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    # Init training components (optimizer, lr scheduler, etc.)
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
 
-    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
-    # Load checkpoint if needed
+    # Load checkpoint if needed.
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
 
-    # Load dataset
+    # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = get_dataset(config=config, split="test", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
@@ -137,25 +139,23 @@ def train(
                 global_step += 1
                 optimizer.zero_grad()
 
+                # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
 
-                # Forward pass
+                # Shard model if tensor parallelism is used.
+                device_manager.shard_model(model)
+
                 outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
 
-                # Compute loss
                 shift_logits = outputs.logits[..., :-1, :].contiguous()
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), batch["labels"].view(-1))
-                running_loss += loss.item()
 
-                # Backward pass
                 loss.backward()
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                # Update parameters
-                optimizer.step()
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
+                device_manager.optimizer_step(optimizer)
+                running_loss += loss.item()
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
@@ -183,11 +183,11 @@ def train(
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-            # Save epoch checkpoint
+            # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-        # Save final model
+        # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(
             model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
         )
@@ -202,24 +202,24 @@ def train(
 
 
 if __name__ == "__main__":
-    # Config setup
-    default_config = Path(__file__).parent / "test_qwen_finetuning.yaml"
+    # Config setup.
+    default_config = Path(__file__).parent / "single_chip" / "test_qwen_finetuning.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
-    # Reproducibility setup
+    # Reproducibility setup.
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
-    # Logger setup
+    # Logger setup.
     logger = TrainingLogger(config)
 
-    # Checkpoint manager setup
+    # Checkpoint manager setup.
     checkpoint_manager = CheckpointManager(config, logger)
 
-    # Device setup
+    # Device setup.
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
 
-    # Start training
+    # Start training.
     train(config, device_manager, logger, checkpoint_manager)
