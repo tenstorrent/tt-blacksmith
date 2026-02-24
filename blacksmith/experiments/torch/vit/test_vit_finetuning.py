@@ -124,7 +124,7 @@ def train(
             logger,
         )
         logger.log_metrics(
-            {"epoch": 1, "val/loss": avg_val_loss, "val/accuracy": accuracy},
+            {"epoch": 0, "val/loss": avg_val_loss, "val/accuracy": accuracy},
             commit=True,
             step=global_step,
         )
@@ -132,7 +132,6 @@ def train(
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
-                model.train()
                 global_step += 1
                 optimizer.zero_grad()
 

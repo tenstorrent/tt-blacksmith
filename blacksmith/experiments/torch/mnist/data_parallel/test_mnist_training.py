@@ -101,7 +101,6 @@ def train(
         model.train()
 
         for epoch in range(config.num_epochs):
-            model.train()
             logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
             for inputs, targets in train_loader:
                 global_step += 1

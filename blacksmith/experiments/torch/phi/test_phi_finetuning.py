@@ -114,12 +114,11 @@ def train(
         avg_val_loss = validate(
             model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
         )
-        logger.log_metrics({"epoch": 1, "val/loss": avg_val_loss}, commit=True, step=global_step)
+        logger.log_metrics({"epoch": 0, "val/loss": avg_val_loss}, commit=True, step=global_step)
         model.train()
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
-                model.train()
                 global_step += 1
                 optimizer.zero_grad()
 
