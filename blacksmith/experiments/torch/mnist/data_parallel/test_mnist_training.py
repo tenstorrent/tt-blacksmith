@@ -26,7 +26,6 @@ def validate(
 ) -> Tuple[float, float]:
     logger.info("Starting validation...")
 
-    model.eval()
     total_loss = 0.0
     total_samples = 0
     correct = 0
@@ -92,12 +91,14 @@ def train(
     # Training
     try:
         # Initial validation
+        model.eval()
         val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
         logger.log_metrics(
             {"val/loss": val_loss, "val/accuracy": val_acc},
             commit=True,
             step=global_step,
         )
+        model.train()
 
         for epoch in range(config.num_epochs):
             model.train()
@@ -131,8 +132,10 @@ def train(
 
                 # Validation
                 if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
                     logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=False, step=global_step)
+                    model.train()
 
                 logger.log_metrics({}, commit=True, step=global_step)
 

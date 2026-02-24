@@ -41,7 +41,6 @@ def validate(
     max_examples = 5
     total_val_loss = 0.0
     num_val_batches = 0
-    model.eval()
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
@@ -120,6 +119,7 @@ def train(
     running_loss = 0.0
     try:
         # Initial validation
+        model.eval()
         valid_loss = validate(
             model,
             eval_dataloader,
@@ -130,6 +130,7 @@ def train(
             eval_dataset.tokenizer,
         )
         logger.log_metrics({"epoch": 1, "val/loss": valid_loss}, commit=True, step=global_step)
+        model.train()
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
@@ -164,6 +165,7 @@ def train(
 
                 # Validation
                 if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     valid_loss = validate(
                         model,
                         eval_dataloader,
@@ -174,6 +176,7 @@ def train(
                         eval_dataset.tokenizer,
                     )
                     logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
+                    model.train()
 
                 logger.log_metrics({}, commit=True, step=global_step)
 

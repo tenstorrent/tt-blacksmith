@@ -30,7 +30,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
-    model.eval()
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
@@ -140,6 +139,7 @@ def train(
 
     try:
         # Initial validation
+        model.eval()
         val_loss = validate(
             model,
             eval_dataloader,
@@ -150,12 +150,12 @@ def train(
             tokenizer,
         )
         logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        model.train()
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
             for batch in tqdm(train_dataloader, desc="Training"):
-                model.train()
                 # Zero out gradients at the start of accumulation cycle
                 if accumulation_step == 0:
                     optimizer.zero_grad()
@@ -198,6 +198,7 @@ def train(
 
                     # Validation
                     if global_step % config.val_steps_freq == 0:
+                        model.eval()
                         val_loss = validate(
                             model,
                             eval_dataloader,
@@ -208,6 +209,7 @@ def train(
                             tokenizer,
                         )
                         logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
+                        model.train()
 
                     logger.log_metrics({}, commit=True, step=global_step)
 

@@ -24,7 +24,6 @@ def validate(
     model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
 ) -> float:
     logger.info("Starting validation...")
-    model.eval()
 
     total_val_loss = 0.0
     num_val_batches = 0
@@ -78,12 +77,13 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     running_loss = 0.0
     try:
         # Initial validation
+        model.eval()
         valid_loss = validate(model, eval_dataloader, logger, device)
         logger.log_metrics({"val/loss": valid_loss}, commit=True, step=global_step)
+        model.train()
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
-                model.train()
                 global_step += 1
                 optimizer.zero_grad()
 
@@ -115,8 +115,10 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # Validation
                 if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     valid_loss = validate(model, eval_dataloader, logger, device)
                     logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
+                    model.train()
 
                 logger.log_metrics({}, commit=True, step=global_step)
 

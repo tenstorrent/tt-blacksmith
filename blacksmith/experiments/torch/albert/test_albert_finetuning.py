@@ -28,7 +28,6 @@ def validate(
     loss_fn: torch.nn.Module,
 ) -> float:
     logger.info("Starting validation...")
-    model.eval()
 
     total_val_loss = 0.0
     num_val_batches = 0
@@ -95,16 +94,17 @@ def train(
     running_loss = 0.0
     try:
         # Initial validation
+        model.eval()
         valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
         logger.log_metrics(
             {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
             commit=True,
             step=global_step,
         )
+        model.train()
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
-                model.train()
                 global_step += 1
                 optimizer.zero_grad()
 
@@ -132,12 +132,14 @@ def train(
 
                 # Validation
                 if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
                     logger.log_metrics(
                         {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
                         commit=False,
                         step=global_step,
                     )
+                    model.train()
 
                 logger.log_metrics({}, commit=True, step=global_step)
 

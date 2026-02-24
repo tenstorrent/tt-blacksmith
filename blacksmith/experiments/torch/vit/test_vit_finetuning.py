@@ -21,7 +21,6 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 def validate(model, val_data_loader, loss_fn, device_manager, config, logger):
     logger.info("\n=== Starting Validation ===")
-    model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
     correct = 0
@@ -115,6 +114,7 @@ def train(
     running_loss = 0.0
     try:
         # Initial validation
+        model.eval()
         avg_val_loss, accuracy = validate(
             model,
             eval_dataloader,
@@ -128,6 +128,7 @@ def train(
             commit=True,
             step=global_step,
         )
+        model.train()
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
@@ -170,6 +171,7 @@ def train(
 
                 # Validation
                 if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     avg_val_loss, accuracy = validate(
                         model,
                         eval_dataloader,
@@ -183,6 +185,7 @@ def train(
                         commit=False,
                         step=global_step,
                     )
+                    model.train()
 
                 logger.log_metrics({}, commit=True, step=global_step)
 

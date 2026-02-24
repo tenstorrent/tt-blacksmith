@@ -26,7 +26,6 @@ from blacksmith.tools.torch_helpers import (
 
 def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
     logger.info(f"\n=== Starting Validation ===")
-    model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
@@ -114,12 +113,13 @@ def train(
     running_loss = 0.0
     try:
         # Initial validation
+        model.eval()
         avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
         logger.log_metrics({"epoch": 1, "val/loss": avg_val_loss}, commit=True, step=global_step)
+        model.train()
 
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
-                model.train()
                 global_step += 1
                 optimizer.zero_grad()
 
@@ -156,8 +156,10 @@ def train(
 
                 # Validation
                 if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, commit=False, step=global_step)
+                    model.train()
 
                 logger.log_metrics({}, commit=True, step=global_step)
 
