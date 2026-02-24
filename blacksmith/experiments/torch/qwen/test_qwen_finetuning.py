@@ -6,7 +6,6 @@ from pathlib import Path
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
