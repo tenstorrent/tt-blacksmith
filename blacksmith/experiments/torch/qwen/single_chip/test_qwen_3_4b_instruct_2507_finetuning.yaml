@@ -16,8 +16,8 @@ optim: "adamw_torch"
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "qwen-finetuning-3.4B_n300"
-wandb_run_name: "tt-qwen-3.4B-Instruct-2507-test-128-1-single-chip_sst"
+wandb_project: "qwen3-4B-instruct-2507-single-chip-lora"
+wandb_run_name: "tt-qwen3-4B-instruct-2507-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
