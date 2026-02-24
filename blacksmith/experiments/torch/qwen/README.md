@@ -61,7 +61,7 @@ Qwen 3 4B Instruct 2507 supports training on different configurations.
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml
 ```
 
-**QuietBox Training:**
+**Blackhole QuietBox Training:**
 ```bash
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml
 ```
