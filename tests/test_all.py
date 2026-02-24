@@ -50,7 +50,7 @@ def test_training_script(
             - test_config: Path to the test configuration.
             - tolerance: Tolerance for loss and accuracy metrics.
             - timeout: Timeout in seconds.
-            - overwrite_golden_files: Whether to overwrite the golden files if not using TT.
+            - overwrite_golden_files: Whether to overwrite the golden files.
         request: pytest request object.
     """
 
@@ -58,9 +58,9 @@ def test_training_script(
         "test_script": None,
         "experiment_config": None,
         "test_config": "tests/configs/test_training_fast.yaml",
-        "tolerance": 0.5,
+        "tolerance": 0.3,
         "timeout": 800.0,
-        "overwrite_golden_files": True,
+        "overwrite_golden_files": False,
     }
 
     setup_dict = default_setup_dict | setup_dict
@@ -104,7 +104,6 @@ def test_training_script(
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
 
     run_config = get_run_config(Path(setup_dict["experiment_config"]))
-    test_config = get_run_config(Path(setup_dict["test_config"]))
 
     run_name = run_config["wandb_run_name"] if "wandb_run_name" in run_config else None
     if run_name is None:
@@ -115,7 +114,7 @@ def test_training_script(
     if not (TEST_LOGS_DIR / train_log_file).exists() or not (TEST_LOGS_DIR / val_log_file).exists():
         return  # If a test does not support golden files yet.
 
-    if not test_config["use_tt"] and setup_dict["overwrite_golden_files"]:
+    if setup_dict["overwrite_golden_files"]:
         # Reference run, move the log files to golden_files.
         (TEST_LOGS_DIR / train_log_file).rename(GOLDEN_LOGS_DIR / train_log_file)
         (TEST_LOGS_DIR / val_log_file).rename(GOLDEN_LOGS_DIR / val_log_file)
