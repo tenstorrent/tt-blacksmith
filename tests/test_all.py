@@ -16,7 +16,7 @@ from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
 def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
     log_df = pd.read_csv(log_file)
     golden_df = pd.read_csv(golden_file)
-    pd.testing.assert_frame_equal(log_df, golden_df, rtol=tolerance)
+    pd.testing.assert_frame_equal(golden_df, log_df, rtol=tolerance)
 
 
 def get_run_config(config_path: Path) -> dict:
@@ -50,6 +50,7 @@ def test_training_script(
             - test_config: Path to the test configuration.
             - tolerance: Tolerance for loss and accuracy metrics.
             - timeout: Timeout in seconds.
+            - overwrite_golden_files: Whether to overwrite the golden files if not using TT.
         request: pytest request object.
     """
 
@@ -59,6 +60,7 @@ def test_training_script(
         "test_config": "tests/configs/test_training_fast.yaml",
         "tolerance": 0.5,
         "timeout": 800.0,
+        "overwrite_golden_files": True,
     }
 
     setup_dict = default_setup_dict | setup_dict
@@ -113,7 +115,7 @@ def test_training_script(
     if not (TEST_LOGS_DIR / train_log_file).exists() or not (TEST_LOGS_DIR / val_log_file).exists():
         return  # If a test does not support golden files yet.
 
-    if not test_config["use_tt"] and not (GOLDEN_LOGS_DIR / train_log_file).exists():
+    if not test_config["use_tt"] and setup_dict["overwrite_golden_files"]:
         # Reference run, move the log files to golden_files.
         (TEST_LOGS_DIR / train_log_file).rename(GOLDEN_LOGS_DIR / train_log_file)
         (TEST_LOGS_DIR / val_log_file).rename(GOLDEN_LOGS_DIR / val_log_file)
