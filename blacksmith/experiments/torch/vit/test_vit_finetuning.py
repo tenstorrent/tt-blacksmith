@@ -113,10 +113,25 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-    model.train()
     try:
+        # Initial validation
+        avg_val_loss, accuracy = validate(
+            model,
+            eval_dataloader,
+            loss_fn,
+            device_manager,
+            config,
+            logger,
+        )
+        logger.log_metrics(
+            {"epoch": 1, "val/loss": avg_val_loss, "val/accuracy": accuracy},
+            commit=True,
+            step=global_step,
+        )
+
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                model.train()
                 global_step += 1
                 optimizer.zero_grad()
 
@@ -144,11 +159,7 @@ def train(
 
                 device_manager.optimizer_step(optimizer)
 
-                if (
-                    (global_step == 1)
-                    or (global_step % config.steps_freq == 0)
-                    or (global_step == len(train_dataloader))
-                ):
+                if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics(
                         {"train/loss": avg_loss, "train/accuracy": accuracy},
@@ -158,11 +169,7 @@ def train(
                     running_loss = 0.0
 
                 # Validation
-                if (
-                    (global_step == 1)
-                    or (global_step % config.val_steps_freq == 0)
-                    or (global_step == len(train_dataloader))
-                ):
+                if global_step % config.val_steps_freq == 0:
                     avg_val_loss, accuracy = validate(
                         model,
                         eval_dataloader,
@@ -171,8 +178,6 @@ def train(
                         config,
                         logger,
                     )
-                    model.train()
-
                     logger.log_metrics(
                         {"epoch": epoch + 1, "val/loss": avg_val_loss, "val/accuracy": accuracy},
                         commit=False,
