@@ -150,7 +150,9 @@ def train(
                     running_loss = 0.0
 
                 if do_validation:
-                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager.device, config, logger, tokenizer)
+                    avg_val_loss = validate(
+                        model, eval_dataloader, loss_fn, device_manager.device, config, logger, tokenizer
+                    )
                     model.train()
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step)
 
