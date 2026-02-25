@@ -35,8 +35,6 @@ class TrainingConfig(BaseModel):
     learning_rate: float = Field(default=0.01, gt=0)
     batch_size: int = Field(default=256, gt=0)
     num_epochs: int = Field(default=16, gt=0)
-    train_log_steps: int = Field(default=100, gt=0)
-    val_log_epochs: int = Field(default=5, gt=0)
 
     # Loss and optimization
     loss_fn: str = Field(default="torch.nn.MSELoss")
@@ -52,6 +50,7 @@ class TrainingConfig(BaseModel):
     wandb_log_freq: int = Field(default=100)
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=100)
+    val_steps_freq: int = Field(default=100)
     epoch_freq: int = Field(default=5)
 
     # Checkpoint settings

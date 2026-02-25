@@ -38,6 +38,7 @@ class TrainingConfig(BaseModel):
     wandb_log_freq: int = Field(default=1000)
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=25)
+    val_steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
 
     # Checkpoint settings

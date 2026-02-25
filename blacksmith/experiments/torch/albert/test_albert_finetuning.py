@@ -28,7 +28,6 @@ def validate(
     loss_fn: torch.nn.Module,
 ) -> float:
     logger.info("Starting validation...")
-    model.eval()
 
     total_val_loss = 0.0
     num_val_batches = 0
@@ -93,10 +92,20 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-    model.train()
     try:
+        # Initial validation
+        model.eval()
+        valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
+        logger.log_metrics(
+            {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
+            commit=True,
+            step=global_step,
+        )
+        model.train()
+
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 batch = device_manager.prepare_batch(batch)
@@ -116,20 +125,27 @@ def train(
                 # Update parameters
                 device_manager.optimizer_step(optimizer)
 
-                global_step += 1
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Do validation
+                # Validation
+                if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
-                    logger.log_metrics({"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]}, step=global_step)
+                    logger.log_metrics(
+                        {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
+                        commit=False,
+                        step=global_step,
+                    )
                     model.train()
 
-                    # Save checkpoint
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                logger.log_metrics({}, commit=True, step=global_step)
+
+                # Save checkpoint
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
