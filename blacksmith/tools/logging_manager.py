@@ -18,22 +18,23 @@ GOLDEN_LOGS_DIR = Path("tests/golden_files")
 
 
 class TrainingLogger:
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config: TrainingConfig, test_log_filename_prefix: Optional[str] = None):
         self.config = config
+        self.test_log_filename_prefix = test_log_filename_prefix
 
         self._setup_std_logger()
 
         if self.config.use_wandb:
             self._setup_wandb()
 
-        if self.config.test_config is not None:
+        if self.test_log_filename_prefix is not None:
             self.val_log = []
             self.train_log = []
 
             TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-            self.csv_path_train = TEST_LOGS_DIR / f"{self.config.wandb_run_name}_train.csv"
-            self.csv_path_val = TEST_LOGS_DIR / f"{self.config.wandb_run_name}_val.csv"
+            self.csv_path_train = TEST_LOGS_DIR / f"{self.test_log_filename_prefix}_train.csv"
+            self.csv_path_val = TEST_LOGS_DIR / f"{self.test_log_filename_prefix}_val.csv"
 
     def _setup_std_logger(self):
         self.std_logger = logging.getLogger(self.config.wandb_run_name)
@@ -104,7 +105,7 @@ class TrainingLogger:
             except Exception as e:
                 self.std_logger.warning(f"Failed to log to W&B: {e}")
 
-        if self.config.test_config is not None:
+        if self.test_log_filename_prefix is not None:
             if "train/loss" in metrics:
                 self.train_log.append({"_step": step, "train/loss": metrics["train/loss"]})
             if "val/loss" in metrics:
@@ -187,7 +188,7 @@ class TrainingLogger:
             except Exception as e:
                 self.std_logger.warning(f"Failed to finish W&B run: {e}")
 
-        if self.config.test_config is not None:
+        if self.test_log_filename_prefix is not None:
             pd.DataFrame(self.train_log).to_csv(self.csv_path_train, index=False)
             pd.DataFrame(self.val_log).to_csv(self.csv_path_val, index=False)
             self.std_logger.info(f"Training and validation logs saved to {self.csv_path_train} and {self.csv_path_val}")

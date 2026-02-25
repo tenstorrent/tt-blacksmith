@@ -24,16 +24,9 @@ def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float
     pd.testing.assert_frame_equal(golden_df, log_df, rtol=tolerance)
 
 
-def get_run_config(config_path: Path) -> dict:
-    with config_path.open() as file:
-        config_data = yaml.safe_load(file)
-
-    return config_data
-
-
-def get_log_files(run_name: str) -> tuple[Path, Path]:
-    train_log_file = Path(f"{run_name}_train.csv")
-    val_log_file = Path(f"{run_name}_val.csv")
+def get_log_files(log_filename_prefix: str) -> tuple[Path, Path]:
+    train_log_file = Path(f"{log_filename_prefix}_train.csv")
+    val_log_file = Path(f"{log_filename_prefix}_val.csv")
 
     return train_log_file, val_log_file
 
@@ -55,6 +48,7 @@ def test_training_script(
             - test_config: Path to the test configuration.
             - tolerance: Tolerance for loss and accuracy metrics.
             - timeout: Timeout in seconds.
+            - skip_loss_checks: Whether to skip the loss checks.
         request: pytest request object.
     """
 
@@ -64,6 +58,7 @@ def test_training_script(
         "test_config": "tests/configs/test_training_fast.yaml",
         "tolerance": 0.3,
         "timeout": 800.0,
+        "skip_loss_checks": False,
     }
 
     setup_dict = default_setup_dict | setup_dict
@@ -83,6 +78,8 @@ def test_training_script(
     if setup_dict["experiment_config"] is not None:
         cmd.append("--config")
         cmd.append(str(setup_dict["experiment_config"]))
+    cmd.append("--test-log-filename-prefix")
+    cmd.append(test_id)
 
     try:
         result = subprocess.run(
@@ -106,16 +103,10 @@ def test_training_script(
     except subprocess.TimeoutExpired:
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
 
-    run_config = get_run_config(Path(setup_dict["experiment_config"]))
-
-    run_name = run_config["wandb_run_name"] if "wandb_run_name" in run_config else None
-    if run_name is None:
+    if setup_dict["skip_loss_checks"]:
         return  # If a test does not support golden files yet.
 
-    train_log_file, val_log_file = get_log_files(run_name)
-
-    if not (TEST_LOGS_DIR / train_log_file).exists() or not (TEST_LOGS_DIR / val_log_file).exists():
-        return  # If a test does not support golden files yet.
+    train_log_file, val_log_file = get_log_files(test_id)
 
     if request.config.getoption("--generate-golden-files"):
         # Reference run, move the log files to golden_files.

@@ -25,7 +25,7 @@ deterministic: false
 log_level: "INFO"
 use_wandb: true
 wandb_project: "blacksmith-mnist-dp"
-wandb_run_name: "mnist_multichip_data_parallel"
+wandb_run_name: "mnist_multichip"
 wandb_tags: ["tt-xla", "model:torch", "plugin", "wandb"]
 wandb_watch_mode: "all"
 wandb_log_freq: 100

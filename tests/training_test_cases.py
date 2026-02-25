@@ -16,7 +16,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.tensor_parallel,
         ],
-        id="mnist-tensor-parallel-torch",
+        id="tt-mnist-mnist-n300-tp",
     ),
     pytest.param(
         {
@@ -29,7 +29,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
-        id="mnist-data-parallel-torch",
+        id="tt-mnist-mnist-n300-dp",
     ),
     pytest.param(
         {
@@ -44,13 +44,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="mnist-single-chip-torch",
+        id="tt-mnist-mnist-n150",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 25000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.uplift,
@@ -58,13 +59,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.data_parallel,
         ],
-        id="mnist-data-parallel-jax",
+        id="tt-mnist-mnist-n300-dp-jax",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 3000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.uplift,
@@ -72,13 +74,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="mnist-single-chip-jax",
+        id="tt-mnist-mnist-n150-jax",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 3000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.uplift,
@@ -86,13 +89,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="mnist-single-chip-jax-flax",
+        id="tt-mnist-mnist-flax-n150-jax",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
             "timeout": 14000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.uplift,
@@ -100,7 +104,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.tensor_parallel,
         ],
-        id="mnist-tensor-parallel-jax",
+        id="tt-mnist-mnist-n300-tp-jax",
     ),
     pytest.param(
         {
@@ -114,7 +118,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="llama-single-chip-torch",
+        id="tt-llama_3_2_1b-sst2-n150",
     ),
     pytest.param(
         {
@@ -128,7 +132,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
-        id="llama-data-parallel-quietbox-torch",
+        id="tt-llama_3_2_1b-sst2-n300-llmbox",
     ),
     pytest.param(
         {
@@ -142,7 +146,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="qwen-single-chip-torch",
+        id="tt-qwen_1-5b-text2sql-n150",
     ),
     pytest.param(
         {
@@ -156,7 +160,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="gemma11-single-chip-torch",
+        id="tt-gemma11-squadv2-n150",
     ),
     pytest.param(
         {
@@ -170,7 +174,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="albert-single-chip-torch-adapters",
+        id="tt-albert_base_v2-banking77-n150",
     ),
     pytest.param(
         {
@@ -184,13 +188,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="phi1-single-chip-torch",
+        id="tt-phi1-sst2-n150",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/nerf/test_nerf.py",
             "experiment_config": "blacksmith/experiments/jax/nerf/test_nerf.yaml",
             "timeout": 20000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.skip(reason="Jax tests are not supported yet."),
@@ -199,13 +204,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="nerf-single-chip-jax",
+        id="tt-nerf-nerf-p150-white-n150-jax",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.py",
             "experiment_config": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.yaml",
             "timeout": 20000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.skip(reason="Jax tests are not supported yet."),
@@ -214,13 +220,14 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="llama-dora-single-chip-jax",
+        id="tt-llama_3_2_1b-dora-glue-sst2-n150-jax",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py",
             "experiment_config": "blacksmith/experiments/jax/distil_bert/test_distil_bert_flax.yaml",
             "timeout": 20000,
+            "skip_loss_checks": True,
         },
         marks=[
             pytest.mark.skip(reason="Jax tests are not supported yet."),
@@ -229,6 +236,6 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="distilbert-single-chip-jax",
+        id="tt-distilbert-glue-sst2-n150-jax",
     ),
 ]

@@ -176,7 +176,7 @@ if __name__ == "__main__":
     repro_manager.setup()
 
     # Logging + checkpoints
-    logger = TrainingLogger(config)
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
     checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup

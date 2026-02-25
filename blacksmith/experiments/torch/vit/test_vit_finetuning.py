@@ -217,7 +217,7 @@ if __name__ == "__main__":
     repro_manager.setup()
 
     # Set up the logger.
-    logger = TrainingLogger(config)
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
 
     # Set up the checkpoint manager.
     checkpoint_manager = CheckpointManager(config, logger)
