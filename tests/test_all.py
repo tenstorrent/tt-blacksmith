@@ -13,6 +13,11 @@ from training_test_cases import TRAINING_TEST_CASES
 from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
 
 
+@pytest.fixture
+def config(request):
+    return request.config
+
+
 def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
     log_df = pd.read_csv(log_file)
     golden_df = pd.read_csv(golden_file)
@@ -50,7 +55,6 @@ def test_training_script(
             - test_config: Path to the test configuration.
             - tolerance: Tolerance for loss and accuracy metrics.
             - timeout: Timeout in seconds.
-            - overwrite_golden_files: Whether to overwrite the golden files.
         request: pytest request object.
     """
 
@@ -60,7 +64,6 @@ def test_training_script(
         "test_config": "tests/configs/test_training_fast.yaml",
         "tolerance": 0.3,
         "timeout": 800.0,
-        "overwrite_golden_files": False,
     }
 
     setup_dict = default_setup_dict | setup_dict
@@ -114,7 +117,7 @@ def test_training_script(
     if not (TEST_LOGS_DIR / train_log_file).exists() or not (TEST_LOGS_DIR / val_log_file).exists():
         return  # If a test does not support golden files yet.
 
-    if setup_dict["overwrite_golden_files"]:
+    if request.config.getoption("--generate-golden-files"):
         # Reference run, move the log files to golden_files.
         (TEST_LOGS_DIR / train_log_file).rename(GOLDEN_LOGS_DIR / train_log_file)
         (TEST_LOGS_DIR / val_log_file).rename(GOLDEN_LOGS_DIR / val_log_file)
