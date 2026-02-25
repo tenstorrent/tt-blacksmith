@@ -109,7 +109,7 @@ fi
 
 # Otherwise create it
 echo "Creating virtual environment in $TT_BLACKSMITH_ENV_DIR"
-python3.11 -m venv $TT_BLACKSMITH_ENV_DIR
+python3.12 -m venv $TT_BLACKSMITH_ENV_DIR
 source $TT_BLACKSMITH_ENV_DIR/bin/activate
 pip install --upgrade pip
 
