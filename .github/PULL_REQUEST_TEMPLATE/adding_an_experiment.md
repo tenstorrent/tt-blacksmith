@@ -35,5 +35,7 @@ pytest --generate-golden-files -m "torch and single_chip and push and n150" test
 - [ ] CPU testing
 - [ ] GPU testing
 - [ ] TT device testing
-- [ ] CI testing (if necessary)
-    - [ ] Verify if golden files are needed
+- [ ] CI testing
+    - [ ] Existing tests are passing
+    - [ ] Register test to CI
+    - [ ] Upload golden files if necessary
