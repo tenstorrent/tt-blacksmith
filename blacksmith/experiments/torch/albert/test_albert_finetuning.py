@@ -141,6 +141,7 @@ def train(
                     )
                     model.train()
 
+                # Commit metrics to W&B.
                 logger.log_metrics({}, commit=True, step=global_step)
 
                 # Save checkpoint

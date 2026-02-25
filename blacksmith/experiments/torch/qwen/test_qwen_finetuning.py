@@ -177,6 +177,7 @@ def train(
                     logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
                     model.train()
 
+                # Commit metrics to W&B.
                 logger.log_metrics({}, commit=True, step=global_step)
 
                 # Save step checkpoint

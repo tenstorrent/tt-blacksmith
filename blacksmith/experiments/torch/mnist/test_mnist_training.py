@@ -149,6 +149,7 @@ def train(
                     )
                     model.train()
 
+                # Commit metrics to W&B.
                 logger.log_metrics({}, commit=True, step=global_step)
 
                 if checkpoint_manager.should_save_checkpoint(global_step):

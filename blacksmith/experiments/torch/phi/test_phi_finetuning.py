@@ -161,6 +161,7 @@ def train(
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": val_loss}, commit=False, step=global_step)
                     model.train()
 
+                # Commit metrics to W&B.
                 logger.log_metrics({}, commit=True, step=global_step)
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
