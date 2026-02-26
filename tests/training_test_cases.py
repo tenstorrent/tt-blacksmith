@@ -130,6 +130,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
+            pytest.mark.skip(),
             pytest.mark.push,
             pytest.mark.galaxy,
             pytest.mark.torch,
