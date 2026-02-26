@@ -16,7 +16,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.tensor_parallel,
         ],
-        id="tt-mnist-mnist-n300-tp",
+        id="tt-mlp-mnist-n300-tp",
     ),
     pytest.param(
         {
@@ -29,7 +29,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
-        id="tt-mnist-mnist-n300-dp",
+        id="tt-mlp-mnist-n300-dp",
     ),
     pytest.param(
         {
@@ -44,7 +44,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="tt-mnist-mnist-n150",
+        id="tt-mlp-mnist-n150",
     ),
     pytest.param(
         {
@@ -59,7 +59,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.data_parallel,
         ],
-        id="tt-mnist-mnist-n300-dp-jax",
+        id="tt-mlp-mnist-n300-dp-jax",
     ),
     pytest.param(
         {
@@ -74,7 +74,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="tt-mnist-mnist-n150-jax",
+        id="tt-mlp-mnist-n150-jax",
     ),
     pytest.param(
         {
@@ -89,7 +89,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.single_chip,
         ],
-        id="tt-mnist-mnist-flax-n150-jax",
+        id="tt-mlp-mnist-flax-n150-jax",
     ),
     pytest.param(
         {
@@ -104,7 +104,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.jax,
             pytest.mark.tensor_parallel,
         ],
-        id="tt-mnist-mnist-n300-tp-jax",
+        id="tt-mlp-mnist-n300-tp-jax",
     ),
     pytest.param(
         {
@@ -146,7 +146,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.single_chip,
         ],
-        id="tt-qwen_1-5b-text2sql-n150",
+        id="tt-qwen_1_5b-text2sql-n150",
     ),
     pytest.param(
         {
