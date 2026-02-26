@@ -26,7 +26,6 @@ from blacksmith.tools.torch_helpers import (
 
 def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
     logger.info(f"\n=== Starting Validation ===")
-    model.eval()
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
@@ -109,10 +108,18 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-    model.train()
     try:
+        # Initial validation
+        model.eval()
+        avg_val_loss = validate(
+            model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
+        )
+        logger.log_metrics({"epoch": 0, "val/loss": avg_val_loss}, commit=True, step=global_step)
+        model.train()
+
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 batch = device_manager.prepare_batch(batch)
@@ -140,29 +147,24 @@ def train(
                 # Update parameters
                 device_manager.optimizer_step(optimizer)
 
-                do_validation = global_step % config.val_steps_freq == 0
-
                 if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq if global_step > 0 else running_loss
-                    logger.log_metrics({"train/loss": avg_loss}, commit=not do_validation, step=global_step)
+                    avg_loss = running_loss / config.steps_freq
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                # Validation phase
-                if do_validation:
-                    avg_val_loss = validate(
+                # Validation
+                if global_step % config.val_steps_freq == 0:
+                    model.eval()
+                    val_loss = validate(
                         model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
+                    logger.log_metrics({"epoch": epoch + 1, "val/loss": val_loss}, commit=False, step=global_step)
                     model.train()
 
-                    logger.log_metrics(
-                        {"epoch": epoch + 1, "val/loss": avg_val_loss},
-                        step=global_step,
-                    )
+                logger.log_metrics({}, commit=True, step=global_step)
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
-
-                global_step += 1
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)

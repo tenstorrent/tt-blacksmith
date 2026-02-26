@@ -41,7 +41,6 @@ def validate(
     max_examples = 5
     total_val_loss = 0.0
     num_val_batches = 0
-    model.eval()
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
@@ -114,17 +113,30 @@ def train(
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = get_dataset(config=config, split="test", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     global_step = 0
     running_loss = 0.0
     try:
-        for epoch in range(config.num_epochs):
-            model.train()
+        # Initial validation
+        model.eval()
+        valid_loss = validate(
+            model,
+            eval_dataloader,
+            loss_fn,
+            logger,
+            device_manager,
+            config,
+            eval_dataset.tokenizer,
+        )
+        logger.log_metrics({"val/loss": valid_loss}, commit=True, step=global_step)
+        model.train()
 
+        for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 # Shard batch if data parallelism is used.
@@ -145,30 +157,31 @@ def train(
                 device_manager.optimizer_step(optimizer)
                 running_loss += loss.item()
 
-                global_step += 1
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Do validation.
-                    if config.do_validation:
-                        valid_loss = validate(
-                            model,
-                            eval_dataloader,
-                            loss_fn,
-                            logger,
-                            device_manager,
-                            config,
-                            eval_dataset.tokenizer,
-                        )
-                        logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                # Validation
+                if global_step % config.val_steps_freq == 0:
+                    model.eval()
+                    valid_loss = validate(
+                        model,
+                        eval_dataloader,
+                        loss_fn,
+                        logger,
+                        device_manager,
+                        config,
+                        eval_dataset.tokenizer,
+                    )
+                    logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
+                    model.train()
 
-                        model.train()
+                logger.log_metrics({}, commit=True, step=global_step)
 
-                    # Save step checkpoint.
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                # Save step checkpoint
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):

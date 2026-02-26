@@ -126,7 +126,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/qwen/test_qwen_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/qwen/test_qwen_1-5b_finetuning.yaml",
+            "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml",
             "timeout": 1000,
         },
         marks=[

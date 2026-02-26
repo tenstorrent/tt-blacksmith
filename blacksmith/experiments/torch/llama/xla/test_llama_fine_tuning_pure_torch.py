@@ -30,7 +30,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
-    model.eval()
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
@@ -135,13 +134,24 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
-    model.train()
-
     global_step = 0
     running_loss = 0.0
 
     try:
+        # Initial validation
+        model.eval()
+        val_loss = validate(
+            model,
+            eval_dataloader,
+            cross_entropy_loss,
+            logger,
+            device_manager.device,
+            config,
+            tokenizer,
+        )
+        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
+
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
@@ -186,17 +196,26 @@ def train(
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
 
-                        # Do validation.
+                    # Validation
+                    if global_step % config.val_steps_freq == 0:
+                        model.eval()
                         val_loss = validate(
-                            model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
+                            model,
+                            eval_dataloader,
+                            cross_entropy_loss,
+                            logger,
+                            device_manager.device,
+                            config,
+                            tokenizer,
                         )
-                        logger.log_metrics({"val/loss": val_loss}, step=global_step)
+                        logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
+                        model.train()
+
+                    logger.log_metrics({}, commit=True, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
                     if config.use_tt:
                         xr.clear_computation_cache()
-
-                    model.train()
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
