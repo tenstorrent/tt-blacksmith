@@ -283,5 +283,5 @@ def train(config: ExperimentConfig):
 if __name__ == "__main__":
     default_config = Path(__file__).parent.parent / "test_distil_bert_flax.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
+    config: ExperimentConfig = generate_config(ExperimentConfig, args.config, args.test_config)
     train(config)

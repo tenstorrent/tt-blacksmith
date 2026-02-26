@@ -210,16 +210,16 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py",
-            "timeout": 2000,
+            "test_script": "blacksmith/experiments/jax/distil_bert/multi_chip/data_parallel/test_distil_bert_flax.py",
+            "experiment_config": "blacksmith/experiments/jax/distil_bert/test_distil_bert_flax.yaml",
+            "timeout": 3000,
         },
         marks=[
-            pytest.mark.skip(reason="Jax tests are not supported yet."),
-            pytest.mark.uplift,
-            pytest.mark.n150,
+            pytest.mark.push,
+            pytest.mark.n300,
             pytest.mark.jax,
-            pytest.mark.single_chip,
+            pytest.mark.data_parallel,
         ],
-        id="distilbert-single-chip-jax",
+        id="distilbert-data-parallel-jax",
     ),
 ]

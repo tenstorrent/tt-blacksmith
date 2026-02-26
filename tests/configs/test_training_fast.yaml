@@ -7,3 +7,4 @@ val_steps_freq: 5
 use_tt: true
 wandb_project: "test-all-wandb-project"
 log_on_wandb: false
+use_wandb: false
