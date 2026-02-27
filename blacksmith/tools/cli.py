@@ -35,5 +35,9 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
         "--test-config", type=Path, required=False, help="[Testing utils] Configuration that is used for CI testing"
     )
 
+    parser.add_argument(
+        "--test-log-filename-prefix", type=str, required=False, help="[Testing utils] Prefix for the test log filename"
+    )
+
     args = parser.parse_args()
     return args

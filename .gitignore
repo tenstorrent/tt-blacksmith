@@ -10,6 +10,7 @@ docs/output
 generated/
 model/
 .vscode/
+tests/test_logs/
 
 # Python env
 env/*

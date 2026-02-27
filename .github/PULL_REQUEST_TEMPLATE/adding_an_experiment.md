@@ -25,3 +25,6 @@ Example outputs:
 - [ ] GPU testing
 - [ ] TT device testing
 - [ ] CI testing
+    - [ ] Existing tests are passing
+    - [ ] Register test to CI
+    - [ ] Upload golden files if necessary

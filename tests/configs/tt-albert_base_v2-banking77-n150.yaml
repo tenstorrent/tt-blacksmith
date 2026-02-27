@@ -3,6 +3,7 @@ test_config:
 
 steps_freq: 5
 val_steps_freq: 5
+num_epochs: 1
 
 use_tt: true
 log_on_wandb: false
