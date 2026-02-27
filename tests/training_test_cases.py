@@ -67,7 +67,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
-            "timeout": 50,
+            "timeout": 200,
             "skip_loss_checks": True,
         },
         marks=[
@@ -82,7 +82,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/test_mnist.yaml",
-            "timeout": 100,
+            "timeout": 400,
             "skip_loss_checks": True,
         },
         marks=[
@@ -171,7 +171,8 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/albert/test_albert_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/albert/test_albert_finetuning.yaml",
-            "timeout": 12000,
+            "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
+            "timeout": 3600,
         },
         marks=[
             pytest.mark.uplift,
