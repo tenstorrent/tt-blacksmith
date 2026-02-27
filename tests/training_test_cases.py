@@ -112,7 +112,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml",
-            "timeout": 20000,
+            "timeout": 3000,
         },
         marks=[
             pytest.mark.uplift,
@@ -141,7 +141,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/qwen/test_qwen_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml",
-            "timeout": 10000,
+            "timeout": 2000,
         },
         marks=[
             pytest.mark.uplift,

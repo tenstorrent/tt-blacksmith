@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from training_test_cases import TRAINING_TEST_CASES
 
 from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
+from training_test_cases import TRAINING_TEST_CASES
 
 
 @pytest.fixture
