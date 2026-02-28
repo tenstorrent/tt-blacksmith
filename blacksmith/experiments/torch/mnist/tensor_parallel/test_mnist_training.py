@@ -144,6 +144,7 @@ def train(
                     logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=False, step=global_step)
                     model.train()
 
+                # Commit metrics to W&B.
                 logger.log_metrics({}, commit=True, step=global_step)
 
                 # Save checkpoint at step
@@ -182,7 +183,7 @@ if __name__ == "__main__":
     repro_manager.setup()
 
     # Logger setup
-    logger = TrainingLogger(config)
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
 
     # Checkpoint manager setup
     checkpoint_manager = CheckpointManager(config, logger)
