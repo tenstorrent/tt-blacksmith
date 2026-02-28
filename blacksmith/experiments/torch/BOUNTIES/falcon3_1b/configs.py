@@ -29,9 +29,7 @@ class TrainingConfig(BaseModel):
     use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="falcon3-finetuning")
     wandb_run_name: str = Field(default="tt-falcon3-wikitext")
-    wandb_tags: list[str] = Field(
-        default_factory=lambda: ["falcon3", "lora", "wikitext"]
-    )
+    wandb_tags: list[str] = Field(default_factory=lambda: ["falcon3", "lora", "wikitext"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=100)
     model_to_wandb: bool = Field(default=False)
@@ -43,9 +41,7 @@ class TrainingConfig(BaseModel):
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)
     resume_option: str = Field(default="last")  # [last, best, path]
-    checkpoint_path: str = Field(
-        default=""
-    )  # path to checkpoint if resume_option is "path"
+    checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
     checkpoint_metric: str = Field(default="eval/loss")
     checkpoint_metric_mode: str = Field(default="min")  # [min, max]
     keep_last_n: int = Field(default=3, ge=0)
@@ -63,15 +59,9 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    mesh_shape: Optional[list[int]] = Field(
-        default=None
-    )  # Use None for single device, [x,y] for 2D mesh.
-    mesh_axis_names: Optional[list[str]] = Field(
-        default=None
-    )  # Use None for single device.
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(
-        default_factory=dict
-    )  # Used for model tp sharding
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(default=None)  # Use None for single device.
+    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
 
     # LoRA setup - optimized for better learning
     lora_r: int = Field(default=32, gt=0)

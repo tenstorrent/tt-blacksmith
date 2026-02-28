@@ -29,9 +29,7 @@ class WikitextDataset(BaseDataset):
     """
 
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            config.model_name, padding_side="right", use_fast=True
-        )
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -45,9 +43,7 @@ class WikitextDataset(BaseDataset):
         raw_dataset = load_dataset(DATASET_BENCHMARK, DATASET_NAME, split=self.split)
 
         # Filter out empty examples.
-        raw_dataset = raw_dataset.filter(
-            lambda example: len(example["text"].strip()) > 0
-        )
+        raw_dataset = raw_dataset.filter(lambda example: len(example["text"].strip()) > 0)
 
         # Tokenize and chunk the dataset.
         tokenized_dataset = raw_dataset.map(
