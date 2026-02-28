@@ -145,6 +145,7 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `wandb_log_freq`              | Frequency of logging to Weights & Biases (in steps).   | 1000                                |
 | `model_to_wandb`              | Whether to store model checkpoint in Weights & Biases. | False                               |
 | `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 25                                  |
+| `val_steps_freq`              | Frequency (in steps) for performing validation actions.| 25                                  |
 | `epoch_freq`                  | Frequency (in epochs) for performing periodic actions. | 1                                   |
 | `resume_from_checkpoint`      | Whether to resume training from a previous checkpoint. | False                               |
 | `resume_option`               | Resume method (`last`, `best`, or `path`).             | "last"                              |

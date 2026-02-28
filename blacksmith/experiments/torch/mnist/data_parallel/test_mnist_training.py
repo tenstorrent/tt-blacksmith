@@ -26,7 +26,6 @@ def validate(
 ) -> Tuple[float, float]:
     logger.info("Starting validation...")
 
-    model.eval()
     total_loss = 0.0
     total_samples = 0
     correct = 0
@@ -91,10 +90,20 @@ def train(
     running_loss = 0.0
     # Training
     try:
+        # Initial validation
+        model.eval()
+        val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
+        logger.log_metrics(
+            {"val/loss": val_loss, "val/accuracy": val_acc},
+            commit=True,
+            step=global_step,
+        )
         model.train()
+
         for epoch in range(config.num_epochs):
             logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
             for inputs, targets in train_loader:
+                global_step += 1
                 batch = {"inputs": inputs.view(inputs.size(0), -1), "targets": targets.view(targets.size(0), -1)}
                 batch = device_manager.prepare_batch(batch)
 
@@ -114,23 +123,24 @@ def train(
                 # Optimizer step
                 device_manager.optimizer_step(optimizer)
 
-                global_step += 1
-
                 # Logging by steps
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Run validation and log metrics
+                # Validation
+                if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
-                    logger.log_metrics(
-                        {"train/loss": avg_loss, "val/loss": val_loss, "val/accuracy": val_acc}, step=global_step
-                    )
+                    logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=False, step=global_step)
                     model.train()
 
-                    # Save checkpoint at step
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                logger.log_metrics({}, commit=True, step=global_step)
+
+                # Save checkpoint at step
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             # end epoch loop
             # Save checkpoint at epoch boundary if configured

@@ -110,7 +110,8 @@ Example
 | `wandb_watch_mode`            | Watch mode for model parameter logging.                | "all"                               |
 | `wandb_log_freq`              | Frequency of logging to Weights & Biases (in steps).   | 1000                                |
 | `model_to_wandb`              | Whether to store model checkpoint in Weights & Biases. | False                               |
-| `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 10                                  |
+| `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 25                                  |
+| `val_steps_freq`              | Frequency (in steps) for performing validation actions.| 25                                  |
 | `epoch_freq`                  | Frequency (in epochs) for performing periodic actions. | 1                                   |
 | `print_examples`              | Whether to print example predictions during training.  | True                                |
 | `ignored_index`               | Index to ignore in loss computation.                   | -100                                |
