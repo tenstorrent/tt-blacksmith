@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -29,7 +29,9 @@ class WikitextDataset(BaseDataset):
     """
 
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            config.model_name, padding_side="right", use_fast=True
+        )
 
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -42,10 +44,12 @@ class WikitextDataset(BaseDataset):
         """Load and prepare the Wikitext-2 dataset."""
         raw_dataset = load_dataset(DATASET_BENCHMARK, DATASET_NAME, split=self.split)
 
-        # Filter out empty examples
-        raw_dataset = raw_dataset.filter(lambda example: len(example["text"].strip()) > 0)
+        # Filter out empty examples.
+        raw_dataset = raw_dataset.filter(
+            lambda example: len(example["text"].strip()) > 0
+        )
 
-        # Tokenize and chunk the dataset
+        # Tokenize and chunk the dataset.
         tokenized_dataset = raw_dataset.map(
             self._tokenize_function,
             batched=True,
@@ -53,7 +57,7 @@ class WikitextDataset(BaseDataset):
             desc=f"Tokenizing {self.split} split",
         )
 
-        # Group texts into chunks of max_length
+        # Group texts into chunks of max_length.
         self.dataset = tokenized_dataset.map(
             self._group_texts,
             batched=True,

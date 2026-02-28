@@ -51,7 +51,7 @@ Current `test_falcon3_finetuning.yaml` has the recommended and tested hyperparam
 | --- | --- | --- |
 | `dataset_id` | The dataset used for fine-tuning. | "wikitext" |
 | `model_name` | Name or path of the pre-trained Falcon3 model. | "tiiuae/Falcon3-1B-Base" |
-| `max_length` | Maximum token length for inputs. | 512 |
+| `max_length` | Maximum token length for inputs. | 128 |
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `learning_rate` | Learning rate for the optimizer. | 5e-5 |
 | `batch_size` | Number of samples per training batch. | 4 |

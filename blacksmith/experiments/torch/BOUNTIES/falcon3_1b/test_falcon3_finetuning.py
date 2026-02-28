@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 import traceback
@@ -74,11 +74,11 @@ def validate(model, val_data_loader, loss_fn, device, config, logger, tokenizer=
     return avg_val_loss
 
 
-def train_step(model, batch, loss_fn, optimizer, device_manager, config):
-    optimizer.zero_grad()
-
+def train_step(model, batch, loss_fn, device_manager, config):
     batch = device_manager.prepare_batch(batch)
-    outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+    outputs = model(
+        input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+    )
 
     shift_logits = outputs.logits[:, :-1, :].contiguous()
     loss = loss_fn(
@@ -87,7 +87,6 @@ def train_step(model, batch, loss_fn, optimizer, device_manager, config):
     )
 
     loss.backward()
-    device_manager.optimizer_step(optimizer)
 
     if config.use_tt:
         torch_xla.sync(wait=True)
@@ -100,23 +99,40 @@ def setup_training(config, device_manager, logger, checkpoint_manager):
     model = get_model(config, device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+    logger.info(
+        f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
+    )
 
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint()
 
-    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
+    train_dataset = get_dataset(
+        config=config, split="train", collate_fn=collate_fn_for_causal_lm
+    )
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
+    logger.info(
+        f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}"
+    )
 
-    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = get_dataset(
+        config=config, split="validation", collate_fn=collate_fn_for_causal_lm
+    )
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    logger.info(
+        f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}"
+    )
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
-    return model, train_dataloader, eval_dataloader, train_dataset.tokenizer, optimizer, loss_fn
+    return (
+        model,
+        train_dataloader,
+        eval_dataloader,
+        train_dataset.tokenizer,
+        optimizer,
+        loss_fn,
+    )
 
 
 def train(
@@ -128,42 +144,89 @@ def train(
     """Main training loop for Falcon3-1B LoRA fine-tuning."""
     logger.info("Starting training...")
 
-    model, train_dataloader, eval_dataloader, tokenizer, optimizer, loss_fn = setup_training(
-        config, device_manager, logger, checkpoint_manager
+    model, train_dataloader, eval_dataloader, tokenizer, optimizer, loss_fn = (
+        setup_training(config, device_manager, logger, checkpoint_manager)
     )
 
     global_step = 0
     running_loss = 0.0
+
+    # Initial validation before training starts.
+    avg_val_loss = validate(
+        model,
+        eval_dataloader,
+        loss_fn,
+        device_manager.device,
+        config,
+        logger,
+        tokenizer,
+    )
+    logger.log_metrics({"val/loss": avg_val_loss}, step=global_step)
+
     try:
         for epoch in range(config.num_epochs):
             model.train()
 
-            for batch in tqdm(train_dataloader, desc=f"Epoch {epoch + 1}/{config.num_epochs}"):
-                running_loss += train_step(model, batch, loss_fn, optimizer, device_manager, config)
+            for batch in tqdm(
+                train_dataloader, desc=f"Epoch {epoch + 1}/{config.num_epochs}"
+            ):
                 global_step += 1
+                optimizer.zero_grad()
+
+                running_loss += train_step(
+                    model, batch, loss_fn, device_manager, config
+                )
+
+                # Update parameters.
+                device_manager.optimizer_step(optimizer)
+
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 do_validation = global_step % config.val_steps_freq == 0
 
                 if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, commit=not do_validation, step=global_step)
+                    avg_loss = (
+                        running_loss / config.steps_freq
+                        if global_step > 0
+                        else running_loss
+                    )
+                    logger.log_metrics(
+                        {"train/loss": avg_loss},
+                        commit=not do_validation,
+                        step=global_step,
+                    )
                     running_loss = 0.0
 
                 if do_validation:
                     avg_val_loss = validate(
-                        model, eval_dataloader, loss_fn, device_manager.device, config, logger, tokenizer
+                        model,
+                        eval_dataloader,
+                        loss_fn,
+                        device_manager.device,
+                        config,
+                        logger,
+                        tokenizer,
                     )
                     model.train()
-                    logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step)
+                    logger.log_metrics(
+                        {"epoch": epoch + 1, "val/loss": avg_val_loss}, step=global_step
+                    )
 
                 if checkpoint_manager.should_save_checkpoint(global_step):
-                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                    checkpoint_manager.save_checkpoint(
+                        model, global_step, epoch, optimizer
+                    )
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-        final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
-        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
+        final_model_path = checkpoint_manager.save_checkpoint(
+            model, global_step, epoch, optimizer
+        )
+        logger.log_artifact(
+            final_model_path, artifact_type="model", name="final_model.pth"
+        )
 
     except Exception as e:
         traceback_str = traceback.format_exc()

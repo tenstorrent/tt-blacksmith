@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 from typing import Optional
@@ -12,7 +12,7 @@ class TrainingConfig(BaseModel):
 
     # Model settings
     model_name: str = Field(default="tiiuae/Falcon3-1B-Base")
-    max_length: int = Field(default=512, gt=0)
+    max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
     ignored_index: int = Field(default=-100)
 
@@ -29,7 +29,9 @@ class TrainingConfig(BaseModel):
     use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="falcon3-finetuning")
     wandb_run_name: str = Field(default="tt-falcon3-wikitext")
-    wandb_tags: list[str] = Field(default_factory=lambda: ["falcon3", "lora", "wikitext"])
+    wandb_tags: list[str] = Field(
+        default_factory=lambda: ["falcon3", "lora", "wikitext"]
+    )
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=100)
     model_to_wandb: bool = Field(default=False)
@@ -41,7 +43,9 @@ class TrainingConfig(BaseModel):
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)
     resume_option: str = Field(default="last")  # [last, best, path]
-    checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
+    checkpoint_path: str = Field(
+        default=""
+    )  # path to checkpoint if resume_option is "path"
     checkpoint_metric: str = Field(default="eval/loss")
     checkpoint_metric_mode: str = Field(default="min")  # [min, max]
     keep_last_n: int = Field(default=3, ge=0)
@@ -59,15 +63,29 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
-    mesh_axis_names: Optional[list[str]] = Field(default=None)  # Use None for single device.
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
+    mesh_shape: Optional[list[int]] = Field(
+        default=None
+    )  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device.
+    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(
+        default_factory=dict
+    )  # Used for model tp sharding
 
     # LoRA setup - optimized for better learning
     lora_r: int = Field(default=32, gt=0)
     lora_alpha: int = Field(default=64, gt=0)
     lora_target_modules: list[str] = Field(
-        default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+        default_factory=lambda: [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
     )
     lora_task_type: str = Field(default="CAUSAL_LM")
 

@@ -3,7 +3,7 @@ dataset_id: "wikitext"
 
 # Model settings
 model_name: "tiiuae/Falcon3-1B-Base"
-max_length: 512
+max_length: 128
 dtype: "torch.bfloat16"
 ignored_index: -100
 
