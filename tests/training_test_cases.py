@@ -139,6 +139,37 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b.yaml",
+            "timeout": 20000,
+        },
+        marks=[
+            pytest.mark.skip("Llama 8B is not supported on Galaxy yet."),
+            pytest.mark.push,
+            pytest.mark.galaxy,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
+        ],
+        id="llama-data-parallel-galaxy-8b-torch",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml",
+            "timeout": 1500,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.galaxy,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
+        ],
+        id="llama-data-parallel-galaxy-torch",
+    ),
+    pytest.param(
+        {
             "test_script": "blacksmith/experiments/torch/qwen/test_qwen_finetuning.py",
             "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml",
             "timeout": 2000,
