@@ -144,7 +144,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.skip(),
+            pytest.mark.skip("Llama 8B is not supported on Galaxy yet."),
             pytest.mark.push,
             pytest.mark.galaxy,
             pytest.mark.torch,
@@ -157,10 +157,10 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml",
-            "timeout": 20000,
+            "timeout": 1500,
         },
         marks=[
-            pytest.mark.push,
+            pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
             pytest.mark.data_parallel,
