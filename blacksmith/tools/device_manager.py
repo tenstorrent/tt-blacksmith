@@ -88,7 +88,6 @@ class DeviceManager:
 
     def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
         """Apply tensor parallelism using regex pattern matching from config."""
-        torch_xla.sync(wait=True)
 
         # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)

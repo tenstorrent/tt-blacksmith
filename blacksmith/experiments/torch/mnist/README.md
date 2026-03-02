@@ -72,8 +72,6 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change 
 | `learning_rate` | Learning rate used by the optimizer. | 0.01 |
 | `batch_size` | Number of samples per training batch. | 256 |
 | `num_epochs` | Total number of training epochs. | 16 |
-| `train_log_steps` | Number of training steps between logging. | 100 |
-| `val_log_epochs` | Number of epochs between validation logging. | 5 |
 | `loss_fn` | The loss function used for training. | "torch.nn.MSELoss" |
 | `optim` | Optimizer to use. | "sgd" |
 |  **Reproducibility Settings** |
@@ -89,6 +87,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change 
 | `wandb_log_freq` | Frequency of W&B logging. | 100 |
 | `model_to_wandb` | Whether to log model to W&B. | false |
 | `steps_freq` | Frequency of step logging. | 100 |
+| `val_steps_freq` | Frequency of step validations. | 100 |
 | `epoch_freq` | Frequency of epoch logging. | 5 |
 |  **Checkpoint Settings** |
 | `resume_from_checkpoint` | Whether to resume from a checkpoint. | false |
