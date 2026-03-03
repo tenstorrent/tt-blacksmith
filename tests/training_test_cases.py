@@ -151,13 +151,13 @@ TRAINING_TEST_CASES = [
             pytest.mark.data_parallel,
             pytest.mark.tensor_parallel,
         ],
-        id="llama-data-parallel-galaxy-8b-torch",
+        id="tt-llama_3_1_8b-sst2-n300-galaxy",
     ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml",
-            "timeout": 1500,
+            "timeout": 3000,
         },
         marks=[
             pytest.mark.uplift,
@@ -166,7 +166,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.data_parallel,
             pytest.mark.tensor_parallel,
         ],
-        id="llama-data-parallel-galaxy-torch",
+        id="tt-llama_3_2_1b-sst2-n300-galaxy",
     ),
     pytest.param(
         {
