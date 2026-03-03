@@ -24,6 +24,7 @@ wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
 steps_freq: 5
+val_steps_freq: 5
 epoch_freq: 1
 
 # Checkpoint settings

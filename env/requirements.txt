@@ -9,3 +9,4 @@ flax
 six
 kornia
 pytest
+pandas
