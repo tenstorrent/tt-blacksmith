@@ -5,6 +5,7 @@ from enum import Enum
 
 from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
+from blacksmith.datasets.torch.BOUNTIES.wikitext.wikitext_dataset import WikitextDataset
 from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.nerf.blender import BlenderDataset
 from blacksmith.datasets.torch.squadV2.squadV2_dataset import SquadV2Dataset
@@ -23,6 +24,7 @@ class AvailableDataset(Enum):
     TEXT2SQL = "text2sql"
     BANKING77 = "banking77"
     SQUADV2 = "squadv2"
+    WIKITEXT = "wikitext"
     STANFORDCARS = "stanfordcars"
     ALPACA = "alpaca"
 
@@ -43,6 +45,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return Banking77Dataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.SQUADV2.value:
         return SquadV2Dataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.WIKITEXT.value:
+        return WikitextDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.STANFORDCARS.value:
         return StanfordCarsDataset(config, split)
     elif dataset_id == AvailableDataset.ALPACA.value:
