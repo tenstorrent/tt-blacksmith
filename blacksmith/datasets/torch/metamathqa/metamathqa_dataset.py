@@ -26,7 +26,7 @@ PROMPT_TEMPLATE = Template(cleandoc(
 
 DATASET_PATH = "meta-math/MetaMathQA"
 
-TRAIN_VAL_SPLIT_RATIO = 0.90
+TRAIN_VAL_SPLIT_RATIO = 0.98
 
 class MetaMathQADataset(BaseDataset):
     # MetaMathQA dataset only has train split, so we create validation/test from it.
