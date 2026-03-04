@@ -1,0 +1,9 @@
+test_config:
+  max_steps_per_epoch: 15
+
+steps_freq: 5
+val_steps_freq: 5
+num_epochs: 1
+
+use_tt: true
+log_on_wandb: false

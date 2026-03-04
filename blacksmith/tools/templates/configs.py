@@ -31,6 +31,7 @@ class TrainingConfig(BaseModel):
     wandb_log_freq: int = Field(default=1000)
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=25)
+    val_steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
 
     # Checkpoint settings
@@ -52,6 +53,9 @@ class TrainingConfig(BaseModel):
     # Reproducibility settings
     seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
+
+    # Embedding settings
+    unfreeze_embeddings: bool = Field(default=False)
 
     # Other settings
     framework: str = Field(default="pytorch")
