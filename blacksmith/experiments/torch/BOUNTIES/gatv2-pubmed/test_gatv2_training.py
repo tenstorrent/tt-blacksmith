@@ -4,6 +4,7 @@
 import csv
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -14,6 +15,13 @@ from torch_geometric.datasets import Planetoid
 from torch_geometric.nn import GATv2Conv
 
 from configs import TrainingConfig
+
+# Make script execution robust when invoked via
+# `python blacksmith/.../test_gatv2_training.py`.
+REPO_ROOT = Path(__file__).resolve().parents[5]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 

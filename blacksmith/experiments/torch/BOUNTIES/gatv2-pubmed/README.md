@@ -26,7 +26,7 @@ pip install torch-geometric matplotlib pyyaml pydantic
 ## Run
 
 ```bash
-python3 blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/test_gatv2_training.py \
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/test_gatv2_training.py \
   --config blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/test_gatv2_training.yaml
 ```
 
@@ -43,6 +43,26 @@ Artifacts:
 - `loss_curves_cpu.png` - train/val loss curves
 - `accuracy_curves_cpu.png` - train/val/test accuracy curves
 
+## Latest CPU Baseline Run
+
+Local verification run timestamp: **2026-03-05**.
+
+Command:
+
+```bash
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/test_gatv2_training.py \
+  --config blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/test_gatv2_training.yaml
+```
+
+Observed summary (`summary_cpu.json`):
+
+- `epochs_ran`: 174 (early stop)
+- `best_epoch`: 124
+- `best_val_acc`: 0.8040
+- `best_test_acc`: 0.7820
+- `best_val_loss`: 0.5604
+- `best_test_loss`: 0.5717
+
 ## Notes for PR-2 (TT-N150 on Koyeb)
 
 TT execution will reuse the same training loop and metrics contract from this baseline while adding:
@@ -51,4 +71,3 @@ TT execution will reuse the same training loop and metrics contract from this ba
 2. Function-level fallback wrappers for unsupported ops
 3. `TTXLA_LOGGER_LEVEL=DEBUG` validation and TTIR evidence
 4. CPU-vs-TT parity table for loss/accuracy trajectories
-
