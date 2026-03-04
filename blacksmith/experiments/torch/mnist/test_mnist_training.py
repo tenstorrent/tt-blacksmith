@@ -193,7 +193,8 @@ if __name__ == "__main__":
     logger.info(f"Using device: {device_manager.device}")
 
     options = {
-        "export_path": f"tests/models/{config.wandb_run_name}",
+        "export_path": f"tests/models/{args.test_log_filename_prefix}",
+        "export_tensors": False,
     }
     torch_xla.set_custom_compile_options(options)
 

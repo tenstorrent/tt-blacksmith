@@ -20,6 +20,8 @@ DEFAULT_SETUP_DICT = {
     "tolerance": 0.3,
     "timeout": 800.0,
     "skip_loss_checks": False,
+    "mesh_shape": "1x1",
+    "number_of_ttirs": 3,
 }
 
 
@@ -95,6 +97,27 @@ def check_losses(train_log_file: Path, val_log_file: Path, setup_dict: dict):
     )
 
 
+def check_ttirs(test_id: str, setup_dict: dict):
+    model_path = Path(f"tests/models/{test_id}/irs")
+    ttirs = [path for path in model_path.glob("ttir_*.mlir")]
+    assert len(ttirs) == 3, f"Expected 3 TTIR files, got {len(ttirs)}"
+    for path in ttirs:
+        with open(path, "r") as f:
+            for line in f:
+                if line.strip().startswith("module @SyncTensorsGraph"):
+                    # Look for the pattern mesh = value inside <[<"mesh" = 1x1>]>.
+                    match = re.search(r'<\[\s*<"mesh"\s*=\s*([^>]*)>\]', line)
+                    assert match, f"Could not find mesh shape in line: {line.strip()}"
+                    mesh_shape = match.group(1)
+                    assert mesh_shape == setup_dict["mesh_shape"], (
+                        f"Expected mesh shape {setup_dict['mesh_shape']}, got {mesh_shape}"
+                    )
+                    break
+            else:
+                pytest.fail(f"Invalid TTIR file: {path}")
+
+    shutil.rmtree(model_path.parent)
+
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
 def test_training_script(
     setup_dict: dict,
@@ -104,6 +127,8 @@ def test_training_script(
     Test that training script runs successfully with test configuration.
 
     Spawns subprocess to execute training script, verifies exit code 0.
+    Checks the loss and accuracy metrics in the log files.
+    Checks the TTIR files in the model directory.
 
     Args:
         setup_dict: Dictionary containing the test setup:
@@ -113,6 +138,7 @@ def test_training_script(
             - tolerance: Tolerance for loss and accuracy metrics.
             - timeout: Timeout in seconds.
             - skip_loss_checks: Whether to skip the loss checks.
+            - mesh_shape: Mesh shape for the TTIR files.
         request: pytest request object.
     """
 
@@ -135,20 +161,4 @@ def test_training_script(
     # Test run, compare the train and val log files in training_logs with those in golden_files.
     check_losses(train_log_file, val_log_file, setup_dict)
 
-    model_path = Path(f"tests/models/{'mnist_single_chip'}/irs")
-    ttirs = [path for path in model_path.glob("ttir_*.mlir")]
-    assert len(ttirs) == 3, f"Expected 3 TTIR files, got {len(ttirs)}"
-    for path in ttirs:
-        with open(path, "r") as f:
-            for line in f:
-                if line.strip().startswith("module @SyncTensorsGraph"):
-                    # Look for the pattern mesh = value inside <[<"mesh" = 1x1>]>.
-                    match = re.search(r'<\[\s*<"mesh"\s*=\s*([^>]*)>\]', line)
-                    assert match, f"Could not find mesh shape in line: {line.strip()}"
-                    mesh_shape = match.group(1)
-                    assert mesh_shape == "1x1", f"Expected mesh shape 1x1, got {mesh_shape}"
-                    break
-            else:
-                pytest.fail(f"Invalid TTIR file: {path}")
-
-    shutil.rmtree(model_path.parent)
+    check_ttirs(test_id, setup_dict)

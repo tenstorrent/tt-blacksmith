@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
     # Compile options
     options = {
-        "export_path": f"tests/models/{config.wandb_run_name}",
+        "export_path": f"tests/models/{args.test_log_filename_prefix}",
         "export_tensors": False,
         "enable_const_eval": False,
     }
