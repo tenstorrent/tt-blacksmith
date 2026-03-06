@@ -1,4 +1,4 @@
 --extra-index-url https://pypi.eng.aws.tenstorrent.com
 --extra-index-url https://download.pytorch.org/whl/cpu
-pjrt-plugin-tt==1.0.0.dev20260305001233
+pjrt-plugin-tt==1.0.0.dev20260306001712
 torchvision==0.24.1+cpu
