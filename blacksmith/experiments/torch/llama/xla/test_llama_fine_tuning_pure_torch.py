@@ -264,7 +264,12 @@ if __name__ == "__main__":
     # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
-        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+        torch_xla.set_custom_compile_options({
+            "fp32_dest_acc_en": True,
+            "math_fidelity": "hifi4",
+            "export_path": f"tests/models/{args.test_log_filename_prefix}",
+            "export_tensors": False,
+        })
 
     # Start training.
     train(config, device_manager, logger, checkpoint_manager)

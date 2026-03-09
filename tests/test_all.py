@@ -98,25 +98,29 @@ def check_losses(train_log_file: Path, val_log_file: Path, setup_dict: dict):
 
 
 def check_ttirs(test_id: str, setup_dict: dict):
+    if setup_dict["number_of_ttirs"] is None or setup_dict["mesh_shape"] is None:
+        return
     model_path = Path(f"tests/models/{test_id}/irs")
     ttirs = [path for path in model_path.glob("ttir_*.mlir")]
-    assert len(ttirs) == 3, f"Expected 3 TTIR files, got {len(ttirs)}"
-    for path in ttirs:
-        with open(path, "r") as f:
-            for line in f:
-                if line.strip().startswith("module @SyncTensorsGraph"):
-                    # Look for the pattern mesh = value inside <[<"mesh" = 1x1>]>.
-                    match = re.search(r'<\[\s*<"mesh"\s*=\s*([^>]*)>\]', line)
-                    assert match, f"Could not find mesh shape in line: {line.strip()}"
-                    mesh_shape = match.group(1)
-                    assert mesh_shape == setup_dict["mesh_shape"], (
-                        f"Expected mesh shape {setup_dict['mesh_shape']}, got {mesh_shape}"
-                    )
-                    break
-            else:
-                pytest.fail(f"Invalid TTIR file: {path}")
+    try:
+        assert len(ttirs) == setup_dict["number_of_ttirs"], f"Expected {setup_dict['number_of_ttirs']} TTIR files, got {len(ttirs)}"
+        for path in ttirs:
+            with open(path, "r") as f:
+                for line in f:
+                    if line.strip().startswith("module @"):
+                        # Look for the pattern mesh = value inside <[<"mesh" = 1x1>]>.
+                        match = re.search(r'<\[\s*<"mesh"\s*=\s*([^>]*)>\]', line)
+                        assert match, f"Could not find mesh shape in line: {line.strip()}"
+                        mesh_shape = match.group(1)
+                        assert mesh_shape == setup_dict["mesh_shape"], (
+                            f"Expected mesh shape {setup_dict['mesh_shape']}, got {mesh_shape}"
+                        )
+                        break
+                else:
+                    pytest.fail(f"Invalid TTIR file: {path}")
+    finally:
+        shutil.rmtree(model_path.parent)
 
-    shutil.rmtree(model_path.parent)
 
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
 def test_training_script(
