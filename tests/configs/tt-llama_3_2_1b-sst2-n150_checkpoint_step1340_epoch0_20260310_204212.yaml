@@ -1,0 +1,13 @@
+test_config:
+  max_steps_per_epoch: 15
+
+steps_freq: 1
+val_steps_freq: 5
+
+resume_from_checkpoint: true
+resume_option: "path"
+checkpoint_path: "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340_epoch0_20260310_204212.pt"
+save_strategy: "none"
+
+use_tt: true
+log_on_wandb: false
