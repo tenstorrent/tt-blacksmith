@@ -121,7 +121,7 @@ def train(
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint(model, optimizer)
+        checkpoint_manager.load_checkpoint(model, optimizer, lora_only=True)
 
     # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
@@ -220,15 +220,32 @@ def train(
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                        checkpoint_manager.save_checkpoint(
+                            model,
+                            lora_only=True,
+                            step=global_step,
+                            epoch=epoch,
+                            optimizer=optimizer,
+                        )
 
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
-                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                checkpoint_manager.save_checkpoint(
+                    model,
+                    lora_only=True,
+                    step=global_step,
+                    epoch=epoch,
+                    optimizer=optimizer,
+                )
 
         # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(
-            model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
+            model,
+            lora_only=True,
+            step=global_step,
+            epoch=epoch,
+            optimizer=optimizer,
+            checkpoint_name="final_model.pth",
         )
         logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
