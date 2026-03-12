@@ -30,13 +30,14 @@
 -----
 # What is this Repo?
 
-A collection of ready-to-run training experiments that show developers how to train ML models on Tenstorrent hardware. Models span MNIST, ResNet, ViT, Llama (LoRA/Adapters), Gemma, Qwen, Phi, ALBERT, DistilBERT, NeRF, and more.
+Ready-to-run training experiments that show developers how to fine-tune and train ML models on Tenstorrent hardware — from LLMs like Llama and Gemma to vision models like ViT and 3D reconstruction with NeRF.
 
 ```bash
-git clone https://github.com/tenstorrent/tt-blacksmith.git && cd tt-blacksmith
+git clone https://github.com/tenstorrent/tt-blacksmith.git
+cd tt-blacksmith
 source env/activate --xla
-# Run an experiment (e.g., MNIST with PyTorch on TT-XLA)
-pytest blacksmith/experiments/torch/mnist/xla/test_mnist_mlp_training.py -svv
+# Fine-tune Llama on Tenstorrent hardware.
+pytest blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py -svv
 ```
 
 -----
@@ -50,7 +51,6 @@ pytest blacksmith/experiments/torch/mnist/xla/test_mnist_mlp_training.py -svv
 # Related Tenstorrent Projects
 - [TT-Forge](https://github.com/tenstorrent/tt-forge) — Central hub for the TT-Forge compiler project (demos, benchmarks, releases)
 - [TT-XLA](https://github.com/tenstorrent/tt-xla) — Primary frontend for PyTorch and JAX (single and multi-chip)
-- [TT-Forge-ONNX](https://github.com/tenstorrent/tt-forge-onnx) — Frontend for ONNX, TensorFlow, and PaddlePaddle (single-chip)
 - [TT-MLIR](https://github.com/tenstorrent/tt-mlir) — Core MLIR-based compiler framework for Tenstorrent hardware
 - [TT-Metalium](https://github.com/tenstorrent/tt-metal) — Low-level programming model and kernel development
 
