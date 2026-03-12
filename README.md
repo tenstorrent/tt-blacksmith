@@ -37,7 +37,7 @@ git clone https://github.com/tenstorrent/tt-blacksmith.git
 cd tt-blacksmith
 source env/activate --xla
 # Fine-tune Llama on Tenstorrent hardware.
-pytest blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py -svv
+pytest blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py
 ```
 
 -----
