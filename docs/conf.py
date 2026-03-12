@@ -87,8 +87,7 @@ html_theme = "sphinx_rtd_theme"
 html_logo = "shared/images/tt_logo.svg"
 html_favicon = "shared/images/favicon.png"
 html_static_path = ["shared/_static"]
-# Copy shared/images so ../shared/images/... links in docs (e.g. nerf_demo.gif) work in the built site
-html_extra_path = ["shared/images"]
+html_extra_path = []
 templates_path = ["shared/_templates"]
 html_last_updated_fmt = "%b %d, %Y"
 
