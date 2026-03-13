@@ -14,7 +14,10 @@ def train_step(model, optimizer, params, cache, opt_state, inputs, targets):
         variables = {'params': p['params'], **cache}
         logits = model.apply(variables, inputs, deterministic=True)
         
-        loss = my_softmax(logits, targets)
+        vocab_size = logits.shape[-1]
+        targets_oh = jax.nn.one_hot(targets, vocab_size)
+
+        loss = optax.softmax_cross_entropy(logits, targets_oh)
         return jnp.mean(loss)
 
     loss_val, grads = jax.value_and_grad(loss_fn)(params)

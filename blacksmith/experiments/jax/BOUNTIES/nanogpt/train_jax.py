@@ -40,7 +40,7 @@ T = 64
 NUM_STEPS = 200
 losses = []
 
-print(f"Starting Training (B={B}, Micro-Batch=4)...")
+print(f"Starting Training (B={B})...")
 
 prev_time = time.time()
 for step in range(NUM_STEPS):

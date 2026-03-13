@@ -7,7 +7,7 @@ from flax.core import freeze, unfreeze
 import optax
 from functools import partial
 from model_jax import GPT, GPTConfig
-from utils import train_step_onehot
+from utils import train_step
 import csv
 import matplotlib.pyplot as plt
 
@@ -98,7 +98,7 @@ t0 = time.time()
 key, k1, k2 = jax.random.split(key, 3)
 xb, yb = get_batch('train', k1)
 xb, yb = jax.device_put(xb, tt_device), jax.device_put(yb, tt_device)
-params, opt_state, _ = train_step_onehot(model, optimizer, params, cache, opt_state, xb, yb, k2)
+params, opt_state, _ = train_step(model, optimizer, params, cache, opt_state, xb, yb, k2)
 print(f"Compiled in {time.time()-t0:.2f}s")
 
 print(f"Training for {max_iters} iterations...")
@@ -116,7 +116,7 @@ with open(log_file_path, mode='w', newline='') as f:
         xb, yb = get_batch('train', batch_key)
         xb, yb = jax.device_put(xb, tt_device), jax.device_put(yb, tt_device)
 
-        params, opt_state, loss = train_step_onehot(model, optimizer, params, cache, opt_state, xb, yb, drop_key)
+        params, opt_state, loss = train_step(model, optimizer, params, cache, opt_state, xb, yb, drop_key)
         
         # Store training loss for plotting (every step might be too noisy/heavy, but fine for 5000)
         iter_nums.append(iter)
