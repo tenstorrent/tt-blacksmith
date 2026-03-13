@@ -117,11 +117,12 @@ def train(
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint(model, optimizer, lora_only=True)
+        checkpoint_manager.load_checkpoint(model, optimizer)
 
     # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
@@ -222,7 +223,6 @@ def train(
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(
                             model,
-                            lora_only=True,
                             step=global_step,
                             epoch=epoch,
                             optimizer=optimizer,
@@ -232,7 +232,6 @@ def train(
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(
                     model,
-                    lora_only=True,
                     step=global_step,
                     epoch=epoch,
                     optimizer=optimizer,
@@ -241,7 +240,6 @@ def train(
         # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(
             model,
-            lora_only=True,
             step=global_step,
             epoch=epoch,
             optimizer=optimizer,

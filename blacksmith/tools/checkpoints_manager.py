@@ -66,7 +66,6 @@ class CheckpointManager:
         optimizer: Optional[torch.optim.Optimizer] = None,
         metrics: Optional[Dict[str, float]] = None,
         checkpoint_name: Optional[str] = None,
-        lora_only: bool = False,
     ) -> str:
         """
         Save a checkpoint
@@ -78,7 +77,6 @@ class CheckpointManager:
             optimizer: Optimizer state (optional)
             metrics: Dictionary of metrics (loss, accuracy, etc.)
             checkpoint_name: Custom checkpoint name (auto-generated if None)
-            lora_only: Whether to save only the LoRA parameters
 
         Returns:
             Path to saved checkpoint
@@ -92,8 +90,7 @@ class CheckpointManager:
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
         state_dict = model.state_dict()
-        if lora_only:
-            state_dict = {name: param for name, param in state_dict.items() if "lora" in name}
+        state_dict = {name: param for name, param in state_dict.items() if param.requires_grad}
 
         checkpoint_data = {
             "step": step,
@@ -162,16 +159,16 @@ class CheckpointManager:
 
         self.checkpoint_history["checkpoints"] = all_checkpoints[-self.config.keep_last_n :]
 
-    def load_checkpoint(self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None, lora_only: bool = False):
+    def load_checkpoint(self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None):
         """Load checkpoint based on resume option in config"""
         if self.config.resume_option == "last":
-            return self.load_latest_checkpoint(model, optimizer, lora_only)
+            return self.load_latest_checkpoint(model, optimizer)
         elif self.config.resume_option == "best":
-            return self.load_best_checkpoint(model, optimizer, lora_only)
+            return self.load_best_checkpoint(model, optimizer)
         elif self.config.resume_option == "path":
             if not self.config.checkpoint_path:
                 raise ValueError("checkpoint_path must be provided when resume_option is 'path'")
-            return self.load_checkpoint_path(self.config.checkpoint_path, model, optimizer, lora_only)
+            return self.load_checkpoint_path(self.config.checkpoint_path, model, optimizer)
         else:
             raise ValueError(f"Unknown resume_option: {self.config.resume_option}")
 
@@ -180,7 +177,6 @@ class CheckpointManager:
         checkpoint_path: str,
         model: torch.nn.Module,
         optimizer: Optional[torch.optim.Optimizer] = None,
-        lora_only: bool = False,
     ) -> Dict[str, Any]:
         """
         Load a checkpoint
@@ -189,7 +185,6 @@ class CheckpointManager:
             checkpoint_path: Path to checkpoint file
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)
-            lora_only: Whether to load only the LoRA parameters
 
         Returns:
             Dictionary containing checkpoint metadata
@@ -199,7 +194,7 @@ class CheckpointManager:
 
         checkpoint = torch.load(checkpoint_path)
 
-        model.load_state_dict(checkpoint["model_state_dict"], strict=not lora_only)
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -217,37 +212,34 @@ class CheckpointManager:
         self,
         model: torch.nn.Module,
         optimizer: Optional[torch.optim.Optimizer] = None,
-        lora_only: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Load the most recent checkpoint
 
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)
-            lora_only: Whether to load only the LoRA parameters
         """
         if not self.checkpoint_history["checkpoints"]:
             return None
 
         latest_checkpoint = self.checkpoint_history["checkpoints"][-1]
-        return self.load_checkpoint_path(latest_checkpoint["path"], model, optimizer, lora_only)
+        return self.load_checkpoint_path(latest_checkpoint["path"], model, optimizer)
 
     def load_best_checkpoint(
-        self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None, lora_only: bool = False
+        self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None
     ) -> Optional[Dict[str, Any]]:
         """Load the best checkpoint based on tracked metric
 
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)
-            lora_only: Whether to load only the LoRA parameters
         """
         if not self.checkpoint_history.get("best_checkpoints"):
             self.logger.warning("No best checkpoints found")
             return None
 
         best_checkpoint = self.checkpoint_history["best_checkpoints"][0]
-        return self.load_checkpoint_path(best_checkpoint["path"], model, optimizer, lora_only)
+        return self.load_checkpoint_path(best_checkpoint["path"], model, optimizer)
 
     def get_checkpoint_info(self) -> Dict[str, Any]:
         """Get information about all checkpoints"""
