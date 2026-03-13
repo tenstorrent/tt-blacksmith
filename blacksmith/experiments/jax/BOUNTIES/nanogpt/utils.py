@@ -14,7 +14,7 @@ def train_step(model, optimizer, params, cache, opt_state, inputs, targets):
         variables = {'params': p['params'], **cache}
         logits = model.apply(variables, inputs, deterministic=True)
         
-        loss = optax.softmax_cross_entropy_with_integer_labels(logits, targets)
+        loss = my_softmax(logits, targets)
         return jnp.mean(loss)
 
     loss_val, grads = jax.value_and_grad(loss_fn)(params)
@@ -25,46 +25,12 @@ def train_step(model, optimizer, params, cache, opt_state, inputs, targets):
     return new_params, new_opt_state, loss_val
 
 
-@partial(jax.jit, static_argnums=(0, 1), backend='tt')
-def train_step_onehot(model, optimizer, params, cache, opt_state, inputs, targets, rng):
-    ''' One-hot encoding training step with micro-batching to reduce memory usage. '''
-    MICRO_BATCH = 4
-    NUM_MICRO = inputs.shape[0] // MICRO_BATCH
-    
-    inputs_reshaped = inputs.reshape(NUM_MICRO, MICRO_BATCH, -1)
-    targets_reshaped = targets.reshape(NUM_MICRO, MICRO_BATCH, -1)
-
-    accum_grads = jax.tree.map(jnp.zeros_like, params)
-    accum_loss = 0.0
-
-    for i in range(NUM_MICRO):
-        
-        micro_input = inputs_reshaped[i]
-        micro_target = targets_reshaped[i]
-
-        def loss_fn(p):
-            variables = {'params': p['params'], **cache}
-            logits = model.apply(variables, micro_input, deterministic=False, rngs={'dropout': rng})
-            
-            vocab_size = logits.shape[-1]
-            one_hot = jax.nn.one_hot(micro_target, vocab_size)
-            
-            log_probs = jax.nn.log_softmax(logits)
-            loss = -jnp.sum(one_hot * log_probs, axis=-1)
-            return jnp.mean(loss)
-
-        loss_val, grads = jax.value_and_grad(loss_fn)(params)
-        
-        accum_grads = jax.tree.map(lambda a, b: a + b, accum_grads, grads)
-        accum_loss = accum_loss + loss_val
-
-    avg_grads = jax.tree.map(lambda g: g / NUM_MICRO, accum_grads)
-    avg_loss = accum_loss / NUM_MICRO
-    
-    updates, new_opt_state = optimizer.update(avg_grads, opt_state, params)
-    new_params = optax.apply_updates(params, updates)
-    
-    return new_params, new_opt_state, avg_loss
+def my_softmax(logits, labels):
+    axis = -1
+    label_logits = jnp.take_along_axis(logits, jnp.expand_dims(labels, axis), axis=axis).take(0, axis=axis)
+    log_normalizers = jax.nn.logsumexp(logits, axis=axis)
+    out = log_normalizers - label_logits
+    return out
 
 
 def to_torch(x):

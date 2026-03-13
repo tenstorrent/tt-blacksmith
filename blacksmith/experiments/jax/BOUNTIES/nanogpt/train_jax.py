@@ -6,7 +6,7 @@ import optax
 from functools import partial
 from model_jax import GPT as GPT_JAX, GPTConfig as Config_JAX
 import time
-from utils import train_step, train_step_onehot
+from utils import train_step
 
 
 # --------- Setup --------- 

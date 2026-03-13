@@ -12,7 +12,7 @@ from flax.traverse_util import flatten_dict, unflatten_dict
 @dataclass(frozen=True)
 class GPTConfig:
     block_size: int = 1024
-    vocab_size: int = 50304 #5 originally 50257 for gpt2, but padded to the minimal higher multiple of 64 for effeciency
+    vocab_size: int = 50304 # This was originally 50257 for GPT-2.0, but padded to the minimal higher multiple of 64 for effeciency.
     num_layers: int = 12
     num_heads: int = 12
     num_embeds: int = 768
@@ -68,15 +68,15 @@ class SelfAttention(nn.Module):
         qkv = nn.Dense(3 * C, use_bias=self.use_proj_bias, dtype=self.dtype, name='c_attn')(x)
         qkv = qkv.reshape(B, T, 3 * self.num_heads, head_dim)
         q, k, v = jnp.array_split(qkv, 3, axis=2)
-        # calculate attention matrix
+        # Calculating attention matrix.
         scale = 1.0 / jnp.sqrt(head_dim).astype(self.dtype)
-        # attn weight shape is (batch..., num_heads, q_length, kv_length)
+        # Attention weight shape is (batch..., num_heads, q_length, kv_length).
         attn = jnp.einsum('...qhd,...khd->...hqk', q, k) * scale
-        attn = attn + mask  # add the causal mask
+        attn = attn + mask  # Add the causal mask.
         attn = jax.nn.softmax(attn).astype(self.dtype)
         attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
 
-        # return weighted sum over values for each query position
+        # Return weighted sum over values for each query position.
         x = jnp.einsum('...hqk,...khd->...qhd', attn, v).reshape(B, T, C)
         x = nn.Dense(C, use_bias=self.use_proj_bias, dtype=self.dtype, name='c_proj')(x)
 
@@ -134,12 +134,12 @@ class GPT(nn.Module):
         self.ln_f = nn.LayerNorm(1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias, name='ln_f')
 
         def init_pos_ids(rng):
-            # shape: [1, Block_Size]
+            # Shape: [1, Block_Size]
             return jnp.array(np.arange(self.config.block_size, dtype=np.uint32)[None, :])
 
         def init_causal_mask(rng):
-            # shape: [1, 1, Block_Size, Block_Size]
-            # Created via NumPy to avoid JAX boolean issues on TT backend
+            # Shape: [1, 1, Block_Size, Block_Size]
+            # Created via NumPy to avoid JAX boolean issues on TT backend.
             mask = np.tri(self.config.block_size, k=0, dtype=np.float32)
             mask_bias = (1.0 - mask) * -1e9
             return jnp.array(mask_bias[None, None, :, :], dtype=jnp.bfloat16)
@@ -150,7 +150,7 @@ class GPT(nn.Module):
     def __call__(self, idx, deterministic=None):
         B, T = idx.shape
 
-        # Slice for current sequence length
+        # Slice for current sequence length.
         pos_ids = self.pos_ids.value[:, :T]
         mask = self.mask.value[:, :, :T, :T]
 
@@ -169,7 +169,7 @@ class GPT(nn.Module):
     def body(self, x, mask, deterministic=None):
         B, T, C = x.shape
         # mask = nn.make_causal_mask(jnp.ones((B, T), dtype=jnp.int32), dtype=bool)
-        # We crate the mask on CPU during runtime to avoid JAX boolean issues on TT backend
+        # We crate the mask on CPU during runtime to avoid JAX boolean issues on TT backend.
         for block in self.blocks:
             x = block(x, mask, deterministic=deterministic)
         

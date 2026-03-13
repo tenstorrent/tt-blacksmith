@@ -28,7 +28,6 @@ learning_rate = 1e-3
 tt_device = jax.devices('tt')[0]
 cpu_device = jax.devices('cpu')[0]
 
-# data loading
 data_dir = os.path.dirname(__file__)
 train_data = np.fromfile(os.path.join(data_dir, 'data/train.bin'), dtype=np.uint16)
 val_data = np.fromfile(os.path.join(data_dir, 'data/val.bin'), dtype=np.uint16)
@@ -36,8 +35,7 @@ val_data = np.fromfile(os.path.join(data_dir, 'data/val.bin'), dtype=np.uint16)
 def get_batch(split, key):
     data = train_data if split == 'train' else val_data
     ix = jax.random.randint(key, (batch_size,), 0, len(data) - config.block_size)
-    
-    # Numpy slicing for CPU data
+ 
     ix_np = np.array(ix)
     x_stack = np.stack([data[i:i+config.block_size] for i in ix_np])
     y_stack = np.stack([data[i+1:i+1+config.block_size] for i in ix_np])
