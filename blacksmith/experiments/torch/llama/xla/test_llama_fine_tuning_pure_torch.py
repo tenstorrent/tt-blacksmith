@@ -228,7 +228,9 @@ def train(
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         # Save final model.
-        final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer, checkpoint_name="final_model.pth")
+        final_model_path = checkpoint_manager.save_checkpoint(
+            model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
+        )
         logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
     except Exception as e:
