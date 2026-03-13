@@ -221,30 +221,14 @@ def train(
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(
-                            model,
-                            step=global_step,
-                            epoch=epoch,
-                            optimizer=optimizer,
-                        )
+                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
-                checkpoint_manager.save_checkpoint(
-                    model,
-                    step=global_step,
-                    epoch=epoch,
-                    optimizer=optimizer,
-                )
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         # Save final model.
-        final_model_path = checkpoint_manager.save_checkpoint(
-            model,
-            step=global_step,
-            epoch=epoch,
-            optimizer=optimizer,
-            checkpoint_name="final_model.pth",
-        )
+        final_model_path = checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer, checkpoint_name="final_model.pth")
         logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
     except Exception as e:
