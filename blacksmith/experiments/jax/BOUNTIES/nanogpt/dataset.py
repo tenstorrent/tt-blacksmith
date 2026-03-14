@@ -1,57 +1,40 @@
-import os
-import requests
 import numpy as np
-# NO tiktoken. We want characters, not BPE.
+from datasets import load_dataset
 
-input_file_path = os.path.join(os.path.dirname(__file__), 'data/input.txt')
-if not os.path.exists(input_file_path):
-    data_url = 'https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt'
-    with open(input_file_path, 'w') as f:
-        f.write(requests.get(data_url).text)
+class ShakespeareDataset:
+    def __init__(self):
 
-with open(input_file_path, 'r') as f:
-    data = f.read()
-print(f"length of dataset in characters: {len(data):,}")
+        # 1. Download dataset.
+        print("Loading tiny_shakespeare from Hugging Face...")
+        ds = load_dataset("text", data_files={"train": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"})
+        
+        # 2. Merge data.
+        full_text = "".join(ds['train']['text'])
+            
+        # 3. Build Vocabulary.
+        self.chars = sorted(list(set(full_text)))
+        self.vocab_size = len(self.chars)
+        self.stoi = { ch:i for i,ch in enumerate(self.chars) }
+        self.itos = { i:ch for i,ch in enumerate(self.chars) }
+        
+        # 4. Tokenize.
+        print(f"Tokenizing {len(full_text):,} characters...")
+        full_ids = np.array([self.stoi[c] for c in full_text], dtype=np.uint32)
+        
+        # 5. Split 90/10 (Karpathy Standard).
+        split_idx = int(len(full_ids) * 0.9)
+        self.train_data = full_ids[:split_idx]
+        self.val_data = full_ids[split_idx:]
+        
+        print(f"Ready. Vocab size: {self.vocab_size}")
+        print(f"Train tokens: {len(self.train_data):,}")
+        print(f"Val tokens:   {len(self.val_data):,}")
 
-# 2. Build the Vocabulary (Character-level)
-chars = sorted(list(set(data)))
-vocab_size = len(chars)
-print(f"all the unique characters: {''.join(chars)}")
-print(f"vocab size: {vocab_size:,}") # Should be ~65
+    def get_data(self, split):
+        return self.train_data if split == 'train' else self.val_data
 
-# Create a mapping from characters to integers
-stoi = { ch:i for i,ch in enumerate(chars) }
-itos = { i:ch for i,ch in enumerate(chars) }
+    def encode(self, s):
+        return [self.stoi[c] for c in s]
 
-def encode(s):
-    return [stoi[c] for c in s] # encoder: take a string, output a list of integers
-
-# 3. Tokenize
-train_data = data[:int(len(data)*0.9)]
-val_data = data[int(len(data)*0.9):]
-
-train_ids = encode(train_data)
-val_ids = encode(val_data)
-
-print(f"Train has {len(train_ids):,} tokens.")
-print(f"Val has {len(val_ids):,} tokens.")
-
-# 4. Export to bin files
-# We can use uint8 because vocab_size (65) < 255, but uint16 is safer standard
-train_ids = np.array(train_ids, dtype=np.uint16)
-val_ids = np.array(val_ids, dtype=np.uint16)
-train_ids.tofile(os.path.join(os.path.dirname(__file__), 'data/train.bin'))
-val_ids.tofile(os.path.join(os.path.dirname(__file__), 'data/val.bin'))
-
-print("Data saved to data/train.bin and data/val.bin")
-
-# SAVE THE META DATA FOR INFERENCE LATER
-import pickle
-meta = {
-    'vocab_size': vocab_size,
-    'itos': itos,
-    'stoi': stoi,
-}
-with open(os.path.join(os.path.dirname(__file__), 'data/meta.pkl'), 'wb') as f:
-    pickle.dump(meta, f)
-print("Metadata saved to data/meta.pkl")
+    def decode(self, ids):
+        return "".join([self.itos[int(i)] for i in ids])

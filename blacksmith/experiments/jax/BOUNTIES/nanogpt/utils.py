@@ -6,6 +6,20 @@ import optax
 from flax.core import unfreeze
 from functools import partial
 
+@partial(jax.jit, static_argnums=(2, 3), backend='tt')
+def get_batch_native(data_dev, key, block_size, batch_size):
+    # The hardware generates its own random indices natively
+    ix = jax.random.randint(key, (batch_size,), 0, data_dev.shape[0] - block_size - 1)
+    
+    def extract_single_sequence(i):
+        x = jax.lax.dynamic_slice(data_dev, (i,), (block_size,))
+        y = jax.lax.dynamic_slice(data_dev, (i + 1,), (block_size,))
+        return x, y
+
+    # vmap vectorizes the extraction across the batch dimension instantly
+    x_batch, y_batch = jax.vmap(extract_single_sequence)(ix)
+    return x_batch, y_batch
+
 
 @partial(jax.jit, static_argnums=(0, 1), backend='tt')
 def train_step(model, optimizer, params, cache, opt_state, inputs, targets):

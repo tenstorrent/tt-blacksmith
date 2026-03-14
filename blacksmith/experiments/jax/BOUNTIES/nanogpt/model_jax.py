@@ -28,7 +28,7 @@ class MatMulEmbed(nn.Module):
     """
     num_embeddings: int
     features: int
-    dtype: any = jnp.bfloat16  # <--- Use bf16 to save memory (50MB vs 100MB)
+    dtype: any = jnp.float32  # <--- Use bf16 to save memory (50MB vs 100MB)
 
     @nn.compact
     def __call__(self, inputs):
@@ -73,7 +73,14 @@ class SelfAttention(nn.Module):
         # Attention weight shape is (batch..., num_heads, q_length, kv_length).
         attn = jnp.einsum('...qhd,...khd->...hqk', q, k) * scale
         attn = attn + mask  # Add the causal mask.
-        attn = jax.nn.softmax(attn).astype(self.dtype)
+        
+        # We are doing manual softmax for to prevent over/underflows on tt hardware.
+        attn_max = jnp.max(attn, axis=-1, keepdims=True)
+        shifted_attn = attn - jax.lax.stop_gradient(attn_max)
+        exp_attn = jnp.exp(shifted_attn)
+        attn = exp_attn / jnp.sum(exp_attn, axis=-1, keepdims=True)
+        
+        attn = attn.astype(self.dtype)
         attn = nn.Dropout(self.dropout_rate)(attn, deterministic=deterministic)
 
         # Return weighted sum over values for each query position.
@@ -91,7 +98,7 @@ class MLP(nn.Module):
     def __call__(self, x, deterministic=None):
         B, T, C = x.shape
         x = nn.Dense(4 * C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_fc')(x)
-        x = nn.gelu(x, approximate=False)
+        x = nn.gelu(x, approximate=True) # We use approximization to avoid calculatin Gaussian Error Function (erf).
         x = nn.Dense(C, dtype=self.config.dtype, use_bias=self.config.use_bias, name='c_proj')(x)
         x = nn.Dropout(self.config.dropout_rate)(x, deterministic)
         return x
@@ -101,11 +108,11 @@ class Block(nn.Module):
     config: GPTConfig
 
     def setup(self):
-        self.ln_1 = nn.LayerNorm(epsilon=1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias)
+        self.ln_1 = nn.LayerNorm(epsilon=1e-4, dtype=self.config.dtype, use_bias=self.config.use_bias)
         self.attn = SelfAttention(self.config.num_heads,
                                   self.config.dtype,
                                   dropout_rate=self.config.dropout_rate)
-        self.ln_2 = nn.LayerNorm(epsilon=1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias)
+        self.ln_2 = nn.LayerNorm(epsilon=1e-4, dtype=self.config.dtype, use_bias=self.config.use_bias)
         self.mlp = MLP(self.config)
 
     def __call__(self, x, mask=None, deterministic=None):
@@ -131,7 +138,7 @@ class GPT(nn.Module):
         self.blocks = [Block(self.config, name=str(i)) for i in range(self.config.num_layers)]
         
         # 3. Final LayerNorm
-        self.ln_f = nn.LayerNorm(1e-5, dtype=self.config.dtype, use_bias=self.config.use_bias, name='ln_f')
+        self.ln_f = nn.LayerNorm(1e-4, dtype=self.config.dtype, use_bias=self.config.use_bias, name='ln_f')
 
         def init_pos_ids(rng):
             # Shape: [1, Block_Size]
@@ -141,8 +148,8 @@ class GPT(nn.Module):
             # Shape: [1, 1, Block_Size, Block_Size]
             # Created via NumPy to avoid JAX boolean issues on TT backend.
             mask = np.tri(self.config.block_size, k=0, dtype=np.float32)
-            mask_bias = (1.0 - mask) * -1e9
-            return jnp.array(mask_bias[None, None, :, :], dtype=jnp.bfloat16)
+            mask_bias = (1.0 - mask) * -10000.0
+            return jnp.array(mask_bias[None, None, :, :], dtype=jnp.float32)
         
         self.pos_ids = self.variable('cache', 'pos_ids', init_pos_ids, None)
         self.mask = self.variable('cache', 'mask', init_causal_mask, None)
