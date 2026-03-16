@@ -89,10 +89,13 @@ class CheckpointManager:
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
+        state_dict = model.state_dict()
+        state_dict = {name: param for name, param in state_dict.items() if param.requires_grad}
+
         checkpoint_data = {
             "step": step,
             "epoch": epoch,
-            "model_state_dict": model.state_dict(),
+            "model_state_dict": state_dict,
             "metrics": metrics,
             "timestamp": datetime.now().isoformat(),
         }
@@ -191,7 +194,7 @@ class CheckpointManager:
 
         checkpoint = torch.load(checkpoint_path)
 
-        model.load_state_dict(checkpoint["model_state_dict"])
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
