@@ -2,16 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import gc
-import logging
 
 import torch
 import torch.distributed as dist
 import torch.nn as nn
 from peft import LoraConfig, TaskType, get_peft_model
-from transformers import AutoConfig, AutoModelForCausalLM
+from transformers import AutoModelForCausalLM
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssMLP
-
-logger = logging.getLogger(__name__)
 
 from blacksmith.experiments.torch.gpt_oss.configs import TrainingConfig
 
@@ -282,7 +279,6 @@ def build_ep_model(
     model = None
     for r in range(world_size):
         if rank == r:
-            logger.info("Rank %d: loading %s", rank, config.model_name)
             model = AutoModelForCausalLM.from_pretrained(config.model_name, **model_kwargs)
 
             if config.gradient_checkpointing:
@@ -311,12 +307,6 @@ def build_ep_model(
             gc.collect()
 
         dist.barrier(group=ep_group)
-
-    if rank == 0:
-        trainable = [n for n, p in model.named_parameters() if p.requires_grad]
-        frozen = [n for n, p in model.named_parameters() if not p.requires_grad]
-        logger.info("Trainable params (%d): %s ...", len(trainable), trainable[:4])
-        logger.info("Frozen params (%d): %s ...", len(frozen), frozen[:4])
 
     return model
 

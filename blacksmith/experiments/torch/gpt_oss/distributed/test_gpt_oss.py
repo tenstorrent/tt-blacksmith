@@ -6,11 +6,6 @@ import os
 import traceback
 from pathlib import Path
 
-# This experiment is a native PyTorch/NCCL job. In environments where
-# `torch_xla` is installed, Transformers may otherwise initialize PJRT/XLA
-# during import and allocate auxiliary CUDA contexts on rank 0 from all ranks.
-os.environ.setdefault("USE_TORCH_XLA", "0")
-
 import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader
@@ -28,6 +23,11 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.distributed import is_main_process, setup_distributed
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+
+# This experiment is a native PyTorch/NCCL job. In environments where
+# `torch_xla` is installed, Transformers may otherwise initialize PJRT/XLA
+# during import and allocate auxiliary CUDA contexts on rank 0 from all ranks.
+os.environ.setdefault("USE_TORCH_XLA", "0")
 
 
 def validate(
@@ -104,7 +104,6 @@ def train(
     logger.info(f"Loaded {config.dataset_id} dataset. Val batches: {len(val_loader)}")
 
     global_step = 0
-    running_loss = 0.0
     accumulation_step = 0
 
     try:
