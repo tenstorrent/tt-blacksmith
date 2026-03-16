@@ -1,9 +1,11 @@
 # Llama with LoRA Experiment in TT-XLA
 
 This directory contains the code for the Llama with LoRA fine-tuning experiment in TT-XLA.
-Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
-Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
+
+Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).  
+Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).  
 Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
+
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
@@ -81,9 +83,9 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 #### Llama 3.2 3B Training Configuration
 
-|                    | mesh_shape                   | mesh_axis_names      | dataset      | Method     | Details    |
-| ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |----------- |
-| Blackhole QuietBox | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       | [.yaml](quietbox/test_llama_3_2_3b.yaml) |
+|                    | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
+| ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
+| [Blackhole QuietBox](quietbox/test_llama_3_2_3b.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
 
 ### Llama 8B Training
 
@@ -103,13 +105,13 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 #### Llama 3.1 8B Training Configurations
 
-|                    | mesh_shape                   | mesh_axis_names                           | dataset      | Method     | Details    |
-| ------------------ | ---------------------------- | ----------------------------------------- | ------------ | ---------- |----------- |
-| Wormhole QuietBox  | `[1, 8]`                     | `["data", "model"]`                       | SST2         | LoRA       | [.yaml](quietbox/test_llama_3_1_8b.yaml) |
-| Wormhole QuietBox  | `[8, 1]`                     | `["model", "data"]`                       | SST2         | LoRA       | [.yaml](quietbox/test_llama_3_1_8b.yaml) |
-| Wormhole QuietBox  | `[2, 4]`                     | `["data", "model"]`                       | SST2         | LoRA       | [.yaml](quietbox/test_llama_3_1_8b.yaml) |
-| Blackhole QuietBox | `[1, 4]`                     | `["data", "model"]`                       | SST2         | LoRA       | [.yaml](quietbox/test_llama_3_1_8b.yaml) |
-| Galaxy             | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]`  | SST2         | LoRA       | [.yaml](galaxy/test_llama3_1_8b.yaml) |
+|                    | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/test_llama3_1_8b.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
 ## Data
 
