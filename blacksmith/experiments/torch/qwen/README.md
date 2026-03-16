@@ -47,7 +47,7 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 
 #### Qwen 2.5 0.5B Training Configuration
 
-|                    | mesh_shape | mesh_axis_names | dataset | Method |
+| Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------------ | ---------- | --------------- | ------- | ------ |
 | [Single-Chip](single_chip/test_qwen_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
 
@@ -62,7 +62,7 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 
 #### Qwen 2.5 1.5B Training Configuration
 
-|                    | mesh_shape | mesh_axis_names | dataset | Method |
+| Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------------ | ---------- | --------------- | ------- | ------ |
 | [Single-Chip](single_chip/test_qwen_1-5b_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
 
@@ -83,7 +83,7 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 #### Qwen 3 4B Instruct 2507 Training Configurations
 
-|                    | mesh_shape         | mesh_axis_names                           | dataset | Method |
+| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
 | [Single-Chip](single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml)        | None               | None                                      | SST2    | LoRA   |
 | [N300](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
