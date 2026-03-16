@@ -2,8 +2,8 @@
 
 This directory contains the code for the Llama with LoRA fine-tuning experiment in TT-XLA.
 
-Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).  
-Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).  
+Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
+Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
 Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
 
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).

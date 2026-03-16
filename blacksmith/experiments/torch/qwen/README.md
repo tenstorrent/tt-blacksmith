@@ -2,9 +2,9 @@
 
 This directory contains the code for the Qwen model with LoRA fine-tuning experiment in TT-XLA.
 
-Qwen 2.5 0.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-0.5B).  
-Qwen 2.5 1.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-1.5B).  
-Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).  
+Qwen 2.5 0.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-0.5B).
+Qwen 2.5 1.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-1.5B).
+Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
 Qwen 3 8B Base model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B-Base).
 
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
@@ -47,9 +47,9 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 
 #### Qwen 2.5 0.5B Training Configuration
 
-|                    | mesh_shape | mesh_axis_names | dataset | Method | 
-| ------------------ | ---------- | --------------- | ------- | ------ | 
-| [Single-Chip](single_chip/test_qwen_finetuning.yaml)        | None       | None            | SST2    | LoRA   | 
+|                    | mesh_shape | mesh_axis_names | dataset | Method |
+| ------------------ | ---------- | --------------- | ------- | ------ |
+| [Single-Chip](single_chip/test_qwen_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
 
 ### Qwen 2.5 1.5B Training
 
@@ -62,9 +62,9 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 
 #### Qwen 2.5 1.5B Training Configuration
 
-|                    | mesh_shape | mesh_axis_names | dataset | Method | 
-| ------------------ | ---------- | --------------- | ------- | ------ | 
-| [Single-Chip](single_chip/test_qwen_1-5b_finetuning.yaml)        | None       | None            | SST2    | LoRA   | 
+|                    | mesh_shape | mesh_axis_names | dataset | Method |
+| ------------------ | ---------- | --------------- | ------- | ------ |
+| [Single-Chip](single_chip/test_qwen_1-5b_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
 
 ### Qwen 3 4B Instruct 2507 Training
 
