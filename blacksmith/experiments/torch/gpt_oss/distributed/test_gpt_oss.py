@@ -49,9 +49,7 @@ def validate(
             labels = batch["labels"].to(device)
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                out = model(
-                    input_ids=input_ids, attention_mask=attention_mask, labels=labels
-                )
+                out = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
             total_loss += out.loss.detach()
             n_batches += 1
@@ -79,16 +77,13 @@ def train(
     model = build_ep_model(config, ep_group, device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    logger.info(
-        f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
-    )
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     if is_main_process():
         for mod in model.modules():
             if isinstance(mod, ExpertParallelMLP):
                 logger.info(
-                    f"Expert parallel: {mod.num_experts_global} experts / "
-                    f"{world_size} GPUs = {mod.n_local} per GPU"
+                    f"Expert parallel: {mod.num_experts_global} experts / " f"{world_size} GPUs = {mod.n_local} per GPU"
                 )
                 break
 

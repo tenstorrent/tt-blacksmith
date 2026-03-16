@@ -31,15 +31,11 @@ class GatherTokens(torch.autograd.Function):
         ctx.world_size = dist.get_world_size(group)
 
         local_tokens_t = torch.tensor([x.shape[0]], dtype=torch.int64, device=x.device)
-        gathered_tokens = [
-            torch.zeros_like(local_tokens_t) for _ in range(ctx.world_size)
-        ]
+        gathered_tokens = [torch.zeros_like(local_tokens_t) for _ in range(ctx.world_size)]
         dist.all_gather(gathered_tokens, local_tokens_t, group=group)
         token_counts = [int(tokens.item()) for tokens in gathered_tokens]
         if len(set(token_counts)) != 1:
-            raise RuntimeError(
-                f"GatherTokens requires equal token counts across ranks, got {token_counts}"
-            )
+            raise RuntimeError(f"GatherTokens requires equal token counts across ranks, got {token_counts}")
 
         gathered_x = [torch.empty_like(x) for _ in range(ctx.world_size)]
         dist.all_gather(gathered_x, x.contiguous(), group=group)
@@ -112,8 +108,7 @@ class ExpertParallelMLP(nn.Module):
         self.num_experts_global = orig_exp.num_experts
         self.n_local = self.num_experts_global // self.world_size
         assert self.num_experts_global % self.world_size == 0, (
-            f"num_experts ({self.num_experts_global}) must be divisible "
-            f"by world_size ({self.world_size})"
+            f"num_experts ({self.num_experts_global}) must be divisible " f"by world_size ({self.world_size})"
         )
 
         low_expert = self.rank * self.n_local
@@ -125,12 +120,8 @@ class ExpertParallelMLP(nn.Module):
         # Deinterleave gate and up proj to make backward pass simpler.
         self.gate_proj = nn.Parameter(fused_gate_up_proj[..., ::2].clone().contiguous())
         self.up_proj = nn.Parameter(fused_gate_up_proj[..., 1::2].clone().contiguous())
-        self.gate_proj_bias = nn.Parameter(
-            fused_gate_up_proj_bias[..., ::2].clone().contiguous()
-        )
-        self.up_proj_bias = nn.Parameter(
-            fused_gate_up_proj_bias[..., 1::2].clone().contiguous()
-        )
+        self.gate_proj_bias = nn.Parameter(fused_gate_up_proj_bias[..., ::2].clone().contiguous())
+        self.up_proj_bias = nn.Parameter(fused_gate_up_proj_bias[..., 1::2].clone().contiguous())
         self.down_proj = nn.Parameter(orig_exp.down_proj.data[low_expert:high_expert].clone())
         self.down_proj_bias = nn.Parameter(orig_exp.down_proj_bias.data[low_expert:high_expert].clone())
 
@@ -146,7 +137,6 @@ class ExpertParallelMLP(nn.Module):
             f"experts={self.n_local}/{self.num_experts_global}, "
             f"hidden_size={self.hidden_size})"
         )
-
 
     def _run_local_experts(
         self,
@@ -166,9 +156,7 @@ class ExpertParallelMLP(nn.Module):
             Weighted expert outputs, shape [M, H].
         """
         M, H = hidden_states.shape
-        next_states = torch.zeros(
-            M, H, dtype=hidden_states.dtype, device=hidden_states.device
-        )
+        next_states = torch.zeros(M, H, dtype=hidden_states.dtype, device=hidden_states.device)
         if M == 0:
             return next_states
 
@@ -189,28 +177,19 @@ class ExpertParallelMLP(nn.Module):
             token_idx = sort_idx.narrow(0, start, token_count)
 
             current_state = sorted_hidden_states.narrow(0, start, token_count)
-            gate = current_state @ self.gate_proj.select(
-                0, local_e
-            ) + self.gate_proj_bias.select(0, local_e)
-            up = current_state @ self.up_proj.select(
-                0, local_e
-            ) + self.up_proj_bias.select(0, local_e)
+            gate = current_state @ self.gate_proj.select(0, local_e) + self.gate_proj_bias.select(0, local_e)
+            up = current_state @ self.up_proj.select(0, local_e) + self.up_proj_bias.select(0, local_e)
             gate = gate.clamp(max=self.limit)
             up = up.clamp(-self.limit, self.limit)
             glu = gate * torch.sigmoid(gate * self.alpha)
-            out = ((up + 1) * glu) @ self.down_proj.select(
-                0, local_e
-            ) + self.down_proj_bias.select(0, local_e)
+            out = ((up + 1) * glu) @ self.down_proj.select(0, local_e) + self.down_proj_bias.select(0, local_e)
             next_states.index_add_(
                 0,
                 token_idx,
-                (out * sorted_weights.narrow(0, start, token_count).unsqueeze(1)).to(
-                    hidden_states.dtype
-                ),
+                (out * sorted_weights.narrow(0, start, token_count).unsqueeze(1)).to(hidden_states.dtype),
             )
 
         return next_states
-
 
     def forward(self, hidden_states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         B, S, H = hidden_states.shape
@@ -224,9 +203,7 @@ class ExpertParallelMLP(nn.Module):
 
         router_scores, router_indices = self.router.forward(global_x)
         local_router_scores = router_scores.narrow(0, rank_slice_start, local_tokens)
-        partial_output = torch.zeros(
-            total_tokens, H, dtype=global_x.dtype, device=global_x.device
-        )
+        partial_output = torch.zeros(total_tokens, H, dtype=global_x.dtype, device=global_x.device)
 
         # This rank's experts.
         low_expert = self.rank * self.n_local
@@ -249,9 +226,7 @@ class ExpertParallelMLP(nn.Module):
             partial_output.index_add_(0, local_token_idx, local_out)
 
         reduced_output = AllReduceSum.apply(partial_output, self.ep_group)
-        local_output = reduced_output.narrow(
-            0, rank_slice_start, local_tokens
-        ).contiguous()
+        local_output = reduced_output.narrow(0, rank_slice_start, local_tokens).contiguous()
         return local_output.reshape(B, S, H), local_router_scores
 
 
@@ -272,9 +247,7 @@ def apply_expert_parallel(model: nn.Module, ep_group: dist.ProcessGroup) -> nn.M
         parent = model
         for part in parts[:-1]:
             parent = getattr(parent, part)
-        setattr(
-            parent, parts[-1], ExpertParallelMLP(module, ep_group, module_name=name)
-        )
+        setattr(parent, parts[-1], ExpertParallelMLP(module, ep_group, module_name=name))
     return model
 
 
@@ -302,7 +275,7 @@ def build_ep_model(
     world_size = dist.get_world_size(ep_group)
 
     model_kwargs: dict = {"torch_dtype": dtype, "low_cpu_mem_usage": True}
-    
+
     # Load sequentially so only one full checkpoint lives in CPU RAM at a time.
     # After apply_expert_parallel the full expert tensor is released; after
     # model.to(device) the remaining CPU tensors are freed.
@@ -310,9 +283,7 @@ def build_ep_model(
     for r in range(world_size):
         if rank == r:
             logger.info("Rank %d: loading %s", rank, config.model_name)
-            model = AutoModelForCausalLM.from_pretrained(
-                config.model_name, **model_kwargs
-            )
+            model = AutoModelForCausalLM.from_pretrained(config.model_name, **model_kwargs)
 
             if config.gradient_checkpointing:
                 model.gradient_checkpointing_enable()

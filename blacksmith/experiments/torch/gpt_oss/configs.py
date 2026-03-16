@@ -66,9 +66,7 @@ class TrainingConfig(BaseModel):
     lora_r: int = Field(default=16, ge=1)
     lora_alpha: int = Field(default=32, gt=0)
     lora_dropout: float = Field(default=0.05, ge=0.0)
-    lora_target_modules: list[str] = Field(
-        default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj"]
-    )
+    lora_target_modules: list[str] = Field(default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj"])
     lora_task_type: str = Field(default="CAUSAL_LM")
 
     framework: str = Field(default="pytorch")
