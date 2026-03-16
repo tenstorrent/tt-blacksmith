@@ -1,2 +1,3 @@
 [
+    {"runs-on": "galaxy-wh-6u", "frontend": "xla", "marks": "galaxy and uplift and torch"}
 ]
