@@ -9,7 +9,7 @@ suitable for causal language model fine-tuning.
 """
 from typing import Dict, List
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
@@ -102,6 +102,39 @@ class WikitextDataset(BaseDataset):
             result["labels"].append(input_ids.copy())
 
         return result
+
+    def get_distributed_dataloader(self, rank: int, world_size: int) -> DataLoader:
+        """Create a DataLoader with DistributedSampler for multi-device training.
+
+        Args:
+            rank: Global rank of this process.
+            world_size: Total number of processes.
+
+        Returns:
+            DataLoader with per-rank sharding via DistributedSampler.
+        """
+        data_collator = DataCollatorForLanguageModeling(
+            tokenizer=self.tokenizer,
+            mlm=False,
+            pad_to_multiple_of=8,
+        )
+        sampler = DistributedSampler(
+            self,
+            num_replicas=world_size,
+            rank=rank,
+            shuffle=(self.split == "train"),
+            seed=self.config.seed,
+        )
+        dataloader = DataLoader(
+            self,
+            batch_size=self.config.batch_size,
+            sampler=sampler,
+            collate_fn=data_collator,
+            num_workers=0,
+            pin_memory=True,
+            drop_last=(self.split == "train"),
+        )
+        return self._prepare_test_dataloader(dataloader)
 
     def __getitem__(self, idx: int) -> Dict:
         """Get a single example from the dataset."""
