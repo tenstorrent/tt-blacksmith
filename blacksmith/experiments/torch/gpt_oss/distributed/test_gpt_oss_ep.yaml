@@ -3,12 +3,12 @@ dataset_id: "wikitext"
 
 # Model
 model_name: "openai/gpt-oss-20b"
-max_length: 64
+max_length: 256
 dtype: "torch.bfloat16"
 
 # Training
 training_type: "lora"
-learning_rate: 3e-4
+learning_rate: 2e-4
 weight_decay: 0.1
 batch_size: 1
 gradient_accumulation_steps: 8
@@ -31,9 +31,9 @@ lora_task_type: "CAUSAL_LM"
 log_level: "INFO"
 use_wandb: true
 wandb_project: "gpt-oss-20b-ep"
-wandb_run_name: "gpt-oss-20b-lora-ep-4gpu"
+wandb_run_name: "gpt-oss-20b-lora-ep"
 wandb_tags: ["expert-parallel", "lora", "gpt-oss"]
-steps_freq: 5
+steps_freq: 50
 val_steps_freq: 10
 
 # Checkpointing

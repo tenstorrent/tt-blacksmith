@@ -56,6 +56,9 @@ def validate(
 
             total_loss += out.loss.detach()
             n_batches += 1
+            # Clear up memory.
+            del input_ids, attention_mask, labels, out
+            torch.cuda.empty_cache()
 
     dist.all_reduce(total_loss, op=dist.ReduceOp.SUM, group=ep_group)
     dist.all_reduce(n_batches, op=dist.ReduceOp.SUM, group=ep_group)
@@ -115,8 +118,8 @@ def train(
 
     try:
         model.eval()
-        # val_loss = validate(model, val_loader, device, ep_group, logger)
-        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        val_loss = validate(model, val_loader, device, ep_group, logger)
+        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
         for epoch in range(config.num_epochs):
@@ -153,28 +156,22 @@ def train(
 
                 loss_val = loss.detach() * config.gradient_accumulation_steps
                 dist.all_reduce(loss_val, op=dist.ReduceOp.AVG, group=ep_group)
-                running_loss += loss_val.item()
 
-                if global_step % config.steps_freq == 0:
-                    avg_loss = running_loss / config.steps_freq
-                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
-                    running_loss = 0.0
+                logger.log_metrics({"train/loss": loss_val}, commit=False, step=global_step)
 
-                # if global_step % config.val_steps_freq == 0:
-                #     model.eval()
-                #     val_loss = validate(model, val_loader, device, ep_group, logger)
-                #     logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
-                #     model.train()
+                if global_step % config.val_steps_freq == 0:
+                    model.eval()
+                    val_loss = validate(model, val_loader, device, ep_group, logger)
+                    logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
+                    model.train()
 
-                logger.log_metrics({}, commit=True, step=global_step)
-
-                # if checkpoint_manager.should_save_checkpoint(global_step):
-                #     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
                 dist.barrier()
 
-            # if checkpoint_manager.should_save_checkpoint(global_step, epoch):
-            #     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         final_path = checkpoint_manager.save_checkpoint(
             model, global_step, config.num_epochs - 1, optimizer, checkpoint_name="final_model.pt"
