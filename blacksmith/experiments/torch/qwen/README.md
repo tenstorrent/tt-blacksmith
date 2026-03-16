@@ -1,10 +1,12 @@
 # Qwen with LoRA Experiment
 
 This directory contains the code for the Qwen model with LoRA fine-tuning experiment in TT-XLA.
-Qwen 2.5 0.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-0.5B).
-Qwen 2.5 1.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-1.5B).
-Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
-Qwen 3 8B Base model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B-Base).
+
+- Qwen 2.5 0.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-0.5B).
+- Qwen 2.5 1.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-1.5B).
+- Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
+- Qwen 3 8B Base model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B-Base).
+
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
@@ -43,6 +45,12 @@ Qwen 2.5 0.5B is the default single chip example.
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_finetuning.yaml
 ```
 
+#### Qwen 2.5 0.5B Training Configuration
+
+| Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
+| ------------------ | ---------- | --------------- | ------- | ------ |
+| [Single-Chip](single_chip/test_qwen_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
+
 ### Qwen 2.5 1.5B Training
 
 Qwen 2.5 1.5B supports training on single chip configuration.
@@ -51,6 +59,12 @@ Qwen 2.5 1.5B supports training on single chip configuration.
 ```bash
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml
 ```
+
+#### Qwen 2.5 1.5B Training Configuration
+
+| Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
+| ------------------ | ---------- | --------------- | ------- | ------ |
+| [Single-Chip](single_chip/test_qwen_1-5b_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
 
 ### Qwen 3 4B Instruct 2507 Training
 
@@ -66,6 +80,14 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml
 ```
 Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
+
+#### Qwen 3 4B Instruct 2507 Training Configurations
+
+| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
+| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
+| [Single-Chip](single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml)        | None               | None                                      | SST2    | LoRA   |
+| [N300](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml) | `[1, 4]`           | `["data", "model"]`                       | SST2    | LoRA   |
 
 ## Data
 
