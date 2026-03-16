@@ -38,7 +38,6 @@ def validate(
     logger: TrainingLogger,
 ) -> float:
     logger.info("Starting validation...")
-    model.eval()
 
     total_loss = torch.tensor(0.0, device=device)
     n_batches = torch.tensor(0, device=device)
@@ -64,9 +63,6 @@ def validate(
     dist.all_reduce(n_batches, op=dist.ReduceOp.SUM, group=ep_group)
 
     avg_loss = (total_loss / n_batches).item() if n_batches.item() > 0 else 0.0
-    perplexity = torch.exp(torch.tensor(avg_loss)).item()
-    logger.info(f"Average validation loss: {avg_loss:.4f}  perplexity: {perplexity:.2f}")
-    model.train()
     return avg_loss
 
 

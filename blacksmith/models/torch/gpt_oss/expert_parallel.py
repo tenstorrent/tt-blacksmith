@@ -302,12 +302,7 @@ def build_ep_model(
     world_size = dist.get_world_size(ep_group)
 
     model_kwargs: dict = {"torch_dtype": dtype, "low_cpu_mem_usage": True}
-    if config.num_hidden_layers is not None:
-        hf_config = AutoConfig.from_pretrained(config.model_name)
-        hf_config.num_hidden_layers = config.num_hidden_layers
-        model_kwargs["config"] = hf_config
-        logger.info("Overriding num_hidden_layers=%d", config.num_hidden_layers)
-
+    
     # Load sequentially so only one full checkpoint lives in CPU RAM at a time.
     # After apply_expert_parallel the full expert tensor is released; after
     # model.to(device) the remaining CPU tensors are freed.

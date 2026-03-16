@@ -62,8 +62,7 @@ class TrainingConfig(BaseModel):
     seed: int = Field(default=42)
     deterministic: bool = Field(default=False)
 
-    # LoRA — applied to attention projections only
-    # (expert weights are 3D nn.Parameter tensors, not nn.Linear)
+    # LoRA config
     lora_r: int = Field(default=16, ge=1)
     lora_alpha: int = Field(default=32, gt=0)
     lora_dropout: float = Field(default=0.05, ge=0.0)
@@ -72,10 +71,6 @@ class TrainingConfig(BaseModel):
     )
     lora_task_type: str = Field(default="CAUSAL_LM")
 
-    # Debug / architecture overrides
-    num_hidden_layers: Optional[int] = Field(default=None)
-
-    # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=False)
 
