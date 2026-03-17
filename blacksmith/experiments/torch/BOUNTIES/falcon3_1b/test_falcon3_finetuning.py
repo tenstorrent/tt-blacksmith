@@ -110,7 +110,8 @@ def setup_training(config, device_manager, logger, checkpoint_manager):
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     return (
@@ -221,12 +222,12 @@ if __name__ == "__main__":
     # Logger setup
     logger = TrainingLogger(config)
 
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Device setup
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)

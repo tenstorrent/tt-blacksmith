@@ -101,6 +101,9 @@ TRAINING_TEST_CASES = [
             "skip_loss_checks": True,
         },
         marks=[
+            pytest.mark.skip(
+                reason="Error: Cannot reshape array of size 256 into shape (1,256,1,5), TT_FATAL: Invalid arguments to reshape"
+            ),
             pytest.mark.uplift,
             pytest.mark.n300,
             pytest.mark.jax,

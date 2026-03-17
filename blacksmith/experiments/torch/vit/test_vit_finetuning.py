@@ -103,7 +103,8 @@ def train(
     logger.info(f"Trainable parameters: {trainable_params}, Trainable%: {trainable_params / total_params * 100:.2f}%")
 
     # Initialize the optimizer.
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
     loss_fn = eval(config.loss_fn)(ignore_index=config.ignored_index)
 
     # Load the checkpoint if needed.
@@ -220,12 +221,12 @@ if __name__ == "__main__":
     # Set up the logger.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Set up the checkpoint manager.
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Set up the device manager.
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Set up the checkpoint manager.
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start the training.
     train(config, device_manager, logger, checkpoint_manager)
