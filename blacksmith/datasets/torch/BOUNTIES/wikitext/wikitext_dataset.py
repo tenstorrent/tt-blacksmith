@@ -7,7 +7,6 @@ Wikitext-2 Dataset Implementation for Causal Language Model Training.
 This module provides a dataset wrapper for the Wikitext-2 dataset,
 suitable for causal language model fine-tuning.
 """
-from random import shuffle
 from typing import Dict, List
 
 from torch.utils.data import DataLoader, DistributedSampler
