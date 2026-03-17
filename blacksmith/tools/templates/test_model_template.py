@@ -156,9 +156,6 @@ if __name__ == "__main__":
     # Logger setup
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Device setup
     if config.use_tt:
         xr.runtime.set_device_type("TT")
@@ -166,6 +163,9 @@ if __name__ == "__main__":
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device)
 
     # Start training
     train(config, device, logger, checkpoint_manager)

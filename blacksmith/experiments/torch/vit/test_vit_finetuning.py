@@ -221,12 +221,12 @@ if __name__ == "__main__":
     # Set up the logger.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Set up the checkpoint manager.
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Set up the device manager.
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Set up the checkpoint manager.
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start the training.
     train(config, device_manager, logger, checkpoint_manager)

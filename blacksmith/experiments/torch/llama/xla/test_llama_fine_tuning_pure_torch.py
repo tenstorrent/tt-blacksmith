@@ -254,9 +254,6 @@ if __name__ == "__main__":
     # Logger setup.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Device setup
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
@@ -266,6 +263,9 @@ if __name__ == "__main__":
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
         torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start training.
     train(config, device_manager, logger, checkpoint_manager)

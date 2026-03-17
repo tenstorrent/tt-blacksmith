@@ -185,12 +185,12 @@ if __name__ == "__main__":
     # Logger setup
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Setup device manager
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Compile options
     options = {
