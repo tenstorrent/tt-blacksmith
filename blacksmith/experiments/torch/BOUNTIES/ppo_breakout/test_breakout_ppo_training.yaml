@@ -1,0 +1,58 @@
+# Environment settings
+num_envs: 8
+frame_stack: 4
+frame_skip: 4
+
+# Training hyperparameters
+total_timesteps: 10_000_000
+learning_rate: 2.5e-4
+anneal_lr: True
+
+# PPO hyperparameters
+num_steps: 128
+gamma: 0.99
+gae_lambda: 0.95
+num_minibatches: 4
+update_epochs: 4
+clip_coef: 0.1
+norm_adv: True
+clip_vloss: True
+ent_coef: 0.01
+vf_coef: 0.5
+max_grad_norm: 0.5
+
+# Logging settings
+log_level: "INFO"
+log_interval: 1
+use_wandb: True
+wandb_project: "ALE-Breakout-PPO"
+wandb_run_name: "tt-breakout-ppo"
+wandb_tags: ["ppo", "atari", "breakout"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "charts/avg_return"
+checkpoint_metric_mode: "max"
+keep_last_n: 3
+keep_best_n: 3
+save_strategy: "step"
+save_interval: 50
+project_dir: "blacksmith/experiments/torch/BOUNTIES/ppo_breakout"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 1
+deterministic: True
+
+# Other settings
+framework: "pytorch"
+use_tt: False
