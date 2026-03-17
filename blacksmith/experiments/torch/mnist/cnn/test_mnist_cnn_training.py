@@ -78,7 +78,8 @@ def train(
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     # Optimizer and loss function
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.SGD(trainable_params, lr=config.learning_rate)
     loss_fn = eval(config.loss_fn)()
 
     # Datasets
