@@ -14,9 +14,10 @@ from blacksmith.tools.storage_backends import StorageBackend
 
 
 class CheckpointManager:
-    def __init__(self, config: TrainingConfig, logger: TrainingLogger):
+    def __init__(self, config: TrainingConfig, logger: TrainingLogger, device: Optional[torch.device] = None):
         self.config = config
         self.logger = logger
+        self.device = device
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -192,7 +193,7 @@ class CheckpointManager:
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
 
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
