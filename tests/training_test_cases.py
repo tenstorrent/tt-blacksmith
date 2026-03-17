@@ -126,8 +126,8 @@ TRAINING_TEST_CASES = [
             id=f"tt-llama_3_2_1b-sst2-n150-{i}",
         ) for i, test_config in enumerate([
             "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
-            "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340_epoch0_20260310_204212.yaml",
-            "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680_epoch0_20260311_072626.yaml",
+            "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340.yaml",
+            "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680.yaml",
         ])
     ],
     pytest.param(
