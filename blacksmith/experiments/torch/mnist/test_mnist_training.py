@@ -192,5 +192,11 @@ if __name__ == "__main__":
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
 
+    options = {
+        "export_path": f"tests/models/{args.test_log_filename_prefix}",
+        "export_tensors": False,
+    }
+    torch_xla.set_custom_compile_options(options)
+
     # Start training
     train(config, device_manager, logger, checkpoint_manager)

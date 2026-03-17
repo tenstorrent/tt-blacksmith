@@ -10,6 +10,8 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py",
             "experiment_config": "blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training_tp.yaml",
             "timeout": 300,
+            "number_of_ttirs": 18,
+            "mesh_shape": "1x2",
         },
         marks=[
             pytest.mark.push,
@@ -24,6 +26,8 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py",
             "experiment_config": "blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training_dp.yaml",
             "timeout": 300,
+            "number_of_ttirs": 4,
+            "mesh_shape": "1x2",
         },
         marks=[
             pytest.mark.push,
@@ -38,6 +42,8 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/mnist/test_mnist_training.py",
             "experiment_config": "blacksmith/experiments/torch/mnist/test_mnist_training.yaml",
             "timeout": 300,
+            "number_of_ttirs": 3,
+            "mesh_shape": "1x1",
         },
         marks=[
             pytest.mark.push,
@@ -116,6 +122,7 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
+            "number_of_ttirs": 49,
         },
         marks=[
             pytest.mark.uplift,
