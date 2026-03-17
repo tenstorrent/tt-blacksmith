@@ -127,11 +127,13 @@ TRAINING_TEST_CASES = [
                 pytest.mark.split_0,
             ],
             id=f"tt-llama_3_2_1b-sst2-n150-{i}",
-        ) for i, test_config in enumerate([
-            "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
-            "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340.yaml",
-            "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680.yaml",
-        ])
+        ) for i, test_config in enumerate(
+            [
+                "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
+                "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340.yaml",
+                "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680.yaml",
+            ]
+        )
     ],
     pytest.param(
         {
