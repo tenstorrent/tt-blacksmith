@@ -47,7 +47,7 @@ That file contains the tested hyperparameters for the current GPU run.
 | `max_length` | Token block length for training samples. | `64` |
 | `dtype` | Compute dtype used during training. | `"torch.bfloat16"` |
 | `training_type` | Fine-tuning strategy. | `"lora"` |
-| `learning_rate` | Optimizer learning rate. | `3e-4` |
+| `learning_rate` | Optimizer learning rate. | `2e-4` |
 | `weight_decay` | AdamW weight decay. | `0.1` |
 | `batch_size` | Per-rank batch size. | `1` |
 | `gradient_accumulation_steps` | Gradient accumulation steps before optimizer update. | `8` |

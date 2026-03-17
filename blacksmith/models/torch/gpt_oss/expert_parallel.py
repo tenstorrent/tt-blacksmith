@@ -7,8 +7,9 @@ import torch
 import torch.distributed as dist
 import torch.nn as nn
 from peft import LoraConfig, TaskType, get_peft_model
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssMLP
+from transformers.tokenization_utils import PreTrainedTokenizer
 
 from blacksmith.experiments.torch.gpt_oss.configs import TrainingConfig
 
@@ -104,9 +105,10 @@ class ExpertParallelMLP(nn.Module):
         orig_exp = original_mlp.experts
         self.num_experts_global = orig_exp.num_experts
         self.n_local = self.num_experts_global // self.world_size
-        assert self.num_experts_global % self.world_size == 0, (
-            f"num_experts ({self.num_experts_global}) must be divisible " f"by world_size ({self.world_size})"
-        )
+        if self.num_experts_global % self.world_size != 0:
+            raise ValueError(
+                f"num_experts ({self.num_experts_global}) must be divisible by world_size ({self.world_size})"
+            )
 
         low_expert = self.rank * self.n_local
         high_expert = low_expert + self.n_local
@@ -252,7 +254,7 @@ def build_ep_model(
     config: TrainingConfig,
     ep_group: dist.ProcessGroup,
     device: torch.device,
-) -> nn.Module:
+) -> tuple[nn.Module, PreTrainedTokenizer]:
     """Load GPT OSS, apply Expert Parallelism and LoRA, move to device.
 
     Loads one rank at a time to avoid exhausting host RAM: each rank loads
@@ -280,6 +282,7 @@ def build_ep_model(
     for r in range(world_size):
         if rank == r:
             model = AutoModelForCausalLM.from_pretrained(config.model_name, **model_kwargs)
+            tokenizer = AutoTokenizer.from_pretrained(config.model_name)
 
             if config.gradient_checkpointing:
                 model.gradient_checkpointing_enable()
@@ -308,7 +311,10 @@ def build_ep_model(
 
         dist.barrier(group=ep_group)
 
-    return model
+    if model is None:
+        raise RuntimeError(f"Rank {rank} failed to load model (not in range(world_size={world_size}))")
+
+    return model, tokenizer
 
 
 _EXPERT_PARAM_NAMES = {

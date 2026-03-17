@@ -13,7 +13,9 @@ def setup_distributed() -> tuple[int, int, torch.device]:
     Returns:
         Tuple of (global rank, local rank, CUDA device for this rank).
     """
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    if "LOCAL_RANK" not in os.environ:
+        raise RuntimeError("LOCAL_RANK not set. Launch with torchrun or set LOCAL_RANK manually.")
+    local_rank = int(os.environ["LOCAL_RANK"])
     device = torch.device(f"cuda:{local_rank}")
     torch.cuda.set_device(device)
     dist.init_process_group(backend="nccl", device_id=device)

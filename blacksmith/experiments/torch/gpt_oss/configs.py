@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Optional
+from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
@@ -26,8 +26,6 @@ class TrainingConfig(BaseModel):
     weight_decay: float = Field(default=0.1, ge=0)
     num_epochs: int = Field(default=1, gt=0)
     max_grad_norm: float = Field(default=1.0, gt=0)
-    optim: str = Field(default="adamw_torch")
-    ignored_index: int = Field(default=-100)
 
     # Logging settings
     log_level: str = Field(default="INFO")
@@ -67,9 +65,9 @@ class TrainingConfig(BaseModel):
     lora_alpha: int = Field(default=32, gt=0)
     lora_dropout: float = Field(default=0.05, ge=0.0)
     lora_target_modules: list[str] = Field(default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj"])
-    lora_task_type: str = Field(default="CAUSAL_LM")
-
+    ignored_index: int = Field(default=-100)
+    print_examples: bool = Field(default=False)
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=False)
 
-    test_config: Optional[TestConfig] = Field(default=None)
+    test_config: TestConfig | None = Field(default=None)

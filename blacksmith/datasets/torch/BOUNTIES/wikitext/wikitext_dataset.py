@@ -7,6 +7,7 @@ Wikitext-2 Dataset Implementation for Causal Language Model Training.
 This module provides a dataset wrapper for the Wikitext-2 dataset,
 suitable for causal language model fine-tuning.
 """
+from random import shuffle
 from typing import Dict, List
 
 from torch.utils.data import DataLoader, DistributedSampler
@@ -28,7 +29,16 @@ class WikitextDataset(BaseDataset):
     for training LLMs with LoRA.
     """
 
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(
+        self,
+        config: TrainingConfig,
+        split: str = "train",
+        collate_fn=None,
+        rank: int | None = None,
+        world_size: int | None = None,
+    ):
+        self._rank = rank
+        self._world_size = world_size
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
 
         if self.tokenizer.pad_token is None:
@@ -103,39 +113,6 @@ class WikitextDataset(BaseDataset):
 
         return result
 
-    def get_distributed_dataloader(self, rank: int, world_size: int) -> DataLoader:
-        """Create a DataLoader with DistributedSampler for multi-device training.
-
-        Args:
-            rank: Global rank of this process.
-            world_size: Total number of processes.
-
-        Returns:
-            DataLoader with per-rank sharding via DistributedSampler.
-        """
-        data_collator = DataCollatorForLanguageModeling(
-            tokenizer=self.tokenizer,
-            mlm=False,
-            pad_to_multiple_of=8,
-        )
-        sampler = DistributedSampler(
-            self,
-            num_replicas=world_size,
-            rank=rank,
-            shuffle=(self.split == "train"),
-            seed=self.config.seed,
-        )
-        dataloader = DataLoader(
-            self,
-            batch_size=self.config.batch_size,
-            sampler=sampler,
-            collate_fn=data_collator,
-            num_workers=0,
-            pin_memory=True,
-            drop_last=(self.split == "train"),
-        )
-        return self._prepare_test_dataloader(dataloader)
-
     def __getitem__(self, idx: int) -> Dict:
         """Get a single example from the dataset."""
         sample = self.dataset[idx]
@@ -149,7 +126,11 @@ class WikitextDataset(BaseDataset):
         }
 
     def _get_dataloader(self) -> DataLoader:
-        """Create and return a DataLoader for this dataset."""
+        """Create and return a DataLoader for this dataset.
+
+        When rank and world_size were provided at construction time, a
+        DistributedSampler is used instead of simple shuffling.
+        """
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer,
             mlm=False,  # We're doing causal LM, not masked LM
@@ -166,11 +147,29 @@ class WikitextDataset(BaseDataset):
         else:
             collate_function = data_collator
 
-        batch_size = self.config.batch_size
+        is_distributed = self._rank is not None and self._world_size is not None
+
+        if is_distributed:
+            sampler = DistributedSampler(
+                self,
+                num_replicas=self._world_size,
+                rank=self._rank,
+                shuffle=(self.split == "train"),
+                seed=self.config.seed,
+            )
+            return DataLoader(
+                self,
+                batch_size=self.config.batch_size,
+                sampler=sampler,
+                collate_fn=collate_function,
+                num_workers=0,
+                pin_memory=True,
+                drop_last=(self.split == "train"),
+            )
 
         return DataLoader(
             self,
-            batch_size=batch_size,
+            batch_size=self.config.batch_size,
             collate_fn=collate_function,
             shuffle=(self.split == "train"),
             drop_last=(self.split == "train"),
