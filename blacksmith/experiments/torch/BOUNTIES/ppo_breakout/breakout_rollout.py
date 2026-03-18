@@ -8,7 +8,7 @@ from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.configs import TrainingC
 
 class RolloutBuffer:
     # Stores transitions collected during a rollout and computes GAE
-    
+
     def __init__(self, config: TrainingConfig, obs_shape: tuple, device: torch.device):
         self.config = config
         self.pos = 0
