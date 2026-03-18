@@ -12,7 +12,9 @@ import torch
 
 gym.register_envs(ale_py)
 
-from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import RolloutBuffer
+from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import (
+    RolloutBuffer,
+)
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.configs import TrainingConfig
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.model import BreakoutCNN
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -20,7 +22,6 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-
 
 # ---------------------------------------------------------------------------
 # Environment wrappers
@@ -82,17 +83,19 @@ def make_env(env_id: str, idx: int, seed: int, config: TrainingConfig):
         env = gym.wrappers.RecordEpisodeStatistics(env)  # Track episode return and length for logging
         env = gym.wrappers.AtariPreprocessing(
             env,
-            noop_max=30,                     # Random no-ops on reset to add stochasticity to starting states
-            frame_skip=config.frame_skip,    # Repeat each action for N frames, max-pooling last 2 to avoid flickering
-            screen_size=84,                  # Downscale to 84x84 to reduce input dimensionality
-            terminal_on_life_loss=False,     # Handled by EpisodicLifeEnv wrapper instead
-            grayscale_obs=True,              # Convert RGB to single channel, reducing input size by 3x
-            scale_obs=False,                 # Keep uint8 pixels; the model normalizes via PIXEL_SCALE
+            noop_max=30,  # Random no-ops on reset to add stochasticity to starting states
+            frame_skip=config.frame_skip,  # Repeat each action for N frames, max-pooling last 2 to avoid flickering
+            screen_size=84,  # Downscale to 84x84 to reduce input dimensionality
+            terminal_on_life_loss=False,  # Handled by EpisodicLifeEnv wrapper instead
+            grayscale_obs=True,  # Convert RGB to single channel, reducing input size by 3x
+            scale_obs=False,  # Keep uint8 pixels; the model normalizes via PIXEL_SCALE
         )
         env = EpisodicLifeEnv(env)
         env = FireResetEnv(env)
         env = ClipRewardEnv(env)
-        env = gym.wrappers.FrameStackObservation(env, config.frame_stack)  # Stack N consecutive frames to give the agent temporal context
+        env = gym.wrappers.FrameStackObservation(
+            env, config.frame_stack
+        )  # Stack N consecutive frames to give the agent temporal context
         env.action_space.seed(seed + idx)
         env.observation_space.seed(seed + idx)
         return env
