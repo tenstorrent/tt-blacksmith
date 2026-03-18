@@ -193,7 +193,7 @@ class CheckpointManager:
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device if "cuda" in self.device.type else "cpu")
 
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
