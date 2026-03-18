@@ -242,11 +242,9 @@ def apply_expert_parallel(model: nn.Module, ep_group: dist.ProcessGroup) -> nn.M
     for name, module in model.named_modules():
         if not isinstance(module, GptOssMLP):
             continue
-        parts = name.split(".")
-        parent = model
-        for part in parts[:-1]:
-            parent = getattr(parent, part)
-        setattr(parent, parts[-1], ExpertParallelMLP(module, ep_group, module_name=name))
+        parent_name, child_name = name.rsplit(".", 1) if "." in name else ("", name)
+        parent = model.get_submodule(parent_name) if parent_name else model
+        setattr(parent, child_name, ExpertParallelMLP(module, ep_group, module_name=name))
     return model
 
 

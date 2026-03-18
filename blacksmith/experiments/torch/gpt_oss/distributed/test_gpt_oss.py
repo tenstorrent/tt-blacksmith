@@ -142,6 +142,7 @@ def train(
             for batch in tqdm(train_loader, desc=f"Epoch {epoch + 1}"):
                 if accumulation_step == 0:
                     optimizer.zero_grad()
+                    accumulated_loss = torch.tensor(0.0, device=device)
 
                 input_ids = batch["input_ids"].to(device)
                 attention_mask = batch["attention_mask"].to(device)
@@ -155,6 +156,7 @@ def train(
                     loss = out.loss / config.gradient_accumulation_steps
 
                 loss.backward()
+                accumulated_loss += loss.detach()
                 accumulation_step += 1
 
                 if accumulation_step < config.gradient_accumulation_steps:
@@ -168,10 +170,9 @@ def train(
                 torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
                 optimizer.step()
 
-                loss_val = loss.detach() * config.gradient_accumulation_steps
-                dist.all_reduce(loss_val, op=dist.ReduceOp.AVG, group=ep_group)
+                dist.all_reduce(accumulated_loss, op=dist.ReduceOp.AVG, group=ep_group)
 
-                logger.log_metrics({"train/loss": loss_val}, commit=False, step=global_step)
+                logger.log_metrics({"train/loss": accumulated_loss}, commit=False, step=global_step)
 
                 if global_step % config.val_steps_freq == 0:
                     model.eval()
