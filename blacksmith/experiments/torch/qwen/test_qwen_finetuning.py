@@ -100,7 +100,8 @@ def train(
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
 
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
@@ -215,12 +216,12 @@ if __name__ == "__main__":
     # Logger setup.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Checkpoint manager setup.
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Device setup.
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Checkpoint manager setup.
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start training.
     train(config, device_manager, logger, checkpoint_manager)

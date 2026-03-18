@@ -71,7 +71,8 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     # Init training components (optimizer, lr scheduler, etc.)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
 
     global_step = 0
     running_loss = 0.0
@@ -155,9 +156,6 @@ if __name__ == "__main__":
     # Logger setup
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Device setup
     if config.use_tt:
         xr.runtime.set_device_type("TT")
@@ -165,6 +163,9 @@ if __name__ == "__main__":
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device)
 
     # Start training
     train(config, device, logger, checkpoint_manager)

@@ -14,9 +14,10 @@ from blacksmith.tools.storage_backends import StorageBackend
 
 
 class CheckpointManager:
-    def __init__(self, config: TrainingConfig, logger: TrainingLogger):
+    def __init__(self, config: TrainingConfig, logger: TrainingLogger, device: Optional[torch.device] = None):
         self.config = config
         self.logger = logger
+        self.device = device
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -89,10 +90,13 @@ class CheckpointManager:
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
+        state_dict = model.state_dict()
+        state_dict = {name: param for name, param in state_dict.items() if param.requires_grad}
+
         checkpoint_data = {
             "step": step,
             "epoch": epoch,
-            "model_state_dict": model.state_dict(),
+            "model_state_dict": state_dict,
             "metrics": metrics,
             "timestamp": datetime.now().isoformat(),
         }
@@ -189,9 +193,9 @@ class CheckpointManager:
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location=self.device)
 
-        model.load_state_dict(checkpoint["model_state_dict"])
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
