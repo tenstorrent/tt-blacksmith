@@ -34,17 +34,13 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/wikitext)
 
 ## Configuration
 
-The experiment is configured with
-`blacksmith/experiments/torch/gpt_oss/distributed/test_gpt_oss_ep.yaml`.
-That file contains the tested hyperparameters for the current GPU run.
-
 ### Configuration Parameters
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
 | `dataset_id` | Dataset used for training. | `"wikitext"` |
 | `model_name` | Hugging Face model identifier. | `"openai/gpt-oss-20b"` |
-| `max_length` | Token block length for training samples. | `64` |
+| `max_length` | Token block length for training samples. | `256` |
 | `dtype` | Compute dtype used during training. | `"torch.bfloat16"` |
 | `training_type` | Fine-tuning strategy. | `"lora"` |
 | `learning_rate` | Optimizer learning rate. | `2e-4` |
@@ -61,8 +57,8 @@ That file contains the tested hyperparameters for the current GPU run.
 | `log_level` | Python logging verbosity. | `"INFO"` |
 | `use_wandb` | Enables Weights & Biases logging. | `true` |
 | `wandb_project` | Weights & Biases project name. | `"gpt-oss-20b-ep"` |
-| `wandb_run_name` | Weights & Biases run name. | `"gpt-oss-20b-lora-ep-4gpu"` |
-| `steps_freq` | Frequency of training metric logging in optimizer steps. | `5` |
+| `wandb_run_name` | Weights & Biases run name. | `"gpt-oss-20b-lora-ep"` |
+| `steps_freq` | Frequency of training metric logging in optimizer steps. | `50` |
 | `val_steps_freq` | Frequency of validation in optimizer steps. | `10` |
 | `resume_from_checkpoint` | Resume training from an existing checkpoint. | `false` |
 | `save_strategy` | Checkpoint save cadence. | `"step"` |

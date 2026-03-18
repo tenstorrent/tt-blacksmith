@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from __future__ import annotations
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -14,15 +14,15 @@ class TrainingConfig(BaseModel):
 
     # Model settings
     model_name: str = Field(default="openai/gpt-oss-20b")
-    max_length: int = Field(default=512, gt=0)
+    max_length: int = Field(default=256, gt=0)
     dtype: str = Field(default="torch.bfloat16")
 
     # Training hyperparameters
     training_type: str = Field(default="lora")
-    learning_rate: float = Field(default=3e-4, gt=0)
+    learning_rate: float = Field(default=2e-4, gt=0)
     batch_size: int = Field(default=1, gt=0)
     gradient_accumulation_steps: int = Field(default=8, gt=0)
-    gradient_checkpointing: bool = Field(default=True)
+    gradient_checkpointing: bool = Field(default=False)
     weight_decay: float = Field(default=0.1, ge=0)
     num_epochs: int = Field(default=1, gt=0)
     max_grad_norm: float = Field(default=1.0, gt=0)
@@ -31,13 +31,13 @@ class TrainingConfig(BaseModel):
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=False)
     wandb_project: str = Field(default="gpt-oss-20b-ep")
-    wandb_run_name: str = Field(default="gpt-oss-ep-run")
+    wandb_run_name: str = Field(default="gpt-oss-20b-lora-ep")
     wandb_tags: list[str] = Field(default_factory=lambda: ["expert-parallel", "lora", "gpt-oss"])
     wandb_watch_mode: str = Field(default="gradients")
     wandb_log_freq: int = Field(default=100)
     model_to_wandb: bool = Field(default=False)
-    steps_freq: int = Field(default=10)
-    val_steps_freq: int = Field(default=100)
+    steps_freq: int = Field(default=50)
+    val_steps_freq: int = Field(default=10)
     epoch_freq: int = Field(default=1)
 
     # Checkpoint settings
@@ -70,4 +70,4 @@ class TrainingConfig(BaseModel):
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=False)
 
-    test_config: TestConfig | None = Field(default=None)
+    test_config: Optional[TestConfig] = Field(default=None)

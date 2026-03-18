@@ -289,6 +289,9 @@ def build_ep_model(
 
             model = apply_expert_parallel(model, ep_group)
 
+            for param in model.parameters():
+                param.requires_grad_(False)
+
             lora_cfg = LoraConfig(
                 r=config.lora_r,
                 lora_alpha=config.lora_alpha,
@@ -298,13 +301,6 @@ def build_ep_model(
                 bias="none",
             )
             model = get_peft_model(model, lora_cfg)
-
-            # Freeze everything except LoRA adapters. get_peft_model freezes
-            # the base HF layers but ExpertParallelMLP params are raw
-            # nn.Parameters outside PEFT's view, so freeze explicitly.
-            for name, param in model.named_parameters():
-                if "lora_" not in name:
-                    param.requires_grad_(False)
 
             model.to(device)
             gc.collect()
