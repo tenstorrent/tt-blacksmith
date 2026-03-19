@@ -49,8 +49,8 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "llama8b-multichip-lora-quietbox"
-wandb_run_name: "tt-llama8b-test"
+wandb_project: "llama70b-multichip-lora-quietbox"
+wandb_run_name: "tt-llama70b-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
