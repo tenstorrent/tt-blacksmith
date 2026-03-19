@@ -78,7 +78,8 @@ def train(
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     # Optimizer and loss function
-    optimizer = torch.optim.SGD(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.SGD(trainable_params, lr=config.learning_rate)
     loss_fn = eval(config.loss_fn)()
 
     # Datasets
@@ -186,11 +187,13 @@ if __name__ == "__main__":
 
     # Logging + checkpoints
     logger = TrainingLogger(config, args.test_log_filename_prefix)
-    checkpoint_manager = CheckpointManager(config, logger)
 
     # Device setup
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)

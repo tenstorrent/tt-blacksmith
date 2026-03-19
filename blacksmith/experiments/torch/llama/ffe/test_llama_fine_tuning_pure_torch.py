@@ -172,7 +172,8 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
             framework_model, sample_inputs, optimizer=tt_optimizer, training=True, compiler_cfg=compiler_cfg
         )
     else:
-        torch_optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+        trainable_params = [p for p in model.parameters() if p.requires_grad]
+        torch_optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
         device = torch.device("cuda")
         model.to(device)
 
