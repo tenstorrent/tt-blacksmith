@@ -73,11 +73,11 @@ optimizer = optax.chain(
 )
 opt_state = optimizer.init(params)
 
-#print(f"Moving weights to tt hardware...")
-#params = jax.device_put(params, tt_device)
-#cache = jax.device_put(cache, tt_device)
+print(f"Moving weights to tt hardware...")
+params = jax.device_put(params, tt_device)
+cache = jax.device_put(cache, tt_device)
 
-@partial(jax.jit, backend='cpu')
+@partial(jax.jit, backend='tt')
 def compute_grads_tt(params, cache, x, y):
     '''
     We are shifting logits by their maximum value to prevent exp() overflow.
@@ -102,7 +102,7 @@ def compute_grads_tt(params, cache, x, y):
     loss_val, grads = jax.value_and_grad(loss_fn)(params)
     return loss_val, grads
 
-@partial(jax.jit, backend='cpu')
+@partial(jax.jit, backend='tt')
 def eval_step(params, cache, x, y):
     vars = {'params': params['params'], **cache}
     logits = model.apply(vars, x, deterministic=True)
@@ -120,8 +120,8 @@ def eval_step(params, cache, x, y):
 
 out_dir = 'output'
 os.makedirs(out_dir, exist_ok=True)
-log_file_path = os.path.join(out_dir, 'nanogpt-shakespeare-tt-10.77M-cpu-log.csv')
-plot_file_path = os.path.join(out_dir, 'nanogpt-shakespeare-tt-10.77M-cpu-loss_plot.png')
+log_file_path = os.path.join(out_dir, f'test-logs.csv')
+plot_file_path = os.path.join(out_dir, 'test-plot.png')
 
 # Logging containers.
 iter_nums = []
@@ -142,7 +142,7 @@ with open(log_file_path, mode='w', newline='') as f:
     for iter in range(max_iters):
         
         # Fetch Batch
-        xb, yb = get_batch('train', train_data, val_data, config.block_size, batch_size, cpu_device) 
+        xb, yb = get_batch('train', train_data, val_data, config.block_size, batch_size, tt_device) 
         
         # Compute Gradients (Iter 0 will pause here for ~18s to compile)
         loss, grads = compute_grads_tt(params, cache, xb, yb)
@@ -165,7 +165,7 @@ with open(log_file_path, mode='w', newline='') as f:
             
         # Strict FP32 Push to TT Device
         params = jax.tree_util.tree_map(
-            lambda x: jax.device_put(x.astype(jnp.float32), cpu_device), 
+            lambda x: jax.device_put(x.astype(jnp.float32), tt_device), 
             new_params_cpu
         )
         
@@ -176,7 +176,7 @@ with open(log_file_path, mode='w', newline='') as f:
         if iter % eval_interval == 0 or iter == max_iters - 1:
             v_losses = []
             for i in range(eval_iters):
-                xb_val, yb_val = get_batch('val', train_data, val_data, config.block_size, batch_size, cpu_device)
+                xb_val, yb_val = get_batch('val', train_data, val_data, config.block_size, batch_size, tt_device)
                 val_loss_array = eval_step(params, cache, xb_val, yb_val)
                 v_losses.append(float(val_loss_array))
             

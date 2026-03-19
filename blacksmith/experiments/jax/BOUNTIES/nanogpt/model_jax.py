@@ -28,7 +28,7 @@ import jax.numpy as jnp
 import flax.linen as nn
 from flax.core import FrozenDict, freeze, unfreeze
 from flax.traverse_util import flatten_dict, unflatten_dict
-# from transformers import FlaxGPT2LMHeadModel
+from transformers import FlaxGPT2LMHeadModel
 
 @dataclass(frozen=True)
 class GPTConfig:
