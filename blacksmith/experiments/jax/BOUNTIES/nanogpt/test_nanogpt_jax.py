@@ -1,6 +1,3 @@
-import os
-import warnings
-from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from dataclasses import dataclass
 
@@ -14,6 +11,7 @@ from flax.core import freeze, unfreeze
 from model_jax import GPT, GPTConfig
 from dataset import ShakespeareDataset
 
+
 # If tt-blacksmith has a generic TrainingConfig you must use, import it here.
 # Otherwise, we define a structured config specific to NanoGPT.
 @dataclass
@@ -23,7 +21,7 @@ class NanoTrainingConfig:
     block_size: int = 256
     batch_size: int = 64
     learning_rate: float = 3e-4
-    num_epochs: int = 5
+    num_epochs: int = 500
     model_to_wandb: bool = True
 
 DEFAULT_EXPERIMENT_NAME = "NanoGPT-TT-Training"
@@ -214,7 +212,7 @@ def main(config: NanoTrainingConfig) -> None:
                 # Push micro-batch to TT L1 Cache.
                 input_ids = jax.device_put(train_x[batch_idx], current_device)
                 labels = jax.device_put(train_y[batch_idx], current_device)
-
+                
                 # Forward & Backward Pass on TT Device.
                 loss, grads = compute_grads_tt(params, cache, input_ids, labels)
 

@@ -1,13 +1,34 @@
+# MIT License
+
+# Copyright (c) 2022 Andrej Karpathy
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 from typing import Any, Optional, Tuple
 from dataclasses import dataclass
-from functools import partial
 import numpy as np
 import jax
 import jax.numpy as jnp
 import flax.linen as nn
 from flax.core import FrozenDict, freeze, unfreeze
 from flax.traverse_util import flatten_dict, unflatten_dict
-
+# from transformers import FlaxGPT2LMHeadModel
 
 @dataclass(frozen=True)
 class GPTConfig:
@@ -50,7 +71,7 @@ class MatMulEmbed(nn.Module):
         embedding = self.variables['params']['embedding']
         return jnp.dot(query, embedding.T)
 
-class SelfAttention(nn.Module):
+class CausalSelfAttention(nn.Module):
 
     num_heads: int
     dtype: Any = jnp.float32
@@ -109,7 +130,7 @@ class Block(nn.Module):
 
     def setup(self):
         self.ln_1 = nn.LayerNorm(epsilon=1e-4, dtype=self.config.dtype, use_bias=self.config.use_bias)
-        self.attn = SelfAttention(self.config.num_heads,
+        self.attn = CausalSelfAttention(self.config.num_heads,
                                   self.config.dtype,
                                   dropout_rate=self.config.dropout_rate)
         self.ln_2 = nn.LayerNorm(epsilon=1e-4, dtype=self.config.dtype, use_bias=self.config.use_bias)
@@ -219,15 +240,14 @@ def get_pretrained_params(model_type: str) -> Tuple[GPTConfig, FrozenDict]:
     returns config and pretrained parameters from huggingface gpt models 
     """
     assert model_type in ('gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl')
-    # only dropout can be overridden see more notes below
-    from transformers import FlaxGPT2LMHeadModel
+    # Only dropout can be overridden, see more notes below.
     print("loading weights from pretrained gpt: %s" % model_type)
 
     config = {
         'gpt2':         GPTConfig(num_layers=12, num_heads=12, num_embeds=768),  # 124M params
         'gpt2-medium':  GPTConfig(num_layers=24, num_heads=16, num_embeds=1024), # 350M params
         'gpt2-large':   GPTConfig(num_layers=36, num_heads=20, num_embeds=1280), # 774M params
-        'gpt2-xl':      GPTConfig(num_layers=48, num_heads=25, num_embeds=1600), # 1558M params
+        'gpt2-xl':      GPTConfig(num_layers=48, num_heads=25, num_embeds=1600), # 1.558B params
     }[model_type]
 
     model_hf = FlaxGPT2LMHeadModel.from_pretrained(model_type)

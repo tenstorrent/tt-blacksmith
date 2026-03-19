@@ -1,14 +1,34 @@
+# coding=utf-8
+# Copyright 2020 The TensorFlow Datasets Authors and the HuggingFace Datasets Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Lint as: python3
 import numpy as np
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 
 class ShakespeareDataset:
     def __init__(self):
 
         # 1. Download dataset.
-        print("Loading tiny_shakespeare from Hugging Face...")
-        ds = load_dataset("text", data_files={"train": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"})
+        print("Loading `tiny_shakespeare` from Hugging Face...")
+        try:
+            ds = load_dataset("karpathy/tiny_shakespeare", split="train")
+        except:
+            ds = load_dataset("text", data_files={"train": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"})
         
         # 2. Merge data.
+        # Please consider that we do not account for unknown tokens.
         full_text = "".join(ds['train']['text'])
             
         # 3. Build Vocabulary.
@@ -21,12 +41,12 @@ class ShakespeareDataset:
         print(f"Tokenizing {len(full_text):,} characters...")
         full_ids = np.array([self.stoi[c] for c in full_text], dtype=np.uint32)
         
-        # 5. Split 90/10 (Karpathy Standard).
+        # 5. Split by Karpathy standard.
         split_idx = int(len(full_ids) * 0.9)
         self.train_data = full_ids[:split_idx]
         self.val_data = full_ids[split_idx:]
         
-        print(f"Ready. Vocab size: {self.vocab_size}")
+        print(f"Vocab size: {self.vocab_size}")
         print(f"Train tokens: {len(self.train_data):,}")
         print(f"Val tokens:   {len(self.val_data):,}")
 

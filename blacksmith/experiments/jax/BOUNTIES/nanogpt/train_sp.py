@@ -20,23 +20,22 @@ except:
     tt_device = jax.devices('cpu')[0]
 cpu_device = jax.devices('cpu')[0]
 
-dataset = ShakespeareDataset(tt_device)
+dataset = ShakespeareDataset()
 train_data = dataset.get_data('train')
 val_data = dataset.get_data('val')
 
-def get_batch(split):
-    # Slice using pure NumPy on the CPU. It is instantaneous.
-    data = train_data if split == 'train' else val_data
-    ix = np.random.randint(0, len(data) - config.block_size, (batch_size,))
-    
-    x_stack = np.stack([data[i:i+config.block_size] for i in ix])
-    y_stack = np.stack([data[i+1:i+1+config.block_size] for i in ix])
-    
-    x_dev = jax.device_put(jnp.array(x_stack, dtype=jnp.uint32), tt_device)
-    y_dev = jax.device_put(jnp.array(y_stack, dtype=jnp.uint32), tt_device)
-    return x_dev, y_dev
-    # return jnp.array(x_stack, dtype=jnp.uint32), jnp.array(y_stack, dtype=jnp.uint32)
+def get_batch(split, train, val, block_size, batch_size, device):
 
+    data = train if split == 'train' else val
+    ix = np.random.randint(0, len(data) - block_size, (batch_size,))
+    
+    x_stack = np.stack([data[i:i+block_size] for i in ix])
+    y_stack = np.stack([data[i+1:i+1+block_size] for i in ix])
+    
+    x_dev = jax.device_put(jnp.array(x_stack, dtype=jnp.uint32), device)
+    y_dev = jax.device_put(jnp.array(y_stack, dtype=jnp.uint32), device)
+    return x_dev, y_dev
+    
 
 # Setting up configuration and hyper parameters.
 config = GPTConfig(
@@ -60,7 +59,7 @@ model = GPT(config)
 key = jax.random.PRNGKey(1337)
 key, init_key = jax.random.split(key)
 
-# Init on CPU to be safe.
+# Initialization on CPU is suffitient.
 with jax.default_device(cpu_device):
     variables = model.init(init_key)
 
@@ -74,26 +73,27 @@ optimizer = optax.chain(
 )
 opt_state = optimizer.init(params)
 
-print(f"Moving weights to tt hardware...")
-params = jax.device_put(params, tt_device)
-cache = jax.device_put(cache, tt_device)
-# opt_state = jax.device_put(opt_state, tt_device)
+#print(f"Moving weights to tt hardware...")
+#params = jax.device_put(params, tt_device)
+#cache = jax.device_put(cache, tt_device)
 
-@partial(jax.jit, backend='tt')
+@partial(jax.jit, backend='cpu')
 def compute_grads_tt(params, cache, x, y):
+    '''
+    We are shifting logits by their maximum value to prevent exp() overflow.
+    After that we can compute log probabilities safely which results in standard cross entropy.
+    Doing `jax.nn.one_hot` with manual softmax because scatter/gather are still not supported on tt-hardware.
+    '''
     def loss_fn(p):
         vars = {'params': p['params'], **cache}
         logits = model.apply(vars, x, deterministic=True)
         
-        # Shifting logits by their maximum value to prevent exp() overflow.
         logits_max = jnp.max(logits, axis=-1, keepdims=True)
         shifted_logits = logits - jax.lax.stop_gradient(logits_max)
-        
-        # Computing log probabilities safely.
+           
         log_normalizers = jnp.log(jnp.sum(jnp.exp(shifted_logits), axis=-1, keepdims=True))
         log_probs = shifted_logits - log_normalizers
         
-        # This is now standard cross entropy.
         vocab_size = logits.shape[-1]
         one_hot = jax.nn.one_hot(y, vocab_size)
         loss = -jnp.sum(one_hot * log_probs, axis=-1)
@@ -102,7 +102,7 @@ def compute_grads_tt(params, cache, x, y):
     loss_val, grads = jax.value_and_grad(loss_fn)(params)
     return loss_val, grads
 
-@partial(jax.jit, backend='tt')
+@partial(jax.jit, backend='cpu')
 def eval_step(params, cache, x, y):
     vars = {'params': params['params'], **cache}
     logits = model.apply(vars, x, deterministic=True)
@@ -120,8 +120,8 @@ def eval_step(params, cache, x, y):
 
 out_dir = 'output'
 os.makedirs(out_dir, exist_ok=True)
-log_file_path = os.path.join(out_dir, 'log.csv')
-plot_file_path = os.path.join(out_dir, 'loss_plot.png')
+log_file_path = os.path.join(out_dir, 'nanogpt-shakespeare-tt-10.77M-cpu-log.csv')
+plot_file_path = os.path.join(out_dir, 'nanogpt-shakespeare-tt-10.77M-cpu-loss_plot.png')
 
 # Logging containers.
 iter_nums = []
@@ -140,56 +140,49 @@ with open(log_file_path, mode='w', newline='') as f:
     writer.writerow(['step', 'train_loss', 'val_loss', 'time_sec'])
 
     for iter in range(max_iters):
-        print(f"\n--- DEBUG: Starting Iteration {iter} ---")
         
-        # 1. Fetch Batch
-        xb, yb = get_batch('train') 
-        print("DEBUG: 1. Batch pushed.")
-    
-        # 2. Compute Gradients (Iter 0 will pause here for ~18s to compile)
+        # Fetch Batch
+        xb, yb = get_batch('train', train_data, val_data, config.block_size, batch_size, cpu_device) 
+        
+        # Compute Gradients (Iter 0 will pause here for ~18s to compile)
         loss, grads = compute_grads_tt(params, cache, xb, yb)
-        # _ = loss.block_until_ready()
-        print("DEBUG: 2. compute_grads_tt completed.")
-    
-        # 3. CPU Optimizer Step
+        
+        # Perform optimizer step on CPU because of tt-metal #27072 (pow/exp accuracy).
+        # Move grads/params to CPU, compute Adam update, then move updated params back to TT.
+        # See: https://github.com/tenstorrent/tt-metal/issues/27072
         with jax.default_device(cpu_device):
             grads_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), grads)
             params_cpu = jax.tree_util.tree_map(lambda x: jax.device_put(x, cpu_device), params)
             
+            # Debugging check if instability in tt comipler (e. g. pow and mul) caused
+            # overflow or underflow resulting NaNs.
             first_grad_leaf = jax.tree_util.tree_leaves(grads_cpu)[0]
             if np.isnan(np.array(first_grad_leaf)).any() or np.isinf(np.array(first_grad_leaf)).any():
                 raise ValueError(f"CRITICAL FAILURE: Gradients corrupted (NaN/Inf) at Iteration {iter}. Hardware saved from hanging.")
             
             updates, opt_state = optimizer.update(grads_cpu, opt_state, params_cpu)
             new_params_cpu = optax.apply_updates(params_cpu, updates)
-            print("DEBUG: 3. CPU math completed.")
-    
-        # 4. Strict FP32 Push to TT Device
-        # .astype(jnp.float32) is critical here to prevent silent FP64 recompilation hangs
+            
+        # Strict FP32 Push to TT Device
         params = jax.tree_util.tree_map(
-            lambda x: jax.device_put(x.astype(jnp.float32), tt_device), 
+            lambda x: jax.device_put(x.astype(jnp.float32), cpu_device), 
             new_params_cpu
         )
-        # _ = jax.tree_util.tree_leaves(params)[0].block_until_ready()
-        print("DEBUG: 4. Strict FP32 params pushed back to TT.")
         
         iter_nums.append(iter)
         train_loss_sync = float(loss)
         train_losses.append(train_loss_sync)
         
         if iter % eval_interval == 0 or iter == max_iters - 1:
-            print("DEBUG: 5. Entering Eval Block (Iter 0 will compile here)")
             v_losses = []
             for i in range(eval_iters):
-                xb_val, yb_val = get_batch('val')
+                xb_val, yb_val = get_batch('val', train_data, val_data, config.block_size, batch_size, cpu_device)
                 val_loss_array = eval_step(params, cache, xb_val, yb_val)
-                # _ = val_loss_array.block_until_ready()
                 v_losses.append(float(val_loss_array))
             
             val_loss_sync = sum(v_losses) / len(v_losses)
             val_iters.append(iter)
             val_losses.append(val_loss_sync)
-            print("DEBUG: 6. Eval completed.")
         
             dt = time.time() - start_time
             print(f"Step {iter:4d}: Train Loss {train_loss_sync:.4f} | Val Loss {val_loss_sync:.4f} | Time {dt:.2f}s")
