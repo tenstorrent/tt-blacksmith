@@ -174,10 +174,10 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_70b-sst2-n300-galaxy.yaml",
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.skip("Llama 3.1 70B is currently running for too long."),
             pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
