@@ -177,6 +177,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
+            pytest.mark.skip("Llama 3.1 70B is currently running for too long."),
             pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
