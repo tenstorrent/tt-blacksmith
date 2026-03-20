@@ -3,13 +3,13 @@ dataset_id: "sst2"
 
 # Model settings
 model_name: "Qwen/Qwen3-8B-Base"
-max_length: 512
+max_length: 256
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
 training_type: "lora"
 learning_rate: 2e-4
-batch_size: 1
+batch_size: 8
 gradient_accumulation_steps: 1
 gradient_checkpointing: False
 num_epochs: 1
@@ -19,7 +19,7 @@ optim: "adamw_torch"
 log_level: "INFO"
 use_wandb: True
 wandb_project: "qwen3-8B-base-multichip-lora-galaxy"
-wandb_run_name: "tt-qwen3-8B-base-test_512_1"
+wandb_run_name: "tt-qwen3-8B-base-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
@@ -76,4 +76,3 @@ lora_task_type: "CAUSAL_LM"
 # Other settings
 framework: "pytorch"
 use_tt: True
-do_validation: False

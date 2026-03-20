@@ -89,6 +89,22 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 | [N300](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 | [Blackhole QuietBox](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml) | `[1, 4]`           | `["data", "model"]`                       | SST2    | LoRA   |
 
+### Qwen 3 8B Base Training
+
+Qwen 3 8B Base requires multi-chip configurations (not supported on single chip).
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/galaxy/test_qwen_3_8b_base_finetuning.yaml
+```
+
+#### Qwen 3 8B Base Training Configurations
+
+| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
+| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
+| [Wormhole Galaxy](galaxy/test_qwen_3_8b_base_finetuning.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+
+
 ## Data
 
 
@@ -159,6 +175,5 @@ Example
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
-| `do_validation`               | Whether to run validation during training.             | True                                |
 | `mesh_shape`                  | Mesh shape for distributed training.                   | None                                |
 | `mesh_axis_names`             | Axis names for the mesh.                               | None
