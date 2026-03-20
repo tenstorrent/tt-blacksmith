@@ -73,9 +73,9 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 | [Blackhole QuietBox](quietbox/test_llama_3_2_1b.yaml) | `[1, 4]`                     | `["data", "model"]`                      | SST2    | LoRA   |
 | [Galaxy](galaxy/test_llama_3_2_1b.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
-### Llama 3B Training
+### Llama 3.2 3B Training
 
-**Llama 3B requires multi-chip configurations (not supported on single chip).**
+**Llama 3.2 3B requires multi-chip configurations (not supported on single chip).**
 
 **QuietBox Training:**
 ```bash
@@ -88,9 +88,9 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 | ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
 | [Blackhole QuietBox](quietbox/test_llama_3_2_3b.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
 
-### Llama 8B Training
+### Llama 3.1 8B Training
 
-**Llama 8B requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
+**Llama 3.1 8B requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
 
 **QuietBox Training:**
 ```bash
@@ -101,7 +101,7 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama3_1_8b.yaml
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b.yaml
 ```
 
 #### Llama 3.1 8B Training Configurations
@@ -112,29 +112,28 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 | [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
 | [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
 | [Blackhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Galaxy](galaxy/test_llama3_1_8b.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Galaxy](galaxy/test_llama_3_1_8b.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
-### Llama 70B Training
+### Llama 3.1 70B Training
 
-**Llama 70B requires multi-chip configurations (not supported on single chip) and must be sharded across both dimensions.**
+**Llama 3.1 70B requires multi-chip configurations (not supported on single chip) and must be sharded across both dimensions.**
 
 **LoudBox Training:**
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/test_llama_3_1_70b.yaml
 ```
 
-*Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
-
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama3_1_70b.yaml
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b.yaml
+```
 
 #### Llama 3.1 70B Training Configurations
 
 | Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
 | [Blackhole LoudBox](loudbox/test_llama_3_1_70b.yaml) | `[2, 4]`   | `["model", "batch"]`| SST2    | LoRA   |
-| [Galaxy](galaxy/test_llama3_1_70b.yaml) | `[4, 8]`   | `["model", "batch"]` | SST2    | LoRA   |
+| [Galaxy](galaxy/test_llama_3_1_70b.yaml) | `[4, 8]`   | `["model", "batch"]` | SST2    | LoRA   |
 
 
 ## Data
