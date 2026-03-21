@@ -1,6 +1,6 @@
 # NanoGPT Training (JAX)
 
-This directory contains the JAX implementation of the NanoGPT model, trained from scratch on the Tiny Shakespeare dataset. 
+This directory contains the JAX implementation of the NanoGPT model, trained from scratch on the Tiny Shakespeare dataset.
 The original PyTorch NanoGPT repository by Andrej Karpathy can be found [here](https://github.com/karpathy/nanoGPT).
 
 ## Overview
@@ -28,7 +28,7 @@ python3 blacksmith/experiments/jax/BOUNTIES/nanogpt/train_sp.py
 
 ## Data
 
-The Tiny Shakespeare dataset contains approximately 1 million characters of Shakespearean text. The task is character-level (or sub-word level) causal language modeling—predicting the next token given the previous context. 
+The Tiny Shakespeare dataset contains approximately 1 million characters of Shakespearean text. The task is character-level (or sub-word level) causal language modeling—predicting the next token given the previous context.
 
 Because the legacy `karpathy/tiny_shakespeare` execution script is deprecated, the dataset is loaded securely via Hugging Face's raw `text` builder.
 
