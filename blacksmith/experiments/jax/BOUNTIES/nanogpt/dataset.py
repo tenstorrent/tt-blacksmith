@@ -15,17 +15,16 @@
 
 # Lint as: python3
 import numpy as np
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
 
 class ShakespeareDataset:
     def __init__(self):
 
         # 1. Download dataset.
         print("Loading `tiny_shakespeare` from Hugging Face...")
-        try:
-            ds = load_dataset("karpathy/tiny_shakespeare", split="train")
-        except:
-            ds = load_dataset("text", data_files={"train": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"})
+        # Latest update from datasets forbids loading from alias like "karpathy/tiny_shakespeare"
+        # because of the potential security breaches, instead it's required to use raw URL.
+        ds = load_dataset("text", data_files={"train": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"})
         
         # 2. Merge data.
         # Please consider that we do not account for unknown tokens.

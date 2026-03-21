@@ -141,10 +141,10 @@ with open(log_file_path, mode='w', newline='') as f:
 
     for iter in range(max_iters):
         
-        # Fetch Batch
+        # Fetch Batch.
         xb, yb = get_batch('train', train_data, val_data, config.block_size, batch_size, tt_device) 
         
-        # Compute Gradients (Iter 0 will pause here for ~18s to compile)
+        # Compute Gradients.
         loss, grads = compute_grads_tt(params, cache, xb, yb)
         
         # Perform optimizer step on CPU because of tt-metal #27072 (pow/exp accuracy).
@@ -163,7 +163,7 @@ with open(log_file_path, mode='w', newline='') as f:
             updates, opt_state = optimizer.update(grads_cpu, opt_state, params_cpu)
             new_params_cpu = optax.apply_updates(params_cpu, updates)
             
-        # Strict FP32 Push to TT Device
+        # Strict FP32 Push to TT Device.
         params = jax.tree_util.tree_map(
             lambda x: jax.device_put(x.astype(jnp.float32), tt_device), 
             new_params_cpu
@@ -175,7 +175,7 @@ with open(log_file_path, mode='w', newline='') as f:
         
         if iter % eval_interval == 0 or iter == max_iters - 1:
             v_losses = []
-            for i in range(eval_iters):
+            for _ in range(eval_iters):
                 xb_val, yb_val = get_batch('val', train_data, val_data, config.block_size, batch_size, tt_device)
                 val_loss_array = eval_step(params, cache, xb_val, yb_val)
                 v_losses.append(float(val_loss_array))

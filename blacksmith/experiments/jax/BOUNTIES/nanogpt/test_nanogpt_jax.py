@@ -27,7 +27,7 @@ class NanoTrainingConfig:
 DEFAULT_EXPERIMENT_NAME = "NanoGPT-TT-Training"
 DEFAULT_RUN_NAME = "nanogpt-shakespeare-tt"
 
-WANDB_ENABLED = False
+WANDB_ENABLED = True
 
 def setup_wandb(config: NanoTrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
     """Optionally setup wandb for experiment tracking; returns run or None."""
