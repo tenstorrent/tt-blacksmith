@@ -36,7 +36,7 @@ class DeviceManager:
         self.mesh = self._create_mesh()
         self.data_dimension_used = self._is_mesh_dimension_used("data")
         self.tensor_dimension_used = self._is_mesh_dimension_used("model")
-    
+
     def _is_mesh_dimension_used(self, dimension_name: str) -> bool:
         # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
@@ -87,11 +87,21 @@ class DeviceManager:
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1 and not self.data_dimension_used
+        return (
+            self.mesh is not None
+            and "data" in self.mesh.axis_names
+            and self.mesh.shape()["data"] > 1
+            and not self.data_dimension_used
+        )
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1 and self.tensor_dimension_used
+        return (
+            self.mesh is not None
+            and "model" in self.mesh.axis_names
+            and self.mesh.shape()["model"] > 1
+            and self.tensor_dimension_used
+        )
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
