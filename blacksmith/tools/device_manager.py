@@ -36,7 +36,7 @@ class DeviceManager:
         self.mesh = self._create_mesh()
         self.data_dimension_used = self._is_mesh_dimension_used("data")
         self.tensor_dimension_used = self._is_mesh_dimension_used("model")
-    
+
     def _is_mesh_dimension_used(self, dimension_name: str) -> bool:
         # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
