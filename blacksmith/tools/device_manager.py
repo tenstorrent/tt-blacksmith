@@ -34,6 +34,21 @@ class DeviceManager:
         self.device = torch_xla.device()
 
         self.mesh = self._create_mesh()
+        self.data_dimension_used = self._is_mesh_dimension_used("data")
+        self.tensor_dimension_used = self._is_mesh_dimension_used("model")
+    
+    def _is_mesh_dimension_used(self, dimension_name: str) -> bool:
+        # Get sharding patterns from config (list of [pattern, spec] pairs).
+        sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
+        if sharding_patterns is None:
+            return False
+
+        for pattern_spec in sharding_patterns:
+            pattern = pattern_spec[0]
+            if re.search(pattern, dimension_name):
+                return True
+
+        return False
 
     def _setup_tt_environment(self):
         # Setup for single device.
@@ -54,6 +69,8 @@ class DeviceManager:
             return None
 
         assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
+        assert "data" in self.config.mesh_axis_names, "Data axis name must be provided for multichip parallelism."
+        assert "model" in self.config.mesh_axis_names, "Model axis name must be provided for multichip parallelism."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
@@ -70,11 +87,11 @@ class DeviceManager:
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1
+        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1 and not self.data_dimension_used
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1
+        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1 and self.tensor_dimension_used
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
