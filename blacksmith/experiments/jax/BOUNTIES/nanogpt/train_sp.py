@@ -17,12 +17,12 @@ from model_jax import GPT, GPTConfig
 
 # Defining devices.
 try:
-    tt_device = jax.devices("tt")[0]
-    print(f"Using Tenstorrent Device: {tt_device}")
+    device = jax.devices("tt")[0]
+    print(f"Using Tenstorrent Device: {device}")
 except Exception as e:
     print("Tenstorrent device not found, using CPU.")
     print(f"Error: {e}")
-    tt_device = jax.devices("cpu")[0]
+    device = jax.devices("cpu")[0]
 cpu_device = jax.devices("cpu")[0]
 
 dataset = ShakespeareDataset()
@@ -77,8 +77,8 @@ optimizer = optax.chain(optax.clip_by_global_norm(1.0), optax.adamw(learning_rat
 opt_state = optimizer.init(params)
 
 print("Moving weights to tt hardware...")
-params = jax.device_put(params, tt_device)
-cache = jax.device_put(cache, tt_device)
+params = jax.device_put(params, device)
+cache = jax.device_put(cache, device)
 
 
 @partial(jax.jit, backend="tt")
@@ -148,7 +148,7 @@ with open(log_file_path, mode="w", newline="") as f:
     for iter in range(max_iters):
 
         # Fetch Batch.
-        xb, yb = get_batch("train", train_data, val_data, config.block_size, batch_size, tt_device)
+        xb, yb = get_batch("train", train_data, val_data, config.block_size, batch_size, device)
 
         # Compute Gradients.
         loss, grads = compute_grads_tt(params, cache, xb, yb)
@@ -172,7 +172,7 @@ with open(log_file_path, mode="w", newline="") as f:
             new_params_cpu = optax.apply_updates(params_cpu, updates)
 
         # Strict FP32 Push to TT Device.
-        params = jax.tree_util.tree_map(lambda x: jax.device_put(x.astype(jnp.float32), tt_device), new_params_cpu)
+        params = jax.tree_util.tree_map(lambda x: jax.device_put(x.astype(jnp.float32), device), new_params_cpu)
 
         iter_nums.append(iter)
         train_loss_sync = float(loss)
@@ -181,7 +181,7 @@ with open(log_file_path, mode="w", newline="") as f:
         if iter % eval_interval == 0 or iter == max_iters - 1:
             v_losses = []
             for _ in range(eval_iters):
-                xb_val, yb_val = get_batch("val", train_data, val_data, config.block_size, batch_size, tt_device)
+                xb_val, yb_val = get_batch("val", train_data, val_data, config.block_size, batch_size, device)
                 val_loss_array = eval_step(params, cache, xb_val, yb_val)
                 v_losses.append(float(val_loss_array))
 
