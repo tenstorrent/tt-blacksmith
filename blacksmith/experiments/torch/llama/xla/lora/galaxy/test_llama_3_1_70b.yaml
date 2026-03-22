@@ -27,7 +27,7 @@ mesh_axis_names: ["model", "batch"]
 # TODO(mmilosevic): Rework sharding dimensions (https://github.com/tenstorrent/tt-blacksmith/issues/497)
 model_sharding_patterns:
   - ['\.model\.embed_tokens\.weight$', [null, "batch"]]
-  - ['\.lm_head\.weight$', [null, "batch"]]
+  - ['\.lm_head\.weight$', ["model", "batch"]]
   - ['\.model\.norm\.weight$', ["batch"]]
   # === Attention ===
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", "batch"]]
