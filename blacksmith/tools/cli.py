@@ -9,7 +9,12 @@ import yaml
 from pydantic import BaseModel
 
 
-def generate_config(config: BaseModel, yaml_path: Path, test_yaml_path: Optional[Path] = None, test_checkpoint_path: Optional[str] = None) -> BaseModel:
+def generate_config(
+    config: BaseModel,
+    yaml_path: Path,
+    test_yaml_path: Optional[Path] = None,
+    test_checkpoint_path: Optional[str] = None,
+) -> BaseModel:
     assert yaml_path.exists(), f"Config file {yaml_path} does not exist"
     with yaml_path.open() as file:
         config_data = yaml.safe_load(file)
