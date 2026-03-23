@@ -21,7 +21,7 @@ lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Device settings
-dp_dim: None
+input_shard_dim: None
 mesh_shape: [1, 4]  # Blackhole QuietBox mesh.
 mesh_axis_names: ["batch", "model"]
 

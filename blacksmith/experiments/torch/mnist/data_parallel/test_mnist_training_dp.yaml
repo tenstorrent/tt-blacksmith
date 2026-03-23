@@ -51,7 +51,7 @@ load_from_storage: false
 remote_path: ""
 
 # Device settings - Data Parallel with 2 devices
-dp_dim: "batch"
+input_shard_dim: "batch"
 mesh_shape: [1, 2]  # [model, batch]
 mesh_axis_names: ["model", "batch"]
 

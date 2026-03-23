@@ -50,7 +50,7 @@ seed: 23
 deterministic: False
 
 # Device settings
-dp_dim: None
+input_shard_dim: None
 mesh_shape: [1, 4]
 mesh_axis_names: ["batch", "model"]
 

@@ -56,8 +56,8 @@ class DeviceManager:
         # Check if mesh configuration is valid.
         assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
         assert (
-            self.config.dp_dim is None or self.config.dp_dim in self.config.mesh_axis_names
-        ), "`dp_dim` must be None or it should be present in `mesh_axis_names`."
+            self.config.input_shard_dim is None or self.config.input_shard_dim in self.config.mesh_axis_names
+        ), "`input_shard_dim` must be None or it should be present in `mesh_axis_names`."
         if self.config.model_sharding_patterns is not None:
             for pattern_spec in self.config.model_sharding_patterns:
                 dimensions = pattern_spec[1]
@@ -82,15 +82,16 @@ class DeviceManager:
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        if self.config.dp_dim is None:
-            return False
 
-        # While creating the mesh, we already checked that the `dp_dim` is present in the mesh axis names.
-        return self.mesh.shape()[self.config.dp_dim] > 1
+        return (
+            self.config.input_shard_dim is not None
+            and self.mesh is not None
+            and self.mesh.shape()[self.config.input_shard_dim] > 1
+        )
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.config.model_sharding_patterns is not None
+        return self.config.model_sharding_patterns is not None and self.mesh is not None
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
@@ -134,7 +135,7 @@ class DeviceManager:
         if self.is_data_parallel():
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
-                    partition_spec = (self.config.dp_dim,) + tuple([None] * (tensor.dim() - 1))
+                    partition_spec = (self.config.input_shard_dim,) + tuple([None] * (tensor.dim() - 1))
                     xs.mark_sharding(tensor, self.mesh, partition_spec)
 
         return batch

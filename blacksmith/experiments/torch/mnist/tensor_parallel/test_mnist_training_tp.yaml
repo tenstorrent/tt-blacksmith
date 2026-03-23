@@ -51,7 +51,7 @@ load_from_storage: false
 remote_path: ""
 
 # Device settings - Tensor Parallel with 2 devices
-dp_dim: None
+input_shard_dim: None
 mesh_shape: [1, 2]  # [batch, model]
 mesh_axis_names: ["batch", "model"]
 
