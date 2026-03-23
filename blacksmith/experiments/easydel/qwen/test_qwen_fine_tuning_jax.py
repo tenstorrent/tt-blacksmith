@@ -24,7 +24,6 @@ from transformers import AutoTokenizer
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
 
-MODEL_NAME = "Qwen/Qwen3-0.6B"
 DEFAULT_EXPERIMENT_NAME = "Qwen-TT-EasyDel-LoRA-Training"
 DEFAULT_RUN_NAME = "qwen3-0.6b-wikitext-tt-easydel"
 
@@ -430,5 +429,5 @@ def main(training_config: TrainingConfig) -> None:
 if __name__ == "__main__":
     default_config = Path(__file__).parent / "test_qwen_fine_tuning_jax.yaml"
     args = parse_cli_options(default_config=default_config)
-    training_config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    training_config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
     main(training_config)
