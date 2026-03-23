@@ -19,12 +19,13 @@ The experiment supports different hardware configurations with per-model trainin
 
 ### Mesh and Sharding Configuration
 
-Mesh configurations define the parallelism strategy. The `mesh_axis_names` can be either `["data", "model"]` or `["model", "data"]` depending on which dimension corresponds to which type of parallelism.
+Mesh configurations define the parallelism strategy. `dp_dim` defines if we are doing data parallel strategy, while `model_sharding_patterns` define how we shard model weights.
 
 Example mesh configuration in YAML:
 ```yaml
+dp_dim: "batch"
 mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
-mesh_axis_names: ["data", "model"]
+mesh_axis_names: ["batch", "model"]
 
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]

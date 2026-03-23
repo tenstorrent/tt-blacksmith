@@ -51,8 +51,9 @@ load_from_storage: false
 remote_path: ""
 
 # Device settings - Tensor Parallel with 2 devices
-mesh_shape: [1, 2]  # [data, model]
-mesh_axis_names: ["data", "model"]
+dp_dim: None
+mesh_shape: [1, 2]  # [batch, model]
+mesh_axis_names: ["batch", "model"]
 
 # Model sharding patterns using regex (matches module names from model.named_modules())
 model_sharding_patterns:

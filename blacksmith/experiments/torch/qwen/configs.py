@@ -68,6 +68,7 @@ class TrainingConfig(BaseModel):
     lora_task_type: str = Field(default="CAUSAL_LM")
 
     # Device settings
+    dp_dim: Optional[str] = Field(default=None)  # If defined, we will shard inputs along this mesh axis dimension.
     mesh_shape: Optional[List[int]] = Field(default=None)  # Note that currently only 2D meshes are supported.
     mesh_axis_names: Optional[List[str]] = Field(default=None)  # e.g., ["data", "model"]
 
