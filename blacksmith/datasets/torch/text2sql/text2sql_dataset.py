@@ -27,13 +27,14 @@ class TextToSQLDataset(BaseDataset):
         """
         Args:
             config: Training configuration
-            split: Dataset split to use ("train", "test")
+            split: Dataset split to use ("train", "validation")
+                   Note: "validation" is mapped to "test" since this dataset only has "train"/"test" splits.
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
-        self.split = split
+        self.split = "test" if split == "validation" else split
         self.collate_fn = collate_fn
 
         self._prepare_dataset()
