@@ -1,9 +1,11 @@
 # Llama with LoRA Experiment in TT-XLA
 
 This directory contains the code for the Llama with LoRA fine-tuning experiment in TT-XLA.
-Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
-Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
-Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
+
+- Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
+- Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
+- Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
+
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
@@ -53,18 +55,22 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_1b.yaml
 ```
-Working mesh shapes for Wormhole QuietBox: `[1, 8]`, `[8, 1]`, `[2, 4]` (both `mesh_axis_names` orderings supported)
-
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 **Galaxy Training:**
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml
 ```
-Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
 
-**N300 Training:**
-Working mesh shapes: `[1, 2]`, `[2, 1]` (both `mesh_axis_names` orderings supported)
+#### Llama 3.2 1B Training Configurations
+
+| Architecture       | mesh_shape                   | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------------------------- | ---------------------------------------- | ------- | ------ |
+| [Single-Chip](single_chip/test_llama_3_2_1b_alpaca.yaml) | None                         | None                                     | Alpaca  | LoRA   |
+| [Single-Chip](single_chip/test_llama_3_2_1b_sst2.yaml) | None                         | None                                     | SST2    | LoRA   |
+| [N300](quietbox/test_llama_3_2_1b.yaml) | `[1, 2]`, `[2, 1]`           | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/test_llama_3_2_1b.yaml) | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/test_llama_3_2_1b.yaml) | `[1, 4]`                     | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/test_llama_3_2_1b.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
 ### Llama 3B Training
 
@@ -74,7 +80,12 @@ Working mesh shapes: `[1, 2]`, `[2, 1]` (both `mesh_axis_names` orderings suppor
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_3b.yaml
 ```
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
+
+#### Llama 3.2 3B Training Configuration
+
+| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
+| ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
+| [Blackhole QuietBox](quietbox/test_llama_3_2_3b.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
 
 ### Llama 8B Training
 
@@ -84,9 +95,6 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml
 ```
-Working mesh shapes for Wormhole QuietBox: `[1, 8]` (data, model), `[8, 1]` (model, data), `[2, 4]` (data, model)
-
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 *Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
 
@@ -94,7 +102,16 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama3_1_8b.yaml
 ```
-Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
+
+#### Llama 3.1 8B Training Configurations
+
+| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/test_llama3_1_8b.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
 ## Data
 

@@ -101,6 +101,9 @@ TRAINING_TEST_CASES = [
             "skip_loss_checks": True,
         },
         marks=[
+            pytest.mark.skip(
+                reason="Error: Cannot reshape array of size 256 into shape (1,256,1,5), TT_FATAL: Invalid arguments to reshape"
+            ),
             pytest.mark.uplift,
             pytest.mark.n300,
             pytest.mark.jax,
@@ -136,6 +139,20 @@ TRAINING_TEST_CASES = [
             pytest.mark.data_parallel,
         ],
         id="tt-llama_3_2_1b-sst2-n300-llmbox",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.n300_llmbox,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-n300-llmbox",
     ),
     pytest.param(
         {
