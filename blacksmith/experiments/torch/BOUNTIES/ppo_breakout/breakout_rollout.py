@@ -13,8 +13,8 @@ class RolloutBuffer:
         self.config = config
         self.pos = 0
 
-        self.obs = torch.zeros((config.num_steps, config.num_envs, *obs_shape), dtype=torch.uint8, device=device)
-        self.actions = torch.zeros((config.num_steps, config.num_envs), dtype=torch.long, device=device)
+        self.obs = torch.zeros((config.num_steps, config.num_envs, *obs_shape), dtype=torch.float32, device=device)
+        self.actions = torch.zeros((config.num_steps, config.num_envs), dtype=torch.int32, device=device)
         self.log_probs = torch.zeros((config.num_steps, config.num_envs), device=device)
         self.rewards = torch.zeros((config.num_steps, config.num_envs), device=device)
         self.dones = torch.zeros((config.num_steps, config.num_envs), device=device)

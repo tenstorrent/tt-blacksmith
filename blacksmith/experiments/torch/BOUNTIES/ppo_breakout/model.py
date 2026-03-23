@@ -20,8 +20,6 @@ class BreakoutCNN(nn.Module):
     #   Conv2d(3, stride=1): ( 9 - 3) / 1 + 1 = 7
     # So the final feature map is 64 * 7 * 7 = 3136.
 
-    PIXEL_SCALE = 255.0
-
     def __init__(self, num_actions: int, frame_stack: int = 4):
         super().__init__()
         self.network = nn.Sequential(
@@ -39,10 +37,10 @@ class BreakoutCNN(nn.Module):
         self.critic = layer_init(nn.Linear(512, 1), std=1.0)
 
     def get_value(self, x: torch.Tensor) -> torch.Tensor:
-        return self.critic(self.network(x / self.PIXEL_SCALE))
+        return self.critic(self.network(x))
 
     def get_action_and_value(self, x: torch.Tensor, action=None):
-        hidden = self.network(x / self.PIXEL_SCALE)
+        hidden = self.network(x)
         logits = self.actor(hidden)
         dist = Categorical(logits=logits, validate_args=False)
         if action is None:
