@@ -1,0 +1,60 @@
+# Dataset settings
+dataset_id: "sst2"
+
+# Model settings
+model_name: "gpt_oss_20b"
+max_length: 128
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+training_type: "lora"
+learning_rate: 1e-4
+batch_size: 2
+num_epochs: 1
+ignored_index: -100
+
+# LoRA setup
+lora_r: 16
+lora_alpha: 32
+lora_start_layer: 12
+
+# Device settings (1×4 mesh: 4 devices × 32 GB)
+mesh_shape: [1, 4]
+mesh_axis_names: ["batch", "model"]
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gpt-oss-20b-singlechip-lora"
+wandb_run_name: "tt-gpt-oss-20b-test"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 5
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 2
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gpt_oss/xla/lora"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other settings
+framework: "pytorch"
+print_examples: False
+use_tt: True
