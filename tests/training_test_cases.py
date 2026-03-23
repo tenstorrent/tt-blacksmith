@@ -116,7 +116,8 @@ TRAINING_TEST_CASES = [
             {
                 "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
                 "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml",
-                "test_config": test_config,
+                "test_config": "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
+                "test_checkpoint_path": test_checkpoint_path,
                 "timeout": 5000,
             },
             marks=[
@@ -128,11 +129,11 @@ TRAINING_TEST_CASES = [
             ],
             id=f"tt-llama_3_2_1b-sst2-n150-{i}",
         )
-        for i, test_config in enumerate(
+        for i, test_checkpoint_path in enumerate(
             [
-                "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
-                "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340.yaml",
-                "tests/configs/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680.yaml",
+                None,
+                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340_epoch0_20260316_183348.pt",
+                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680_epoch0_20260317_050440.pt",
             ]
         )
     ],

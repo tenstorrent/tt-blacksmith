@@ -245,7 +245,7 @@ if __name__ == "__main__":
     # Config setup
     default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
