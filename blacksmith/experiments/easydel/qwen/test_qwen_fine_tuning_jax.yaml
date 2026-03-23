@@ -1,0 +1,24 @@
+# Dataset settings
+dataset_id: "wikitext"
+dataset_configuration: "wikitext-2-raw-v1"
+
+# Model settings
+model_name: "Qwen/Qwen3-0.6B"
+max_length: 128
+dtype: "jnp.bfloat16"
+num_hidden_layers: 28
+
+# Training hyperparameters
+learning_rate: 2e-4
+batch_size: 4
+gradient_accumulation_steps: 1
+num_epochs: 1
+val_steps_freq: 50
+
+# LoRA settings
+lora_rank: 16
+lora_pattern: ".*(q_proj|v_proj).*"
+
+# Other settings
+model_to_wandb: false
+use_tt: true
