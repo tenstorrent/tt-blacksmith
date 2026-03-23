@@ -55,8 +55,8 @@ class DeviceManager:
 
         # Check if mesh configuration is valid.
         assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
-        assert (
-            self.config.input_shard_dim is None or self.config.input_shard_dim in self.config.mesh_axis_names
+        assert (self.config.input_shard_dim is None) or (
+            self.config.input_shard_dim in self.config.mesh_axis_names
         ), "`input_shard_dim` must be None or it should be present in `mesh_axis_names`."
         if self.config.model_sharding_patterns is not None:
             for pattern_spec in self.config.model_sharding_patterns:
