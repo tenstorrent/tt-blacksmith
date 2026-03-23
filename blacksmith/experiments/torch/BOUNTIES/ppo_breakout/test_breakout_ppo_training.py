@@ -10,8 +10,6 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-gym.register_envs(ale_py)
-
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import (
     RolloutBuffer,
 )
@@ -22,6 +20,8 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+
+gym.register_envs(ale_py)
 
 # ---------------------------------------------------------------------------
 # Environment wrappers
@@ -88,7 +88,7 @@ def make_env(env_id: str, idx: int, seed: int, config: TrainingConfig):
             screen_size=84,  # Downscale to 84x84 to reduce input dimensionality
             terminal_on_life_loss=False,  # Handled by EpisodicLifeEnv wrapper instead
             grayscale_obs=True,  # Convert RGB to single channel, reducing input size by 3x
-            scale_obs=False,  # Keep uint8 pixels; the model normalizes via PIXEL_SCALE
+            scale_obs=True,  # Scale pixel values to [0, 1] float range
         )
         env = EpisodicLifeEnv(env)
         env = FireResetEnv(env)
