@@ -17,12 +17,12 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 import wandb
-from datasets import load_dataset
 from flax import nnx
 from transformers import AutoTokenizer
 
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
+from datasets import load_dataset
 
 DEFAULT_EXPERIMENT_NAME = "Qwen-TT-EasyDel-LoRA-Training"
 DEFAULT_RUN_NAME = "qwen3-0.6b-wikitext-tt-easydel"
@@ -184,7 +184,10 @@ def create_train_step_fn(graphdef, call_signature, tx) -> Any:
 
     def train_step(lora_params, frozen_state, opt_state, input_ids, *, train):
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
-            lora_params, frozen_state, input_ids, train=train,
+            lora_params,
+            frozen_state,
+            input_ids,
+            train=train,
         )
         updates, new_opt_state = tx.update(grads, opt_state, lora_params)
         new_lora_params = optax.apply_updates(lora_params, updates)
@@ -318,7 +321,11 @@ def main(training_config: TrainingConfig) -> None:
 
                     t0 = time.perf_counter()
                     loss, lora_params, opt_state = jit_train_step(
-                        lora_params, frozen_state, opt_state, input_ids, train=True,
+                        lora_params,
+                        frozen_state,
+                        opt_state,
+                        input_ids,
+                        train=True,
                     )
                     elapsed = time.perf_counter() - t0
 
