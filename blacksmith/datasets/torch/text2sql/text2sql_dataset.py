@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import logging
 from string import Template
-from typing import Dict
+from typing import Dict, Optional
 
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
+from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
 
@@ -22,23 +22,25 @@ Schema: $context\n\n
 )
 DATASET_PATH = "gretelai/synthetic_text_to_sql"
 
-logger = logging.getLogger(__name__)
-
 
 class TextToSQLDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(
+        self, config: TrainingConfig, split: str = "train", collate_fn=None, logger: Optional[TrainingLogger] = None
+    ):
         """
         Args:
             config: Training configuration
-            split: Dataset split to use ("train", "validation")
-                   Note: "validation" is mapped to "test" since this dataset only has "train"/"test" splits.
+            split: Dataset split to use ("train", "validation", "test")
+                   Note: "validation" is mapped to "test" since this dataset only has train/test splits.
         """
         self.config = config
+        self.logger = logger
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
         if split == "validation":
-            logger.warning("Validation split does not exist for TextToSQLDataset, defaulting to test split.")
+            if self.logger:
+                self.logger.warning("Validation split does not exist for TextToSQLDataset, defaulting to test split.")
             self.split = "test"
         else:
             self.split = split
