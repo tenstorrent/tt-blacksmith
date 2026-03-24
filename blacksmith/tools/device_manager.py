@@ -65,7 +65,7 @@ class DeviceManager:
                     if dimension is not None:
                         assert (
                             dimension in self.config.mesh_axis_names and self.config.mesh_shape()[dimension] > 1
-                        ), f"Dimension {dimension} is not present in `mesh_shape` or it has size 1 for model sharding pattern {pattern_spec}."
+                        ), f"Dimension {dimension} is not present in `mesh_axis_names` or it has size 1 for model sharding pattern {pattern_spec}."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
