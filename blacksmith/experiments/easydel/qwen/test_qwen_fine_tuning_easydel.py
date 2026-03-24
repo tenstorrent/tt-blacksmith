@@ -3,10 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import inspect
-import json
 import logging
 import os
-import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -34,7 +32,7 @@ from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: 
 from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
 from datasets import load_dataset  # noqa: E402
 
-WANDB_ENABLED = False
+WANDB_ENABLED = True
 
 
 def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
@@ -124,7 +122,6 @@ def load_model(
     model_name: str,
     *,
     dtype: Any = jnp.bfloat16,
-    num_hidden_layers: Optional[int] = None,
     max_position_embeddings: Optional[int] = None,
 ) -> Any:
     """Load a causal LM via EasyDel with optional config overrides.
@@ -132,7 +129,6 @@ def load_model(
     Args:
         model_name: HuggingFace model identifier.
         dtype: Data type for model parameters.
-        num_hidden_layers: Override the number of transformer layers.
         max_position_embeddings: Override the default (40960) to avoid
             allocating a huge causal attention mask. Set to your actual
             max_length to save hundreds of MB of DRAM.
@@ -143,8 +139,6 @@ def load_model(
     """
 
     config_overrides = {}
-    if num_hidden_layers is not None:
-        config_overrides["num_hidden_layers"] = num_hidden_layers
     if max_position_embeddings is not None:
         config_overrides["max_position_embeddings"] = max_position_embeddings
 
@@ -155,21 +149,36 @@ def load_model(
     return AutoEasyDeLModelForCausalLM.from_pretrained(model_name, **kwargs)
 
 
-def load_data(training_config: TrainingConfig, split: str = "train") -> np.ndarray:
+def load_tokenizer(model_name: str) -> Any:
+    """Load a HuggingFace tokenizer and ensure it has a pad token.
+
+    Args:
+        model_name: HuggingFace model identifier.
+
+    Returns:
+        The configured tokenizer.
+
+    """
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
+def load_data(
+    training_config: TrainingConfig, tokenizer: Any, split: str = "train"
+) -> np.ndarray:
     """Load, tokenize, and batch a dataset split.
 
     Args:
         training_config: Training configuration with dataset and tokenization settings.
+        tokenizer: Pre-loaded HuggingFace tokenizer.
         split: Dataset split name (e.g. "train", "validation").
 
     Returns:
         Batched numpy array of shape (num_batches, batch_size, seq_length).
 
     """
-    tokenizer = AutoTokenizer.from_pretrained(training_config.model_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
     logger.info(f"Loading dataset {training_config.dataset_id}/{training_config.dataset_configuration} ({split})...")
     ds = load_dataset(training_config.dataset_id, training_config.dataset_configuration, split=split)
     all_text = "\n".join(line for line in ds["text"] if line.strip())
@@ -420,7 +429,7 @@ def _training_loop(
 
 
 def main(training_config: TrainingConfig) -> None:
-    """Run the full LoRA fine-tuning pipeline.
+    """Run full LoRA fine-tuning pipeline.
 
     Args:
         training_config: Training configuration with all hyperparameters.
@@ -435,14 +444,10 @@ def main(training_config: TrainingConfig) -> None:
 
     model = load_model(
         training_config.model_name,
-        num_hidden_layers=training_config.num_hidden_layers,
         max_position_embeddings=training_config.max_length,
     )
 
-    if device_kind == "tt":
-        devices_for_mesh = tuple(jax.devices("tt")[:1])
-    else:
-        devices_for_mesh = tuple(jax.devices("cpu")[:1])
+    devices_for_mesh = tuple(jax.devices(device_kind)[:1])
     mesh = jax.make_mesh((1,), ("X",), devices=devices_for_mesh)
     _set_nnx_model_mesh(model, mesh)
 
@@ -454,10 +459,11 @@ def main(training_config: TrainingConfig) -> None:
 
     setup_wandb(training_config, enable=training_config.model_to_wandb, device=device_kind)
 
-    train_batches = load_data(training_config, split="train")
-    val_batches_np = load_data(training_config, split="validation")
+    tokenizer = load_tokenizer(training_config.model_name)
+    train_batches = load_data(training_config, tokenizer, split="train")
+    val_batches_np = load_data(training_config, tokenizer, split="validation")
 
-    # LoRA init uses `he_uniform`(`jax.random.uniform`) to initialize `lora_a`.
+    # LoRA init uses `he_uniform` (`jax.random.uniform`) to initialize `lora_a`.
     # That RNG op must run on CPU as TT-MLIR cannot compile the StableHLO
     # produced by the monkeypatched `jax.random` path on the TT device.
     logger.info(f"Applying LoRA (rank={training_config.lora_rank}, pattern={training_config.lora_pattern!r})...")
@@ -469,7 +475,7 @@ def main(training_config: TrainingConfig) -> None:
         )
 
     # NNX split: separate LoRA params (trainable) from frozen state.
-    # Only lora_params is passed to jax.value_and_grad.
+    # Only `lora_params` is passed to `jax.value_and_grad`.
     graphdef, lora_params, frozen_state = nnx.split(model, nnx.LoRAParam, ...)
     call_signature = inspect.signature(model.__call__)
 
@@ -518,39 +524,13 @@ def main(training_config: TrainingConfig) -> None:
     logger.info(f"  Steps:      {global_step}")
     logger.info(f"  Final loss: {step_losses[-1]:.4f}")
 
-    metrics = {
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "config": {
-            "model_name": training_config.model_name,
-            "dataset": f"{training_config.dataset_id}/{training_config.dataset_configuration}",
-            "max_length": training_config.max_length,
-            "batch_size": training_config.batch_size,
-            "num_epochs": training_config.num_epochs,
-            "learning_rate": training_config.learning_rate,
-            "lora_rank": training_config.lora_rank,
-            "lora_pattern": training_config.lora_pattern,
-            "optimizer": "adamw",
-            "trainable_params": n_lora,
-            "frozen_params": n_frozen,
-            "device": device_kind,
-        },
-        "results": {
-            "final_loss": step_losses[-1],
-            "step_losses": step_losses,
-        },
-    }
-    metrics_path = Path(__file__).parent / "lora_training_metrics.json"
-    with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
-    logger.info(f"Metrics saved to {metrics_path}")
-
     if WANDB_ENABLED and wandb is not None:
         wandb.finish()
         logger.info("Finished wandb run")
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "test_qwen_fine_tuning_jax.yaml"
+    default_config = Path(__file__).parent / "test_qwen_fine_tuning_easydel.yaml"
     args = parse_cli_options(default_config=default_config)
     training_config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
     main(training_config)
