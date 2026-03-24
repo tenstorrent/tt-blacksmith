@@ -173,6 +173,21 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_70b-sst2-n300-galaxy.yaml",
+            "timeout": 3000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.galaxy,
+            pytest.mark.torch,
+            pytest.mark.tensor_parallel,
+        ],
+        id="tt-llama_3_1_70b-sst2-n300-galaxy",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml",
             "timeout": 3000,
         },

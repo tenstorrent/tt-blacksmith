@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -53,7 +53,20 @@ class DeviceManager:
         if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
             return None
 
+        # Check if mesh configuration is valid.
         assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
+        assert (self.config.input_sharding_dim is None) or (
+            self.config.input_sharding_dim in self.config.mesh_axis_names
+        ), "`input_sharding_dim` must be None or it should be present in `mesh_axis_names`."
+        if self.config.model_sharding_patterns is not None:
+            for pattern_spec in self.config.model_sharding_patterns:
+                dimensions = pattern_spec[1]
+                for dimension in dimensions:
+                    if dimension is not None:
+                        assert (
+                            dimension in self.config.mesh_axis_names
+                            and self.config.mesh_shape[self.config.mesh_axis_names.index(dimension)] > 1
+                        ), f"Dimension {dimension} is not present in `mesh_axis_names` or it has size 1 for model sharding pattern {pattern_spec}."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
@@ -70,11 +83,16 @@ class DeviceManager:
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1
+
+        return (
+            self.config.input_sharding_dim is not None
+            and self.mesh is not None
+            and self.mesh.shape()[self.config.input_sharding_dim] > 1
+        )
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1
+        return self.config.model_sharding_patterns is not None and self.mesh is not None
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
@@ -90,8 +108,7 @@ class DeviceManager:
         """Apply tensor parallelism using regex pattern matching from config."""
 
         # Get sharding patterns from config (list of [pattern, spec] pairs).
-        sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
-        assert sharding_patterns is not None, "model_sharding_patterns must be provided for tensor parallelism"
+        sharding_patterns = self.config.model_sharding_patterns
 
         # Use regex pattern matching on named_modules.
         for name, module in model.named_modules():
@@ -119,7 +136,7 @@ class DeviceManager:
         if self.is_data_parallel():
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
-                    partition_spec = ("data",) + tuple([None] * (tensor.dim() - 1))
+                    partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
                     xs.mark_sharding(tensor, self.mesh, partition_spec)
 
         return batch
