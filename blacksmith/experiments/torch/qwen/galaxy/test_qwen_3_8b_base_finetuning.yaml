@@ -51,7 +51,8 @@ deterministic: False
 
 # Device settings
 mesh_shape: [8, 4]
-mesh_axis_names: ["model", "data"]
+mesh_axis_names: ["model", "batch"]
+input_sharding_dim: "batch"
 
 # Sharding patterns for tensor parallelism (regex pattern -> partition spec)
 model_sharding_patterns:
