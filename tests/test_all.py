@@ -11,6 +11,15 @@ from training_test_cases import TRAINING_TEST_CASES
 
 from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
 
+DEFAULT_SETUP_DICT = {
+    "test_script": None,
+    "experiment_config": None,
+    "test_config": "tests/configs/test_training_fast.yaml",
+    "tolerance": 0.3,
+    "timeout": 800.0,
+    "skip_loss_checks": False,
+}
+
 
 @pytest.fixture
 def config(request):
@@ -28,6 +37,60 @@ def get_log_files(log_filename_prefix: str) -> tuple[Path, Path]:
     val_log_file = Path(f"{log_filename_prefix}_val.csv")
 
     return train_log_file, val_log_file
+
+
+def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
+    assert setup_dict["test_script"] is not None, "`test_script` is required."
+    assert setup_dict["experiment_config"] is not None, "`experiment_config` is required."
+    assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
+    assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
+
+    TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    GOLDEN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+    cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
+    cmd.append("--config")
+    cmd.append(str(setup_dict["experiment_config"]))
+    cmd.append("--test-log-filename-prefix")
+    cmd.append(test_id)
+    return cmd
+
+
+def run_cmd(cmd: list[str], test_id: str, setup_dict: dict):
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(Path.cwd()),
+            timeout=setup_dict["timeout"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if result.returncode != 0:
+            print(f"\n{'='*60}")
+            print(f"FAILED: {test_id}")
+            print(f"Exit code: {result.returncode}")
+            print(f"\nSTDOUT:\n{result.stdout}")
+            print(f"\nSTDERR:\n{result.stderr}")
+            print(f"{'='*60}\n")
+            pytest.fail(f"Training script exited with code {result.returncode}")
+
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
+
+
+def check_losses(train_log_file: Path, val_log_file: Path, setup_dict: dict):
+    assert_loss_with_tolerance(
+        TEST_LOGS_DIR / train_log_file,
+        GOLDEN_LOGS_DIR / train_log_file,
+        tolerance=setup_dict["tolerance"],
+    )
+    assert_loss_with_tolerance(
+        TEST_LOGS_DIR / val_log_file,
+        GOLDEN_LOGS_DIR / val_log_file,
+        tolerance=setup_dict["tolerance"],
+    )
 
 
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
@@ -51,61 +114,15 @@ def test_training_script(
         request: pytest request object.
     """
 
-    default_setup_dict = {
-        "test_script": None,
-        "experiment_config": None,
-        "test_config": "tests/configs/test_training_fast.yaml",
-        "tolerance": 0.3,
-        "timeout": 800.0,
-        "skip_loss_checks": False,
-    }
-
-    setup_dict = default_setup_dict | setup_dict
-
-    assert setup_dict["test_script"] is not None, "`test_script` is required."
-    assert setup_dict["experiment_config"] is not None, "`experiment_config` is required."
-
     test_id = request.node.callspec.id
+    setup_dict = DEFAULT_SETUP_DICT.copy() | setup_dict
+    train_log_file, val_log_file = get_log_files(test_id)
 
-    assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
-    assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
-
-    TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    GOLDEN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
-
-    cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
-    if setup_dict["experiment_config"] is not None:
-        cmd.append("--config")
-        cmd.append(str(setup_dict["experiment_config"]))
-    cmd.append("--test-log-filename-prefix")
-    cmd.append(test_id)
-
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=str(Path.cwd()),
-            timeout=setup_dict["timeout"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if result.returncode != 0:
-            print(f"\n{'='*60}")
-            print(f"FAILED: {test_id}")
-            print(f"Exit code: {result.returncode}")
-            print(f"\nSTDOUT:\n{result.stdout}")
-            print(f"\nSTDERR:\n{result.stderr}")
-            print(f"{'='*60}\n")
-            pytest.fail(f"Training script exited with code {result.returncode}")
-
-    except subprocess.TimeoutExpired:
-        pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
+    cmd = get_cmd(test_id, setup_dict)
+    run_cmd(cmd, test_id, setup_dict)
 
     if setup_dict["skip_loss_checks"]:
         return  # If a test does not support golden files yet.
-
-    train_log_file, val_log_file = get_log_files(test_id)
 
     if request.config.getoption("--generate-golden-files"):
         # Reference run, move the log files to golden_files.
@@ -114,13 +131,4 @@ def test_training_script(
         return
 
     # Test run, compare the train and val log files in training_logs with those in golden_files.
-    assert_loss_with_tolerance(
-        TEST_LOGS_DIR / train_log_file,
-        GOLDEN_LOGS_DIR / train_log_file,
-        tolerance=setup_dict["tolerance"],
-    )
-    assert_loss_with_tolerance(
-        TEST_LOGS_DIR / val_log_file,
-        GOLDEN_LOGS_DIR / val_log_file,
-        tolerance=setup_dict["tolerance"],
-    )
+    check_losses(train_log_file, val_log_file, setup_dict)

@@ -54,6 +54,9 @@ class TrainingConfig(BaseModel):
     seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
 
+    # Embedding settings
+    unfreeze_embeddings: bool = Field(default=False)
+
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
