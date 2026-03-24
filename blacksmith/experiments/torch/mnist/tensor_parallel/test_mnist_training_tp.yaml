@@ -53,7 +53,7 @@ remote_path: ""
 # Device settings - Tensor Parallel with 2 devices
 mesh_shape: [1, 2]  # [batch, model]
 mesh_axis_names: ["batch", "model"]
-input_sharding_dim: None
+input_sharding_dim: null
 # Model sharding patterns using regex (matches module names from model.named_modules())
 model_sharding_patterns:
     - ["linear_relu_stack\\.0$", [null, "model"]]

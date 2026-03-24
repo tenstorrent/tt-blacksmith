@@ -23,7 +23,7 @@ lora_task_type: "CAUSAL_LM"
 # Device settings
 mesh_shape: [1, 4]  # Blackhole QuietBox mesh.
 mesh_axis_names: ["batch", "model"]
-input_sharding_dim: None
+input_sharding_dim: null
 # Sharding patterns for tensor parallelism (regex pattern -> partition spec)
 model_sharding_patterns:
   # === Attention ===
