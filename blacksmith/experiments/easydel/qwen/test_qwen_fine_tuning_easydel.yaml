@@ -12,7 +12,7 @@ learning_rate: 2e-4
 batch_size: 4
 gradient_accumulation_steps: 1
 num_epochs: 1
-val_steps_freq: null 
+val_steps_freq: null
 
 # LoRA settings
 lora_rank: 16
