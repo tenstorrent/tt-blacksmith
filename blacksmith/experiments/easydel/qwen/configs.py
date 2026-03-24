@@ -23,15 +23,18 @@ class TrainingConfig(BaseModel):
     batch_size: int = Field(default=4, gt=0)
     gradient_accumulation_steps: int = Field(default=1, ge=1)
     num_epochs: int = Field(default=1, gt=0)
-    val_steps_freq: int = Field(default=0, ge=0)
+    val_steps_freq: Optional[int] = Field(default=None, ge=1)
 
     # LoRA settings
     lora_rank: int = Field(default=16, ge=1)
     lora_pattern: str = Field(default=r".*(q_proj|v_proj).*")
 
     # Logging settings
+    steps_freq: int = Field(default=10, ge=1)
     log_level: str = Field(default="INFO")
-    model_to_wandb: bool = Field(default=False)
+    model_to_wandb: bool = Field(default=True)
+    wandb_project: str = Field(default="Qwen-TT-EasyDel-LoRA-Training")
+    wandb_run_name: str = Field(default="qwen3-0.6b-wikitext-tt-easydel")
 
     # Reproducibility settings
     seed: int = Field(default=42)
