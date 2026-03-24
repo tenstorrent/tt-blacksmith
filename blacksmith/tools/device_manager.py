@@ -123,6 +123,15 @@ class DeviceManager:
                     xs.mark_sharding(module.weight, self.mesh, shard_spec)
                     break  # Stop after first match.
 
+        # Shard parameters by name (for nn.Parameter, biases, etc. not reachable via module.weight).
+        param_patterns = getattr(self.config, "param_sharding_patterns", None)
+        if param_patterns:
+            for name, param in model.named_parameters():
+                for pattern_spec in param_patterns:
+                    if re.search(pattern_spec[0], name):
+                        xs.mark_sharding(param, self.mesh, tuple(pattern_spec[1]))
+                        break
+
         torch_xla.sync(wait=True)
         return model
 
