@@ -165,9 +165,7 @@ def load_tokenizer(model_name: str) -> Any:
     return tokenizer
 
 
-def load_data(
-    training_config: TrainingConfig, tokenizer: Any, split: str = "train"
-) -> np.ndarray:
+def load_data(training_config: TrainingConfig, tokenizer: Any, split: str = "train") -> np.ndarray:
     """Load, tokenize, and batch a dataset split.
 
     Args:
