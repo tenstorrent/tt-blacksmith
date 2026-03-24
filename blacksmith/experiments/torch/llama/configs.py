@@ -73,13 +73,13 @@ class TrainingConfig(BaseModel):
     adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
     # Device settings
-    input_shard_dim: Optional[str] = Field(
-        default=None
-    )  # If defined, we will shard inputs along this mesh axis dimension.
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
     mesh_axis_names: Optional[list[str]] = Field(
         default=None
     )  # Use None for single device, ["data", "model"] for 2D mesh.
+    input_sharding_dim: Optional[str] = Field(
+        default=None
+    )  # If defined, we will shard inputs along this mesh axis dimension.
 
     # Model sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).

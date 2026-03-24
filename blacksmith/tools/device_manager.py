@@ -55,9 +55,9 @@ class DeviceManager:
 
         # Check if mesh configuration is valid.
         assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
-        assert (self.config.input_shard_dim is None) or (
-            self.config.input_shard_dim in self.config.mesh_axis_names
-        ), "`input_shard_dim` must be None or it should be present in `mesh_axis_names`."
+        assert (self.config.input_sharding_dim is None) or (
+            self.config.input_sharding_dim in self.config.mesh_axis_names
+        ), "`input_sharding_dim` must be None or it should be present in `mesh_axis_names`."
         if self.config.model_sharding_patterns is not None:
             for pattern_spec in self.config.model_sharding_patterns:
                 dimensions = pattern_spec[1]
@@ -84,9 +84,9 @@ class DeviceManager:
         """Check if data parallelism is enabled based on mesh configuration."""
 
         return (
-            self.config.input_shard_dim is not None
+            self.config.input_sharding_dim is not None
             and self.mesh is not None
-            and self.mesh.shape()[self.config.input_shard_dim] > 1
+            and self.mesh.shape()[self.config.input_sharding_dim] > 1
         )
 
     def is_tensor_parallel(self) -> bool:
@@ -135,7 +135,7 @@ class DeviceManager:
         if self.is_data_parallel():
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
-                    partition_spec = (self.config.input_shard_dim,) + tuple([None] * (tensor.dim() - 1))
+                    partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
                     xs.mark_sharding(tensor, self.mesh, partition_spec)
 
         return batch

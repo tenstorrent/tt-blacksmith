@@ -74,15 +74,14 @@ class TrainingConfig(BaseModel):
     deterministic: bool = Field(default=False)
 
     # Device settings
-    input_shard_dim: Optional[str] = Field(
-        default=None
-    )  # If defined, we will shard inputs along this mesh axis dimension.
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
     mesh_axis_names: Optional[list[str]] = Field(
         default=None
     )  # Use None for single device, ["data", "model"] for 2D mesh.
-
-    # Model sharding patterns (regex pattern based - matches module names).
+    input_sharding_dim: Optional[str] = Field(
+        default=None
+    )  # If defined, we will shard inputs along this mesh axis dimension.
+    # Tensor parallelism sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 

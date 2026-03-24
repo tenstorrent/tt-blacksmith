@@ -20,10 +20,9 @@ lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Device settings
-input_shard_dim: "batch"
 mesh_shape: [8, 4]  # Galaxy mesh.
 mesh_axis_names: ["model", "batch"]
-
+input_sharding_dim: "batch"
 # Sharding patterns for tensor parallelism (regex pattern -> partition spec)
 model_sharding_patterns:
   # === Attention ===

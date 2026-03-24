@@ -19,14 +19,13 @@ The experiment supports different hardware configurations with per-model trainin
 
 ### Mesh and Sharding Configuration
 
-Mesh configurations define the parallelism strategy. `input_shard_dim` defines which mesh dimension to use to shard inputs, while `model_sharding_patterns` define how we shard model weights.
+Mesh configurations define the parallelism strategy. `input_sharding_dim` defines which mesh dimension to use to shard inputs, while `model_sharding_patterns` define how we shard model weights.
 
 Example mesh configuration in YAML:
 ```yaml
-input_shard_dim: "batch"
 mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
 mesh_axis_names: ["batch", "model"]
-
+input_sharding_dim: "batch"
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
