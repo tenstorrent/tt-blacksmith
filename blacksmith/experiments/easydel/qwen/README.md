@@ -1,21 +1,29 @@
 # EasyDel Qwen3-0.6B LoRA Fine-Tuning
 
-This directory contains the code for the Qwen3-0.6B LoRA fine-tuning experiment using JAX and EasyDel.
+This directory contains the code for the [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning experiment using JAX and [EasyDel](https://github.com/erfanzar/EasyDeL).
 
 ## Overview
 
-The experiment implements LoRA (Low-Rank Adaptation) fine-tuning for the Qwen3-0.6B model on Tenstorrent hardware using JAX and EasyDel's native NNX LoRA support. It performs causal language modelling on the WikiText-2 dataset with gradient accumulation and optional periodic validation.
+The experiment implements [LoRA (Low-Rank Adaptation)](https://arxiv.org/abs/2106.09685) fine-tuning for the [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) model on Tenstorrent hardware using JAX and EasyDel's native NNX LoRA support. It performs causal language modelling on the WikiText-2 dataset with gradient accumulation and optional periodic validation.
+
+## Prerequisites
+
+This experiment requires the [tt-xla](https://github.com/tenstorrent/tt-xla) environment, which provides JAX, EasyDel, and the TT PJRT plugin. Activate it before running:
+
+```bash
+cd /path/to/tt-xla
+source venv/activate
+```
+
+Key dependencies provided by tt-xla:
+- `jax`, `jaxlib` (with TT PJRT plugin)
+- `easydel` (EasyDel NNX with native LoRA support)
+- `optax`, `flax`, `transformers`
 
 ## Training
 
 ```bash
-python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.py
-```
-
-Override configuration via CLI:
-
-```bash
-python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.py --config path/to/custom.yaml
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.py [--config blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.yaml]
 ```
 
 ## Data
@@ -51,7 +59,7 @@ In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.yaml` you can 
 | `batch_size` | Number of samples per training batch. | 4 |
 | `gradient_accumulation_steps` | Number of mini-batches to accumulate before an optimizer step. | 1 |
 | `num_epochs` | Total number of training epochs. | 1 |
-| `val_steps_freq` | Run validation every N steps (0 = disabled). | 0 |
+| `val_steps_freq` | Run validation every N steps (null = disabled). | null |
 
 ### LoRA
 
