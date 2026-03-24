@@ -8,22 +8,17 @@ The experiment implements [LoRA (Low-Rank Adaptation)](https://arxiv.org/abs/210
 
 ## Prerequisites
 
-This experiment requires the [tt-xla](https://github.com/tenstorrent/tt-xla) environment, which provides JAX, EasyDel, and the TT PJRT plugin. Activate it before running:
+Activate the Blacksmith XLA environment, which installs the TT PJRT plugin wheel and all JAX/EasyDel dependencies:
 
 ```bash
-cd /path/to/tt-xla
-source venv/activate
+cd /path/to/tt-blacksmith
+source env/activate --xla
 ```
-
-Key dependencies provided by tt-xla:
-- `jax`, `jaxlib` (with TT PJRT plugin)
-- `easydel` (EasyDel NNX with native LoRA support)
-- `optax`, `flax`, `transformers`
 
 ## Training
 
 ```bash
-python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.py [--config blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.yaml]
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py [--config blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.yaml]
 ```
 
 ## Data
@@ -32,7 +27,7 @@ The [WikiText-2](https://huggingface.co/datasets/wikitext) dataset (`wikitext-2-
 
 ## Configuration
 
-In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.yaml` you can configure all training parameters. Alternatively, override individual fields via the CLI.
+In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.yaml` you can configure all training parameters. Alternatively, override individual fields via the CLI.
 
 ### Dataset
 
@@ -48,7 +43,6 @@ In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.yaml` you can 
 | `model_name` | HuggingFace model identifier. | `"Qwen/Qwen3-0.6B"` |
 | `max_length` | Maximum sequence length for tokenization. | 128 |
 | `dtype` | Data type used for model parameters. | `"jnp.bfloat16"` |
-| `num_hidden_layers` | Number of transformer layers (None = use model default). | None |
 | `max_position_embeddings` | Max position embeddings (None = use model default). | None |
 
 ### Training
@@ -72,7 +66,10 @@ In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_jax.yaml` you can 
 
 | Parameter | Description | Default Value |
 |-----------|-------------|---------------|
+| `steps_freq` | Log average loss every N steps. | 10 |
 | `log_level` | Logging verbosity level. | `"INFO"` |
-| `model_to_wandb` | Whether to log metrics to Weights & Biases. | False |
+| `model_to_wandb` | Whether to log metrics to Weights & Biases. | True |
+| `wandb_project` | Weights & Biases project name. | `"Qwen-TT-EasyDel-LoRA-Training"` |
+| `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-wikitext-tt-easydel"` |
 | `seed` | Random seed for reproducibility. | 42 |
 | `use_tt` | Whether to run on Tenstorrent device. | True |

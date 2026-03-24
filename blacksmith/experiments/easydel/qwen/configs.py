@@ -15,7 +15,6 @@ class TrainingConfig(BaseModel):
     model_name: str = Field(default="Qwen/Qwen3-0.6B")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="jnp.bfloat16")
-    num_hidden_layers: Optional[int] = Field(default=None)
     max_position_embeddings: Optional[int] = Field(default=None)
 
     # Training hyperparameters
