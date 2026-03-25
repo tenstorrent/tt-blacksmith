@@ -41,3 +41,4 @@ class TrainingConfig(BaseModel):
 
     # Device settings
     use_tt: bool = Field(default=True)
+    num_devices: int = Field(default=1, ge=1)

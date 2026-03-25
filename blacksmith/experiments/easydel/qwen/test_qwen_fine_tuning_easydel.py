@@ -445,8 +445,9 @@ def main(training_config: TrainingConfig) -> None:
         max_position_embeddings=training_config.max_length,
     )
 
-    devices_for_mesh = tuple(jax.devices(device_kind)[:1])
-    mesh = jax.make_mesh((1,), ("X",), devices=devices_for_mesh)
+    num_devices = training_config.num_devices
+    devices_for_mesh = tuple(jax.devices(device_kind)[:num_devices])
+    mesh = jax.make_mesh((num_devices,), ("X",), devices=devices_for_mesh)
     _set_nnx_model_mesh(model, mesh)
 
     logger.info(f"  num_hidden_layers:       {model.config.num_hidden_layers}")
