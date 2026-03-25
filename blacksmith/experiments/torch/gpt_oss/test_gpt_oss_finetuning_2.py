@@ -94,9 +94,11 @@ def train(
 
     global_step = 0
     running_loss = 0.0
+    backward_hooks = []
 
     try:
         model.train()
+        device_manager.shard_model(model)
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
@@ -119,7 +121,30 @@ def train(
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
                 # Shard model if tensor parallelism is used.
-                device_manager.shard_model(model)
+                #device_manager.shard_model(model)
+
+                # Register backward hooks on the 6th micro-step to debug gradient explosion.
+                #if accumulation_step == 5 and global_step == 0:
+                #    def make_bwd_hook(layer_idx):
+                    #        def hook(module, grad_input, grad_output):
+                    #            print(f"\n--- BWD Layer {layer_idx} ---", flush=True)
+                    #            for i, g in enumerate(grad_output):
+                #                if g is not None:
+                #                    gf = g.float()
+                #                    print(
+                #                        f"  grad_output[{i}]: shape={list(g.shape)}, "
+                #                        f"norm={gf.norm().item():.6e}, "
+                #                        f"min={gf.min().item():.6e}, max={gf.max().item():.6e}",
+                #                        flush=True,
+                #                    )
+                #        for i, g in enumerate(grad_input):
+                #            if g is not None:
+                #                gf = g.float()
+                #                print(
+
+                #    unwrapped = model._orig_mod if hasattr(model, "_orig_mod") else model
+                #    for i, layer in enumerate(unwrapped.base_model.model.model.layers):
+                #        backward_hooks.append(layer.register_full_backward_hook(make_bwd_hook(i)))
 
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
@@ -130,6 +155,11 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
+                #if accumulation_step == 6 and global_step == 0 and backward_hooks:
+                #    for h in backward_hooks:
+                #        h.remove()
+                #    backward_hooks = []
+
                 print(f"Current loss and step: {loss_.item()} {global_step}", flush=True)
 
                 # Print all gradients after each micro-step.
@@ -137,7 +167,7 @@ def train(
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
-                    torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                    #torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
                     device_manager.optimizer_step(optimizer)
 
                     accumulation_step = 0
@@ -147,13 +177,12 @@ def train(
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
+                        # Clear XLA computation cache to avoid memory issues.
+                        if config.use_tt:
+                            xr.clear_computation_cache()
 
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
-
-                    # Clear XLA computation cache to avoid memory issues.
-                    if config.use_tt:
-                        xr.clear_computation_cache()
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
