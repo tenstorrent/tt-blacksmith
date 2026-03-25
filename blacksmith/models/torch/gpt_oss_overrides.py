@@ -38,7 +38,7 @@ def get_gpt_oss_model(config, device):
             r=config.lora_r,
             lora_alpha=config.lora_alpha,
             target_modules=config.lora_target_modules,
-            layers_to_transform=list(range(n // 2, n)),
+            layers_to_transform=list(range(n//2, n)),
             task_type=config.lora_task_type,
         )
         model = get_peft_model(model, lora_config)
