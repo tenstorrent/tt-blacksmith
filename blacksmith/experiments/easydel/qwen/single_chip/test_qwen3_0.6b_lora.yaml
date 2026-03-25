@@ -10,9 +10,10 @@ dtype: "jnp.bfloat16"
 # Training hyperparameters
 learning_rate: 2e-4
 batch_size: 4
-gradient_accumulation_steps: 1
-num_epochs: 1
-val_steps_freq: null
+gradient_accumulation_steps: 2
+num_epochs: 2
+val_steps_freq: 50
+max_val_batches: 20
 
 # LoRA settings
 lora_rank: 16

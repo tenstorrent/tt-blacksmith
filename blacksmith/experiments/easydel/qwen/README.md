@@ -1,24 +1,33 @@
-# EasyDel Qwen3-0.6B LoRA Fine-Tuning
+# EasyDel Qwen LoRA Fine-Tuning
 
-This directory contains the code for the [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning experiment using JAX and [EasyDel](https://github.com/erfanzar/EasyDeL).
+This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning experiments for Qwen models on Tenstorrent hardware using JAX and [EasyDel](https://github.com/erfanzar/EasyDeL).
 
 ## Overview
 
-The experiment implements [LoRA (Low-Rank Adaptation)](https://arxiv.org/abs/2106.09685) fine-tuning for the [Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) model on Tenstorrent hardware using JAX and EasyDel's native NNX LoRA support. It performs causal language modelling on the WikiText-2 dataset with gradient accumulation and optional periodic validation.
+The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support. It performs causal language modelling with gradient accumulation and optional periodic validation. Per-topology YAML configs live in subdirectories:
+
+- **`single_chip/`** — Configs for single-device runs (e.g. Qwen3-0.6B)
+- **`multi_chip/`** — Configs for multi-device runs (planned)
 
 ## Prerequisites
 
-Activate the Blacksmith XLA environment, which installs the TT PJRT plugin wheel and all JAX/EasyDel dependencies:
+Follow the environment setup in the top-level TT-Blacksmith documentation:
 
 ```bash
 cd /path/to/tt-blacksmith
 source env/activate --xla
 ```
 
+Then install the additional EasyDel-specific dependencies:
+
+```bash
+pip install -r blacksmith/experiments/easydel/requirements.txt
+```
+
 ## Training
 
 ```bash
-python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py [--config blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.yaml]
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
 ```
 
 ## Data
@@ -27,7 +36,7 @@ The [WikiText-2](https://huggingface.co/datasets/wikitext) dataset (`wikitext-2-
 
 ## Configuration
 
-In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.yaml` you can configure all training parameters. Alternatively, override individual fields via the CLI.
+Each YAML config in the subdirectories specifies all training parameters. Alternatively, override individual fields via the CLI.
 
 ### Dataset
 
@@ -54,6 +63,7 @@ In `blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.yaml` you 
 | `gradient_accumulation_steps` | Number of mini-batches to accumulate before an optimizer step. | 1 |
 | `num_epochs` | Total number of training epochs. | 1 |
 | `val_steps_freq` | Run validation every N steps (null = disabled). | null |
+| `max_val_batches` | Limit number of validation batches per eval pass (null = use all). | null |
 
 ### LoRA
 

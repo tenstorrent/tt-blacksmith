@@ -23,6 +23,7 @@ class TrainingConfig(BaseModel):
     gradient_accumulation_steps: int = Field(default=1, ge=1)
     num_epochs: int = Field(default=1, gt=0)
     val_steps_freq: Optional[int] = Field(default=None, ge=1)
+    max_val_batches: Optional[int] = Field(default=None, ge=1)
 
     # LoRA settings
     lora_rank: int = Field(default=16, ge=1)

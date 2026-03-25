@@ -498,6 +498,9 @@ def main(training_config: TrainingConfig) -> None:
 
     jnp_train_batches = [jnp.array(train_batches[i], dtype=jnp.uint32) for i in range(len(train_batches))]
     jnp_val_batches = [jnp.array(val_batches_np[i], dtype=jnp.uint32) for i in range(len(val_batches_np))]
+    if training_config.max_val_batches is not None:
+        jnp_val_batches = jnp_val_batches[: training_config.max_val_batches]
+        logger.info(f"  Using {len(jnp_val_batches)} of {len(val_batches_np)} validation batches")
 
     logger.info(f"Starting training on {training_config.dataset_id} dataset...")
 
@@ -528,7 +531,7 @@ def main(training_config: TrainingConfig) -> None:
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "test_qwen_fine_tuning_easydel.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "test_qwen3_0.6b_lora.yaml"
     args = parse_cli_options(default_config=default_config)
     training_config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
     main(training_config)
