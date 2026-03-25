@@ -7,7 +7,6 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support. It performs causal language modelling with gradient accumulation and optional periodic validation. Per-topology YAML configs live in subdirectories:
 
 - **`single_chip/`** — Configs for single-device runs (e.g. Qwen3-0.6B)
-- **`multi_chip/`** — Configs for multi-device runs (planned)
 
 ## Prerequisites
 
