@@ -48,7 +48,8 @@ class CheckpointManager:
         with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
-    def _align_state_dicts(loaded_state_dict, model_state_dict):
+    @staticmethod
+    def align_state_dicts(loaded_state_dict, model_state_dict):
         """
         Adjusts loaded_state_dict prefixes to match model_state_dict.
         Logic:
@@ -57,11 +58,11 @@ class CheckpointManager:
         - Loaded has it, Model doesn't: Strip prefix from Loaded.
         """
         prefix = "_orig_mod."
-        
+
         # Get the first key from each to check state
         loaded_keys = list(loaded_state_dict.keys())
         model_keys = list(model_state_dict.keys())
-        
+
         if not loaded_keys or not model_keys:
             return loaded_state_dict
 
@@ -87,7 +88,7 @@ class CheckpointManager:
             print("Stripped '_orig_mod.' from loaded state dict.")
 
         return new_state_dict
-    
+
     def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
         """Determine if checkpoint should be saved at current step/epoch"""
         if epoch is not None:
@@ -235,7 +236,7 @@ class CheckpointManager:
 
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
-        checkpoint["model_state_dict"] = CheckpointManager._align_state_dicts(checkpoint["model_state_dict"], model.state_dict())
+        checkpoint["model_state_dict"] = CheckpointManager.align_state_dicts(checkpoint["model_state_dict"], model.state_dict())
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
