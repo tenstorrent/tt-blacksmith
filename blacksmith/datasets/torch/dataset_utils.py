@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
-from typing import Optional
 
 from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
@@ -15,7 +14,6 @@ from blacksmith.datasets.torch.stanfordcars.stanfordcars_dataset import (
     StanfordCarsDataset,
 )
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
-from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
@@ -31,7 +29,7 @@ class AvailableDataset(Enum):
     ALPACA = "alpaca"
 
 
-def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None, logger: Optional[TrainingLogger] = None):
+def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
     """Factory function to get the appropriate dataset based on the config"""
     dataset_id = config.dataset_id.lower()
 
@@ -42,7 +40,7 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None, l
     elif dataset_id == AvailableDataset.SST2.value:
         return SSTDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.TEXT2SQL.value:
-        return TextToSQLDataset(config, split, collate_fn=collate_fn, logger=logger)
+        return TextToSQLDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.BANKING77.value:
         return Banking77Dataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.SQUADV2.value:
