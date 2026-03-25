@@ -90,8 +90,8 @@ class CheckpointManager:
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
-        state_dict = model.state_dict()
-        state_dict = {name: param for name, param in state_dict.items() if param.requires_grad}
+        trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
+        state_dict = {name: v for name, v in model.state_dict().items() if name in trainable_names}
 
         checkpoint_data = {
             "step": step,
