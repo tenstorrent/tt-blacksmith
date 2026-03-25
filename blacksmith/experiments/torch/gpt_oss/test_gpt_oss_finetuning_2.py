@@ -23,6 +23,9 @@ from blacksmith.tools.torch_helpers import (
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
 
+SKIP_TO_BATCH = 55
+
+
 def print_all_gradients(model, global_step, accumulation_step):
     print(f"\n{'='*80}", flush=True)
     print(f"GRADIENTS at global_step={global_step}, accumulation_step={accumulation_step}", flush=True)
@@ -47,6 +50,52 @@ def print_all_gradients(model, global_step, accumulation_step):
                 print(f"  {name}: grad=None", flush=True)
     total_norm = total_norm ** 0.5
     print(f"  TOTAL grad norm: {total_norm:.6e}", flush=True)
+    print(f"{'='*80}\n", flush=True)
+
+
+def print_batch(batch, step):
+    print(f"\n{'='*80}", flush=True)
+    print(f"BATCH at step={step}", flush=True)
+    print(f"{'='*80}", flush=True)
+    for k, v in batch.items():
+        if isinstance(v, torch.Tensor):
+            print(f"  {k}: shape={list(v.shape)}, dtype={v.dtype}", flush=True)
+            if k in ("input_ids", "attention_mask", "labels_mask"):
+                print(f"    values={v.tolist()}", flush=True)
+            else:
+                vf = v.float()
+                print(
+                    f"    norm={vf.norm().item():.6e}, min={vf.min().item():.6e}, "
+                    f"max={vf.max().item():.6e}, mean={vf.mean().item():.6e}",
+                    flush=True,
+                )
+        else:
+            print(f"  {k}: {v}", flush=True)
+    print(f"{'='*80}\n", flush=True)
+
+
+def print_last_layer_all_grads(model, step):
+    unwrapped = model._orig_mod if hasattr(model, "_orig_mod") else model
+    last_layer = unwrapped.base_model.model.model.layers[-1]
+    print(f"\n{'='*80}", flush=True)
+    print(f"ALL WEIGHT GRADS in last layer at step={step}", flush=True)
+    print(f"{'='*80}", flush=True)
+    for name, param in last_layer.named_parameters():
+        pf = param.float()
+        print(
+            f"  {name}: shape={list(param.shape)}, "
+            f"val_norm={pf.norm().item():.6e}, val_min={pf.min().item():.6e}, val_max={pf.max().item():.6e}",
+            flush=True,
+        )
+        if param.grad is not None:
+            gf = param.grad.float()
+            print(
+                f"    grad: norm={gf.norm().item():.6e}, min={gf.min().item():.6e}, "
+                f"max={gf.max().item():.6e}, mean={gf.mean().item():.6e}",
+                flush=True,
+            )
+        else:
+            print(f"    grad: None", flush=True)
     print(f"{'='*80}\n", flush=True)
 
 
@@ -94,16 +143,37 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-    backward_hooks = []
+    batch_idx = 0
 
     try:
         model.train()
         device_manager.shard_model(model)
 
+        #print(f"\n{'='*80}", flush=True)
+        #print("WEIGHT SCAN BEFORE TRAINING", flush=True)
+        #print(f"{'='*80}", flush=True)
+        #unwrapped = model._orig_mod if hasattr(model, "_orig_mod") else model
+        #for name, param in unwrapped.named_parameters():
+        #    pf = param.float()
+        #    print(
+        #        f"  {name}: shape={list(param.shape)}, "
+        #        f"min={pf.min().item():.6e}, max={pf.max().item():.6e}, "
+        #        f"norm={pf.norm().item():.6e}, mean={pf.mean().item():.6e}",
+        #        flush=True,
+        #    )
+        #print(f"{'='*80}\n", flush=True)
+        #exit(0)
+
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
             for batch in tqdm(train_dataloader, desc="Training"):
+                batch_idx += 1
+
+                #if batch_idx < SKIP_TO_BATCH:
+                #    accumulation_step += 1
+                #    continue
+
                 # Zero out gradients at the start of accumulation cycle
                 if accumulation_step == 0:
                     optimizer.zero_grad()
@@ -120,31 +190,15 @@ def train(
                 }
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
-                # Shard model if tensor parallelism is used.
-                #device_manager.shard_model(model)
 
-                # Register backward hooks on the 6th micro-step to debug gradient explosion.
-                #if accumulation_step == 5 and global_step == 0:
-                #    def make_bwd_hook(layer_idx):
-                    #        def hook(module, grad_input, grad_output):
-                    #            print(f"\n--- BWD Layer {layer_idx} ---", flush=True)
-                    #            for i, g in enumerate(grad_output):
-                #                if g is not None:
-                #                    gf = g.float()
-                #                    print(
-                #                        f"  grad_output[{i}]: shape={list(g.shape)}, "
-                #                        f"norm={gf.norm().item():.6e}, "
-                #                        f"min={gf.min().item():.6e}, max={gf.max().item():.6e}",
-                #                        flush=True,
-                #                    )
-                #        for i, g in enumerate(grad_input):
-                #            if g is not None:
-                #                gf = g.float()
-                #                print(
+                #print_batch(batch, batch_idx)
 
-                #    unwrapped = model._orig_mod if hasattr(model, "_orig_mod") else model
-                #    for i, layer in enumerate(unwrapped.base_model.model.model.layers):
-                #        backward_hooks.append(layer.register_full_backward_hook(make_bwd_hook(i)))
+                #unwrapped = model._orig_mod if hasattr(model, "_orig_mod") else model
+                #last_layer = unwrapped.base_model.model.model.layers[-1]
+                #for p in last_layer.parameters():
+                #    if not p.requires_grad:
+                #        p.requires_grad_(True)
+                #        p._tmp_enabled = True
 
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
@@ -155,19 +209,21 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
-                #if accumulation_step == 6 and global_step == 0 and backward_hooks:
-                #    for h in backward_hooks:
-                #        h.remove()
-                #    backward_hooks = []
-
                 print(f"Current loss and step: {loss_.item()} {global_step}", flush=True)
 
                 # Print all gradients after each micro-step.
                 print_all_gradients(model, global_step, accumulation_step)
+                #print_last_layer_all_grads(model, batch_idx)
+
+                #for p in last_layer.parameters():
+                #    if getattr(p, '_tmp_enabled', False):
+                #        p.requires_grad_(False)
+                #        p.grad = None
+                #        del p._tmp_enabled
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
-                    #torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                    torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
                     device_manager.optimizer_step(optimizer)
 
                     accumulation_step = 0

@@ -1,9 +1,9 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "alpaca"
 
 # Model settings
 model_name: "openai/gpt-oss-20b"
-max_length: 128
+max_length: 256
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
