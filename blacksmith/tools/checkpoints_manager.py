@@ -193,8 +193,11 @@ class CheckpointManager:
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path, map_location=self.device if "cuda" in self.device.type else "cpu")
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
+        # Keep in mind that the model should be compiled in order for layers to be named 1:1 with the checkpoint.
+        # Since on TT architectures the model is compiled, the layers will always have a prefix "_orig_mod".
+        # If the model is not compiled, the layers will not have a prefix and the load will silently fail.
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
