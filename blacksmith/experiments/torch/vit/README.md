@@ -68,7 +68,7 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/tanganke/stan
 | `deterministic` | Whether to enforce deterministic behavior. | False |
 | `mesh_shape` | Mesh shape for parallelism. | None |
 | `mesh_axis_names` | Axis names for the mesh. | None |
-| `tp_sharding_specs` | Tensor parallel sharding specifications. | {} |
+| `model_sharding_patterns` | Tensor parallel sharding specifications. | {} |
 | `lora_r` | Rank of LoRA adaptation matrices. | 4 |
 | `lora_alpha` | Scaling factor for LoRA updates. | 8 |
 | `lora_target_modules` | Target modules for LoRA adaptation. | ["all-linear"] |

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -65,7 +65,12 @@ class TrainingConfig(BaseModel):
     mesh_axis_names: Optional[list[str]] = Field(
         default=None
     )  # Use None for single device, ["data", "model"] for 2D mesh.
-    tp_sharding_specs: dict[str, list[Optional[int]]] = Field(default_factory=dict)  # Used for model tp sharding
+    # Model sharding patterns (regex pattern based - matches module names).
+    # Format: List of tuples (regex_pattern, sharding_spec_tuple).
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
+    input_sharding_dim: Optional[str] = Field(
+        default=None
+    )  # If defined, we will shard inputs along this mesh axis dimension.
 
     # LoRA setup
     lora_r: int = Field(default=4, gt=0)
