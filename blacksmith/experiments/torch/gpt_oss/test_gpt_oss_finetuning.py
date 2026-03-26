@@ -136,6 +136,10 @@ def train(
     running_loss = 0.0
 
     try:
+
+        # Shard model if tensor parallelism is used.
+        device_manager.shard_model(model)
+
         # Initial validation
         model.eval()
         val_loss = validate(
@@ -147,11 +151,9 @@ def train(
             config,
             tokenizer,
         )
+
         logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
-
-        # Shard model if tensor parallelism is used.
-        device_manager.shard_model(model)
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
