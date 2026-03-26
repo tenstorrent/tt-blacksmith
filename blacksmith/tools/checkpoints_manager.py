@@ -59,7 +59,6 @@ class CheckpointManager:
         """
         prefix = "_orig_mod."
 
-        # Get the first key from each to check state
         loaded_keys = list(loaded_state_dict.keys())
         model_keys = list(model_state_dict.keys())
 
@@ -69,23 +68,18 @@ class CheckpointManager:
         loaded_has_prefix = loaded_keys[0].startswith(prefix)
         model_has_prefix = model_keys[0].startswith(prefix)
 
-        # Case 1: If they already match, just return
         if loaded_has_prefix == model_has_prefix:
             return loaded_state_dict
 
         new_state_dict = dict()
 
-        # Case 2: Model has prefix, Loaded does not -> Prepend
         if model_has_prefix and not loaded_has_prefix:
             for k, v in loaded_state_dict.items():
                 new_state_dict[prefix + k] = v
-            print("Prepended '_orig_mod.' to loaded state dict.")
 
-        # Case 3: Loaded has prefix, Model does not -> Strip
         elif loaded_has_prefix and not model_has_prefix:
             for k, v in loaded_state_dict.items():
                 new_state_dict[k.replace(prefix, "")] = v
-            print("Stripped '_orig_mod.' from loaded state dict.")
 
         return new_state_dict
 
