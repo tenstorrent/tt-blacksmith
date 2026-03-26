@@ -39,9 +39,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
             expected_output = batch["labels"]
 
-            # Shard model if tensor parallelism is used.
-            device_manager.shard_model(model)
-
             # Forward pass.
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
@@ -153,6 +150,9 @@ def train(
         logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
+        # Shard model if tensor parallelism is used.
+        device_manager.shard_model(model)
+
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
@@ -173,11 +173,17 @@ def train(
                 }
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
-                # Shard model if tensor parallelism is used.
-                device_manager.shard_model(model)
 
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+
+                # Clamp gradient values.
+                for p in trainable_params:
+                    if p.grad is not None:
+                        p.grad = p.grad.clamp(-10_000.0, 10_000.0)
+
+                # Clip gradient norms.
+                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
@@ -198,6 +204,9 @@ def train(
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
+                        # Clear XLA computation cache to avoid memory issues.
+                        if config.use_tt:
+                            xr.clear_computation_cache()
 
                     # Validation
                     if global_step % config.val_steps_freq == 0:
@@ -213,13 +222,12 @@ def train(
                         )
                         logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
                         model.train()
+                        # Clear XLA computation cache to avoid memory issues.
+                        if config.use_tt:
+                            xr.clear_computation_cache()
 
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
-
-                    # Clear XLA computation cache to avoid memory issues.
-                    if config.use_tt:
-                        xr.clear_computation_cache()
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
