@@ -236,7 +236,9 @@ class CheckpointManager:
 
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
-        checkpoint["model_state_dict"] = CheckpointManager.align_state_dicts(checkpoint["model_state_dict"], model.state_dict())
+        checkpoint["model_state_dict"] = CheckpointManager.align_state_dicts(
+            checkpoint["model_state_dict"], model.state_dict()
+        )
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
