@@ -132,8 +132,8 @@ TRAINING_TEST_CASES = [
         for i, test_checkpoint_path in enumerate(
             [
                 None,
-                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340_epoch0_20260316_183348.pt",
-                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680_epoch0_20260317_050440.pt",
+                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340_epoch0_20260325_211954.pt",
+                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680_epoch0_20260326_081459.pt",
             ]
         )
     ],
