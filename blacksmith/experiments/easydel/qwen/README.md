@@ -6,7 +6,8 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 
 The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support. It performs causal language modelling with gradient accumulation and optional periodic validation. Per-topology YAML configs live in subdirectories:
 
-- **`single_chip/`** — Configs for single-device runs (e.g. Qwen3-0.6B)
+- **`single_chip/`** — Configs for single-device runs (e.g. Qwen3-0.6B on N150)
+- **`multi_chip/`** — Configs for multi-device runs (e.g. Qwen3-8B on N300)
 
 ## Prerequisites
 
@@ -25,8 +26,16 @@ pip install -r blacksmith/experiments/easydel/requirements.txt
 
 ## Training
 
+Single chip (N150):
+
 ```bash
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
+```
+
+Multi chip (N300):
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py --config blacksmith/experiments/easydel/qwen/multi_chip/test_qwen3_8b_lora.yaml
 ```
 
 ## Data
@@ -82,3 +91,4 @@ Each YAML config in the subdirectories specifies all training parameters. Altern
 | `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-wikitext-tt-easydel"` |
 | `seed` | Random seed for reproducibility. | 42 |
 | `use_tt` | Whether to run on Tenstorrent device. | True |
+| `num_devices` | Number of TT devices to include in the JAX mesh. | 1 |
