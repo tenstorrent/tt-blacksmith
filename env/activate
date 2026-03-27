@@ -109,7 +109,7 @@ fi
 
 # Otherwise create it
 echo "Creating virtual environment in $TT_BLACKSMITH_ENV_DIR"
-# Latest torch-xla wheel is not available for Python 3.12, GPU environment uses Python 3.11
+# GPU environment uses Python 3.11, the latest torch-xla CUDA 12.6 wheel is not available for Python 3.12, 
 case $EXPERIMENT_TYPE in
     0|1)
         python3.12 -m venv $TT_BLACKSMITH_ENV_DIR
