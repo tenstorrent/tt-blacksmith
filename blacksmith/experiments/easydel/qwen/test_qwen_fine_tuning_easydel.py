@@ -83,14 +83,20 @@ def log_to_wandb(data_dict: dict[str, Any], step: Optional[int] = None) -> None:
         wandb.log(data_dict, step=step)
 
 
-def _select_preferred_device() -> tuple[jax.Device, str]:
-    """Select TT device if available, otherwise fall back to CPU.
+def _select_preferred_device(use_tt: bool = True) -> tuple[jax.Device, str]:
+    """Select compute device.
+
+    Args:
+        use_tt: When True, prefer TT device if available.
+            When False, always use CPU regardless of available hardware.
 
     Returns:
         The selected device and its kind ("tt" or "cpu").
 
     """
     cpu = jax.devices("cpu")[0]
+    if not use_tt:
+        return cpu, "cpu"
     try:
         tt_devs = jax.devices("tt")
     except Exception:
@@ -122,16 +128,17 @@ def load_model(
     model_name: str,
     *,
     dtype: Any = jnp.bfloat16,
-    max_position_embeddings: Optional[int] = None,
+    mask_max_position_embeddings: Optional[int] = None,
 ) -> Any:
     """Load a causal LM via EasyDel with optional config overrides.
 
     Args:
         model_name: HuggingFace model identifier.
         dtype: Data type for model parameters.
-        max_position_embeddings: Override the default (40960) to avoid
-            allocating a huge causal attention mask. Set to your actual
-            max_length to save hundreds of MB of DRAM.
+        mask_max_position_embeddings: Cap the pre-allocated causal mask
+            size independently of ``max_position_embeddings``.  Set to
+            your actual ``max_length`` to avoid a multi-GB mask while
+            keeping the original RoPE frequencies intact.
 
     Returns:
         The loaded EasyDel model.
@@ -139,8 +146,8 @@ def load_model(
     """
 
     config_overrides = {}
-    if max_position_embeddings is not None:
-        config_overrides["max_position_embeddings"] = max_position_embeddings
+    if mask_max_position_embeddings is not None:
+        config_overrides["mask_max_position_embeddings"] = mask_max_position_embeddings
 
     kwargs = {"dtype": dtype}
     if config_overrides:
@@ -179,7 +186,7 @@ def load_data(training_config: TrainingConfig, tokenizer: Any, split: str = "tra
     """
     logger.info(f"Loading dataset {training_config.dataset_id}/{training_config.dataset_configuration} ({split})...")
     ds = load_dataset(training_config.dataset_id, training_config.dataset_configuration, split=split)
-    all_text = "\n".join(line for line in ds["text"] if line.strip())
+    all_text = "\n".join(line for line in ds[training_config.text_column] if line.strip())
 
     logger.info(f"Tokenizing {split} split...")
     all_ids = tokenizer.encode(all_text, add_special_tokens=False)
@@ -304,23 +311,144 @@ def create_eval_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any
     return jax.jit(eval_loss_fn)
 
 
-def evaluate(jit_eval_step: Any, lora_params: Any, frozen_state: Any, val_batches: list[jnp.ndarray]) -> float:
-    """Run evaluation on validation batches and return average loss.
+def create_eval_inspect_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
+    """Create a JIT-compiled eval step that also returns predictions and per-token losses.
+
+    Same forward pass as :func:`create_eval_step_fn` but additionally
+    computes ``argmax`` predictions and keeps per-token losses so that
+    examples can be printed without a second (non-JIT) forward pass.
 
     Args:
-        jit_eval_step: JIT-compiled evaluation function.
+        graphdef: NNX graph definition from nnx.split.
+        call_signature: Model __call__ signature for keyword detection.
+
+    Returns:
+        JIT-compiled function returning ``(loss, predictions, per_token_loss)``.
+
+    """
+
+    def eval_inspect_fn(lora_params, frozen_state, input_ids):
+        m = nnx.merge(graphdef, lora_params, frozen_state)
+        kwargs = {"input_ids": input_ids}
+        if "train" in call_signature.parameters:
+            kwargs["train"] = False
+        if "deterministic" in call_signature.parameters:
+            kwargs["deterministic"] = True
+        out = m(**kwargs)
+
+        shift_logits = out.logits[:, :-1, :]
+        shift_labels = input_ids[:, 1:]
+        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
+        per_token_loss = optax.softmax_cross_entropy(shift_logits, one_hot)
+        loss = jnp.mean(per_token_loss)
+        predictions = jnp.argmax(shift_logits, axis=-1)
+        return loss, predictions, per_token_loss
+
+    return jax.jit(eval_inspect_fn)
+
+
+def _show_predictions(
+    collected_examples: list[dict[str, Any]],
+    tokenizer: Any,
+    num_tokens: int = 20,
+) -> None:
+    """Print collected prediction examples (CPU-only, no forward pass).
+
+    Args:
+        collected_examples: List of dicts with keys ``input_ids``,
+            ``predictions``, and ``per_token_loss`` (all numpy arrays).
+        tokenizer: HuggingFace tokenizer for decoding IDs back to text.
+        num_tokens: How many leading tokens to show per example.
+
+    """
+    for i, ex in enumerate(collected_examples):
+        input_ids = ex["input_ids"]
+        predictions = ex["predictions"]
+        per_token_loss = ex["per_token_loss"]
+        shift_labels = input_ids[1:]
+
+        target_ids = shift_labels[:num_tokens]
+        pred_ids = predictions[:num_tokens]
+        token_losses = per_token_loss[:num_tokens]
+
+        input_text = tokenizer.decode(input_ids.tolist(), skip_special_tokens=True)[:200]
+        target_text = tokenizer.decode(target_ids.tolist(), skip_special_tokens=False)
+        pred_text = tokenizer.decode(pred_ids.tolist(), skip_special_tokens=False)
+
+        correct = int((predictions == shift_labels).sum())
+        total = len(shift_labels)
+
+        logger.info(f"\n--- Example {i + 1} ---")
+        logger.info(f"  Input:        {input_text!r}")
+        logger.info(f"  Target IDs:   {target_ids.tolist()}")
+        logger.info(f"  Pred IDs:     {pred_ids.tolist()}")
+        logger.info(f"  Target text:  {target_text!r}")
+        logger.info(f"  Pred text:    {pred_text!r}")
+        logger.info(f"  Token losses: {np.round(token_losses, 4).tolist()}")
+        logger.info(f"  Mean loss:    {float(per_token_loss.mean()):.4f}")
+        logger.info(f"  Accuracy:     {correct}/{total} = {correct / total:.3f}")
+
+
+def evaluate(
+    jit_eval_step: Any,
+    lora_params: Any,
+    frozen_state: Any,
+    val_batches: list[jnp.ndarray],
+    *,
+    jit_inspect_step: Any = None,
+    tokenizer: Any = None,
+    num_examples: int = 3,
+    num_tokens: int = 20,
+) -> float:
+    """Run evaluation on validation batches and return average loss.
+
+    When ``jit_inspect_step`` and ``tokenizer`` are provided, also collects
+    predictions from the first few batches and prints decoded examples
+    (following the same pattern as the Llama experiment).
+
+    Args:
+        jit_eval_step: JIT-compiled evaluation function (returns loss).
         lora_params: Trainable LoRA parameters.
         frozen_state: Frozen (non-trainable) model state.
         val_batches: List of validation batch arrays.
+        jit_inspect_step: JIT-compiled function returning
+            ``(loss, predictions, per_token_loss)``.  Only needed when
+            printing examples.
+        tokenizer: HuggingFace tokenizer (needed to decode examples).
+        num_examples: How many examples to collect and print.
+        num_tokens: How many leading tokens to show per example.
 
     Returns:
         Average validation loss across all batches.
 
     """
     total_loss = 0.0
+    collected: list[dict[str, Any]] = []
+    can_inspect = jit_inspect_step is not None and tokenizer is not None
+
     for batch in val_batches:
-        loss = jit_eval_step(lora_params, frozen_state, batch)
+        if can_inspect and len(collected) < num_examples:
+            loss, predictions, per_token_loss = jit_inspect_step(
+                lora_params, frozen_state, batch,
+            )
+            cpu = jax.devices("cpu")[0]
+            batch_ids = np.array(jax.device_put(batch, cpu))
+            batch_preds = np.array(jax.device_put(predictions, cpu))
+            batch_losses = np.array(jax.device_put(per_token_loss, cpu))
+            batch_size = batch_ids.shape[0]
+            for idx in range(min(batch_size, num_examples - len(collected))):
+                collected.append({
+                    "input_ids": batch_ids[idx],
+                    "predictions": batch_preds[idx],
+                    "per_token_loss": batch_losses[idx],
+                })
+        else:
+            loss = jit_eval_step(lora_params, frozen_state, batch)
         total_loss += float(loss)
+
+    if collected:
+        _show_predictions(collected, tokenizer, num_tokens)
+
     return total_loss / len(val_batches) if val_batches else 0.0
 
 
@@ -333,10 +461,17 @@ def _training_loop(
     opt_state: Any,
     jnp_train_batches: list[jnp.ndarray],
     jnp_val_batches: list[jnp.ndarray],
+    *,
+    jit_inspect_step: Any = None,
+    tokenizer: Any = None,
 ) -> tuple[int, list[float]]:
     """Execute the training and validation loop.
 
     Must be called inside a ``with mesh:`` context.
+
+    When ``jit_inspect_step`` and ``tokenizer`` are provided the evaluation
+    helper automatically collects and prints decoded example predictions
+    (same pattern as the Llama experiment).
 
     Args:
         training_config: Training configuration with all hyperparameters.
@@ -347,6 +482,9 @@ def _training_loop(
         opt_state: Optimizer state.
         jnp_train_batches: Pre-converted training batches.
         jnp_val_batches: Pre-converted validation batches.
+        jit_inspect_step: JIT-compiled inspect step returning
+            ``(loss, predictions, per_token_loss)``.
+        tokenizer: HuggingFace tokenizer (needed for decoding examples).
 
     Returns:
         A tuple of (global_step, step_losses).
@@ -357,8 +495,12 @@ def _training_loop(
     running_losses: list[float] = []
     step_losses: list[float] = []
 
+    inspect_kwargs: dict[str, Any] = {}
+    if jit_inspect_step is not None and tokenizer is not None:
+        inspect_kwargs = {"jit_inspect_step": jit_inspect_step, "tokenizer": tokenizer}
+
     if jnp_val_batches:
-        val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches)
+        val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
         logger.info(f"  Initial validation loss: {val_loss:.4f}")
         log_to_wandb({"val_loss": val_loss}, step=0)
 
@@ -411,7 +553,7 @@ def _training_loop(
                 and jnp_val_batches
                 and global_step % training_config.val_steps_freq == 0
             ):
-                val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches)
+                val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
                 logger.info(f"  [Step {global_step}] Validation loss: {val_loss:.4f}")
                 log_to_wandb({"val_loss": val_loss}, step=global_step)
 
@@ -419,7 +561,7 @@ def _training_loop(
         logger.info(f"Epoch {epoch+1} complete — avg loss: {avg_epoch_loss:.4f}")
 
         if jnp_val_batches:
-            val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches)
+            val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
             logger.info(f"  Epoch {epoch+1} validation loss: {val_loss:.4f}")
             log_to_wandb({"val_loss": val_loss}, step=global_step)
 
@@ -435,14 +577,14 @@ def main(training_config: TrainingConfig) -> None:
     """
 
     cpu_device = jax.devices("cpu")[0]
-    current_device, device_kind = _select_preferred_device()
+    current_device, device_kind = _select_preferred_device(use_tt=training_config.use_tt)
     jax.config.update("jax_default_device", current_device)
 
     logger.info(f"Loading {training_config.model_name} model... Using device: {device_kind} -> {current_device}")
 
     model = load_model(
         training_config.model_name,
-        max_position_embeddings=training_config.max_length,
+        mask_max_position_embeddings=training_config.mask_max_position_embeddings,
     )
 
     num_devices = training_config.num_devices
@@ -496,6 +638,11 @@ def main(training_config: TrainingConfig) -> None:
 
     jit_train_step = create_train_step_fn(graphdef, call_signature, tx)
     jit_eval_step = create_eval_step_fn(graphdef, call_signature)
+    jit_inspect_step = (
+        create_eval_inspect_step_fn(graphdef, call_signature)
+        if training_config.print_examples
+        else None
+    )
 
     jnp_train_batches = [jnp.array(train_batches[i], dtype=jnp.uint32) for i in range(len(train_batches))]
     jnp_val_batches = [jnp.array(val_batches_np[i], dtype=jnp.uint32) for i in range(len(val_batches_np))]
@@ -515,6 +662,8 @@ def main(training_config: TrainingConfig) -> None:
             opt_state,
             jnp_train_batches,
             jnp_val_batches,
+            jit_inspect_step=jit_inspect_step,
+            tokenizer=tokenizer if training_config.print_examples else None,
         )
 
     log_to_wandb(

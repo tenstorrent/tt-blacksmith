@@ -10,12 +10,13 @@ class TrainingConfig(BaseModel):
     # Dataset settings
     dataset_id: str = Field(default="wikitext")
     dataset_configuration: str = Field(default="wikitext-2-raw-v1")
+    text_column: str = Field(default="text")
 
     # Model settings
     model_name: str = Field(default="Qwen/Qwen3-0.6B")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="jnp.bfloat16")
-    max_position_embeddings: Optional[int] = Field(default=None)
+    mask_max_position_embeddings: Optional[int] = Field(default=None)
 
     # Training hyperparameters
     learning_rate: float = Field(default=2e-4, gt=0)
@@ -33,6 +34,7 @@ class TrainingConfig(BaseModel):
     steps_freq: int = Field(default=10, ge=1)
     log_level: str = Field(default="INFO")
     model_to_wandb: bool = Field(default=True)
+    print_examples: bool = Field(default=False)
     wandb_project: str = Field(default="Qwen-TT-EasyDel-LoRA-Training")
     wandb_run_name: str = Field(default="qwen3-0.6b-wikitext-tt-easydel")
 
