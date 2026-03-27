@@ -49,9 +49,15 @@ class CheckpointManager:
             json.dump(self.checkpoint_history, f, indent=2)
 
     @staticmethod
-    def align_state_dicts(loaded_state_dict, model_state_dict):
+    def align_state_dict_parameter_names(loaded_state_dict, model_state_dict):
         """
-        Adjusts loaded_state_dict prefixes to match model_state_dict.
+        Adjusts loaded_state_dict parameter names to match model_state_dict by adding
+        or removing a prefix.
+
+        This is necessary because "torch.compile" adds an "_orig_mod." prefix to
+        the parameter names and depending on the case, this function either adds
+        or removes the prefix.
+
         Logic:
         - Both have prefix or both don't: No change.
         - Model has it, Loaded doesn't: Prepend prefix to Loaded.
@@ -230,7 +236,7 @@ class CheckpointManager:
 
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
-        checkpoint["model_state_dict"] = CheckpointManager.align_state_dicts(
+        checkpoint["model_state_dict"] = CheckpointManager.align_state_dict_parameter_names(
             checkpoint["model_state_dict"], model.state_dict()
         )
         model.load_state_dict(checkpoint["model_state_dict"], strict=False)
