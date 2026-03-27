@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.gpt_oss.configs import TrainingConfig
-from blacksmith.models.torch.gpt_oss_overrides import get_gpt_oss_model
+from blacksmith.models.torch.gpt_oss_overrides import get_gpt_oss_model, print_debug_intermediates
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -20,7 +20,7 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
-SKIP_TO_BATCH = 55
+FINETUNE_LAYERS = range(12, 19)  # layers 12 to 18 inclusive
 
 
 def print_all_gradients(model, global_step, accumulation_step):
@@ -71,31 +71,6 @@ def print_batch(batch, step):
     print(f"{'='*80}\n", flush=True)
 
 
-def print_last_layer_all_grads(model, step):
-    unwrapped = model._orig_mod if hasattr(model, "_orig_mod") else model
-    last_layer = unwrapped.base_model.model.model.layers[-1]
-    print(f"\n{'='*80}", flush=True)
-    print(f"ALL WEIGHT GRADS in last layer at step={step}", flush=True)
-    print(f"{'='*80}", flush=True)
-    for name, param in last_layer.named_parameters():
-        pf = param.float()
-        print(
-            f"  {name}: shape={list(param.shape)}, "
-            f"val_norm={pf.norm().item():.6e}, val_min={pf.min().item():.6e}, val_max={pf.max().item():.6e}",
-            flush=True,
-        )
-        if param.grad is not None:
-            gf = param.grad.float()
-            print(
-                f"    grad: norm={gf.norm().item():.6e}, min={gf.min().item():.6e}, "
-                f"max={gf.max().item():.6e}, mean={gf.mean().item():.6e}",
-                flush=True,
-            )
-        else:
-            print(f"    grad: None", flush=True)
-    print(f"{'='*80}\n", flush=True)
-
-
 # Training step extracted into a separate function to keep large vocab-sized
 # tensors (e.g. logits) scoped locally. This ensures they do not propagate beyond
 # the step via the computation graph, avoiding unnecessary and expensive
@@ -118,13 +93,27 @@ def train(
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
-    logger.info("Starting training (no validation)...")
+    logger.info("Starting training (no validation, partial freeze layers 12-18)...")
 
-    # Load model.
-    model = get_gpt_oss_model(config, device_manager.device)
+    # Load model without LoRA.
+    config.training_type = "partial_freeze"
+    model = get_gpt_oss_model(config, device_manager.device, debug_router_grads=True)
+
+    # Freeze all parameters, then unfreeze layers 12-18.
+    for param in model.parameters():
+        param.requires_grad = False
+    for name, param in model.named_parameters():
+        for layer_idx in FINETUNE_LAYERS:
+            if f".layers.{layer_idx}." in name:
+                param.requires_grad = True
+                break
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            logger.info(f"  Trainable: {name} {list(param.shape)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
@@ -172,21 +161,27 @@ def train(
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
 
+
                 # Clamp gradient values.
-                for p in trainable_params:
-                    if p.grad is not None:
-                        p.grad = p.grad.clamp(-10_000.0, 10_000.0)
+                #for p in trainable_params:
+                #    if p.grad is not None:
+                #        p.grad = p.grad.clamp(-10_000.0, 10_000.0)
 
                 # Clip gradient norms.
-                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                #torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
+
 
                 running_loss += loss_.item()
                 accumulation_step += 1
 
                 print(f"Current loss and step: {loss_.item()} {global_step}", flush=True)
+                print_all_gradients(model, global_step, accumulation_step)
+                for li in FINETUNE_LAYERS:
+                    print_debug_intermediates(model, li)
+                #exit(0)
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:

@@ -12,7 +12,7 @@ from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
 
 
-def get_gpt_oss_model(config, device):
+def get_gpt_oss_model(config, device, debug_router_grads=False):
     """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation."""
     quantization_config = Mxfp4Config(dequantize=True)
 
@@ -30,7 +30,7 @@ def get_gpt_oss_model(config, device):
         attn_implementation="eager",
     )
 
-    override_gpt_oss_experts_deinterleave(model)
+    override_gpt_oss_experts_deinterleave(model, debug_router_grads=debug_router_grads)
 
     if config.training_type == "lora":
         n = model.config.num_hidden_layers
@@ -80,7 +80,7 @@ def shard_params_by_pattern(model, mesh, patterns):
 # ---------------------------------------------------------------------------
 
 
-def override_gpt_oss_experts_deinterleave(model):
+def override_gpt_oss_experts_deinterleave(model, debug_router_grads=False):
     """
     De-interleave gate_up_proj into separate gate_proj and up_proj, and
     patch forward to use the batched BMM path for both training and inference.
@@ -90,6 +90,8 @@ def override_gpt_oss_experts_deinterleave(model):
     for module in model.modules():
         if isinstance(module, gpt_oss_mod.GptOssExperts):
             _deinterleave_expert_weights(module)
+        if debug_router_grads and isinstance(module, gpt_oss_mod.GptOssTopKRouter):
+            module.forward = _debug_router_forward.__get__(module, type(module))
 
 
 def _deinterleave_expert_weights(experts):
@@ -110,6 +112,38 @@ def _deinterleave_expert_weights(experts):
     experts.forward = _deinterleaved_experts_forward.__get__(experts, type(experts))
 
 
+def _keep(dbg, name, t):
+    if t.requires_grad:
+        t.retain_grad()
+    dbg[name] = t
+    return t
+
+
+def _debug_router_forward(self, hidden_states):
+    """Router forward with retain_grad on every intermediate."""
+    import torch.nn.functional as F
+
+    self._dbg = {}
+
+    flat = _keep(self._dbg, "router_input", hidden_states.reshape(-1, self.hidden_dim))
+
+    router_logits = _keep(self._dbg, "router_logits",
+                          F.linear(flat, self.weight, self.bias))
+
+    router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)
+    #self._dbg["topk_indices_raw"] = router_indices
+    #router_indices = router_indices.clamp(0, 31)
+    router_top_value = _keep(self._dbg, "topk_values_pre_softmax", router_top_value)
+
+    router_top_value = _keep(self._dbg, "topk_values_post_softmax",
+                             torch.nn.functional.softmax(router_top_value, dim=1, dtype=router_top_value.dtype))
+
+    router_scores = _keep(self._dbg, "routing_weights",
+                          torch.zeros_like(router_logits).scatter_(1, router_indices, router_top_value))
+
+    return router_scores, router_indices
+
+
 def _deinterleaved_experts_forward(
     self, hidden_states, router_indices=None, routing_weights=None
 ):
@@ -128,7 +162,73 @@ def _deinterleaved_experts_forward(
     glu = gate * torch.sigmoid(gate * self.alpha)
     next_states = torch.bmm(((up + 1) * glu), self.down_proj)
     next_states = next_states + self.down_proj_bias[..., None, :]
-    next_states = next_states.view(num_experts, batch_size, -1, self.hidden_size)
-    next_states = next_states * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
-    next_states = next_states.sum(dim=0)
-    return next_states
+
+    self._dbg = {}
+
+    expert_out = _keep(self._dbg, "expert_out",
+                       next_states.view(num_experts, batch_size, -1, self.hidden_size))
+
+    routing_view = _keep(self._dbg, "routing_view",
+                         routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None])
+
+    weighted = _keep(self._dbg, "weighted", expert_out * routing_view)
+
+    output = _keep(self._dbg, "output", weighted.sum(dim=0))
+
+    return output
+
+
+def print_debug_intermediates(model, layer_idx):
+    """Print retained intermediate grads for the router backward branch."""
+    base = model._orig_mod if hasattr(model, "_orig_mod") else model
+    layer = base.model.layers[layer_idx]
+    router = layer.mlp.router
+    experts = layer.mlp.experts
+
+    def _stats(t):
+        f = t.float()
+        return (
+            f"shape={list(t.shape)}, "
+            f"min={f.min().item():.6e}, max={f.max().item():.6e}, "
+            f"norm={f.norm().item():.6e}, "
+            f"inf={torch.isinf(f).sum().item()}, nan={torch.isnan(f).sum().item()}"
+        )
+
+    print(f"\n{'='*80}", flush=True)
+    print(f"INTERMEDIATE GRADS — layer {layer_idx} router backward branch", flush=True)
+    print(f"{'='*80}", flush=True)
+
+    if hasattr(experts, "_dbg"):
+        for name in ("output", "weighted", "routing_view", "expert_out"):
+            t = experts._dbg.get(name)
+            if t is not None and t.grad is not None:
+                print(f"  experts.{name}: {_stats(t.grad)}", flush=True)
+            else:
+                print(f"  experts.{name}: grad=None", flush=True)
+
+    if hasattr(router, "_dbg"):
+        for name in ("routing_weights", "topk_values_post_softmax",
+                      "topk_values_pre_softmax", "router_logits", "router_input"):
+            t = router._dbg.get(name)
+            if t is not None and t.grad is not None:
+                print(f"  router.{name}: {_stats(t.grad)}", flush=True)
+            else:
+                print(f"  router.{name}: grad=None", flush=True)
+
+        raw_idx = router._dbg.get("topk_indices_raw")
+        if raw_idx is not None:
+            lo = raw_idx.min().item()
+            hi = raw_idx.max().item()
+            oob = ((raw_idx < 0) | (raw_idx > 31)).sum().item()
+            print(f"  router.topk_indices_raw: shape={list(raw_idx.shape)}, "
+                  f"min={lo}, max={hi}, oob_count={oob}", flush=True)
+            if oob > 0:
+                torch.set_printoptions(threshold=10000, linewidth=200)
+                print(f"  *** OUT-OF-RANGE INDICES DETECTED! ***", flush=True)
+                bad_rows = (raw_idx < 0) | (raw_idx > 31)
+                for r in range(raw_idx.shape[0]):
+                    if bad_rows[r].any():
+                        print(f"    row {r}: {raw_idx[r].tolist()}", flush=True)
+                torch.set_printoptions(profile="default")
+
+    print(f"{'='*80}\n", flush=True)

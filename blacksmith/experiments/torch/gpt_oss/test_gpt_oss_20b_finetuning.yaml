@@ -9,7 +9,7 @@ dtype: "torch.bfloat16"
 # Training hyperparameters
 training_type: "lora"
 learning_rate: 5e-5
-gradient_accumulation_steps: 8
+gradient_accumulation_steps: 256
 batch_size: 1
 num_epochs: 1
 ignored_index: -100
@@ -21,7 +21,7 @@ lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Device settings
-mesh_shape: [1, 4]
+mesh_shape: [1, 8]
 mesh_axis_names: ["batch", "model"]
 input_sharding_dim: null
 
