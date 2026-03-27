@@ -1,30 +1,36 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "alpaca"
 
 # Model settings
 model_name: "Qwen/Qwen3-8B"
-max_length: 512
+max_length: 256
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
 training_type: "lora"
-learning_rate: 1e-5
+learning_rate: 2e-5
 batch_size: 1
 gradient_accumulation_steps: 1
 gradient_checkpointing: True
 num_epochs: 1
 optim: "adamw_torch"
 
+# Learning rate scheduler settings
+lr_scheduler: "step"
+lr_scheduler_step_size: 10
+lr_scheduler_gamma: 0.1
+
 # Logging settings
 log_level: "INFO"
 use_wandb: True
 wandb_project: "qwen3-8B-multichip-lora-quietbox"
-wandb_run_name: "tt-qwen3-8B-test-sst2_512_1_0.00001_val_5_qb_06_1_8"
+wandb_run_name: "tt-qwen3-8B-test-alpaca_256_1_1_0.00002_bh_qb"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 10
+steps_freq: 5
+val_steps_freq: 5
 epoch_freq: 1
 print_examples: True
 ignored_index: -100
@@ -68,12 +74,11 @@ model_sharding_patterns:
   - ['\.mlp\.down_proj$', [null, "model"]]
 
 # LoRA setup
-lora_r: 4
-lora_alpha: 8
+lora_r: 16
+lora_alpha: 32
 lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Other settings
 framework: "pytorch"
 use_tt: True
-do_validation: False

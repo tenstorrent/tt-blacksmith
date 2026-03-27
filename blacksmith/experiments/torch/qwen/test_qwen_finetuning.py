@@ -33,8 +33,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            if num_val_batches > 5:
-                break
             input_ids = batch["input_ids"].to(device)
             attention_mask = batch["attention_mask"].to(device)
             # Expected output must be prepared on CPU first due to an OOM issue.
@@ -142,6 +140,7 @@ def train(
     running_loss = 0.0
 
     try:
+        torch_xla.sync(wait=True)
         # Initial validation
         model.eval()
         val_loss = validate(
@@ -155,14 +154,17 @@ def train(
         )
         logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
+        torch_xla.sync(wait=True)
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
 
             for batch in tqdm(train_dataloader, desc="Training"):
+                torch_xla.sync(wait=True)
                 # Zero out gradients at the start of accumulation cycle
                 if accumulation_step == 0:
                     optimizer.zero_grad()
+                    torch_xla.sync(wait=True)
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
@@ -188,6 +190,7 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
+                torch_xla.sync(wait=True)
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
                     device_manager.optimizer_step(optimizer)
@@ -218,17 +221,21 @@ def train(
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
 
-                    # Clear XLA computation cache to avoid memory issues.
-                    if config.use_tt:
-                        xr.clear_computation_cache()
+                    # # Clear XLA computation cache to avoid memory issues.
+                    # if config.use_tt:
+                    #     xr.clear_computation_cache()
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
+                        torch_xla.sync(wait=True)
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                        torch_xla.sync(wait=True)
 
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                torch_xla.sync(wait=True)
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                torch_xla.sync(wait=True)
 
         # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(
