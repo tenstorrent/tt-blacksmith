@@ -59,7 +59,10 @@ class SSTDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
+        # load only 512 examples of the training set for faster processing during development
         raw_dataset = load_dataset(DATASET_BENCHMARK, DATASET_NAME, split=self.split)
+        if self.split == "train":
+            raw_dataset = raw_dataset.select(range(512))
 
         tokenized_dataset = raw_dataset.map(self._tokenize_function)
         self.full_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)

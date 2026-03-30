@@ -1,0 +1,235 @@
+2026-03-28 17:25:50.435 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+/home/tt-admin/pglusac/tt-blacksmith/blacksmith/experiments/torch/gpt_oss/test_scatter_backward_repro.py:119: DeprecationWarning: Use torch_xla.device instead
+  device = xm.xla_device()
+2026-03-28 17:25:50.721 (   0.003s) [        B016A080]      module_builder.cc:151   WARN| tt-alchemist library not found in Python environment
+2026-03-28 17:25:50.726 | info     |             UMD | Creating TopologyDiscovery for architecture: blackhole (topology_discovery.cpp:64)
+2026-03-28 17:25:50.733 | info     |             UMD | Established firmware bundle version: 19.0.0 (topology_discovery.cpp:437)
+2026-03-28 17:25:50.835 | info     |          Device | Opening user mode device driver (tt_cluster.cpp:224)
+2026-03-28 17:25:50.838 | info     |             UMD | Creating TopologyDiscovery for architecture: blackhole (topology_discovery.cpp:64)
+2026-03-28 17:25:50.841 | info     |             UMD | Established firmware bundle version: 19.0.0 (topology_discovery.cpp:437)
+2026-03-28 17:25:50.938 | info     |             UMD | Creating TopologyDiscovery for architecture: blackhole (topology_discovery.cpp:64)
+2026-03-28 17:25:50.942 | info     |             UMD | Established firmware bundle version: 19.0.0 (topology_discovery.cpp:437)
+2026-03-28 17:25:51.133 | info     |             UMD | Harvesting masks for chip 5 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:51.149 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:51.149 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:51.517 | info     |             UMD | Harvesting masks for chip 0 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:51.534 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:51.534 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:51.902 | info     |             UMD | Harvesting masks for chip 1 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:51.918 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:51.918 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:52.271 | info     |             UMD | Harvesting masks for chip 4 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:52.287 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:52.287 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:52.623 | info     |             UMD | Harvesting masks for chip 6 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:52.639 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:52.639 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:52.964 | info     |             UMD | Harvesting masks for chip 2 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:52.980 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:52.980 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:53.302 | info     |             UMD | Harvesting masks for chip 3 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:53.318 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:53.318 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:53.643 | info     |             UMD | Harvesting masks for chip 7 tensix: 0x0 dram: 0x0 eth: 0x120 pcie: 0x2 l2cpu: 0x0 (cluster.cpp:331)
+2026-03-28 17:25:53.659 | info     |             UMD | Initializing iommu for sysmem (size: 0x40000000). (silicon_sysmem_manager.cpp:277)
+2026-03-28 17:25:53.659 | info     |             UMD | Allocating sysmem without hugepages (size: 0x40000000). (silicon_sysmem_manager.cpp:283)
+2026-03-28 17:25:53.983 | info     |             UMD | Opening local chip ids/PCIe ids: {0, 1, 2, 3, 4, 5, 6, 7}/[2, 3, 1, 0, 6, 7, 5, 4] and remote chip ids {} (cluster.cpp:180)
+2026-03-28 17:25:53.983 | info     |             UMD | IOMMU: enabled (cluster.cpp:155)
+2026-03-28 17:25:53.983 | info     |             UMD | KMD version: 2.6.0 (cluster.cpp:158)
+2026-03-28 17:25:54.024 | info     |             UMD | Starting devices in cluster (cluster.cpp:952)
+2026-03-28 17:25:54.079 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0x80000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.127 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0xffffffff80000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.153 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0x80000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.180 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0xffffffff80000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.218 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0x40000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.273 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0x80000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.301 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0x40000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:54.328 | info     |             UMD | Mapped sysmem without hugepages to IOVA 0xffffffff80000000; NOC address 0x1000000000000000 (silicon_sysmem_manager.cpp:331)
+2026-03-28 17:25:55.795 | info     |     Distributed | Using auto discovery to generate mesh graph. (metal_env.cpp:329)
+2026-03-28 17:25:55.795 | info     |     Distributed | Constructing control plane using auto-discovery (no mesh graph descriptor). (metal_env.cpp:391)
+2026-03-28 17:25:55.798 | info     |             UMD | Creating TopologyDiscovery for architecture: blackhole (topology_discovery.cpp:64)
+2026-03-28 17:25:55.800 | info     |             UMD | Established firmware bundle version: 19.0.0 (topology_discovery.cpp:437)
+2026-03-28 17:25:55.884 | info     |          Fabric | TopologyMapper: Logical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1470)
+2026-03-28 17:25:55.884 | info     |          Fabric | 
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:55.884 | info     |          Fabric | 
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:55.884 | info     |          Fabric | TopologyMapper: Physical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1481)
+2026-03-28 17:25:55.884 | info     |          Fabric | 
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:55.884 | info     |          Fabric | 
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:55.884 | info     |          Fabric | Starting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es) (topology_mapper_utils.cpp:1107)
+2026-03-28 17:25:55.884 | info     |          Fabric | Multi-mesh mapping attempt 1/2: Trying inter-mesh mapping (topology_mapper_utils.cpp:1148)
+2026-03-28 17:25:55.884 | info     |          Fabric | Attempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s) (topology_mapper_utils.cpp:1177)
+2026-03-28 17:25:55.884 | info     |          Fabric | Multi-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped (topology_mapper_utils.cpp:1316)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:55.956 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:56.810 | info     |           Metal | Fabric config changed from FabricConfig::DISABLED to FabricConfig::FABRIC_1D_RING, reinitializing control plane (metal_env.cpp:254)
+2026-03-28 17:25:56.810 | info     |     Distributed | Using auto discovery to generate mesh graph. (metal_env.cpp:329)
+2026-03-28 17:25:56.810 | info     |     Distributed | Constructing control plane using auto-discovery (no mesh graph descriptor). (metal_env.cpp:391)
+2026-03-28 17:25:56.813 | info     |             UMD | Creating TopologyDiscovery for architecture: blackhole (topology_discovery.cpp:64)
+2026-03-28 17:25:56.815 | info     |             UMD | Established firmware bundle version: 19.0.0 (topology_discovery.cpp:437)
+2026-03-28 17:25:56.895 | info     |          Fabric | TopologyMapper: Logical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1470)
+2026-03-28 17:25:56.895 | info     |          Fabric | 
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:56.895 | info     |          Fabric | 
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:56.896 | info     |          Fabric | TopologyMapper: Physical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1481)
+2026-03-28 17:25:56.896 | info     |          Fabric | 
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:56.896 | info     |          Fabric | 
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:84)
+2026-03-28 17:25:56.896 | info     |          Fabric | Starting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es) (topology_mapper_utils.cpp:1107)
+2026-03-28 17:25:56.896 | info     |          Fabric | Multi-mesh mapping attempt 1/2: Trying inter-mesh mapping (topology_mapper_utils.cpp:1148)
+2026-03-28 17:25:56.896 | info     |          Fabric | Attempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s) (topology_mapper_utils.cpp:1177)
+2026-03-28 17:25:56.896 | info     |          Fabric | Multi-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped (topology_mapper_utils.cpp:1316)
+2026-03-28 17:25:57.017 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.023 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.027 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.031 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.035 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.039 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.043 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.050 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:57.373 | info     |           Metal | Initializing Fabric (fabric_firmware_initializer.cpp:45)
+2026-03-28 17:25:57.609 | info     |           Metal | Fabric initialized on Device 0 (device.cpp:411)
+2026-03-28 17:25:57.613 | info     |           Metal | Fabric initialized on Device 1 (device.cpp:411)
+2026-03-28 17:25:57.616 | info     |           Metal | Fabric initialized on Device 2 (device.cpp:411)
+2026-03-28 17:25:57.620 | info     |           Metal | Fabric initialized on Device 3 (device.cpp:411)
+2026-03-28 17:25:57.691 | info     |           Metal | Fabric initialized on Device 4 (device.cpp:411)
+2026-03-28 17:25:57.694 | info     |           Metal | Fabric initialized on Device 5 (device.cpp:411)
+2026-03-28 17:25:57.710 | info     |           Metal | Fabric initialized on Device 6 (device.cpp:411)
+2026-03-28 17:25:57.713 | info     |           Metal | Fabric initialized on Device 7 (device.cpp:411)
+2026-03-28 17:25:57.713 | info     |           Metal | Fabric Initialized with config FabricConfig::FABRIC_1D_RING (fabric_firmware_initializer.cpp:48)
+2026-03-28 17:25:58.191 | info     |           Metal | Enabling program cache on MeshDevice 1 (mesh_device.cpp:959)
+2026-03-28 17:25:58.192 (   7.473s) [        B016A080]              stubs.inc:122   WARN| STUB: PJRT_Client_TopologyDescription
+2026-03-28 17:25:58.192214: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-03-28 17:25:58.448 (   7.730s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:25:58.448 (   7.730s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:25:58.448 (   7.730s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:25:58.791 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.795 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.799 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.806 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.811 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.815 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.819 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:58.819 | info     |    BuildKernels | Using pre-compiled firmware from: /home/tt-admin/pglusac/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/7957922443226031710/ (build_env_manager.cpp:259)
+2026-03-28 17:25:59.091 | warning  |           Metal | Opening subset of mmio devices slows down UMD read/write to remote chips. If opening more devices, consider using CreateDevices API. (device_manager.cpp:261)
+2026-03-28 17:25:59.382 | info     |           Metal | Enabling program cache on MeshDevice 2 (mesh_device.cpp:959)
+2026-03-28 17:25:59.450 (   8.732s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:10.013 (  79.295s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:10.013 (  79.295s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:10.013 (  79.295s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:10.047 (  79.329s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:14.478 (  83.760s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:14.478 (  83.760s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:14.478 (  83.760s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:14.498 (  83.780s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:15.904 (  85.186s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:15.904 (  85.186s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:15.904 (  85.186s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:15.948 (  85.230s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:16.666 (  85.948s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:16.666 (  85.948s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:16.666 (  85.948s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:16.700 (  85.982s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:17.557 (  86.839s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:17.557 (  86.839s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:17.557 (  86.839s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:17.577 (  86.859s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:20.681 (  89.963s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:20.681 (  89.963s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:20.681 (  89.963s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:20.713 (  89.995s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:22.035 (  91.317s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:22.035 (  91.317s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:22.035 (  91.317s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:22.069 (  91.351s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:22.835 (  92.117s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:22.835 (  92.117s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:22.835 (  92.117s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:22.884 (  92.166s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:23.703 (  92.985s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:23.704 (  92.985s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:23.704 (  92.985s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:23.739 (  93.021s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:24.432 (  93.714s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:24.432 (  93.714s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:24.432 (  93.714s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:24.466 (  93.748s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:26.470 (  95.752s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:26.470 (  95.752s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:26.470 (  95.752s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:26.490 (  95.772s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:27.181 (  96.463s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:27.181 (  96.463s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:27.181 (  96.463s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:27.212 (  96.494s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:27.898 (  97.180s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:27.898 (  97.180s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:27.898 (  97.180s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:27.948 (  97.230s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:27.986 (  97.268s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:27.986 (  97.268s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:27.986 (  97.268s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:28.008 (  97.290s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:28.034 (  97.315s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:28.034 (  97.315s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:28.034 (  97.316s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:28.053 (  97.335s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+2026-03-28 17:27:29.023 (  98.305s) [        B016A080]      module_builder.cc:936   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-03-28 17:27:29.023 (  98.305s) [        B016A080]      module_builder.cc:950   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-03-28 17:27:29.023 (  98.305s) [        B016A080]      module_builder.cc:960   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-03-28 17:27:29.221 (  98.503s) [        B016A080]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+============================================================
+Device: xla:0
+Shapes: router_logits=[128,32], topk_values=[128,4]
+============================================================
+
+--- Step 1 ---
+  router_indices:              min=0, max=31, oob=0
+  routing_weights.grad:        min=-2.960205e-03, max=2.944946e-03, norm=5.108573e-02, inf=0, nan=0
+  topk_values_post_softmax.grad: min=-2.334595e-03, max=2.197266e-03, norm=1.755566e-02, inf=0, nan=0
+  PASS=True  (expected |values| < 1.0, got max=2.335e-03)
+
+--- Step 2 ---
+  router_indices:              min=0, max=31, oob=0
+  routing_weights.grad:        min=-2.624512e-03, max=2.517700e-03, norm=4.938940e-02, inf=0, nan=0
+  topk_values_post_softmax.grad: min=-2.441406e-03, max=1.998901e-03, norm=1.752436e-02, inf=0, nan=0
+  PASS=True  (expected |values| < 1.0, got max=2.441e-03)
+
+2026-03-28 17:27:32.816 | info     |          Device | Closing user mode device drivers (tt_cluster.cpp:478)
+2026-03-28 17:27:32.816 | info     |             UMD | Closing devices in cluster (cluster.cpp:963)

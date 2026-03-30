@@ -1,0 +1,984 @@
+2026-03-28 17:17:03.977 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-03-28 17:17:07 | INFO | Initializing Weights & Biases (W&B)...
+INFO:tt-gpt-oss-20b-test:Initializing Weights & Biases (W&B)...
+wandb: [wandb.login()] Loaded credentials for https://api.wandb.ai from /home/tt-admin/pglusac/.netrc.
+wandb: Currently logged in as: pglusac (tenstorrent-ml) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: setting up run 6ifyglza
+wandb: Tracking run with wandb version 0.25.1
+wandb: Run data is saved locally in /home/tt-admin/pglusac/tt-blacksmith/wandb/run-20260328_171707-6ifyglza
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run tt-gpt-oss-20b-test
+wandb: ⭐️ View project at https://wandb.ai/tenstorrent-ml/gpt-oss-20b-lora
+wandb: 🚀 View run at https://wandb.ai/tenstorrent-ml/gpt-oss-20b-lora/runs/6ifyglza
+2026-03-28 17:17:08 | INFO | Using device: cpu
+INFO:tt-gpt-oss-20b-test:Using device: cpu
+2026-03-28 17:17:08 | INFO | Starting training (no validation, partial freeze layers 12-18)...
+INFO:tt-gpt-oss-20b-test:Starting training (no validation, partial freeze layers 12-18)...
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:16<00:32, 16.04s/it]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:30<00:15, 15.07s/it]Loading checkpoint shards: 100%|██████████| 3/3 [00:36<00:00, 10.77s/it]Loading checkpoint shards: 100%|██████████| 3/3 [00:36<00:00, 12.03s/it]
+
+=== MODEL NAMED MODULES (with .weight) ===
+  model.embed_tokens                                                               weight (201088, 2880)
+  model.layers.0.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.0.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.0.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.0.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.0.mlp.router                                                        weight (32, 2880)
+  model.layers.0.input_layernorm                                                   weight (2880,)
+  model.layers.0.post_attention_layernorm                                          weight (2880,)
+  model.layers.1.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.1.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.1.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.1.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.1.mlp.router                                                        weight (32, 2880)
+  model.layers.1.input_layernorm                                                   weight (2880,)
+  model.layers.1.post_attention_layernorm                                          weight (2880,)
+  model.layers.2.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.2.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.2.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.2.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.2.mlp.router                                                        weight (32, 2880)
+  model.layers.2.input_layernorm                                                   weight (2880,)
+  model.layers.2.post_attention_layernorm                                          weight (2880,)
+  model.layers.3.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.3.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.3.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.3.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.3.mlp.router                                                        weight (32, 2880)
+  model.layers.3.input_layernorm                                                   weight (2880,)
+  model.layers.3.post_attention_layernorm                                          weight (2880,)
+  model.layers.4.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.4.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.4.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.4.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.4.mlp.router                                                        weight (32, 2880)
+  model.layers.4.input_layernorm                                                   weight (2880,)
+  model.layers.4.post_attention_layernorm                                          weight (2880,)
+  model.layers.5.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.5.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.5.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.5.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.5.mlp.router                                                        weight (32, 2880)
+  model.layers.5.input_layernorm                                                   weight (2880,)
+  model.layers.5.post_attention_layernorm                                          weight (2880,)
+  model.layers.6.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.6.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.6.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.6.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.6.mlp.router                                                        weight (32, 2880)
+  model.layers.6.input_layernorm                                                   weight (2880,)
+  model.layers.6.post_attention_layernorm                                          weight (2880,)
+  model.layers.7.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.7.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.7.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.7.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.7.mlp.router                                                        weight (32, 2880)
+  model.layers.7.input_layernorm                                                   weight (2880,)
+  model.layers.7.post_attention_layernorm                                          weight (2880,)
+  model.layers.8.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.8.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.8.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.8.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.8.mlp.router                                                        weight (32, 2880)
+  model.layers.8.input_layernorm                                                   weight (2880,)
+  model.layers.8.post_attention_layernorm                                          weight (2880,)
+  model.layers.9.self_attn.q_proj                                                  weight (4096, 2880)
+  model.layers.9.self_attn.k_proj                                                  weight (512, 2880)
+  model.layers.9.self_attn.v_proj                                                  weight (512, 2880)
+  model.layers.9.self_attn.o_proj                                                  weight (2880, 4096)
+  model.layers.9.mlp.router                                                        weight (32, 2880)
+  model.layers.9.input_layernorm                                                   weight (2880,)
+  model.layers.9.post_attention_layernorm                                          weight (2880,)
+  model.layers.10.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.10.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.10.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.10.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.10.mlp.router                                                       weight (32, 2880)
+  model.layers.10.input_layernorm                                                  weight (2880,)
+  model.layers.10.post_attention_layernorm                                         weight (2880,)
+  model.layers.11.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.11.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.11.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.11.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.11.mlp.router                                                       weight (32, 2880)
+  model.layers.11.input_layernorm                                                  weight (2880,)
+  model.layers.11.post_attention_layernorm                                         weight (2880,)
+  model.layers.12.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.12.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.12.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.12.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.12.mlp.router                                                       weight (32, 2880)
+  model.layers.12.input_layernorm                                                  weight (2880,)
+  model.layers.12.post_attention_layernorm                                         weight (2880,)
+  model.layers.13.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.13.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.13.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.13.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.13.mlp.router                                                       weight (32, 2880)
+  model.layers.13.input_layernorm                                                  weight (2880,)
+  model.layers.13.post_attention_layernorm                                         weight (2880,)
+  model.layers.14.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.14.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.14.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.14.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.14.mlp.router                                                       weight (32, 2880)
+  model.layers.14.input_layernorm                                                  weight (2880,)
+  model.layers.14.post_attention_layernorm                                         weight (2880,)
+  model.layers.15.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.15.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.15.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.15.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.15.mlp.router                                                       weight (32, 2880)
+  model.layers.15.input_layernorm                                                  weight (2880,)
+  model.layers.15.post_attention_layernorm                                         weight (2880,)
+  model.layers.16.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.16.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.16.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.16.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.16.mlp.router                                                       weight (32, 2880)
+  model.layers.16.input_layernorm                                                  weight (2880,)
+  model.layers.16.post_attention_layernorm                                         weight (2880,)
+  model.layers.17.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.17.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.17.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.17.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.17.mlp.router                                                       weight (32, 2880)
+  model.layers.17.input_layernorm                                                  weight (2880,)
+  model.layers.17.post_attention_layernorm                                         weight (2880,)
+  model.layers.18.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.18.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.18.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.18.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.18.mlp.router                                                       weight (32, 2880)
+  model.layers.18.input_layernorm                                                  weight (2880,)
+  model.layers.18.post_attention_layernorm                                         weight (2880,)
+  model.layers.19.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.19.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.19.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.19.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.19.mlp.router                                                       weight (32, 2880)
+  model.layers.19.input_layernorm                                                  weight (2880,)
+  model.layers.19.post_attention_layernorm                                         weight (2880,)
+  model.layers.20.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.20.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.20.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.20.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.20.mlp.router                                                       weight (32, 2880)
+  model.layers.20.input_layernorm                                                  weight (2880,)
+  model.layers.20.post_attention_layernorm                                         weight (2880,)
+  model.layers.21.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.21.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.21.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.21.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.21.mlp.router                                                       weight (32, 2880)
+  model.layers.21.input_layernorm                                                  weight (2880,)
+  model.layers.21.post_attention_layernorm                                         weight (2880,)
+  model.layers.22.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.22.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.22.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.22.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.22.mlp.router                                                       weight (32, 2880)
+  model.layers.22.input_layernorm                                                  weight (2880,)
+  model.layers.22.post_attention_layernorm                                         weight (2880,)
+  model.layers.23.self_attn.q_proj                                                 weight (4096, 2880)
+  model.layers.23.self_attn.k_proj                                                 weight (512, 2880)
+  model.layers.23.self_attn.v_proj                                                 weight (512, 2880)
+  model.layers.23.self_attn.o_proj                                                 weight (2880, 4096)
+  model.layers.23.mlp.router                                                       weight (32, 2880)
+  model.layers.23.input_layernorm                                                  weight (2880,)
+  model.layers.23.post_attention_layernorm                                         weight (2880,)
+  model.norm                                                                       weight (2880,)
+  lm_head                                                                          weight (201088, 2880)
+============================================================
+
+2026-03-28 17:17:48 | INFO | Loaded openai/gpt-oss-20b model.
+INFO:tt-gpt-oss-20b-test:Loaded openai/gpt-oss-20b model.
+2026-03-28 17:17:48 | INFO | Model parameters: 20914757184
+INFO:tt-gpt-oss-20b-test:Model parameters: 20914757184
+2026-03-28 17:17:48 | INFO | Trainable parameters: 5762308832
+INFO:tt-gpt-oss-20b-test:Trainable parameters: 5762308832
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.12.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.12.post_attention_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.13.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.13.post_attention_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.14.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.14.post_attention_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.15.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.15.post_attention_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.16.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.16.post_attention_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.17.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.17.post_attention_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.sinks [64]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.sinks [64]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.q_proj.weight [4096, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.q_proj.weight [4096, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.q_proj.bias [4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.q_proj.bias [4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.k_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.k_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.k_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.k_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.v_proj.weight [512, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.v_proj.weight [512, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.v_proj.bias [512]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.v_proj.bias [512]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.o_proj.weight [2880, 4096]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.o_proj.weight [2880, 4096]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.self_attn.o_proj.bias [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.self_attn.o_proj.bias [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.router.weight [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.router.weight [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.router.bias [32]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.router.bias [32]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.experts.down_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.experts.down_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.experts.down_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.experts.down_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.experts.gate_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.experts.gate_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.experts.up_proj [32, 2880, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.experts.up_proj [32, 2880, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.experts.gate_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.experts.gate_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.mlp.experts.up_proj_bias [32, 2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.mlp.experts.up_proj_bias [32, 2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.input_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.input_layernorm.weight [2880]
+2026-03-28 17:17:48 | INFO |   Trainable: model.layers.18.post_attention_layernorm.weight [2880]
+INFO:tt-gpt-oss-20b-test:  Trainable: model.layers.18.post_attention_layernorm.weight [2880]
+Map:   0%|          | 0/67349 [00:00<?, ? examples/s]Map:   1%|          | 364/67349 [00:00<00:18, 3605.01 examples/s]Map:   1%|          | 742/67349 [00:00<00:18, 3700.22 examples/s]Map:   2%|▏         | 1189/67349 [00:00<00:22, 2944.06 examples/s]Map:   2%|▏         | 1567/67349 [00:00<00:20, 3210.83 examples/s]Map:   3%|▎         | 1950/67349 [00:00<00:19, 3404.82 examples/s]Map:   4%|▎         | 2379/67349 [00:00<00:21, 2968.22 examples/s]Map:   4%|▍         | 2766/67349 [00:00<00:20, 3203.70 examples/s]Map:   5%|▍         | 3191/67349 [00:01<00:22, 2883.25 examples/s]Map:   5%|▌         | 3575/67349 [00:01<00:20, 3114.62 examples/s]Map:   6%|▌         | 3957/67349 [00:01<00:19, 3296.07 examples/s]Map:   7%|▋         | 4386/67349 [00:01<00:21, 2956.97 examples/s]Map:   7%|▋         | 4767/67349 [00:01<00:19, 3161.33 examples/s]Map:   8%|▊         | 5188/67349 [00:01<00:21, 2875.04 examples/s]Map:   8%|▊         | 5569/67349 [00:01<00:19, 3092.49 examples/s]Map:   9%|▉         | 5957/67349 [00:01<00:18, 3289.84 examples/s]Map:   9%|▉         | 6385/67349 [00:02<00:31, 1917.91 examples/s]Map:  10%|█         | 6776/67349 [00:02<00:26, 2254.38 examples/s]Map:  11%|█         | 7194/67349 [00:02<00:26, 2298.76 examples/s]Map:  11%|█▏        | 7581/67349 [00:02<00:22, 2604.74 examples/s]Map:  12%|█▏        | 7968/67349 [00:02<00:20, 2879.47 examples/s]Map:  12%|█▏        | 8380/67349 [00:02<00:21, 2703.34 examples/s]Map:  13%|█▎        | 8760/67349 [00:03<00:19, 2947.15 examples/s]Map:  14%|█▎        | 9183/67349 [00:03<00:21, 2734.88 examples/s]Map:  14%|█▍        | 9572/67349 [00:03<00:19, 2993.63 examples/s]Map:  15%|█▍        | 9947/67349 [00:03<00:18, 3174.01 examples/s]Map:  15%|█▌        | 10381/67349 [00:03<00:19, 2888.41 examples/s]Map:  16%|█▌        | 10764/67349 [00:03<00:18, 3106.50 examples/s]Map:  17%|█▋        | 11189/67349 [00:03<00:19, 2850.19 examples/s]Map:  17%|█▋        | 11580/67349 [00:03<00:18, 3093.31 examples/s]Map:  18%|█▊        | 11962/67349 [00:04<00:16, 3270.90 examples/s]Map:  18%|█▊        | 12385/67349 [00:04<00:18, 2948.19 examples/s]Map:  19%|█▉        | 12768/67349 [00:04<00:17, 3156.39 examples/s]Map:  20%|█▉        | 13187/67349 [00:04<00:18, 2874.08 examples/s]Map:  20%|██        | 13571/67349 [00:04<00:17, 3097.41 examples/s]Map:  21%|██        | 13947/67349 [00:04<00:16, 3262.40 examples/s]Map:  21%|██▏       | 14384/67349 [00:04<00:17, 2944.87 examples/s]Map:  22%|██▏       | 14769/67349 [00:05<00:16, 3157.39 examples/s]Map:  23%|██▎       | 15189/67349 [00:05<00:18, 2875.66 examples/s]Map:  23%|██▎       | 15570/67349 [00:05<00:16, 3091.65 examples/s]Map:  24%|██▎       | 15950/67349 [00:05<00:15, 3268.25 examples/s]Map:  24%|██▍       | 16383/67349 [00:05<00:17, 2947.44 examples/s]Map:  25%|██▍       | 16763/67349 [00:05<00:16, 3147.24 examples/s]Map:  26%|██▌       | 17191/67349 [00:05<00:17, 2876.57 examples/s]Map:  26%|██▌       | 17582/67349 [00:05<00:15, 3114.61 examples/s]Map:  27%|██▋       | 17971/67349 [00:06<00:14, 3300.91 examples/s]Map:  27%|██▋       | 18381/67349 [00:06<00:16, 2954.19 examples/s]Map:  28%|██▊       | 18764/67349 [00:06<00:15, 3163.00 examples/s]Map:  28%|██▊       | 19188/67349 [00:06<00:16, 2882.80 examples/s]Map:  29%|██▉       | 19578/67349 [00:06<00:15, 3119.01 examples/s]Map:  30%|██▉       | 19959/67349 [00:06<00:14, 3290.66 examples/s]Map:  30%|███       | 20387/67349 [00:06<00:15, 2944.09 examples/s]Map:  31%|███       | 20778/67349 [00:06<00:14, 3172.80 examples/s]Map:  31%|███▏      | 21192/67349 [00:07<00:15, 2885.81 examples/s]Map:  32%|███▏      | 21576/67349 [00:07<00:14, 3107.64 examples/s]Map:  33%|███▎      | 21957/67349 [00:07<00:13, 3280.74 examples/s]Map:  33%|███▎      | 22381/67349 [00:07<00:15, 2944.53 examples/s]Map:  34%|███▍      | 22766/67349 [00:07<00:14, 3158.70 examples/s]Map:  34%|███▍      | 23190/67349 [00:07<00:15, 2881.45 examples/s]Map:  35%|███▌      | 23577/67349 [00:07<00:14, 3108.06 examples/s]Map:  36%|███▌      | 23970/67349 [00:08<00:13, 3303.13 examples/s]Map:  36%|███▌      | 24387/67349 [00:08<00:14, 2968.98 examples/s]Map:  37%|███▋      | 24772/67349 [00:08<00:13, 3179.84 examples/s]Map:  37%|███▋      | 25189/67349 [00:08<00:14, 2894.95 examples/s]Map:  38%|███▊      | 25564/67349 [00:08<00:13, 3095.02 examples/s]Map:  39%|███▊      | 25949/67349 [00:08<00:12, 3281.71 examples/s]Map:  39%|███▉      | 26385/67349 [00:08<00:13, 2960.30 examples/s]Map:  40%|███▉      | 26767/67349 [00:08<00:12, 3163.53 examples/s]Map:  40%|████      | 27187/67349 [00:09<00:13, 2876.52 examples/s]Map:  41%|████      | 27574/67349 [00:09<00:12, 3106.18 examples/s]Map:  42%|████▏     | 27954/67349 [00:09<00:12, 3277.54 examples/s]Map:  42%|████▏     | 28372/67349 [00:09<00:13, 2924.60 examples/s]Map:  43%|████▎     | 28755/67349 [00:09<00:12, 3139.10 examples/s]Map:  43%|████▎     | 29190/67349 [00:10<00:20, 1897.29 examples/s]Map:  44%|████▍     | 29583/67349 [00:10<00:16, 2234.97 examples/s]Map:  44%|████▍     | 29967/67349 [00:10<00:14, 2541.28 examples/s]Map:  45%|████▌     | 30384/67349 [00:10<00:14, 2495.30 examples/s]Map:  46%|████▌     | 30771/67349 [00:10<00:13, 2782.04 examples/s]Map:  46%|████▋     | 31188/67349 [00:10<00:13, 2640.63 examples/s]Map:  47%|████▋     | 31572/67349 [00:10<00:12, 2902.03 examples/s]Map:  47%|████▋     | 31954/67349 [00:10<00:11, 3118.14 examples/s]Map:  48%|████▊     | 32380/67349 [00:11<00:12, 2847.30 examples/s]Map:  49%|████▊     | 32758/67349 [00:11<00:11, 3062.67 examples/s]Map:  49%|████▉     | 33187/67349 [00:11<00:12, 2816.04 examples/s]Map:  50%|████▉     | 33569/67349 [00:11<00:11, 3045.53 examples/s]Map:  50%|█████     | 33950/67349 [00:11<00:10, 3232.14 examples/s]Map:  51%|█████     | 34381/67349 [00:11<00:11, 2918.19 examples/s]Map:  52%|█████▏    | 34764/67349 [00:11<00:10, 3129.05 examples/s]Map:  52%|█████▏    | 35189/67349 [00:11<00:11, 2859.30 examples/s]Map:  53%|█████▎    | 35577/67349 [00:12<00:10, 3093.51 examples/s]Map:  53%|█████▎    | 35958/67349 [00:12<00:09, 3269.51 examples/s]Map:  54%|█████▍    | 36386/67349 [00:12<00:10, 2946.77 examples/s]Map:  55%|█████▍    | 36765/67349 [00:12<00:09, 3146.41 examples/s]Map:  55%|█████▌    | 37194/67349 [00:12<00:10, 2872.56 examples/s]Map:  56%|█████▌    | 37579/67349 [00:12<00:09, 3098.60 examples/s]Map:  56%|█████▋    | 37964/67349 [00:12<00:08, 3283.02 examples/s]Map:  57%|█████▋    | 38380/67349 [00:12<00:09, 2942.20 examples/s]Map:  58%|█████▊    | 38761/67349 [00:13<00:09, 3147.23 examples/s]Map:  58%|█████▊    | 39189/67349 [00:13<00:09, 2881.02 examples/s]Map:  59%|█████▉    | 39578/67349 [00:13<00:08, 3114.78 examples/s]Map:  59%|█████▉    | 39960/67349 [00:13<00:08, 3287.49 examples/s]Map:  60%|█████▉    | 40374/67349 [00:13<00:09, 2929.68 examples/s]Map:  61%|██████    | 40755/67349 [00:13<00:08, 3138.32 examples/s]Map:  61%|██████    | 41191/67349 [00:13<00:09, 2873.70 examples/s]Map:  62%|██████▏   | 41578/67349 [00:14<00:08, 3102.22 examples/s]Map:  62%|██████▏   | 41959/67349 [00:14<00:07, 3274.01 examples/s]Map:  63%|██████▎   | 42380/67349 [00:14<00:08, 2933.60 examples/s]Map:  63%|██████▎   | 42764/67349 [00:14<00:07, 3146.66 examples/s]Map:  64%|██████▍   | 43188/67349 [00:14<00:08, 2868.45 examples/s]Map:  65%|██████▍   | 43569/67349 [00:14<00:07, 3085.46 examples/s]Map:  65%|██████▌   | 43945/67349 [00:14<00:07, 3251.73 examples/s]Map:  66%|██████▌   | 44388/67349 [00:14<00:07, 2948.27 examples/s]Map:  66%|██████▋   | 44774/67349 [00:15<00:07, 3162.38 examples/s]Map:  67%|██████▋   | 45187/67349 [00:15<00:07, 2874.73 examples/s]Map:  68%|██████▊   | 45568/67349 [00:15<00:07, 3091.34 examples/s]Map:  68%|██████▊   | 45956/67349 [00:15<00:06, 3287.49 examples/s]Map:  69%|██████▉   | 46392/67349 [00:15<00:07, 2963.89 examples/s]Map:  69%|██████▉   | 46781/67349 [00:15<00:06, 3182.11 examples/s]Map:  70%|███████   | 47188/67349 [00:15<00:06, 2882.05 examples/s]Map:  71%|███████   | 47578/67349 [00:15<00:06, 3117.99 examples/s]Map:  71%|███████   | 47963/67349 [00:16<00:05, 3299.14 examples/s]Map:  72%|███████▏  | 48483/67349 [00:16<00:09, 2000.54 examples/s]Map:  73%|███████▎  | 48866/67349 [00:16<00:08, 2301.86 examples/s]Map:  73%|███████▎  | 49191/67349 [00:16<00:08, 2264.56 examples/s]Map:  74%|███████▎  | 49574/67349 [00:16<00:06, 2575.07 examples/s]Map:  74%|███████▍  | 49953/67349 [00:16<00:06, 2842.81 examples/s]Map:  75%|███████▍  | 50382/67349 [00:17<00:06, 2691.41 examples/s]Map:  75%|███████▌  | 50771/67349 [00:17<00:05, 2958.62 examples/s]Map:  76%|███████▌  | 51188/67349 [00:17<00:05, 2755.27 examples/s]Map:  77%|███████▋  | 51563/67349 [00:17<00:05, 2979.89 examples/s]Map:  77%|███████▋  | 51946/67349 [00:17<00:04, 3185.41 examples/s]Map:  78%|███████▊  | 52382/67349 [00:17<00:05, 2894.48 examples/s]Map:  78%|███████▊  | 52759/67349 [00:17<00:04, 3097.34 examples/s]Map:  79%|███████▉  | 53183/67349 [00:18<00:05, 2830.75 examples/s]Map:  80%|███████▉  | 53570/67349 [00:18<00:04, 3066.97 examples/s]Map:  80%|████████  | 53957/67349 [00:18<00:04, 3263.77 examples/s]Map:  81%|████████  | 54379/67349 [00:18<00:04, 2930.48 examples/s]Map:  81%|████████▏ | 54758/67349 [00:18<00:04, 3132.97 examples/s]Map:  82%|████████▏ | 55188/67349 [00:18<00:04, 2861.85 examples/s]Map:  83%|████████▎ | 55573/67349 [00:18<00:03, 3087.85 examples/s]Map:  83%|████████▎ | 55957/67349 [00:18<00:03, 3272.45 examples/s]Map:  84%|████████▎ | 56383/67349 [00:19<00:03, 2944.53 examples/s]Map:  84%|████████▍ | 56766/67349 [00:19<00:03, 3152.92 examples/s]Map:  85%|████████▍ | 57187/67349 [00:19<00:03, 2869.01 examples/s]Map:  85%|████████▌ | 57572/67349 [00:19<00:03, 3094.65 examples/s]Map:  86%|████████▌ | 57954/67349 [00:19<00:02, 3272.24 examples/s]Map:  87%|████████▋ | 58376/67349 [00:19<00:03, 2933.47 examples/s]Map:  87%|████████▋ | 58763/67349 [00:19<00:02, 3153.45 examples/s]Map:  88%|████████▊ | 59189/67349 [00:20<00:02, 2874.22 examples/s]Map:  88%|████████▊ | 59574/67349 [00:20<00:02, 3099.96 examples/s]Map:  89%|████████▉ | 59958/67349 [00:20<00:02, 3281.20 examples/s]Map:  90%|████████▉ | 60384/67349 [00:20<00:02, 2948.78 examples/s]Map:  90%|█████████ | 60769/67349 [00:20<00:02, 3162.82 examples/s]Map:  91%|█████████ | 61188/67349 [00:20<00:02, 2873.50 examples/s]Map:  91%|█████████▏| 61576/67349 [00:20<00:01, 3105.49 examples/s]Map:  92%|█████████▏| 61959/67349 [00:20<00:01, 3282.90 examples/s]Map:  93%|█████████▎| 62382/67349 [00:21<00:01, 2943.70 examples/s]Map:  93%|█████████▎| 62770/67349 [00:21<00:01, 3163.74 examples/s]Map:  94%|█████████▍| 63186/67349 [00:21<00:01, 2874.32 examples/s]Map:  94%|█████████▍| 63569/67349 [00:21<00:01, 3095.86 examples/s]Map:  95%|█████████▍| 63959/67349 [00:21<00:01, 3294.86 examples/s]Map:  96%|█████████▌| 64383/67349 [00:21<00:01, 2956.48 examples/s]Map:  96%|█████████▌| 64768/67349 [00:21<00:00, 3168.05 examples/s]Map:  97%|█████████▋| 65190/67349 [00:22<00:00, 2882.77 examples/s]Map:  97%|█████████▋| 65575/67349 [00:22<00:00, 3107.00 examples/s]Map:  98%|█████████▊| 65960/67349 [00:22<00:00, 3290.73 examples/s]Map:  99%|█████████▊| 66390/67349 [00:22<00:00, 2965.75 examples/s]Map:  99%|█████████▉| 66773/67349 [00:22<00:00, 3170.20 examples/s]Map: 100%|█████████▉| 67189/67349 [00:22<00:00, 2883.82 examples/s]Map: 100%|██████████| 67349/67349 [00:22<00:00, 2961.89 examples/s]
+Filter:   0%|          | 0/67349 [00:00<?, ? examples/s]Filter:   9%|▉         | 6000/67349 [00:00<00:01, 45971.86 examples/s]Filter:  18%|█▊        | 12000/67349 [00:00<00:01, 46433.95 examples/s]Filter:  27%|██▋       | 18000/67349 [00:00<00:01, 46676.41 examples/s]Filter:  36%|███▌      | 24000/67349 [00:00<00:00, 46889.14 examples/s]Filter:  45%|████▍     | 30000/67349 [00:00<00:00, 46712.63 examples/s]Filter:  53%|█████▎    | 36000/67349 [00:01<00:01, 28233.96 examples/s]Filter:  62%|██████▏   | 42000/67349 [00:01<00:00, 32500.22 examples/s]Filter:  71%|███████▏  | 48000/67349 [00:01<00:00, 36102.51 examples/s]Filter:  80%|████████  | 54000/67349 [00:01<00:00, 38978.09 examples/s]Filter:  89%|████████▉ | 60000/67349 [00:01<00:00, 41150.99 examples/s]Filter:  98%|█████████▊| 66000/67349 [00:01<00:00, 42765.27 examples/s]Filter: 100%|██████████| 67349/67349 [00:01<00:00, 39957.09 examples/s]
+2026-03-28 17:18:15 | INFO | Loaded sst2 dataset. Train dataset size: 67349
+INFO:tt-gpt-oss-20b-test:Loaded sst2 dataset. Train dataset size: 67349
+Training:   0%|          | 0/67349 [00:00<?, ?it/s]Current loss and step: 3.2529296875 0
+
+================================================================================
+GRADIENTS at global_step=0, accumulation_step=1
+================================================================================
+  model.layers.12.self_attn.sinks: shape=[64], min=-9.250641e-05, max=1.363754e-04, mean=-8.820789e-07, std=3.737600e-05, norm=2.967468e-04, zeros=0/64
+  model.layers.12.self_attn.q_proj.weight: shape=[4096, 2880], min=-1.080322e-02, max=9.094238e-03, mean=9.538152e-10, std=1.902955e-05, norm=6.527888e-02, zeros=0/11796480
+  model.layers.12.self_attn.q_proj.bias: shape=[4096], min=-2.937317e-04, max=2.431870e-04, mean=-1.230578e-09, std=1.312079e-05, norm=8.396277e-04, zeros=0/4096
+  model.layers.12.self_attn.k_proj.weight: shape=[512, 2880], min=-9.521484e-03, max=1.098633e-02, mean=-9.741411e-09, std=4.088107e-05, norm=4.963876e-02, zeros=0/1474560
+  model.layers.12.self_attn.k_proj.bias: shape=[512], min=-1.192093e-04, max=2.803802e-04, mean=-1.528655e-06, std=2.423002e-05, norm=5.488182e-04, zeros=0/512
+  model.layers.12.self_attn.v_proj.weight: shape=[512, 2880], min=-9.346008e-04, max=8.544922e-04, mean=-4.383458e-09, std=9.855316e-06, norm=1.196705e-02, zeros=1/1474560
+  model.layers.12.self_attn.v_proj.bias: shape=[512], min=-2.539158e-05, max=2.491474e-05, mean=-2.588403e-07, std=6.832735e-06, norm=1.545671e-04, zeros=0/512
+  model.layers.12.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.325607e-04, max=1.230240e-04, mean=2.726605e-10, std=2.605869e-06, norm=8.941694e-03, zeros=1/11796480
+  model.layers.12.self_attn.o_proj.bias: shape=[2880], min=-1.549721e-05, max=1.823902e-05, mean=-2.529548e-08, std=2.162789e-06, norm=1.160552e-04, zeros=0/2880
+  model.layers.12.mlp.router.weight: shape=[32, 2880], min=-9.422302e-04, max=9.918213e-04, mean=-2.384190e-10, std=6.785549e-05, norm=2.059932e-02, zeros=37442/92160
+  model.layers.12.mlp.router.bias: shape=[32], min=-3.585815e-04, max=3.013611e-04, mean=7.334165e-09, std=9.537927e-05, norm=5.310493e-04, zeros=13/32
+  model.layers.12.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-2.336502e-05, max=2.634525e-05, mean=2.882940e-12, std=4.361778e-08, norm=7.034981e-04, zeros=108011960/265420800
+  model.layers.12.mlp.experts.down_proj_bias: shape=[32, 2880], min=-5.960464e-06, max=5.483627e-06, mean=-4.882498e-10, std=1.645681e-07, norm=4.995918e-05, zeros=37459/92160
+  model.layers.12.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-4.882812e-04, max=4.806519e-04, mean=-7.703459e-11, std=4.170093e-06, norm=6.733403e-02, zeros=107991847/265420800
+  model.layers.12.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-1.668930e-04, max=1.888275e-04, mean=2.835356e-11, std=1.034989e-06, norm=1.667914e-02, zeros=107931242/265420800
+  model.layers.12.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-1.344681e-04, max=1.497269e-04, mean=-2.331415e-08, std=5.039995e-06, norm=1.530037e-03, zeros=37508/92160
+  model.layers.12.mlp.experts.up_proj_bias: shape=[32, 2880], min=-5.578995e-05, max=4.887581e-05, mean=-2.750589e-09, std=1.266088e-06, norm=3.843548e-04, zeros=37479/92160
+  model.layers.12.input_layernorm.weight: shape=[2880], min=-2.822876e-04, max=7.009506e-05, mean=-6.793828e-08, std=1.015664e-05, norm=5.449802e-04, zeros=0/2880
+  model.layers.12.post_attention_layernorm.weight: shape=[2880], min=-1.258850e-04, max=2.431870e-04, mean=-7.735327e-07, std=1.239840e-05, norm=6.665462e-04, zeros=0/2880
+  model.layers.13.self_attn.sinks: shape=[64], min=-6.580353e-05, max=4.887581e-05, mean=-4.559490e-07, std=1.804077e-05, norm=1.432406e-04, zeros=0/64
+  model.layers.13.self_attn.q_proj.weight: shape=[4096, 2880], min=-2.685547e-02, max=2.612305e-02, mean=-4.668059e-09, std=6.284184e-05, norm=2.156506e-01, zeros=1/11796480
+  model.layers.13.self_attn.q_proj.bias: shape=[4096], min=-3.070831e-04, max=2.918243e-04, mean=-9.613269e-08, std=2.186130e-05, norm=1.398966e-03, zeros=0/4096
+  model.layers.13.self_attn.k_proj.weight: shape=[512, 2880], min=-1.263428e-02, max=1.843262e-02, mean=-3.739671e-08, std=7.048250e-05, norm=8.557206e-02, zeros=0/1474560
+  model.layers.13.self_attn.k_proj.bias: shape=[512], min=-1.478195e-04, max=1.287460e-04, mean=7.607548e-07, std=1.888230e-05, norm=4.271873e-04, zeros=0/512
+  model.layers.13.self_attn.v_proj.weight: shape=[512, 2880], min=-2.944946e-03, max=3.799438e-03, mean=-4.801360e-09, std=3.088598e-05, norm=3.749892e-02, zeros=0/1474560
+  model.layers.13.self_attn.v_proj.bias: shape=[512], min=-3.242493e-05, max=3.409386e-05, mean=2.449847e-07, std=1.025172e-05, norm=2.318096e-04, zeros=0/512
+  model.layers.13.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.101494e-04, max=1.020432e-04, mean=-1.880280e-10, std=2.368956e-06, norm=8.128481e-03, zeros=0/11796480
+  model.layers.13.self_attn.o_proj.bias: shape=[2880], min=-1.466274e-05, max=1.728535e-05, mean=-2.587846e-08, std=1.843137e-06, norm=9.890564e-05, zeros=0/2880
+  model.layers.13.mlp.router.weight: shape=[32, 2880], min=-9.841919e-04, max=1.182556e-03, mean=-6.854761e-10, std=8.076856e-05, norm=2.451939e-02, zeros=31687/92160
+  model.layers.13.mlp.router.bias: shape=[32], min=-2.307892e-04, max=2.784729e-04, mean=-4.062895e-08, std=9.092814e-05, norm=5.062665e-04, zeros=11/32
+  model.layers.13.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-2.419949e-05, max=2.813339e-05, mean=1.102661e-12, std=4.498873e-08, norm=7.246408e-04, zeros=91402873/265420800
+  model.layers.13.mlp.experts.down_proj_bias: shape=[32, 2880], min=-4.202127e-06, max=4.827976e-06, mean=-6.527313e-10, std=1.386703e-07, norm=4.209753e-05, zeros=31694/92160
+  model.layers.13.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-6.637573e-04, max=6.256104e-04, mean=9.764552e-11, std=3.933619e-06, norm=6.347743e-02, zeros=91428856/265420800
+  model.layers.13.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-3.318787e-04, max=4.444122e-04, mean=1.266266e-10, std=1.186486e-06, norm=1.909807e-02, zeros=91423138/265420800
+  model.layers.13.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-1.583099e-04, max=1.831055e-04, mean=1.695755e-08, std=4.376016e-06, norm=1.328466e-03, zeros=31745/92160
+  model.layers.13.mlp.experts.up_proj_bias: shape=[32, 2880], min=-5.793571e-05, max=9.298325e-05, mean=1.387198e-08, std=1.311496e-06, norm=3.981614e-04, zeros=31743/92160
+  model.layers.13.input_layernorm.weight: shape=[2880], min=-3.385544e-05, max=2.460480e-04, mean=3.089287e-07, std=8.078046e-06, norm=4.337550e-04, zeros=0/2880
+  model.layers.13.post_attention_layernorm.weight: shape=[2880], min=-3.013611e-04, max=4.520416e-04, mean=6.498956e-07, std=1.596315e-05, norm=8.572338e-04, zeros=0/2880
+  model.layers.14.self_attn.sinks: shape=[64], min=-6.341934e-05, max=1.249313e-04, mean=1.636712e-06, std=3.639055e-05, norm=2.891377e-04, zeros=0/64
+  model.layers.14.self_attn.q_proj.weight: shape=[4096, 2880], min=-1.806641e-02, max=1.220703e-02, mean=-5.770117e-09, std=3.109609e-05, norm=1.066913e-01, zeros=1/11796480
+  model.layers.14.self_attn.q_proj.bias: shape=[4096], min=-3.852844e-04, max=2.374649e-04, mean=-4.472781e-08, std=1.527031e-05, norm=9.771849e-04, zeros=0/4096
+  model.layers.14.self_attn.k_proj.weight: shape=[512, 2880], min=-1.599121e-02, max=1.794434e-02, mean=9.655622e-08, std=7.384348e-05, norm=8.965889e-02, zeros=0/1474560
+  model.layers.14.self_attn.k_proj.bias: shape=[512], min=-3.719330e-04, max=2.393723e-04, mean=2.193307e-06, std=3.432910e-05, norm=7.776053e-04, zeros=0/512
+  model.layers.14.self_attn.v_proj.weight: shape=[512, 2880], min=-5.645752e-04, max=5.989075e-04, mean=5.762292e-09, std=7.690724e-06, norm=9.338321e-03, zeros=0/1474560
+  model.layers.14.self_attn.v_proj.bias: shape=[512], min=-1.561642e-05, max=1.585484e-05, mean=5.945265e-08, std=4.195031e-06, norm=9.483952e-05, zeros=0/512
+  model.layers.14.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.573563e-04, max=1.659393e-04, mean=-1.993374e-09, std=3.248401e-06, norm=1.114438e-02, zeros=1/11796480
+  model.layers.14.self_attn.o_proj.bias: shape=[2880], min=-1.370907e-05, max=1.657009e-05, mean=-2.429067e-08, std=1.629532e-06, norm=8.744435e-05, zeros=0/2880
+  model.layers.14.mlp.router.weight: shape=[32, 2880], min=-4.062653e-04, max=4.634857e-04, mean=-9.817742e-11, std=2.553472e-05, norm=7.751726e-03, zeros=23046/92160
+  model.layers.14.mlp.router.bias: shape=[32], min=-5.292892e-05, max=3.552437e-05, mean=1.402805e-08, std=1.805890e-05, norm=1.005477e-04, zeros=8/32
+  model.layers.14.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-3.695488e-05, max=2.467632e-05, mean=1.237951e-12, std=3.853377e-08, norm=6.204212e-04, zeros=66597682/265420800
+  model.layers.14.mlp.experts.down_proj_bias: shape=[32, 2880], min=-6.169081e-06, max=5.453825e-06, mean=-3.811439e-10, std=1.342653e-07, norm=4.075990e-05, zeros=23070/92160
+  model.layers.14.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-8.926392e-04, max=1.177979e-02, mean=1.800445e-10, std=4.181656e-06, norm=6.745203e-02, zeros=66548716/265420800
+  model.layers.14.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-8.697510e-04, max=7.751465e-03, mean=1.278919e-10, std=1.300070e-06, norm=2.096710e-02, zeros=66658208/265420800
+  model.layers.14.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-1.773834e-04, max=1.506805e-04, mean=3.895732e-08, std=4.402880e-06, norm=1.336661e-03, zeros=23109/92160
+  model.layers.14.mlp.experts.up_proj_bias: shape=[32, 2880], min=-1.602173e-04, max=6.628036e-05, mean=9.038782e-11, std=1.271204e-06, norm=3.859068e-04, zeros=23152/92160
+  model.layers.14.input_layernorm.weight: shape=[2880], min=-4.315376e-05, max=2.632141e-04, mean=3.877767e-09, std=7.242644e-06, norm=3.886136e-04, zeros=0/2880
+  model.layers.14.post_attention_layernorm.weight: shape=[2880], min=-2.107620e-04, max=3.013611e-04, mean=8.482971e-07, std=1.245124e-05, norm=6.696367e-04, zeros=0/2880
+  model.layers.15.self_attn.sinks: shape=[64], min=-6.079674e-05, max=6.580353e-05, mean=-1.308159e-06, std=2.607110e-05, norm=2.071974e-04, zeros=0/64
+  model.layers.15.self_attn.q_proj.weight: shape=[4096, 2880], min=-4.345703e-02, max=4.516602e-02, mean=6.508718e-09, std=7.334657e-05, norm=2.516806e-01, zeros=1/11796480
+  model.layers.15.self_attn.q_proj.bias: shape=[4096], min=-6.675720e-04, max=8.430481e-04, mean=1.188370e-08, std=3.441585e-05, norm=2.202346e-03, zeros=0/4096
+  model.layers.15.self_attn.k_proj.weight: shape=[512, 2880], min=-8.789062e-02, max=9.082031e-02, mean=-1.337610e-07, std=1.652355e-04, norm=2.006347e-01, zeros=0/1474560
+  model.layers.15.self_attn.k_proj.bias: shape=[512], min=-8.201599e-04, max=1.045227e-03, mean=1.123391e-06, std=6.683847e-05, norm=1.511118e-03, zeros=0/512
+  model.layers.15.self_attn.v_proj.weight: shape=[512, 2880], min=-1.846313e-03, max=1.739502e-03, mean=1.530036e-09, std=1.582130e-05, norm=1.921013e-02, zeros=0/1474560
+  model.layers.15.self_attn.v_proj.bias: shape=[512], min=-2.729893e-05, max=3.457069e-05, mean=-8.035386e-09, std=7.843487e-06, norm=1.773045e-04, zeros=0/512
+  model.layers.15.self_attn.o_proj.weight: shape=[2880, 4096], min=-8.869171e-05, max=1.101494e-04, mean=-2.766096e-10, std=1.326903e-06, norm=4.551881e-03, zeros=0/11796480
+  model.layers.15.self_attn.o_proj.bias: shape=[2880], min=-1.484156e-05, max=1.764297e-05, mean=-9.125290e-09, std=1.528453e-06, norm=8.201258e-05, zeros=0/2880
+  model.layers.15.mlp.router.weight: shape=[32, 2880], min=-1.167297e-03, max=1.396179e-03, mean=-4.995336e-10, std=6.540162e-05, norm=1.985440e-02, zeros=34566/92160
+  model.layers.15.mlp.router.bias: shape=[32], min=-1.974106e-04, max=2.708435e-04, mean=-3.515743e-08, std=7.394243e-05, norm=4.116941e-04, zeros=12/32
+  model.layers.15.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-2.396107e-05, max=2.038479e-05, mean=-3.682586e-12, std=3.819680e-08, norm=6.187421e-04, zeros=99625357/265420800
+  model.layers.15.mlp.experts.down_proj_bias: shape=[32, 2880], min=-5.722046e-06, max=5.006790e-06, mean=-4.441114e-10, std=1.253347e-07, norm=3.804895e-05, zeros=34572/92160
+  model.layers.15.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-1.968384e-03, max=1.502991e-03, mean=-7.834915e-11, std=4.543165e-06, norm=7.361672e-02, zeros=99636880/265420800
+  model.layers.15.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-8.544922e-04, max=9.841919e-04, mean=4.494088e-11, std=1.244309e-06, norm=2.016516e-02, zeros=99622535/265420800
+  model.layers.15.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-3.299713e-04, max=1.497269e-04, mean=-1.837462e-08, std=4.804398e-06, norm=1.458514e-03, zeros=34599/92160
+  model.layers.15.mlp.experts.up_proj_bias: shape=[32, 2880], min=-5.865097e-05, max=1.659393e-04, mean=2.693662e-09, std=1.293369e-06, norm=3.926377e-04, zeros=34594/92160
+  model.layers.15.input_layernorm.weight: shape=[2880], min=-6.484985e-05, max=4.744530e-05, mean=1.057378e-07, std=5.327981e-06, norm=2.859361e-04, zeros=0/2880
+  model.layers.15.post_attention_layernorm.weight: shape=[2880], min=-1.158714e-04, max=3.108978e-04, mean=2.414664e-07, std=1.135749e-05, norm=6.095386e-04, zeros=0/2880
+  model.layers.16.self_attn.sinks: shape=[64], min=-6.866455e-05, max=7.534027e-05, mean=3.351743e-06, std=3.286487e-05, norm=2.622313e-04, zeros=0/64
+  model.layers.16.self_attn.q_proj.weight: shape=[4096, 2880], min=-1.354980e-02, max=1.367188e-02, mean=3.697747e-10, std=2.623847e-05, norm=8.998911e-02, zeros=0/11796480
+  model.layers.16.self_attn.q_proj.bias: shape=[4096], min=-3.128052e-04, max=2.574921e-04, mean=-8.257786e-08, std=1.306669e-05, norm=8.361826e-04, zeros=0/4096
+  model.layers.16.self_attn.k_proj.weight: shape=[512, 2880], min=-1.867676e-02, max=1.513672e-02, mean=-1.548718e-08, std=6.850470e-05, norm=8.318009e-02, zeros=0/1474560
+  model.layers.16.self_attn.k_proj.bias: shape=[512], min=-2.365112e-04, max=4.138947e-04, mean=-3.318176e-06, std=3.719359e-05, norm=8.441184e-04, zeros=0/512
+  model.layers.16.self_attn.v_proj.weight: shape=[512, 2880], min=-7.591248e-04, max=7.820129e-04, mean=4.431666e-10, std=8.510339e-06, norm=1.033392e-02, zeros=0/1474560
+  model.layers.16.self_attn.v_proj.bias: shape=[512], min=-1.871586e-05, max=1.573563e-05, mean=1.193190e-07, std=4.733761e-06, norm=1.070422e-04, zeros=0/512
+  model.layers.16.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.993179e-04, max=2.269745e-04, mean=3.376697e-10, std=2.114929e-06, norm=7.253380e-03, zeros=0/11796480
+  model.layers.16.self_attn.o_proj.bias: shape=[2880], min=-1.561642e-05, max=1.597404e-05, mean=-9.917426e-09, std=1.404316e-06, norm=7.535230e-05, zeros=0/2880
+  model.layers.16.mlp.router.weight: shape=[32, 2880], min=-8.926392e-04, max=6.980896e-04, mean=-2.311380e-11, std=4.001144e-05, norm=1.214654e-02, zeros=37445/92160
+  model.layers.16.mlp.router.bias: shape=[32], min=-1.583099e-04, max=1.196861e-04, mean=2.980232e-08, std=4.299609e-05, norm=2.393921e-04, zeros=13/32
+  model.layers.16.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-1.966953e-05, max=2.384186e-05, mean=-5.470857e-12, std=3.019492e-08, norm=4.878323e-04, zeros=108035066/265420800
+  model.layers.16.mlp.experts.down_proj_bias: shape=[32, 2880], min=-4.917383e-06, max=4.321337e-06, mean=-3.008096e-10, std=1.159015e-07, norm=3.518510e-05, zeros=37461/92160
+  model.layers.16.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-2.441406e-03, max=1.922607e-03, mean=1.429774e-10, std=3.728735e-06, norm=6.024890e-02, zeros=108006238/265420800
+  model.layers.16.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-3.860474e-03, max=8.544922e-04, mean=-6.223198e-12, std=1.045152e-06, norm=1.684052e-02, zeros=108003200/265420800
+  model.layers.16.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-4.119873e-04, max=2.298355e-04, mean=-1.676297e-09, std=4.293787e-06, norm=1.303494e-03, zeros=37507/92160
+  model.layers.16.mlp.experts.up_proj_bias: shape=[32, 2880], min=-1.068115e-04, max=1.258850e-04, mean=2.517952e-09, std=1.173583e-06, norm=3.562733e-04, zeros=37501/92160
+  model.layers.16.input_layernorm.weight: shape=[2880], min=-6.723404e-05, max=5.006790e-05, mean=-2.374650e-07, std=5.279486e-06, norm=2.835642e-04, zeros=0/2880
+  model.layers.16.post_attention_layernorm.weight: shape=[2880], min=-4.367828e-04, max=1.196861e-04, mean=-2.898055e-07, std=1.206707e-05, norm=6.476609e-04, zeros=0/2880
+  model.layers.17.self_attn.sinks: shape=[64], min=-6.532669e-05, max=5.793571e-05, mean=-6.677583e-07, std=2.390224e-05, norm=1.897933e-04, zeros=0/64
+  model.layers.17.self_attn.q_proj.weight: shape=[4096, 2880], min=-3.369141e-02, max=3.027344e-02, mean=3.438928e-09, std=8.380959e-05, norm=2.876299e-01, zeros=0/11796480
+  model.layers.17.self_attn.q_proj.bias: shape=[4096], min=-3.433228e-04, max=3.757477e-04, mean=5.588474e-08, std=2.896761e-05, norm=1.853704e-03, zeros=0/4096
+  model.layers.17.self_attn.k_proj.weight: shape=[512, 2880], min=-1.403809e-02, max=1.202393e-02, mean=-5.245759e-08, std=1.080294e-04, norm=1.311592e-01, zeros=0/1474560
+  model.layers.17.self_attn.k_proj.bias: shape=[512], min=-1.449585e-04, max=1.707077e-04, mean=1.254561e-06, std=3.003603e-05, norm=6.795669e-04, zeros=0/512
+  model.layers.17.self_attn.v_proj.weight: shape=[512, 2880], min=-3.082275e-03, max=3.326416e-03, mean=-3.751007e-09, std=2.686837e-05, norm=3.261940e-02, zeros=0/1474560
+  model.layers.17.self_attn.v_proj.bias: shape=[512], min=-3.743172e-05, max=3.337860e-05, mean=4.959520e-08, std=9.972865e-06, norm=2.254425e-04, zeros=0/512
+  model.layers.17.self_attn.o_proj.weight: shape=[2880, 4096], min=-7.629395e-05, max=9.346008e-05, mean=2.802129e-10, std=1.182041e-06, norm=4.054416e-03, zeros=1/11796480
+  model.layers.17.self_attn.o_proj.bias: shape=[2880], min=-1.525879e-05, max=1.561642e-05, mean=-8.177022e-09, std=1.332532e-06, norm=7.150011e-05, zeros=0/2880
+  model.layers.17.mlp.router.weight: shape=[32, 2880], min=-8.789062e-03, max=2.990723e-03, mean=8.021289e-10, std=6.064817e-05, norm=1.841134e-02, zeros=25930/92160
+  model.layers.17.mlp.router.bias: shape=[32], min=-1.649857e-04, max=2.079010e-04, mean=-7.568451e-08, std=5.809463e-05, norm=3.234575e-04, zeros=9/32
+  model.layers.17.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-6.008148e-05, max=5.269051e-05, mean=-1.944761e-12, std=4.044604e-08, norm=6.538557e-04, zeros=74785479/265420800
+  model.layers.17.mlp.experts.down_proj_bias: shape=[32, 2880], min=-3.576279e-06, max=4.678965e-06, mean=5.845009e-11, std=1.050585e-07, norm=3.189327e-05, zeros=25945/92160
+  model.layers.17.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-5.889893e-03, max=1.441956e-03, mean=-9.336902e-11, std=3.713717e-06, norm=6.003960e-02, zeros=74843060/265420800
+  model.layers.17.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-3.929138e-04, max=4.310608e-04, mean=-6.140880e-12, std=1.065214e-06, norm=1.716948e-02, zeros=74791167/265420800
+  model.layers.17.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-1.859665e-04, max=2.145767e-04, mean=-1.183352e-08, std=4.234911e-06, norm=1.285623e-03, zeros=25987/92160
+  model.layers.17.mlp.experts.up_proj_bias: shape=[32, 2880], min=-6.341934e-05, max=6.961823e-05, mean=-4.048880e-09, std=1.208886e-06, norm=3.669909e-04, zeros=25964/92160
+  model.layers.17.input_layernorm.weight: shape=[2880], min=-2.317429e-04, max=4.100800e-05, mean=-1.232520e-07, std=7.598453e-06, norm=4.077585e-04, zeros=0/2880
+  model.layers.17.post_attention_layernorm.weight: shape=[2880], min=-2.670288e-04, max=2.029419e-03, mean=2.776446e-07, std=3.957696e-05, norm=2.123607e-03, zeros=0/2880
+  model.layers.18.self_attn.sinks: shape=[64], min=-1.039505e-04, max=1.230240e-04, mean=1.959561e-06, std=3.821739e-05, norm=3.037459e-04, zeros=0/64
+  model.layers.18.self_attn.q_proj.weight: shape=[4096, 2880], min=-3.808594e-02, max=4.345703e-02, mean=-5.120609e-09, std=4.079400e-05, norm=1.400255e-01, zeros=0/11796480
+  model.layers.18.self_attn.q_proj.bias: shape=[4096], min=-1.121521e-03, max=4.119873e-04, mean=-2.869059e-07, std=2.674972e-05, norm=1.711872e-03, zeros=0/4096
+  model.layers.18.self_attn.k_proj.weight: shape=[512, 2880], min=-1.141357e-02, max=1.190186e-02, mean=-1.766827e-08, std=4.624427e-05, norm=5.615090e-02, zeros=0/1474560
+  model.layers.18.self_attn.k_proj.bias: shape=[512], min=-3.490448e-04, max=1.015663e-04, mean=-2.094467e-06, std=2.740371e-05, norm=6.212795e-04, zeros=0/512
+  model.layers.18.self_attn.v_proj.weight: shape=[512, 2880], min=-6.141663e-04, max=6.828308e-04, mean=6.835053e-10, std=8.134352e-06, norm=9.877257e-03, zeros=0/1474560
+  model.layers.18.self_attn.v_proj.bias: shape=[512], min=-1.811981e-05, max=1.496077e-05, mean=-3.057648e-07, std=5.174987e-06, norm=1.171866e-04, zeros=0/512
+  model.layers.18.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.468658e-04, max=1.649857e-04, mean=-3.725463e-10, std=2.025494e-06, norm=6.946754e-03, zeros=1/11796480
+  model.layers.18.self_attn.o_proj.bias: shape=[2880], min=-1.156330e-05, max=1.668930e-05, mean=5.514379e-09, std=1.199210e-06, norm=6.434586e-05, zeros=0/2880
+  model.layers.18.mlp.router.weight: shape=[32, 2880], min=-1.083374e-03, max=1.426697e-03, mean=1.669226e-10, std=5.441188e-05, norm=1.651817e-02, zeros=23048/92160
+  model.layers.18.mlp.router.bias: shape=[32], min=-1.611710e-04, max=2.899170e-04, mean=6.286427e-09, std=6.886374e-05, norm=3.834171e-04, zeros=8/32
+  model.layers.18.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-2.908707e-05, max=3.290176e-05, mean=-5.715512e-12, std=3.452550e-08, norm=5.587173e-04, zeros=66628587/265420800
+  model.layers.18.mlp.experts.down_proj_bias: shape=[32, 2880], min=-3.814697e-06, max=4.857779e-06, mean=3.063945e-10, std=9.944674e-08, norm=3.018980e-05, zeros=23074/92160
+  model.layers.18.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-9.918213e-04, max=1.441956e-03, mean=1.732059e-10, std=4.432542e-06, norm=7.170382e-02, zeros=66620679/265420800
+  model.layers.18.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-4.615784e-04, max=4.844666e-04, mean=-7.380705e-12, std=1.255894e-06, norm=2.028958e-02, zeros=66678359/265420800
+  model.layers.18.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-1.468658e-04, max=1.869202e-04, mean=-3.406694e-09, std=5.071508e-06, norm=1.539590e-03, zeros=23130/92160
+  model.layers.18.mlp.experts.up_proj_bias: shape=[32, 2880], min=-5.435944e-05, max=6.914139e-05, mean=3.760978e-10, std=1.450565e-06, norm=4.403569e-04, zeros=23151/92160
+  model.layers.18.input_layernorm.weight: shape=[2880], min=-4.601479e-05, max=1.430511e-04, mean=2.489133e-08, std=6.595677e-06, norm=3.539021e-04, zeros=0/2880
+  model.layers.18.post_attention_layernorm.weight: shape=[2880], min=-1.287460e-04, max=2.651215e-04, mean=2.705958e-07, std=1.191599e-05, norm=6.395328e-04, zeros=0/2880
+  TOTAL grad norm: 6.005334e-01
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 12 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.424551e-05, max=1.609325e-05, norm=8.856472e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.424551e-05, max=1.609325e-05, norm=5.009290e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-1.434326e-03, max=5.035400e-04, norm=4.048524e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-5.155802e-06, max=5.811453e-06, norm=4.642051e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-1.434326e-03, max=5.035400e-04, norm=4.048524e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-1.434326e-03, max=4.043579e-04, norm=2.324709e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.478195e-04, max=1.325607e-04, norm=3.436914e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.478195e-04, max=1.325607e-04, norm=3.436913e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.126528e-05, max=9.775162e-06, norm=1.079726e-04, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=29, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 13 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.364946e-05, max=1.621246e-05, norm=7.772275e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.364946e-05, max=1.621246e-05, norm=4.396005e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-1.419067e-03, max=9.994507e-04, norm=4.715355e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.261732e-06, max=4.440546e-06, norm=3.961907e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-1.419067e-03, max=9.994507e-04, norm=4.715355e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-7.362366e-04, max=9.994507e-04, norm=2.070623e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.840591e-04, max=2.365112e-04, norm=4.770261e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.840591e-04, max=2.365112e-04, norm=4.770260e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.227856e-05, max=1.043081e-05, norm=1.162194e-04, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=30, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 14 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.525879e-05, max=1.609325e-05, norm=7.352889e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.525879e-05, max=1.609325e-05, norm=4.158787e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-8.773804e-04, max=8.964539e-04, norm=3.280451e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-5.811453e-06, max=5.424023e-06, norm=3.870379e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-8.773804e-04, max=8.964539e-04, norm=3.280451e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-2.861023e-04, max=5.455017e-04, norm=1.088272e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-5.364418e-05, max=6.818771e-05, norm=1.839426e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-5.364418e-05, max=6.818771e-05, norm=1.839426e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-5.692244e-06, max=9.894371e-06, norm=4.446704e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 15 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.335144e-05, max=1.561642e-05, norm=6.976320e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.335144e-05, max=1.561642e-05, norm=3.945805e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-8.621216e-04, max=9.994507e-04, norm=3.733783e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-5.185604e-06, max=4.529953e-06, norm=3.627350e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-8.621216e-04, max=9.994507e-04, norm=3.733783e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-4.653931e-04, max=9.994507e-04, norm=1.744826e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-2.298355e-04, max=1.602173e-04, norm=3.830781e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-2.298355e-04, max=1.602173e-04, norm=3.830781e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.162291e-05, max=1.668930e-05, norm=1.048834e-04, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 16 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.251698e-05, max=1.513958e-05, norm=6.667701e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.251698e-05, max=1.513958e-05, norm=3.771234e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-8.888245e-04, max=6.561279e-04, norm=2.910709e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-3.710389e-06, max=4.500151e-06, norm=3.431974e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-8.888245e-04, max=6.561279e-04, norm=2.910709e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-4.386902e-04, max=5.035400e-04, norm=1.176556e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.888275e-04, max=8.630753e-05, norm=2.646907e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.888275e-04, max=8.630753e-05, norm=2.646906e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-4.142523e-06, max=5.453825e-06, norm=5.231169e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 17 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.245737e-05, max=1.609325e-05, norm=6.069330e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.245737e-05, max=1.609325e-05, norm=3.432811e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-8.277893e-04, max=1.190186e-03, norm=4.153079e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.738569e-06, max=6.139278e-06, norm=3.163178e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-8.277893e-04, max=1.190186e-03, norm=4.153079e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-8.239746e-04, max=1.190186e-03, norm=2.021111e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.535416e-04, max=2.098083e-04, norm=3.909999e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.535416e-04, max=2.098083e-04, norm=3.909999e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.055002e-05, max=1.341105e-05, norm=1.041388e-04, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=2, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 18 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.120567e-05, max=1.382828e-05, norm=5.495280e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.120567e-05, max=1.382828e-05, norm=3.108150e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-1.029968e-03, max=1.739502e-03, norm=5.379245e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.321337e-06, max=5.334616e-06, norm=2.918247e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-1.029968e-03, max=1.739502e-03, norm=5.379245e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-8.316040e-04, max=7.629395e-04, norm=1.813639e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.363754e-04, max=1.525879e-04, norm=3.243957e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.363754e-04, max=1.525879e-04, norm=3.243957e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-9.298325e-06, max=7.122755e-06, norm=8.483075e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+Training:   0%|          | 1/67349 [00:12<226:55:24, 12.13s/it]Current loss and step: 3.2893879413604736 0
+
+================================================================================
+GRADIENTS at global_step=0, accumulation_step=2
+================================================================================
+  model.layers.12.self_attn.sinks: shape=[64], min=-2.002716e-04, max=1.745224e-04, mean=-2.270797e-06, std=6.198171e-05, norm=4.922999e-04, zeros=0/64
+  model.layers.12.self_attn.q_proj.weight: shape=[4096, 2880], min=-1.416016e-02, max=1.159668e-02, mean=1.699675e-09, std=2.956317e-05, norm=1.014011e-01, zeros=7510/11796480
+  model.layers.12.self_attn.q_proj.bias: shape=[4096], min=-3.814697e-04, max=3.185272e-04, mean=-2.002372e-08, std=1.973722e-05, norm=1.263028e-03, zeros=1/4096
+  model.layers.12.self_attn.k_proj.weight: shape=[512, 2880], min=-1.403809e-02, max=1.745605e-02, mean=-5.692505e-08, std=6.946428e-05, norm=8.434349e-02, zeros=926/1474560
+  model.layers.12.self_attn.k_proj.bias: shape=[512], min=-2.279282e-04, max=4.425049e-04, mean=-3.193258e-06, std=4.389863e-05, norm=9.949692e-04, zeros=0/512
+  model.layers.12.self_attn.v_proj.weight: shape=[512, 2880], min=-1.312256e-03, max=1.266479e-03, mean=-1.991400e-08, std=1.625399e-05, norm=1.973674e-02, zeros=826/1474560
+  model.layers.12.self_attn.v_proj.bias: shape=[512], min=-3.385544e-05, max=3.123283e-05, mean=-7.513663e-07, std=1.104609e-05, norm=2.502783e-04, zeros=0/512
+  model.layers.12.self_attn.o_proj.weight: shape=[2880, 4096], min=-2.431870e-04, max=2.059937e-04, mean=9.921105e-10, std=4.606230e-06, norm=1.580672e-02, zeros=6059/11796480
+  model.layers.12.self_attn.o_proj.bias: shape=[2880], min=-3.170967e-05, max=2.837181e-05, mean=-3.166133e-08, std=3.801351e-06, norm=2.039735e-04, zeros=3/2880
+  model.layers.12.mlp.router.weight: shape=[32, 2880], min=-1.480103e-03, max=1.441956e-03, mean=2.924834e-10, std=1.063370e-04, norm=3.228131e-02, zeros=25951/92160
+  model.layers.12.mlp.router.bias: shape=[32], min=-3.509521e-04, max=4.920959e-04, mean=4.540198e-08, std=1.245151e-04, norm=6.932707e-04, zeros=9/32
+  model.layers.12.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-3.576279e-05, max=4.625320e-05, mean=6.642732e-12, std=7.721664e-08, norm=1.246115e-03, zeros=74933420/265420800
+  model.layers.12.mlp.experts.down_proj_bias: shape=[32, 2880], min=-1.245737e-05, max=9.834766e-06, mean=-5.829975e-10, std=2.940120e-07, norm=8.925511e-05, zeros=25959/92160
+  model.layers.12.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-1.029968e-03, max=8.811951e-04, mean=-2.493876e-10, std=7.398265e-06, norm=1.195708e-01, zeros=74915336/265420800
+  model.layers.12.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-3.318787e-04, max=3.051758e-04, mean=-6.738151e-11, std=1.865567e-06, norm=3.006895e-02, zeros=74844380/265420800
+  model.layers.12.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-2.174377e-04, max=3.166199e-04, mean=-2.258268e-08, std=8.992184e-06, norm=2.729818e-03, zeros=26012/92160
+  model.layers.12.mlp.experts.up_proj_bias: shape=[32, 2880], min=-9.679794e-05, max=1.115799e-04, mean=-5.095174e-09, std=2.280636e-06, norm=6.923472e-04, zeros=25980/92160
+  model.layers.12.input_layernorm.weight: shape=[2880], min=-1.592636e-04, max=2.174377e-04, mean=1.836068e-07, std=1.050662e-05, norm=5.638325e-04, zeros=3/2880
+  model.layers.12.post_attention_layernorm.weight: shape=[2880], min=-3.204346e-04, max=3.185272e-04, mean=-2.329061e-07, std=2.195160e-05, norm=1.177908e-03, zeros=4/2880
+  model.layers.13.self_attn.sinks: shape=[64], min=-8.201599e-05, max=8.201599e-05, mean=1.995388e-07, std=2.684679e-05, norm=2.130958e-04, zeros=0/64
+  model.layers.13.self_attn.q_proj.weight: shape=[4096, 2880], min=-5.346680e-02, max=4.882812e-02, mean=-1.730215e-09, std=1.021390e-04, norm=3.505164e-01, zeros=7431/11796480
+  model.layers.13.self_attn.q_proj.bias: shape=[4096], min=-5.302429e-04, max=5.798340e-04, mean=1.378023e-07, std=3.549456e-05, norm=2.271392e-03, zeros=3/4096
+  model.layers.13.self_attn.k_proj.weight: shape=[512, 2880], min=-2.087402e-02, max=2.099609e-02, mean=-2.288016e-08, std=1.081180e-04, norm=1.312710e-01, zeros=910/1474560
+  model.layers.13.self_attn.k_proj.bias: shape=[512], min=-1.535416e-04, max=2.536774e-04, mean=2.825746e-06, std=2.938050e-05, norm=6.672260e-04, zeros=0/512
+  model.layers.13.self_attn.v_proj.weight: shape=[512, 2880], min=-5.584717e-03, max=8.056641e-03, mean=-2.079694e-08, std=5.431169e-05, norm=6.593855e-02, zeros=767/1474560
+  model.layers.13.self_attn.v_proj.bias: shape=[512], min=-5.054474e-05, max=6.055832e-05, mean=5.267793e-08, std=1.775807e-05, norm=4.014285e-04, zeros=0/512
+  model.layers.13.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.678467e-04, max=1.745224e-04, mean=-3.505025e-10, std=4.246971e-06, norm=1.457202e-02, zeros=6066/11796480
+  model.layers.13.self_attn.o_proj.bias: shape=[2880], min=-3.027916e-05, max=2.729893e-05, mean=-2.835837e-08, std=3.274540e-06, norm=1.757063e-04, zeros=2/2880
+  model.layers.13.mlp.router.weight: shape=[32, 2880], min=-1.953125e-03, max=1.777649e-03, mean=-9.332426e-11, std=1.315235e-04, norm=3.992742e-02, zeros=23064/92160
+  model.layers.13.mlp.router.bias: shape=[32], min=-5.722046e-04, max=4.539490e-04, mean=-1.230510e-07, std=1.556784e-04, norm=8.667810e-04, zeros=8/32
+  model.layers.13.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-3.194809e-05, max=3.004074e-05, mean=2.117291e-12, std=7.660461e-08, norm=1.233975e-03, zeros=66522187/265420800
+  model.layers.13.mlp.experts.down_proj_bias: shape=[32, 2880], min=-7.867813e-06, max=8.583069e-06, mean=-5.993657e-10, std=2.395372e-07, norm=7.271808e-05, zeros=23062/92160
+  model.layers.13.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-1.129150e-03, max=1.098633e-03, mean=9.812613e-11, std=6.733008e-06, norm=1.085656e-01, zeros=66531036/265420800
+  model.layers.13.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-5.569458e-04, max=7.553101e-04, mean=1.464264e-10, std=2.026424e-06, norm=3.263841e-02, zeros=66576169/265420800
+  model.layers.13.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-3.280640e-04, max=2.746582e-04, mean=1.899423e-08, std=7.498935e-06, norm=2.276505e-03, zeros=23101/92160
+  model.layers.13.mlp.experts.up_proj_bias: shape=[32, 2880], min=-1.020432e-04, max=1.621246e-04, mean=2.142150e-08, std=2.256069e-06, norm=6.849201e-04, zeros=23115/92160
+  model.layers.13.input_layernorm.weight: shape=[2880], min=-1.044273e-04, max=2.288818e-04, mean=7.499863e-08, std=1.186381e-05, norm=6.365810e-04, zeros=0/2880
+  model.layers.13.post_attention_layernorm.weight: shape=[2880], min=-4.348755e-04, max=1.182556e-03, mean=1.096918e-06, std=3.490423e-05, norm=1.873757e-03, zeros=3/2880
+  model.layers.14.self_attn.sinks: shape=[64], min=-2.441406e-04, max=2.632141e-04, mean=3.912719e-06, std=7.175588e-05, norm=5.704041e-04, zeros=0/64
+  model.layers.14.self_attn.q_proj.weight: shape=[4096, 2880], min=-3.833008e-02, max=3.540039e-02, mean=-8.875604e-09, std=6.852367e-05, norm=2.351617e-01, zeros=6554/11796480
+  model.layers.14.self_attn.q_proj.bias: shape=[4096], min=-9.994507e-04, max=8.087158e-04, mean=-9.461763e-08, std=3.620590e-05, norm=2.316903e-03, zeros=2/4096
+  model.layers.14.self_attn.k_proj.weight: shape=[512, 2880], min=-4.809570e-02, max=5.053711e-02, mean=1.534703e-07, std=1.626288e-04, norm=1.974698e-01, zeros=853/1474560
+  model.layers.14.self_attn.k_proj.bias: shape=[512], min=-4.692078e-04, max=1.197815e-03, mean=3.829329e-06, std=8.449069e-05, norm=1.911903e-03, zeros=0/512
+  model.layers.14.self_attn.v_proj.weight: shape=[512, 2880], min=-1.007080e-03, max=9.765625e-04, mean=3.842288e-10, std=1.271418e-05, norm=1.543799e-02, zeros=825/1474560
+  model.layers.14.self_attn.v_proj.bias: shape=[512], min=-2.753735e-05, max=2.336502e-05, mean=2.739216e-08, std=6.998952e-06, norm=1.582147e-04, zeros=0/512
+  model.layers.14.self_attn.o_proj.weight: shape=[2880, 4096], min=-3.032684e-04, max=2.994537e-04, mean=-1.539435e-09, std=5.899902e-06, norm=2.024046e-02, zeros=5819/11796480
+  model.layers.14.self_attn.o_proj.bias: shape=[2880], min=-2.992153e-05, max=2.670288e-05, mean=-2.618033e-08, std=2.928934e-06, norm=1.571620e-04, zeros=0/2880
+  model.layers.14.mlp.router.weight: shape=[32, 2880], min=-9.384155e-04, max=8.697510e-04, mean=5.724158e-10, std=5.441471e-05, norm=1.651901e-02, zeros=23054/92160
+  model.layers.14.mlp.router.bias: shape=[32], min=-1.382828e-04, max=1.258850e-04, mean=1.280569e-08, std=4.247494e-05, norm=2.364904e-04, zeros=8/32
+  model.layers.14.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-5.149841e-05, max=4.029274e-05, mean=2.323068e-12, std=6.771070e-08, norm=1.091341e-03, zeros=66488563/265420800
+  model.layers.14.mlp.experts.down_proj_bias: shape=[32, 2880], min=-1.043081e-05, max=9.059906e-06, mean=-2.396039e-10, std=2.384772e-07, norm=7.239598e-05, zeros=23075/92160
+  model.layers.14.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-1.327515e-03, max=1.342773e-02, mean=2.131478e-10, std=7.159602e-06, norm=1.154372e-01, zeros=66493732/265420800
+  model.layers.14.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-1.083374e-03, max=2.978516e-02, mean=2.217944e-10, std=2.684340e-06, norm=4.341695e-02, zeros=66504383/265420800
+  model.layers.14.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-2.517700e-04, max=2.822876e-04, mean=5.113668e-08, std=7.618295e-06, norm=2.312780e-03, zeros=23102/92160
+  model.layers.14.mlp.experts.up_proj_bias: shape=[32, 2880], min=-3.013611e-04, max=1.525879e-04, mean=-4.289752e-10, std=2.296866e-06, norm=6.972719e-04, zeros=23102/92160
+  model.layers.14.input_layernorm.weight: shape=[2880], min=-4.982948e-05, max=3.204346e-04, mean=4.883433e-08, std=1.043433e-05, norm=5.598735e-04, zeros=2/2880
+  model.layers.14.post_attention_layernorm.weight: shape=[2880], min=-2.155304e-04, max=3.204346e-04, mean=1.412728e-06, std=1.766550e-05, norm=9.508925e-04, zeros=2/2880
+  model.layers.15.self_attn.sinks: shape=[64], min=-8.583069e-05, max=1.277924e-04, mean=-1.736684e-06, std=4.260154e-05, norm=3.384246e-04, zeros=0/64
+  model.layers.15.self_attn.q_proj.weight: shape=[4096, 2880], min=-7.128906e-02, max=7.080078e-02, mean=1.535921e-08, std=1.074007e-04, norm=3.685184e-01, zeros=7862/11796480
+  model.layers.15.self_attn.q_proj.bias: shape=[4096], min=-8.583069e-04, max=1.358032e-03, mean=4.909975e-07, std=5.079339e-05, norm=3.250531e-03, zeros=2/4096
+  model.layers.15.self_attn.k_proj.weight: shape=[512, 2880], min=-1.010742e-01, max=1.074219e-01, mean=-1.694456e-07, std=2.318707e-04, norm=2.815418e-01, zeros=944/1474560
+  model.layers.15.self_attn.k_proj.bias: shape=[512], min=-1.091003e-03, max=1.571655e-03, mean=1.122140e-06, std=9.909274e-05, norm=2.240166e-03, zeros=0/512
+  model.layers.15.self_attn.v_proj.weight: shape=[512, 2880], min=-3.112793e-03, max=3.295898e-03, mean=7.105905e-10, std=2.829451e-05, norm=3.435504e-02, zeros=829/1474560
+  model.layers.15.self_attn.v_proj.bias: shape=[512], min=-6.198883e-05, max=5.912781e-05, mean=1.615263e-08, std=1.409088e-05, norm=3.185289e-04, zeros=1/512
+  model.layers.15.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.735687e-04, max=1.449585e-04, mean=-1.220451e-09, std=2.509929e-06, norm=8.610096e-03, zeros=6030/11796480
+  model.layers.15.self_attn.o_proj.bias: shape=[2880], min=-3.027916e-05, max=2.789497e-05, mean=-3.314300e-09, std=2.753379e-06, norm=1.477362e-04, zeros=2/2880
+  model.layers.15.mlp.router.weight: shape=[32, 2880], min=-1.411438e-03, max=1.831055e-03, mean=7.251136e-10, std=9.250772e-05, norm=2.808315e-02, zeros=23067/92160
+  model.layers.15.mlp.router.bias: shape=[32], min=-2.632141e-04, max=3.585815e-04, mean=-5.820766e-10, std=1.066267e-04, norm=5.936722e-04, zeros=8/32
+  model.layers.15.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-4.053116e-05, max=3.671646e-05, mean=-4.917842e-13, std=6.639851e-08, norm=1.075723e-03, zeros=66509082/265420800
+  model.layers.15.mlp.experts.down_proj_bias: shape=[32, 2880], min=-1.019239e-05, max=8.046627e-06, mean=3.265192e-11, std=2.243424e-07, norm=6.810514e-05, zeros=23078/92160
+  model.layers.15.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-3.753662e-03, max=2.288818e-03, mean=-7.985686e-11, std=7.616190e-06, norm=1.233804e-01, zeros=66509391/265420800
+  model.layers.15.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-1.625061e-03, max=2.014160e-03, mean=5.316476e-11, std=2.176033e-06, norm=3.525151e-02, zeros=66480105/265420800
+  model.layers.15.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-6.217957e-04, max=2.841949e-04, mean=-2.023874e-08, std=8.141456e-06, norm=2.471564e-03, zeros=23102/92160
+  model.layers.15.mlp.experts.up_proj_bias: shape=[32, 2880], min=-9.250641e-05, max=3.166199e-04, mean=6.541894e-09, std=2.293195e-06, norm=6.961639e-04, zeros=23083/92160
+  model.layers.15.input_layernorm.weight: shape=[2880], min=-1.010895e-04, max=5.388260e-05, mean=-2.013338e-08, std=8.365685e-06, norm=4.488729e-04, zeros=4/2880
+  model.layers.15.post_attention_layernorm.weight: shape=[2880], min=-1.840591e-04, max=4.234314e-04, mean=4.681011e-07, std=1.771817e-05, norm=9.510235e-04, zeros=2/2880
+  model.layers.16.self_attn.sinks: shape=[64], min=-9.346008e-05, max=1.230240e-04, mean=4.043337e-06, std=5.290248e-05, norm=4.211444e-04, zeros=0/64
+  model.layers.16.self_attn.q_proj.weight: shape=[4096, 2880], min=-2.685547e-02, max=2.648926e-02, mean=3.965291e-10, std=4.613756e-05, norm=1.582450e-01, zeros=7190/11796480
+  model.layers.16.self_attn.q_proj.bias: shape=[4096], min=-5.874634e-04, max=3.795624e-04, mean=-1.434022e-07, std=2.363084e-05, norm=1.512217e-03, zeros=0/4096
+  model.layers.16.self_attn.k_proj.weight: shape=[512, 2880], min=-1.507568e-02, max=1.190186e-02, mean=1.739183e-08, std=8.694457e-05, norm=1.055718e-01, zeros=983/1474560
+  model.layers.16.self_attn.k_proj.bias: shape=[512], min=-2.145767e-04, max=3.089905e-04, mean=-2.879227e-06, std=4.071046e-05, norm=9.225757e-04, zeros=1/512
+  model.layers.16.self_attn.v_proj.weight: shape=[512, 2880], min=-1.220703e-03, max=1.205444e-03, mean=1.792274e-09, std=1.419071e-05, norm=1.723146e-02, zeros=792/1474560
+  model.layers.16.self_attn.v_proj.bias: shape=[512], min=-2.813339e-05, max=2.837181e-05, mean=2.945690e-07, std=7.952437e-06, norm=1.798908e-04, zeros=1/512
+  model.layers.16.self_attn.o_proj.weight: shape=[2880, 4096], min=-4.043579e-04, max=4.043579e-04, mean=1.281515e-09, std=3.977584e-06, norm=1.364267e-02, zeros=5979/11796480
+  model.layers.16.self_attn.o_proj.bias: shape=[2880], min=-2.741814e-05, max=3.194809e-05, mean=8.439626e-09, std=2.573233e-06, norm=1.380709e-04, zeros=1/2880
+  model.layers.16.mlp.router.weight: shape=[32, 2880], min=-1.182556e-03, max=1.586914e-03, mean=8.907010e-10, std=7.763788e-05, norm=2.356900e-02, zeros=14422/92160
+  model.layers.16.mlp.router.bias: shape=[32], min=-2.393723e-04, max=3.032684e-04, mean=2.386514e-08, std=8.343548e-05, norm=4.645491e-04, zeros=5/32
+  model.layers.16.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-3.552437e-05, max=3.314018e-05, mean=-1.203857e-11, std=5.076212e-08, norm=8.203168e-04, zeros=41794158/265420800
+  model.layers.16.mlp.experts.down_proj_bias: shape=[32, 2880], min=-8.463860e-06, max=9.179115e-06, mean=2.729498e-10, std=2.056950e-07, norm=6.244420e-05, zeros=14443/92160
+  model.layers.16.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-3.417969e-03, max=4.089355e-03, mean=1.794185e-10, std=6.323454e-06, norm=1.021337e-01, zeros=41773784/265420800
+  model.layers.16.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-8.056641e-03, max=8.972168e-03, mean=-1.493104e-11, std=1.882890e-06, norm=3.032205e-02, zeros=41676976/265420800
+  model.layers.16.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-6.752014e-04, max=3.261566e-04, mean=7.173804e-09, std=7.366013e-06, norm=2.236150e-03, zeros=14504/92160
+  model.layers.16.mlp.experts.up_proj_bias: shape=[32, 2880], min=-2.279282e-04, max=1.697540e-04, mean=2.096792e-09, std=2.079458e-06, norm=6.312741e-04, zeros=14470/92160
+  model.layers.16.input_layernorm.weight: shape=[2880], min=-1.215935e-04, max=5.006790e-05, mean=-3.430502e-07, std=8.248580e-06, norm=4.429710e-04, zeros=4/2880
+  model.layers.16.post_attention_layernorm.weight: shape=[2880], min=-1.022339e-03, max=2.212524e-04, mean=-7.844249e-07, std=2.662832e-05, norm=1.429397e-03, zeros=2/2880
+  model.layers.17.self_attn.sinks: shape=[64], min=-9.632111e-05, max=9.250641e-05, mean=8.847564e-09, std=3.885424e-05, norm=3.083960e-04, zeros=0/64
+  model.layers.17.self_attn.q_proj.weight: shape=[4096, 2880], min=-5.932617e-02, max=5.566406e-02, mean=3.606472e-09, std=1.400458e-04, norm=4.806458e-01, zeros=6353/11796480
+  model.layers.17.self_attn.q_proj.bias: shape=[4096], min=-6.790161e-04, max=6.637573e-04, mean=4.237798e-08, std=4.853851e-05, norm=3.106086e-03, zeros=0/4096
+  model.layers.17.self_attn.k_proj.weight: shape=[512, 2880], min=-2.832031e-02, max=2.514648e-02, mean=-1.575517e-07, std=1.895570e-04, norm=2.301379e-01, zeros=873/1474560
+  model.layers.17.self_attn.k_proj.bias: shape=[512], min=-2.746582e-04, max=4.463196e-04, mean=4.087562e-06, std=6.263710e-05, norm=1.418949e-03, zeros=3/512
+  model.layers.17.self_attn.v_proj.weight: shape=[512, 2880], min=-6.408691e-03, max=6.561279e-03, mean=-4.568240e-10, std=4.791182e-05, norm=5.816692e-02, zeros=810/1474560
+  model.layers.17.self_attn.v_proj.bias: shape=[512], min=-6.771088e-05, max=7.057190e-05, mean=2.860543e-08, std=1.786618e-05, norm=4.038710e-04, zeros=2/512
+  model.layers.17.self_attn.o_proj.weight: shape=[2880, 4096], min=-1.354218e-04, max=1.411438e-04, mean=1.276780e-09, std=2.173831e-06, norm=7.455880e-03, zeros=5740/11796480
+  model.layers.17.self_attn.o_proj.bias: shape=[2880], min=-2.861023e-05, max=3.051758e-05, mean=6.540965e-09, std=2.456814e-06, norm=1.318240e-04, zeros=4/2880
+  model.layers.17.mlp.router.weight: shape=[32, 2880], min=-1.782227e-02, max=6.072998e-03, mean=1.539775e-09, std=1.399917e-04, norm=4.249815e-02, zeros=20185/92160
+  model.layers.17.mlp.router.bias: shape=[32], min=-6.408691e-04, max=3.871918e-04, mean=-1.457083e-07, std=1.517264e-04, norm=8.447770e-04, zeros=7/32
+  model.layers.17.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-1.115799e-04, max=1.049042e-04, mean=-8.158416e-13, std=7.184236e-08, norm=1.161815e-03, zeros=58264019/265420800
+  model.layers.17.mlp.experts.down_proj_bias: shape=[32, 2880], min=-8.881092e-06, max=9.000301e-06, mean=6.345454e-10, std=1.913110e-07, norm=5.807770e-05, zeros=20207/92160
+  model.layers.17.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-1.196289e-02, max=2.288818e-03, mean=-3.592678e-11, std=6.689994e-06, norm=1.081078e-01, zeros=58319659/265420800
+  model.layers.17.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-7.476807e-04, max=9.117126e-04, mean=2.680740e-11, std=1.910026e-06, norm=3.077678e-02, zeros=58238285/265420800
+  model.layers.17.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-6.484985e-04, max=3.376007e-04, mean=-1.692841e-08, std=7.691143e-06, norm=2.334850e-03, zeros=20250/92160
+  model.layers.17.mlp.experts.up_proj_bias: shape=[32, 2880], min=-1.006126e-04, max=1.945496e-04, mean=3.397786e-09, std=2.191233e-06, norm=6.652052e-04, zeros=20223/92160
+  model.layers.17.input_layernorm.weight: shape=[2880], min=-3.890991e-04, max=5.888939e-05, mean=-2.577400e-07, std=1.343821e-05, norm=7.211774e-04, zeros=1/2880
+  model.layers.17.post_attention_layernorm.weight: shape=[2880], min=-1.354218e-04, max=4.089355e-03, mean=1.191921e-06, std=7.896632e-05, norm=4.237527e-03, zeros=0/2880
+  model.layers.18.self_attn.sinks: shape=[64], min=-1.802444e-04, max=2.632141e-04, mean=1.555076e-06, std=7.299661e-05, norm=5.795261e-04, zeros=0/64
+  model.layers.18.self_attn.q_proj.weight: shape=[4096, 2880], min=-8.300781e-02, max=9.472656e-02, mean=-1.032614e-08, std=8.078712e-05, norm=2.773141e-01, zeros=6520/11796480
+  model.layers.18.self_attn.q_proj.bias: shape=[4096], min=-2.426147e-03, max=8.163452e-04, mean=-5.912208e-07, std=5.328269e-05, norm=3.409886e-03, zeros=0/4096
+  model.layers.18.self_attn.k_proj.weight: shape=[512, 2880], min=-2.709961e-02, max=2.807617e-02, mean=-1.937804e-08, std=1.024041e-04, norm=1.243384e-01, zeros=897/1474560
+  model.layers.18.self_attn.k_proj.bias: shape=[512], min=-8.163452e-04, max=2.384186e-04, mean=-4.742156e-06, std=6.573485e-05, norm=1.489826e-03, zeros=0/512
+  model.layers.18.self_attn.v_proj.weight: shape=[512, 2880], min=-1.113892e-03, max=1.197815e-03, mean=-1.955630e-09, std=1.442297e-05, norm=1.751333e-02, zeros=764/1474560
+  model.layers.18.self_attn.v_proj.bias: shape=[512], min=-3.218651e-05, max=2.896786e-05, mean=-4.122239e-07, std=9.238615e-06, norm=2.090499e-04, zeros=0/512
+  model.layers.18.self_attn.o_proj.weight: shape=[2880, 4096], min=-3.166199e-04, max=3.585815e-04, mean=-1.915138e-09, std=3.759043e-06, norm=1.289103e-02, zeros=5499/11796480
+  model.layers.18.self_attn.o_proj.bias: shape=[2880], min=-2.861023e-05, max=3.337860e-05, mean=2.328308e-08, std=2.208353e-06, norm=1.184987e-04, zeros=2/2880
+  model.layers.18.mlp.router.weight: shape=[32, 2880], min=-2.288818e-03, max=2.868652e-03, mean=-2.755061e-10, std=1.032674e-04, norm=3.134951e-02, zeros=14438/92160
+  model.layers.18.mlp.router.bias: shape=[32], min=-3.318787e-04, max=5.569458e-04, mean=-2.415618e-09, std=1.325776e-04, norm=7.381610e-04, zeros=5/32
+  model.layers.18.mlp.experts.down_proj: shape=[32, 2880, 2880], min=-5.197525e-05, max=6.151199e-05, mean=-5.380385e-12, std=5.903903e-08, norm=9.551894e-04, zeros=41660529/265420800
+  model.layers.18.mlp.experts.down_proj_bias: shape=[32, 2880], min=-8.583069e-06, max=8.881092e-06, mean=7.647274e-10, std=1.774169e-07, norm=5.385998e-05, zeros=14434/92160
+  model.layers.18.mlp.experts.gate_proj: shape=[32, 2880, 2880], min=-1.426697e-03, max=2.105713e-03, mean=2.187142e-10, std=7.333747e-06, norm=1.186060e-01, zeros=41648082/265420800
+  model.layers.18.mlp.experts.up_proj: shape=[32, 2880, 2880], min=-9.918213e-04, max=9.613037e-04, mean=2.752633e-11, std=2.138861e-06, norm=3.454598e-02, zeros=41711292/265420800
+  model.layers.18.mlp.experts.gate_proj_bias: shape=[32, 2880], min=-2.117157e-04, max=2.708435e-04, mean=1.567038e-09, std=8.404167e-06, norm=2.551305e-03, zeros=14460/92160
+  model.layers.18.mlp.experts.up_proj_bias: shape=[32, 2880], min=-1.182556e-04, max=1.335144e-04, mean=6.496833e-09, std=2.469637e-06, norm=7.497251e-04, zeros=14478/92160
+  model.layers.18.input_layernorm.weight: shape=[2880], min=-9.059906e-05, max=2.803802e-04, mean=3.982896e-07, std=1.210736e-05, norm=6.499875e-04, zeros=0/2880
+  model.layers.18.post_attention_layernorm.weight: shape=[2880], min=-2.307892e-04, max=3.108978e-04, mean=2.397170e-07, std=1.826829e-05, norm=9.802935e-04, zeros=1/2880
+  TOTAL grad norm: 9.985262e-01
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 12 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.561642e-05, max=1.525879e-05, norm=8.055152e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.561642e-05, max=1.525879e-05, norm=4.555944e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-8.850098e-04, max=1.045227e-03, norm=3.861502e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-7.182360e-06, max=7.003546e-06, norm=4.322961e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-8.850098e-04, max=1.045227e-03, norm=3.861502e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-8.850098e-04, max=1.045227e-03, norm=2.056387e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.554489e-04, max=2.088547e-04, norm=4.276450e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.554489e-04, max=2.088547e-04, norm=4.276451e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.704693e-05, max=1.609325e-05, norm=1.408556e-04, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=30, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 13 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.561642e-05, max=1.484156e-05, norm=6.943393e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.561642e-05, max=1.484156e-05, norm=3.927161e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-7.591248e-04, max=7.667542e-04, norm=3.606405e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.917383e-06, max=4.678965e-06, norm=3.540888e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-7.591248e-04, max=7.667542e-04, norm=3.606405e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-7.591248e-04, max=7.667542e-04, norm=1.677570e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.907349e-04, max=1.478195e-04, norm=3.582787e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.907349e-04, max=1.478195e-04, norm=3.582787e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.096725e-05, max=6.496906e-06, norm=9.772430e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=1, max=30, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 14 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.597404e-05, max=1.484156e-05, norm=6.540534e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.597404e-05, max=1.484156e-05, norm=3.699253e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-9.651184e-04, max=6.294250e-04, norm=3.382650e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-5.125999e-06, max=4.768372e-06, norm=3.455808e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-9.651184e-04, max=6.294250e-04, norm=3.382650e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-2.899170e-04, max=6.027222e-04, norm=1.261070e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-9.870529e-05, max=1.082420e-04, norm=2.517535e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-9.870529e-05, max=1.082420e-04, norm=2.517535e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.621246e-05, max=8.583069e-06, norm=6.567869e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 15 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.609325e-05, max=1.478195e-05, norm=6.151506e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.609325e-05, max=1.478195e-05, norm=3.479217e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-5.264282e-04, max=7.896423e-04, norm=3.166328e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.708767e-06, max=4.321337e-06, norm=3.206225e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-5.264282e-04, max=7.896423e-04, norm=3.166328e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-3.795624e-04, max=5.531311e-04, norm=1.153070e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-8.296967e-05, max=7.724762e-05, norm=1.996557e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-8.296967e-05, max=7.724762e-05, norm=1.996557e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-6.288290e-06, max=8.285046e-06, norm=5.338137e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 16 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.621246e-05, max=1.418591e-05, norm=5.979139e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.621246e-05, max=1.418591e-05, norm=3.381730e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-7.362366e-04, max=6.561279e-04, norm=3.237759e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.500151e-06, max=3.933907e-06, norm=3.086523e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-7.362366e-04, max=6.561279e-04, norm=3.237759e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-7.362366e-04, max=6.561279e-04, norm=1.508832e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-2.269745e-04, max=1.354218e-04, norm=3.548275e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-2.269745e-04, max=1.354218e-04, norm=3.548275e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-6.049871e-06, max=8.583069e-06, norm=8.668369e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 17 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.680851e-05, max=1.525879e-05, norm=5.670870e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.680851e-05, max=1.525879e-05, norm=3.207432e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-9.307861e-04, max=1.220703e-03, norm=4.410683e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-7.063150e-06, max=6.407499e-06, norm=3.006394e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-9.307861e-04, max=1.220703e-03, norm=4.410683e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-9.307861e-04, max=1.220703e-03, norm=2.678104e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.754761e-04, max=2.689362e-04, norm=5.585662e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.754761e-04, max=2.689362e-04, norm=5.585662e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.311302e-05, max=1.394749e-05, norm=1.591588e-04, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=3, max=31, oob_count=0
+================================================================================
+
+
+================================================================================
+INTERMEDIATE GRADS — layer 18 router backward branch
+================================================================================
+  experts.output: shape=[1, 128, 2880], min=-1.251698e-05, max=1.013279e-05, norm=4.863152e-05, inf=0, nan=0
+  experts.weighted: shape=[32, 1, 128, 2880], min=-1.251698e-05, max=1.013279e-05, norm=2.750610e-04, inf=0, nan=0
+  experts.routing_view: shape=[32, 1, 128, 1], min=-8.697510e-04, max=1.701355e-03, norm=5.057074e-03, inf=0, nan=0
+  experts.expert_out: shape=[32, 1, 128, 2880], min=-4.827976e-06, max=3.904104e-06, norm=2.590656e-05, inf=0, nan=0
+  router.routing_weights: shape=[128, 32], min=-8.697510e-04, max=1.701355e-03, norm=5.057074e-03, inf=0, nan=0
+  router.topk_values_post_softmax: shape=[128, 4], min=-8.697510e-04, max=7.705688e-04, norm=1.941357e-03, inf=0, nan=0
+  router.topk_values_pre_softmax: shape=[128, 4], min=-1.206398e-04, max=1.831055e-04, norm=3.706460e-04, inf=0, nan=0
+  router.router_logits: shape=[128, 32], min=-1.206398e-04, max=1.831055e-04, norm=3.706460e-04, inf=0, nan=0
+  router.router_input: shape=[128, 2880], min=-1.001358e-05, max=7.629395e-06, norm=9.548999e-05, inf=0, nan=0
+  router.topk_indices_raw: shape=[128, 4], min=0, max=30, oob_count=0
+================================================================================
+
+Training:   0%|          | 1/67349 [00:25<478:03:32, 25.55s/it]
+wandb: updating run metadata
+wandb: uploading summary, console lines 824-962
+wandb: 🚀 View run tt-gpt-oss-20b-test at: https://wandb.ai/tenstorrent-ml/gpt-oss-20b-lora/runs/6ifyglza
+wandb: ⭐️ View project at: https://wandb.ai/tenstorrent-ml/gpt-oss-20b-lora
+wandb: Synced 8 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20260328_171707-6ifyglza/logs
+2026-03-28 17:18:50 | INFO | W&B run finished
+INFO:tt-gpt-oss-20b-test:W&B run finished

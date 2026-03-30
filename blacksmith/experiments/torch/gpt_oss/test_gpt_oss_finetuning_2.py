@@ -23,6 +23,7 @@ from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labe
 FINETUNE_LAYERS = range(12, 19)  # layers 12 to 18 inclusive
 
 
+
 def print_all_gradients(model, global_step, accumulation_step):
     print(f"\n{'='*80}", flush=True)
     print(f"GRADIENTS at global_step={global_step}, accumulation_step={accumulation_step}", flush=True)
@@ -158,6 +159,11 @@ def train(
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
 
+                
+                if accumulation_step > 1:
+                    exit(0)
+
+
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
 
@@ -181,8 +187,8 @@ def train(
                 print_all_gradients(model, global_step, accumulation_step)
                 for li in FINETUNE_LAYERS:
                     print_debug_intermediates(model, li)
-                #exit(0)
 
+                
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
                     device_manager.optimizer_step(optimizer)

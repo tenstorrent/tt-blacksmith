@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import re
-
+from collections import OrderedDict
 import torch
 import torch.nn as nn
 import torch_xla
@@ -123,25 +123,31 @@ def _debug_router_forward(self, hidden_states):
     """Router forward with retain_grad on every intermediate."""
     import torch.nn.functional as F
 
-    self._dbg = {}
+    self._dbg = OrderedDict()
 
-    flat = _keep(self._dbg, "router_input", hidden_states.reshape(-1, self.hidden_dim))
+    flat = _keep(self._dbg, "router_input", hidden_states.reshape(-1, self.hidden_dim)).float()
 
     router_logits = _keep(self._dbg, "router_logits",
-                          F.linear(flat, self.weight, self.bias))
+                          F.linear(flat, self.weight.float(), self.bias.float()))
 
     router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)
-    #self._dbg["topk_indices_raw"] = router_indices
+    self._dbg["topk_indices_raw"] = router_indices
     #router_indices = router_indices.clamp(0, 31)
     router_top_value = _keep(self._dbg, "topk_values_pre_softmax", router_top_value)
 
     router_top_value = _keep(self._dbg, "topk_values_post_softmax",
                              torch.nn.functional.softmax(router_top_value, dim=1, dtype=router_top_value.dtype))
+    self._dbg["topk_post_hook_grad"] = [None]
+    if router_top_value.requires_grad:
+        _captured = self._dbg["topk_post_hook_grad"]
+        router_top_value.register_hook(lambda g: _captured.__setitem__(0, g.detach().cpu()))
 
     router_scores = _keep(self._dbg, "routing_weights",
                           torch.zeros_like(router_logits).scatter_(1, router_indices, router_top_value))
 
-    return router_scores, router_indices
+    output_router_scores = _keep(self._dbg, "output_router_scores", router_scores)
+
+    return output_router_scores.to(hidden_states.dtype), router_indices
 
 
 def _deinterleaved_experts_forward(
@@ -178,6 +184,76 @@ def _deinterleaved_experts_forward(
     return output
 
 
+def verify_scatter_backward(router, layer_idx):
+    if not hasattr(router, "_dbg"):
+        return
+    
+    routing_weights = router._dbg.get("routing_weights")
+    topk_post = router._dbg.get("topk_values_post_softmax")
+    indices = router._dbg.get("topk_indices_raw")
+    if layer_idx == 15:
+        # save the inputs to the scatter for later analysis
+        print("Saving scatter debug tensors for layer 15...")
+        save_dict = {
+            "routing_weights": routing_weights.cpu(),
+            "topk_post": topk_post.cpu(),
+            "indices": indices.cpu(),
+        }
+        if routing_weights.grad is not None:
+            save_dict["gradient_input"] = router._dbg["output_router_scores"].grad.cpu()
+        # if file exists, append a number suffix to avoid overwriting
+        import os
+        filename = f"scatter_debug_layer{layer_idx}.pt"
+        if os.path.exists(filename):
+            i = 1
+            while os.path.exists(f"scatter_debug_layer{layer_idx}_{i}.pt"):
+                i += 1
+            filename = f"scatter_debug_layer{layer_idx}_{i}.pt"
+        torch.save(save_dict, filename)
+    else:
+        print(f"Layer {layer_idx} scatter debug tensors not saved (only layer 15 is saved)")
+    
+    topk_pre = router._dbg.get("topk_values_pre_softmax")
+    if any(x is None for x in [routing_weights, topk_post, topk_pre, indices]):
+        print("  scatter verify: missing tensors")
+        return
+    hook_captured = router._dbg.get("topk_post_hook_grad", [None])[0]
+    if routing_weights.grad is None:
+        print("  scatter verify: routing_weights.grad not available")
+        return
+
+    # Step 1: scatter backward = gather
+    grad_upstream = routing_weights.grad.float().cpu()
+    indices_cpu = indices.cpu()
+    expected_scatter_bwd = torch.gather(grad_upstream, 1, indices_cpu)
+
+    print(f"  scatter verify — scatter_bwd (cpu gather): norm={expected_scatter_bwd.norm():.6e}, max={expected_scatter_bwd.abs().max():.6e}")
+
+    # Step 2: check topk_post.grad (retain_grad) and hook against scatter_bwd
+    if topk_post.grad is not None:
+        actual_post = topk_post.grad.float().cpu()
+        print(f"  scatter verify — topk_post.grad (retain): norm={actual_post.norm():.6e}, max={actual_post.abs().max():.6e}, match={torch.allclose(expected_scatter_bwd, actual_post, atol=1e-3, rtol=1e-3)}")
+    if hook_captured is not None:
+        hg = hook_captured.float()
+        print(f"  scatter verify — topk_post.grad (hook):   norm={hg.norm():.6e}, max={hg.abs().max():.6e}, match={torch.allclose(expected_scatter_bwd, hg, atol=1e-3, rtol=1e-3)}")
+    else:
+        print(f"  scatter verify — topk_post.grad (hook):   not captured")
+
+    # Step 3: propagate expected gradient through softmax backward and compare with topk_pre.grad
+    # softmax_bwd: dx = y * (dy - sum(y * dy, dim=-1, keepdim=True))
+    if topk_pre.grad is not None:
+        y = topk_post.float().cpu()
+        dy = expected_scatter_bwd
+        expected_pre_grad = y * (dy - (y * dy).sum(dim=-1, keepdim=True))
+        actual_pre_grad = topk_pre.grad.float().cpu()
+        print(f"  scatter+softmax verify — expected topk_pre.grad: norm={expected_pre_grad.norm():.6e}, max={expected_pre_grad.abs().max():.6e}")
+        print(f"  scatter+softmax verify — actual  topk_pre.grad:  norm={actual_pre_grad.norm():.6e}, max={actual_pre_grad.abs().max():.6e}")
+        print(f"  scatter+softmax verify — match: {torch.allclose(expected_pre_grad, actual_pre_grad, atol=1e-3, rtol=1e-3)}, max abs diff: {(expected_pre_grad - actual_pre_grad).abs().max():.6e}")
+    else:
+        print(f"  scatter+softmax verify — topk_pre.grad not available")
+
+
+
 def print_debug_intermediates(model, layer_idx):
     """Print retained intermediate grads for the router backward branch."""
     base = model._orig_mod if hasattr(model, "_orig_mod") else model
@@ -202,7 +278,7 @@ def print_debug_intermediates(model, layer_idx):
         for name in ("output", "weighted", "routing_view", "expert_out"):
             t = experts._dbg.get(name)
             if t is not None and t.grad is not None:
-                print(f"  experts.{name}: {_stats(t.grad)}", flush=True)
+                print(f"  experts.{name}: {_stats(t.grad)}, {_stats(t)}", flush=True)
             else:
                 print(f"  experts.{name}: grad=None", flush=True)
 
@@ -211,24 +287,14 @@ def print_debug_intermediates(model, layer_idx):
                       "topk_values_pre_softmax", "router_logits", "router_input"):
             t = router._dbg.get(name)
             if t is not None and t.grad is not None:
-                print(f"  router.{name}: {_stats(t.grad)}", flush=True)
+                print(f"  router.{name}: grad_stats> {_stats(t.grad)}; fwd_stats>{_stats(t)}", flush=True)
             else:
                 print(f"  router.{name}: grad=None", flush=True)
 
         raw_idx = router._dbg.get("topk_indices_raw")
         if raw_idx is not None:
-            lo = raw_idx.min().item()
-            hi = raw_idx.max().item()
-            oob = ((raw_idx < 0) | (raw_idx > 31)).sum().item()
-            print(f"  router.topk_indices_raw: shape={list(raw_idx.shape)}, "
-                  f"min={lo}, max={hi}, oob_count={oob}", flush=True)
-            if oob > 0:
-                torch.set_printoptions(threshold=10000, linewidth=200)
-                print(f"  *** OUT-OF-RANGE INDICES DETECTED! ***", flush=True)
-                bad_rows = (raw_idx < 0) | (raw_idx > 31)
-                for r in range(raw_idx.shape[0]):
-                    if bad_rows[r].any():
-                        print(f"    row {r}: {raw_idx[r].tolist()}", flush=True)
-                torch.set_printoptions(profile="default")
+            # print them all
+            print(f"  router.topk_indices_raw: shape={raw_idx.shape}, values={raw_idx.cpu().numpy()}", flush=True)
 
+    verify_scatter_backward(router, layer_idx)
     print(f"{'='*80}\n", flush=True)
