@@ -106,38 +106,21 @@ class DeviceManager:
 
     def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
         """Apply tensor parallelism using regex pattern matching from config."""
-
-        # Get sharding patterns from config (list of [pattern, spec] pairs).
         sharding_patterns = self.config.model_sharding_patterns
 
-        # Use regex pattern matching on named_modules.
         for name, module in model.named_modules():
             if not hasattr(module, "weight") or module.weight is None:
                 continue
-
-            for pattern_spec in sharding_patterns:
-                pattern = pattern_spec[0]
-                shard_spec = tuple(pattern_spec[1])
-
-                if re.search(pattern, name):
-                    # Skip if already sharded to avoid redundant sharding.
-                    current_sharding = torch_xla._XLAC._get_xla_sharding_spec(module.weight)
-                    if current_sharding is not None and current_sharding != "":
-                        break
-                    xs.mark_sharding(module.weight, self.mesh, shard_spec)
-                    break  # Stop after first match.
+            match = next((ps for ps in sharding_patterns if re.search(ps[0], name)), None)
+            if match and torch_xla._XLAC._get_xla_sharding_spec(module.weight) in (None, ""):
+                xs.mark_sharding(module.weight, self.mesh, tuple(match[1]))
 
         # Shard parameters by name (for nn.Parameter, biases, etc. not reachable via module.weight).
-        param_patterns = getattr(self.config, "param_sharding_patterns", None)
-        if param_patterns:
-            for name, param in model.named_parameters():
-                for pattern_spec in param_patterns:
-                    if re.search(pattern_spec[0], name):
-                        current_sharding = torch_xla._XLAC._get_xla_sharding_spec(param)
-                        if current_sharding is not None and current_sharding != "":
-                            break
-                        xs.mark_sharding(param, self.mesh, tuple(pattern_spec[1]))
-                        break
+        param_patterns = getattr(self.config, "param_sharding_patterns", [])
+        for name, param in model.named_parameters():
+            match = next((ps for ps in param_patterns if re.search(ps[0], name)), None)
+            if match and torch_xla._XLAC._get_xla_sharding_spec(param) in (None, ""):
+                xs.mark_sharding(param, self.mesh, tuple(match[1]))
 
         torch_xla.sync(wait=True)
         return model
