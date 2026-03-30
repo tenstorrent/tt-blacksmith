@@ -118,9 +118,7 @@ def train(
     model = get_gpt_oss_model(config, device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    logger.info(
-        f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}"
-    )
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
@@ -130,21 +128,13 @@ def train(
         checkpoint_manager.load_checkpoint(model, optimizer)
 
     # Load dataset.
-    train_dataset = get_dataset(
-        config=config, split="train", collate_fn=collate_fn_for_causal_lm
-    )
+    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(
-        f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}"
-    )
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = get_dataset(
-        config=config, split="validation", collate_fn=collate_fn_for_causal_lm
-    )
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(
-        f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}"
-    )
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     tokenizer = train_dataset.tokenizer
 
@@ -193,9 +183,7 @@ def train(
                 device_manager.shard_model(model)
 
                 # Training step.
-                loss_ = training_step_inner(
-                    batch, model, cross_entropy_loss, config.gradient_accumulation_steps
-                )
+                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
 
                 # Clamp gradient values.
                 for p in trainable_params:
@@ -203,9 +191,7 @@ def train(
                         p.grad = p.grad.clamp(-GRAD_CLAMP_VALUE, GRAD_CLAMP_VALUE)
 
                 # Clip gradient norms.
-                torch.nn.utils.clip_grad_norm_(
-                    trainable_params, max_norm=GRAD_CLIP_MAX_NORM
-                )
+                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=GRAD_CLIP_MAX_NORM)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
@@ -223,12 +209,8 @@ def train(
                     global_step += 1
 
                     if global_step % config.steps_freq == 0:
-                        avg_loss = running_loss / (
-                            config.steps_freq * config.gradient_accumulation_steps
-                        )
-                        logger.log_metrics(
-                            {"train/loss": avg_loss}, commit=False, step=global_step
-                        )
+                        avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
+                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
 
                     # Validation
@@ -243,9 +225,7 @@ def train(
                             config,
                             tokenizer,
                         )
-                        logger.log_metrics(
-                            {"val/loss": val_loss}, commit=False, step=global_step
-                        )
+                        logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
                         model.train()
 
                     # Commit metrics to W&B.
@@ -253,9 +233,7 @@ def train(
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(
-                            model, global_step, epoch, optimizer
-                        )
+                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
@@ -265,9 +243,7 @@ def train(
         final_model_path = checkpoint_manager.save_checkpoint(
             model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
         )
-        logger.log_artifact(
-            final_model_path, artifact_type="model", name="final_model.pth"
-        )
+        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 
     except Exception as e:
         traceback_str = traceback.format_exc()
@@ -279,13 +255,9 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = (
-        Path(__file__).parent / "lora" / "loudbox" / "test_gpt_oss_20b_finetuning.yaml"
-    )
+    default_config = Path(__file__).parent / "lora" / "loudbox" / "test_gpt_oss_20b_finetuning.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(
-        TrainingConfig, args.config, args.test_config
-    )
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
@@ -302,9 +274,7 @@ if __name__ == "__main__":
     # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
-        torch_xla.set_custom_compile_options(
-            {"fp32_dest_acc_en": True, "math_fidelity": "hifi4"}
-        )
+        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
 
     # Checkpoint manager setup
     checkpoint_manager = CheckpointManager(config, logger, device_manager.device)

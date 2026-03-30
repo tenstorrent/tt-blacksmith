@@ -86,9 +86,7 @@ def _deinterleave_expert_weights(experts):
     experts.forward = _deinterleaved_experts_forward.__get__(experts, type(experts))
 
 
-def _deinterleaved_experts_forward(
-    self, hidden_states, router_indices=None, routing_weights=None
-):
+def _deinterleaved_experts_forward(self, hidden_states, router_indices=None, routing_weights=None):
     batch_size = hidden_states.shape[0]
     hidden_states = hidden_states.reshape(-1, self.hidden_size)
     num_experts = routing_weights.shape[1]
@@ -105,10 +103,7 @@ def _deinterleaved_experts_forward(
     next_states = torch.bmm(((up + 1) * glu), self.down_proj)
     next_states = next_states + self.down_proj_bias[..., None, :]
     next_states = next_states.view(num_experts, batch_size, -1, self.hidden_size)
-    next_states = (
-        next_states
-        * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
-    )
+    next_states = next_states * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
     next_states = next_states.sum(dim=0)
     return next_states
 
@@ -121,8 +116,6 @@ def _expert_router_forward(self, hidden_states):
     router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)
     router_top_value = F.softmax(router_top_value, dim=1, dtype=router_top_value.dtype)
 
-    router_scores = torch.zeros_like(router_logits).scatter_(
-        1, router_indices, router_top_value
-    )
+    router_scores = torch.zeros_like(router_logits).scatter_(1, router_indices, router_top_value)
 
     return router_scores.to(hidden_states.dtype), router_indices

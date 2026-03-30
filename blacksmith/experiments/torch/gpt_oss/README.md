@@ -27,7 +27,7 @@ Mesh configurations define the parallelism strategy. `input_sharding_dim` define
 dimension to use to shard inputs, while `model_sharding_patterns` and `param_sharding_patterns`
 define how model weights and parameters are sharded.
 
-The YAML uses Megatron-style 1D tensor parallelism: QKV projections are column-parallel
+The default YAML uses Megatron-style 1D tensor parallelism: QKV projections are column-parallel
 (`["model", null]`), the output projection is row-parallel (`[null, "model"]`), LoRA adapters are
 replicated (`[null, null]`), and expert weights are sharded across the expert dimension
 (`["model", null, null]`).
