@@ -120,6 +120,10 @@ class DeviceManager:
                 shard_spec = tuple(pattern_spec[1])
 
                 if re.search(pattern, name):
+                    # Skip if already sharded to avoid redundant sharding.
+                    current_sharding = torch_xla._XLAC._get_xla_sharding_spec(module.weight)
+                    if current_sharding is not None and current_sharding != "":
+                        break
                     xs.mark_sharding(module.weight, self.mesh, shard_spec)
                     break  # Stop after first match.
 
@@ -129,6 +133,9 @@ class DeviceManager:
             for name, param in model.named_parameters():
                 for pattern_spec in param_patterns:
                     if re.search(pattern_spec[0], name):
+                        current_sharding = torch_xla._XLAC._get_xla_sharding_spec(param)
+                        if current_sharding is not None and current_sharding != "":
+                            break
                         xs.mark_sharding(param, self.mesh, tuple(pattern_spec[1]))
                         break
 

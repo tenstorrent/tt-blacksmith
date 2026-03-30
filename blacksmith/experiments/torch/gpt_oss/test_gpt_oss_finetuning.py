@@ -6,7 +6,6 @@ from pathlib import Path
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -24,6 +23,12 @@ from blacksmith.tools.torch_helpers import (
 )
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
+# Gradient stability constants
+# Clamp gradient values to prevent numerical instability in large models.
+GRAD_CLAMP_VALUE = 10_000
+# Clip gradient norms to prevent exploding gradients during training.
+GRAD_CLIP_MAX_NORM = 1.0
+
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
     logger.info("Starting validation...")
@@ -38,6 +43,9 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # Expected output must be prepared on CPU first due to an OOM issue.
             # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
             expected_output = batch["labels"]
+
+            # Shard model if tensor parallelism is used.
+            device_manager.shard_model(model)
 
             # Forward pass.
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
@@ -136,10 +144,6 @@ def train(
     running_loss = 0.0
 
     try:
-
-        # Shard model if tensor parallelism is used.
-        device_manager.shard_model(model)
-
         # Initial validation
         model.eval()
         val_loss = validate(
@@ -175,6 +179,7 @@ def train(
                 }
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
+                device_manager.shard_model(model)
 
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
@@ -182,10 +187,10 @@ def train(
                 # Clamp gradient values.
                 for p in trainable_params:
                     if p.grad is not None:
-                        p.grad = p.grad.clamp(-10_000.0, 10_000.0)
+                        p.grad = p.grad.clamp(-GRAD_CLAMP_VALUE, GRAD_CLAMP_VALUE)
 
                 # Clip gradient norms.
-                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=1.0)
+                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=GRAD_CLIP_MAX_NORM)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
@@ -193,7 +198,7 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
-                print(f"Current loss and step: {loss_.item()} {global_step}", flush=True)
+                logger.info(f"Current loss and step: {loss_.item()} {global_step}")
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
@@ -206,9 +211,6 @@ def train(
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
-                        # Clear XLA computation cache to avoid memory issues.
-                        if config.use_tt:
-                            xr.clear_computation_cache()
 
                     # Validation
                     if global_step % config.val_steps_freq == 0:
@@ -224,9 +226,6 @@ def train(
                         )
                         logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
                         model.train()
-                        # Clear XLA computation cache to avoid memory issues.
-                        if config.use_tt:
-                            xr.clear_computation_cache()
 
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
@@ -255,7 +254,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "test_gpt_oss_20b_finetuning.yaml"
+    default_config = Path(__file__).parent / "lora" / "loudbox" / "test_gpt_oss_20b_finetuning.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 

@@ -5,6 +5,7 @@ import re
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch_xla
 import torch_xla.distributed.spmd as xs
 from peft import LoraConfig, get_peft_model
@@ -16,9 +17,7 @@ def get_gpt_oss_model(config, device):
     """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation."""
     quantization_config = Mxfp4Config(dequantize=True)
 
-    model_config = AutoConfig.from_pretrained(
-        config.model_name, trust_remote_code=True
-    )
+    model_config = AutoConfig.from_pretrained(config.model_name, trust_remote_code=True)
 
     model = AutoModelForCausalLM.from_pretrained(
         config.model_name,
@@ -30,7 +29,7 @@ def get_gpt_oss_model(config, device):
         attn_implementation="eager",
     )
 
-    override_gpt_oss_experts_deinterleave(model)
+    override_gpt_oss_modules(model)
 
     if config.training_type == "lora":
         n = model.config.num_hidden_layers
@@ -38,18 +37,10 @@ def get_gpt_oss_model(config, device):
             r=config.lora_r,
             lora_alpha=config.lora_alpha,
             target_modules=config.lora_target_modules,
-            layers_to_transform=list(range(n//2, n)),
+            layers_to_transform=list(range(n // 2, n)),
             task_type=config.lora_task_type,
         )
         model = get_peft_model(model, lora_config)
-
-    torch._dynamo.config.recompile_limit = 100
-
-    print("\n=== MODEL NAMED MODULES (with .weight) ===")
-    for name, module in model.named_modules():
-        if hasattr(module, "weight") and module.weight is not None:
-            print(f"  {name:80s} weight {tuple(module.weight.shape)}")
-    print("=" * 60 + "\n")
 
     model.to(device)
 
@@ -63,24 +54,7 @@ def get_gpt_oss_model(config, device):
     return model
 
 
-def shard_params_by_pattern(model, mesh, patterns):
-    """Shard parameters by regex matching on named_parameters()."""
-    if mesh is None or not patterns:
-        return
-    for name, param in model.named_parameters():
-        for pattern, spec in patterns:
-            if re.search(pattern, name):
-                xs.mark_sharding(param, mesh, tuple(spec))
-                break
-    torch_xla.sync(wait=True)
-
-
-# ---------------------------------------------------------------------------
-# Expert weight deinterleaving + batched BMM forward override
-# ---------------------------------------------------------------------------
-
-
-def override_gpt_oss_experts_deinterleave(model):
+def override_gpt_oss_modules(model):
     """
     De-interleave gate_up_proj into separate gate_proj and up_proj, and
     patch forward to use the batched BMM path for both training and inference.
@@ -90,6 +64,8 @@ def override_gpt_oss_experts_deinterleave(model):
     for module in model.modules():
         if isinstance(module, gpt_oss_mod.GptOssExperts):
             _deinterleave_expert_weights(module)
+        if isinstance(module, gpt_oss_mod.GptOssTopKRouter):
+            module.forward = _expert_router_forward.__get__(module, type(module))
 
 
 def _deinterleave_expert_weights(experts):
@@ -129,6 +105,24 @@ def _deinterleaved_experts_forward(
     next_states = torch.bmm(((up + 1) * glu), self.down_proj)
     next_states = next_states + self.down_proj_bias[..., None, :]
     next_states = next_states.view(num_experts, batch_size, -1, self.hidden_size)
-    next_states = next_states * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
+    next_states = (
+        next_states
+        * routing_weights.transpose(0, 1).view(num_experts, batch_size, -1)[..., None]
+    )
     next_states = next_states.sum(dim=0)
     return next_states
+
+
+def _expert_router_forward(self, hidden_states):
+    flat = hidden_states.reshape(-1, self.hidden_dim).float()
+
+    # Force float32 for router.
+    router_logits = F.linear(flat, self.weight.float(), self.bias.float())
+    router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)
+    router_top_value = F.softmax(router_top_value, dim=1, dtype=router_top_value.dtype)
+
+    router_scores = torch.zeros_like(router_logits).scatter_(
+        1, router_indices, router_top_value
+    )
+
+    return router_scores.to(hidden_states.dtype), router_indices
