@@ -1,32 +1,35 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from string import Template
 from inspect import cleandoc
+from string import Template
 
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
-from datasets import load_dataset, Dataset
+from datasets import Dataset, load_dataset
 
-PROMPT_TEMPLATE = Template(cleandoc(
-    """
-    Below is an instruction that describes a task.
-    Write a response that appropriately completes the request.
+PROMPT_TEMPLATE = Template(
+    cleandoc(
+        """
+        Below is an instruction that describes a task.
+        Write a response that appropriately completes the request.
 
-    ### Instruction:
-    $instruction
+        ### Instruction:
+        $instruction
 
-    ### Response:
-    $response
-    """
-))
+        ### Response:
+        $response
+        """
+    )
+)
 
 DATASET_PATH = "meta-math/MetaMathQA"
 
 TRAIN_VAL_SPLIT_RATIO = 0.98
+
 
 class MetaMathQADataset(BaseDataset):
     # MetaMathQA dataset only has train split, so we create validation/test from it.
