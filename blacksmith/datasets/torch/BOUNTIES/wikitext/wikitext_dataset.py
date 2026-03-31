@@ -7,9 +7,9 @@ Wikitext-2 Dataset Implementation for Causal Language Model Training.
 This module provides a dataset wrapper for the Wikitext-2 dataset,
 suitable for causal language model fine-tuning.
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
@@ -28,7 +28,16 @@ class WikitextDataset(BaseDataset):
     for training LLMs with LoRA.
     """
 
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(
+        self,
+        config: TrainingConfig,
+        split: str = "train",
+        collate_fn=None,
+        rank: Optional[int] = None,
+        world_size: Optional[int] = None,
+    ):
+        self._rank = rank
+        self._world_size = world_size
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
 
         if self.tokenizer.pad_token is None:
@@ -116,7 +125,11 @@ class WikitextDataset(BaseDataset):
         }
 
     def _get_dataloader(self) -> DataLoader:
-        """Create and return a DataLoader for this dataset."""
+        """Create and return a DataLoader for this dataset.
+
+        When rank and world_size were provided at construction time, a
+        DistributedSampler is used instead of simple shuffling.
+        """
         data_collator = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer,
             mlm=False,  # We're doing causal LM, not masked LM
@@ -133,11 +146,29 @@ class WikitextDataset(BaseDataset):
         else:
             collate_function = data_collator
 
-        batch_size = self.config.batch_size
+        is_distributed = self._rank is not None and self._world_size is not None
+
+        if is_distributed:
+            sampler = DistributedSampler(
+                self,
+                num_replicas=self._world_size,
+                rank=self._rank,
+                shuffle=(self.split == "train"),
+                seed=self.config.seed,
+            )
+            return DataLoader(
+                self,
+                batch_size=self.config.batch_size,
+                sampler=sampler,
+                collate_fn=collate_function,
+                num_workers=0,
+                pin_memory=True,
+                drop_last=(self.split == "train"),
+            )
 
         return DataLoader(
             self,
-            batch_size=batch_size,
+            batch_size=self.config.batch_size,
             collate_fn=collate_function,
             shuffle=(self.split == "train"),
             drop_last=(self.split == "train"),

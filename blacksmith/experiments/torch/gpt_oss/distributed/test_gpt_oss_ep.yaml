@@ -1,0 +1,52 @@
+# Dataset
+dataset_id: "wikitext"
+
+# Model
+model_name: "openai/gpt-oss-20b"
+max_length: 256
+dtype: "torch.bfloat16"
+
+# Training
+training_type: "lora"
+learning_rate: 2e-4
+weight_decay: 0.1
+batch_size: 1
+gradient_accumulation_steps: 8
+gradient_checkpointing: false
+num_epochs: 1
+max_grad_norm: 1.0
+
+# LoRA
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - "q_proj"
+  - "k_proj"
+  - "v_proj"
+  - "o_proj"
+print_examples: true
+
+# Logging
+log_level: "INFO"
+use_wandb: true
+wandb_project: "gpt-oss-20b-ep"
+wandb_run_name: "gpt-oss-20b-lora-ep"
+wandb_tags: ["expert-parallel", "lora", "gpt-oss"]
+steps_freq: 50
+val_steps_freq: 10
+
+# Checkpointing
+resume_from_checkpoint: false
+save_strategy: "step"
+keep_last_n: 2
+keep_best_n: 1
+project_dir: "blacksmith/experiments/torch/gpt_oss/distributed"
+save_optim: false
+storage_backend: "local"
+
+# Reproducibility
+seed: 42
+deterministic: false
+framework: "pytorch"
+use_tt: false
