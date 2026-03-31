@@ -21,6 +21,6 @@ lora_rank: 16
 lora_pattern: ".*(q_proj|v_proj).*"
 
 # Other settings
-model_to_wandb: true
-print_examples: true
+model_to_wandb: false
+print_examples: false
 use_tt: true

@@ -601,6 +601,7 @@ def main(training_config: TrainingConfig) -> None:
     setup_wandb(training_config, enable=training_config.model_to_wandb, device=device_kind)
 
     tokenizer = load_tokenizer(training_config.model_name)
+
     train_batches = load_data(training_config, tokenizer, split="train")
     val_batches_np = load_data(training_config, tokenizer, split="validation")
 
