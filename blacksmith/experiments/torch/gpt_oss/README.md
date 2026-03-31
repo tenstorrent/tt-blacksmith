@@ -42,6 +42,11 @@ model_sharding_patterns:
   - ['\.self_attn\.k_proj\.base_layer$', ["model", null]]
   - ['\.self_attn\.v_proj\.base_layer$', ["model", null]]
   - ['\.self_attn\.o_proj\.base_layer$', [null, "model"]]
+param_sharding_patterns:
+  - ['\.self_attn\.q_proj\.(base_layer\.)?bias$', ["model"]]
+  - ['\.self_attn\.k_proj\.(base_layer\.)?bias$', ["model"]]
+  - ['\.self_attn\.v_proj\.(base_layer\.)?bias$', ["model"]]
+  - ['\.self_attn\.o_proj\.(base_layer\.)?bias$', [null]]
 ```
 
 ### GPT-OSS 20B Training

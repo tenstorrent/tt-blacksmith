@@ -1,19 +1,15 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import re
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla
-import torch_xla.distributed.spmd as xs
 from peft import LoraConfig, get_peft_model
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
 
 
-def get_gpt_oss_model(config, device):
+def get_model(config, device):
     """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation."""
     quantization_config = Mxfp4Config(dequantize=True)
 

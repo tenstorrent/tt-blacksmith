@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 import traceback
@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.gpt_oss.configs import TrainingConfig
-from blacksmith.models.torch.gpt_oss.model_overrides import get_gpt_oss_model
+from blacksmith.models.torch.gpt_oss.model_overrides import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -115,7 +115,7 @@ def train(
     logger.info("Starting training...")
 
     # Load model.
-    model = get_gpt_oss_model(config, device_manager.device)
+    model = get_model(config, device_manager.device)
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
