@@ -15,10 +15,10 @@ PROMPT_TEMPLATE = Template(cleandoc(
     """
     Below is an instruction that describes a task.
     Write a response that appropriately completes the request.
-    
+
     ### Instruction:
     $instruction
-    
+
     ### Response:
     $response
     """
@@ -88,7 +88,9 @@ class MetaMathQADataset(BaseDataset):
         elif self.split == "validation":
             self.dataset = full_dataset.select(range(train_val_split, length))
         else:
-            raise ValueError(f"Invalid split '{self.split}' for MetaMathQADataset. Only 'train' and 'validation' are supported.")
+            raise ValueError(
+                f"Invalid split '{self.split}' for MetaMathQADataset. Only 'train' and 'validation' are supported."
+            )
 
     def __len__(self):
         return len(self.dataset)
