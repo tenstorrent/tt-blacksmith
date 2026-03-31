@@ -23,7 +23,7 @@ lora_task_type: "CAUSAL_LM"
 # Device settings
 mesh_shape: [2, 4]  # Wormhole QuietBox mesh.
 mesh_axis_names: ["data", "model"]
-
+input_sharding_dim: "data"
 # Sharding patterns for tensor parallelism (regex pattern -> partition spec)
 model_sharding_patterns:
   # === Attention ===
@@ -63,7 +63,7 @@ checkpoint_metric: "eval/loss"
 checkpoint_metric_mode: "min"  # [min, max]
 keep_last_n: 2
 keep_best_n: 1
-save_strategy: "none"
+save_strategy: "step"
 project_dir: "blacksmith/experiments/torch/llama/xla/lora"
 save_optim: True
 storage_backend: "local"
