@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import traceback
 from pathlib import Path
 
@@ -114,7 +113,7 @@ def train(
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = get_dataset(config=config, split="test", collate_fn=collate_fn_for_causal_lm)
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 

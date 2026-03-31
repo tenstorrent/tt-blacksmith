@@ -20,13 +20,13 @@ The experiment supports different hardware configurations with per-model trainin
 
 ### Mesh and Sharding Configuration
 
-Mesh configurations define the parallelism strategy. The `mesh_axis_names` can be either `["data", "model"]` or `["model", "data"]` depending on which dimension corresponds to which type of parallelism.
+Mesh configurations define the parallelism strategy. `input_sharding_dim` defines which mesh dimension to use to shard inputs, while `model_sharding_patterns` define how we shard model weights.
 
 Example mesh configuration in YAML:
 ```yaml
 mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
-mesh_axis_names: ["data", "model"]
-
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: "batch"
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
@@ -88,6 +88,22 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 | [Single-Chip](single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml)        | None               | None                                      | SST2    | LoRA   |
 | [N300](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 | [Blackhole QuietBox](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml) | `[1, 4]`           | `["data", "model"]`                       | SST2    | LoRA   |
+
+### Qwen 3 8B Base Training
+
+Qwen 3 8B Base requires multi-chip configurations (not supported on single chip).
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/galaxy/test_qwen_3_8b_base_finetuning.yaml
+```
+
+#### Qwen 3 8B Base Training Configurations
+
+| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
+| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
+| [Wormhole Galaxy](galaxy/test_qwen_3_8b_base_finetuning.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+
 
 ## Data
 
@@ -159,6 +175,5 @@ Example
 | `lora_task_type`              | Training task type for LoRA.                           | "CAUSAL_LM"                         |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
-| `do_validation`               | Whether to run validation during training.             | True                                |
 | `mesh_shape`                  | Mesh shape for distributed training.                   | None                                |
 | `mesh_axis_names`             | Axis names for the mesh.                               | None

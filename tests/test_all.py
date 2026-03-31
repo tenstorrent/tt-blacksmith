@@ -18,6 +18,7 @@ DEFAULT_SETUP_DICT = {
     "tolerance": 0.3,
     "timeout": 800.0,
     "skip_loss_checks": False,
+    "test_checkpoint_path": None,
 }
 
 
@@ -53,6 +54,9 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
     cmd.append(str(setup_dict["experiment_config"]))
     cmd.append("--test-log-filename-prefix")
     cmd.append(test_id)
+    if setup_dict["test_checkpoint_path"]:
+        cmd.append("--test-checkpoint-path")
+        cmd.append(setup_dict["test_checkpoint_path"])
     return cmd
 
 
@@ -111,6 +115,7 @@ def test_training_script(
             - tolerance: Tolerance for loss and accuracy metrics.
             - timeout: Timeout in seconds.
             - skip_loss_checks: Whether to skip the loss checks.
+            - test_checkpoint_path: Path to the checkpoint.
         request: pytest request object.
     """
 

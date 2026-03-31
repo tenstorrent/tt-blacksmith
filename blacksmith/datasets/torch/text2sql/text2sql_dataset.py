@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import logging
 from string import Template
 from typing import Dict
 
@@ -21,19 +22,26 @@ Schema: $context\n\n
 )
 DATASET_PATH = "gretelai/synthetic_text_to_sql"
 
+logger = logging.getLogger(__name__)
+
 
 class TextToSQLDataset(BaseDataset):
     def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
         """
         Args:
             config: Training configuration
-            split: Dataset split to use ("train", "test")
+            split: Dataset split to use ("train", "validation")
+                   Note: "validation" is mapped to "test" since this dataset only has "train"/"test" splits.
         """
         self.config = config
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
-        self.split = split
+        if split == "validation":
+            logger.warning("Validation split does not exist for TextToSQLDataset, defaulting to test split.")
+            self.split = "test"
+        else:
+            self.split = split
         self.collate_fn = collate_fn
 
         self._prepare_dataset()
