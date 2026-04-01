@@ -1,0 +1,60 @@
+# Model settings
+model_name: "GATv2"
+dataset_name: "PubMed"
+dataset_root: "./data"
+
+# GATv2 architecture
+in_channels: 500
+hidden_channels: 8
+out_channels: 3
+heads: 8
+dropout: 0.6
+
+# Training hyperparameters
+learning_rate: 0.005
+weight_decay: 5e-4
+num_epochs: 300
+patience: 50
+val_freq: 1
+
+# Logging settings
+log_level: "INFO"
+use_wandb: false
+wandb_project: "gatv2-pubmed"
+wandb_run_name: "tt-gatv2-pubmed-n150"
+wandb_tags: ["gatv2", "pubmed", "node-classification", "tt-n150"]
+wandb_watch_mode: "all"
+wandb_log_freq: 100
+model_to_wandb: false
+steps_freq: 1
+epoch_freq: 50
+val_steps_freq: 1
+
+# Checkpoint settings
+project_dir: "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed"
+resume_from_checkpoint: false
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "val/accuracy"
+checkpoint_metric_mode: "max"
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "epoch"
+save_optim: false
+storage_backend: "local"
+sync_to_storage: false
+load_from_storage: false
+remote_path: ""
+
+# Reproducibility settings
+seed: 42
+deterministic: true
+
+# Device settings
+use_tt: true
+mesh_shape: null
+mesh_axis_names: null
+scatter_cpu_fallback: true
+
+# Other settings
+framework: "pytorch"

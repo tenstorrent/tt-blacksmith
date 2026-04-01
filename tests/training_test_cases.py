@@ -401,4 +401,17 @@ TRAINING_TEST_CASES = [
         ],
         id="tt-distilbert-glue-sst2-n150-jax",
     ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py",
+            "experiment_config": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training_tt.yaml",
+            "timeout": 600,
+        },
+        marks=[
+            pytest.mark.n150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-gatv2-pubmed-n150",
+    ),
 ]

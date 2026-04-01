@@ -41,12 +41,32 @@ pip install torch_geometric
 
 ## Running
 
-```bash
-# CPU baseline (default config)
-PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py
+### CPU Baseline
 
-# With custom config
-PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py --config path/to/config.yaml
+```bash
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py
+```
+
+### TT (N150 / N300)
+
+```bash
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py \
+    --config blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training_tt.yaml
+```
+
+To verify TT execution with TTIR graph output:
+
+```bash
+TTXLA_LOGGER_LEVEL=DEBUG PYTHONPATH=. python3 \
+    blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py \
+    --config blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training_tt.yaml
+```
+
+### Custom Config
+
+```bash
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py \
+    --config path/to/config.yaml
 ```
 
 ## Configuration Parameters
@@ -74,14 +94,55 @@ PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gat
 | `checkpoint_metric_mode` | Mode for checkpoint metric. | "max" |
 | `epoch_freq` | Frequency for periodic checkpointing (in epochs). | 50 |
 | `save_strategy` | Checkpoint save strategy. | "epoch" |
+| `scatter_cpu_fallback` | Redirect scatter ops to CPU when on TT. | False |
 
-## Expected Results (CPU Baseline)
+## Expected Results
+
+### CPU Baseline
 
 | Metric | Expected Range |
 |--------|---------------|
 | Best Val Accuracy | ~79-81% |
 | Test Accuracy | ~77-79% |
 | Convergence | ~100-200 epochs |
+
+### TT N150 (with scatter CPU fallback)
+
+| Metric | Expected Range |
+|--------|---------------|
+| Best Val Accuracy | ~79-81% |
+| Test Accuracy | ~77-79% |
+| Convergence | ~100-200 epochs |
+
+Results should show metric parity between CPU and TT runs.
+The same seed (42) is used for reproducibility.
+
+## Fallback Mechanism
+
+GATv2Conv uses scatter-based message passing (`scatter_reduce_`,
+`scatter_add_`) that does not compile on TT-XLA. Two issues prevent
+native TT execution:
+
+1. **Missing scatter ops** — `scatter_reduce_` and `scatter_add_` used
+   in attention softmax normalization and message aggregation are not
+   implemented in tt-xla/tt-mlir.
+2. **Gradient corruption at TT↔CPU boundary** — when only the conv
+   layers run on CPU and element-wise ops (dropout, ELU) remain on TT,
+   `loss.backward()` produces incorrect gradients causing training
+   divergence. This is a torch_xla issue with mixed-device autograd.
+
+When `scatter_cpu_fallback: true`, the entire forward pass runs on CPU
+to ensure correct gradient flow, while the TT device handles
+initialization, data storage, and training infrastructure.
+
+### Upstream issues
+
+These issues should be reported to:
+- **tt-xla** — `scatter_reduce_` / `scatter_add_` compilation support
+- **tt-xla** — gradient correctness across TT↔CPU device boundaries
+
+Once scatter ops are supported and the gradient boundary is fixed,
+the fallback can be removed and training will run natively on TT.
 
 ## Output Artifacts
 

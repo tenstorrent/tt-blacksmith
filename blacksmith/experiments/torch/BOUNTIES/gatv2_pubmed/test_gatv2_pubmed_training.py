@@ -38,6 +38,11 @@ def create_model(config, num_features, num_classes, device, logger):
         heads=config.heads,
         dropout=config.dropout,
     ).to(device)
+
+    if config.use_tt and config.scatter_cpu_fallback:
+        model.enable_cpu_fallback()
+        logger.info("CPU fallback enabled for GATv2Conv (scatter ops unsupported on TT-XLA)")
+
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model parameters: {total_params}")
@@ -50,7 +55,10 @@ def train_epoch(model, data, optimizer, loss_fn, device_manager):
     model.train()
     optimizer.zero_grad()
     out = model(data.x, data.edge_index)
-    loss = loss_fn(out[data.train_mask], data.y[data.train_mask])
+    # out may be on CPU (fallback) or TT — align masks/labels
+    train_mask = data.train_mask.to(out.device)
+    y = data.y.to(out.device)
+    loss = loss_fn(out[train_mask], y[train_mask])
     loss.backward()
     device_manager.optimizer_step(optimizer)
     return loss.item()
@@ -61,9 +69,11 @@ def evaluate(model, data, mask, loss_fn):
     """Evaluate model on nodes selected by mask. Returns (loss, accuracy)."""
     model.eval()
     out = model(data.x, data.edge_index)
-    loss = loss_fn(out[mask], data.y[mask]).item()
+    mask = mask.to(out.device)
+    y = data.y.to(out.device)
+    loss = loss_fn(out[mask], y[mask]).item()
     pred = out[mask].argmax(dim=1)
-    accuracy = (pred == data.y[mask]).float().mean().item()
+    accuracy = (pred == y[mask]).float().mean().item()
     return loss, accuracy
 
 
@@ -111,6 +121,12 @@ def train(
 ):
     """Main training loop for GATv2 node classification on PubMed."""
     logger.info("Starting GATv2 PubMed training...")
+
+    if config.use_tt:
+        import torch_xla
+
+        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+        logger.info("TT device: compile options set " "(fp32 accumulation, hifi4 fidelity)")
 
     data = load_dataset(config, logger)
     data = data.to(device_manager.device)
@@ -200,6 +216,9 @@ def train(
         results_summary = {
             "model": config.model_name,
             "dataset": config.dataset_name,
+            "device": str(device_manager.device),
+            "use_tt": config.use_tt,
+            "scatter_cpu_fallback": config.scatter_cpu_fallback,
             "best_val_accuracy": best_val_acc,
             "test_loss": test_loss,
             "test_accuracy": test_acc,
@@ -238,12 +257,12 @@ if __name__ == "__main__":
     # Logger setup
     logger = TrainingLogger(config)
 
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
-
     # Device setup
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)
