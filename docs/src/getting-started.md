@@ -54,7 +54,7 @@ cd tt-blacksmith
 source env/activate --xla
 ```
 
-> **NOTE:** To run experiments on GPU instead of Tenstorrent hardware, use `source env/activate --gpu`.
+> **NOTE:** To run experiments on GPU instead of Tenstorrent hardware, Docker is not required. Simply clone the repository and use `source env/activate --gpu`.
 
 3. Run an experiment by following the instructions in its README file. For example, to run the LLaMA LoRA fine-tuning experiment, see the [LoRA README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md).
 
