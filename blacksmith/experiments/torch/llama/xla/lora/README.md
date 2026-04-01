@@ -91,7 +91,13 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 ### Llama 3.1 8B Training
 
-**Llama 3.1 8B requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
+**Llama 3.1 8B is not supported on N150.**
+
+**P150 Training:**
+
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_1_8b_sst2.yaml
+```
 
 **QuietBox Training:**
 ```bash
@@ -109,6 +115,7 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 | Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [P150](single_chip/test_llama_3_1_8b_sst2.yaml) | None     | None            | SST2  | LoRA   |
 | [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
 | [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
 | [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
