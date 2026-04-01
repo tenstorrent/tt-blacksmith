@@ -168,7 +168,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_metamathqa.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml",
             "timeout": 5000,
         },
         marks=[
@@ -177,7 +177,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
-        id="tt-llama_3_1_8b-metamathqa-n300-llmbox",
+        id="tt-llama_3_1_8b_instruct-metamathqa-n300-llmbox",
     ),
     pytest.param(
         {
