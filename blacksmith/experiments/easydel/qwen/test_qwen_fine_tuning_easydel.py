@@ -28,9 +28,12 @@ import wandb  # noqa: E402
 from flax import nnx  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
+from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround  # noqa: E402
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: E402
 from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
 from datasets import load_dataset  # noqa: E402
+
+apply_gqa_workaround()
 
 WANDB_ENABLED = True
 
@@ -584,6 +587,7 @@ def main(training_config: TrainingConfig) -> None:
 
     model = load_model(
         training_config.model_name,
+        dtype=training_config.jax_dtype,
         mask_max_position_embeddings=training_config.mask_max_position_embeddings,
     )
 
