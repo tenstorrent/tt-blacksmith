@@ -47,7 +47,7 @@ class TrainingConfig(BaseModel):
     # Logging settings
     steps_freq: int = Field(default=10, ge=1)
     log_level: str = Field(default="INFO")
-    model_to_wandb: bool = Field(default=True)
+    use_wandb: bool = Field(default=True)
     print_examples: bool = Field(default=False)
     wandb_project: str = Field(default="Qwen-TT-EasyDel-LoRA-Training")
     wandb_run_name: str = Field(default="qwen3-0.6b-wikitext-tt-easydel")

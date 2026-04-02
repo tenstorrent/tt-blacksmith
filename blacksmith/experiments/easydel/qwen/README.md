@@ -77,7 +77,7 @@ Each YAML config in the subdirectories specifies all training parameters. Altern
 |-----------|-------------|---------------|
 | `steps_freq` | Log average loss every N steps. | 10 |
 | `log_level` | Logging verbosity level. | `"INFO"` |
-| `model_to_wandb` | Whether to log metrics to Weights & Biases. | True |
+| `use_wandb` | Whether to log metrics to Weights & Biases. | True |
 | `wandb_project` | Weights & Biases project name. | `"Qwen-TT-EasyDel-LoRA-Training"` |
 | `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-wikitext-tt-easydel"` |
 | `seed` | Random seed for reproducibility. | 42 |

@@ -28,14 +28,11 @@ import wandb  # noqa: E402
 from flax import nnx  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
-from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround  # noqa: E402
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: E402
 from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
 from datasets import load_dataset  # noqa: E402
 
-apply_gqa_workaround()
-
-WANDB_ENABLED = True
+WANDB_ENABLED = False
 
 
 def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
@@ -267,7 +264,13 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
         shift_logits = out.logits[:, :-1, :]
         shift_labels = input_ids[:, 1:]
         one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        per_token_loss = optax.softmax_cross_entropy(shift_logits, one_hot)
+        # Upcast logits to f32 for numerically stable cross-entropy on TT.
+        # bfloat16 log_softmax over vocab=151936 accumulates rounding errors;
+        # upcasting here matches what PyTorch/XLA does implicitly.
+        per_token_loss = optax.softmax_cross_entropy(
+            shift_logits.astype(jnp.float32),
+            one_hot.astype(jnp.float32),
+        )
         return jnp.mean(per_token_loss)
 
     def train_step(lora_params, frozen_state, opt_state, input_ids, *, train):
@@ -308,7 +311,11 @@ def create_eval_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any
         shift_logits = out.logits[:, :-1, :]
         shift_labels = input_ids[:, 1:]
         one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        per_token_loss = optax.softmax_cross_entropy(shift_logits, one_hot)
+        # Upcast logits to f32 for numerically stable cross-entropy on TT.
+        per_token_loss = optax.softmax_cross_entropy(
+            shift_logits.astype(jnp.float32),
+            one_hot.astype(jnp.float32),
+        )
         return jnp.mean(per_token_loss)
 
     return jax.jit(eval_loss_fn)
@@ -342,7 +349,11 @@ def create_eval_inspect_step_fn(graphdef: Any, call_signature: inspect.Signature
         shift_logits = out.logits[:, :-1, :]
         shift_labels = input_ids[:, 1:]
         one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        per_token_loss = optax.softmax_cross_entropy(shift_logits, one_hot)
+        # Upcast logits to f32 for numerically stable cross-entropy on TT.
+        per_token_loss = optax.softmax_cross_entropy(
+            shift_logits.astype(jnp.float32),
+            one_hot.astype(jnp.float32),
+        )
         loss = jnp.mean(per_token_loss)
         predictions = jnp.argmax(shift_logits, axis=-1)
         return loss, predictions, per_token_loss
@@ -583,6 +594,11 @@ def main(training_config: TrainingConfig) -> None:
     current_device, device_kind = _select_preferred_device(use_tt=training_config.use_tt)
     jax.config.update("jax_default_device", current_device)
 
+    # Patch EasyDel's GQA attention to avoid 5D tensor reshapes (TT tile-layout bug).
+    # Must be called before model loading so the monkey-patch is in place.
+    from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround
+    apply_gqa_workaround()
+
     logger.info(f"Loading {training_config.model_name} model... Using device: {device_kind} -> {current_device}")
 
     model = load_model(
@@ -602,7 +618,7 @@ def main(training_config: TrainingConfig) -> None:
     logger.info(f"  vocab_size:              {model.config.vocab_size}")
     logger.info(f"  max_position_embeddings: {model.config.max_position_embeddings}")
 
-    setup_wandb(training_config, enable=training_config.model_to_wandb, device=device_kind)
+    setup_wandb(training_config, enable=training_config.use_wandb, device=device_kind)
 
     tokenizer = load_tokenizer(training_config.model_name)
 
@@ -657,32 +673,44 @@ def main(training_config: TrainingConfig) -> None:
 
     logger.info(f"Starting training on {training_config.dataset_id} dataset...")
 
-    with mesh:
-        global_step, step_losses = _training_loop(
-            training_config,
-            jit_train_step,
-            jit_eval_step,
-            lora_params,
-            frozen_state,
-            opt_state,
-            jnp_train_batches,
-            jnp_val_batches,
-            jit_inspect_step=jit_inspect_step,
-            tokenizer=tokenizer if training_config.print_examples else None,
+    try:
+        with mesh:
+            global_step, step_losses = _training_loop(
+                training_config,
+                jit_train_step,
+                jit_eval_step,
+                lora_params,
+                frozen_state,
+                opt_state,
+                jnp_train_batches,
+                jnp_val_batches,
+                jit_inspect_step=jit_inspect_step,
+                tokenizer=tokenizer if training_config.print_examples else None,
+            )
+
+        # NOTE: Checkpoint saving is not implemented here. JAX/EasyDel checkpoint
+        # serialisation on TT is not well supported yet (device-to-host transfers
+        # for large state trees can hang or OOM). Add once the TT PJRT plugin
+        # stabilises its checkpoint path.
+
+        log_to_wandb(
+            {"training_completed": True, "total_steps": global_step},
+            step=global_step,
         )
 
-    log_to_wandb(
-        {"training_completed": True, "total_steps": global_step},
-        step=global_step,
-    )
+        logger.info("TRAINING COMPLETED")
+        logger.info(f"  Steps:      {global_step}")
+        logger.info(f"  Final loss: {step_losses[-1]:.4f}")
 
-    logger.info("TRAINING COMPLETED")
-    logger.info(f"  Steps:      {global_step}")
-    logger.info(f"  Final loss: {step_losses[-1]:.4f}")
+    except Exception as e:
+        logger.error(f"Error during training: {e}")
+        log_to_wandb({"error": str(e), "training_failed": True})
+        raise
 
-    if WANDB_ENABLED and wandb is not None:
-        wandb.finish()
-        logger.info("Finished wandb run")
+    finally:
+        if WANDB_ENABLED and wandb is not None:
+            wandb.finish()
+            logger.info("Finished wandb run")
 
 
 if __name__ == "__main__":
