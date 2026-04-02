@@ -15,7 +15,7 @@ jobs:
     secrets: inherit
 
   uplift-test:
-    if: ${{ github.head_ref == 'uplift' }}
+    if: always() # TODO(agobeljic): Remove this once uplift is working again
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
