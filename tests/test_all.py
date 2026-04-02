@@ -97,6 +97,14 @@ def check_losses(train_log_file: Path, val_log_file: Path, setup_dict: dict):
     )
 
 
+def fetch_checkpoint(checkpoint_path: str):
+    if not Path(checkpoint_path).exists():
+        pytest.fail(f"Checkpoint not found: {checkpoint_path}")
+
+    cmd = ["git", "lfs", "pull", f"--include={checkpoint_path}"]
+    subprocess.run(cmd, cwd=str(Path.cwd()), check=True)
+
+
 @pytest.mark.parametrize("setup_dict", TRAINING_TEST_CASES)
 def test_training_script(
     setup_dict: dict,
@@ -122,6 +130,9 @@ def test_training_script(
     test_id = request.node.callspec.id
     setup_dict = DEFAULT_SETUP_DICT.copy() | setup_dict
     train_log_file, val_log_file = get_log_files(test_id)
+
+    if setup_dict["test_checkpoint_path"]:
+        fetch_checkpoint(setup_dict["test_checkpoint_path"])
 
     cmd = get_cmd(test_id, setup_dict)
     run_cmd(cmd, test_id, setup_dict)
