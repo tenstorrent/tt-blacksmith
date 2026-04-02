@@ -168,11 +168,40 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-qb2-blackhole.yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.qb2_blackhole,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-qb2-blackhole",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-n300-llmbox(1,8).yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.n300_llmbox,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-n300-llmbox(1,8)",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b.yaml",
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.skip("Llama 8B is not supported on Galaxy yet."),
             pytest.mark.push,
             pytest.mark.galaxy,
             pytest.mark.torch,
