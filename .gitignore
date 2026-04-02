@@ -2,7 +2,7 @@ data/
 generated_modules/
 **/__pycache__/
 *.egg-info/
-checkpoints/
+blacksmith/**/checkpoints/
 wandb/
 results/
 logs/

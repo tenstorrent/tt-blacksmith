@@ -109,7 +109,19 @@ fi
 
 # Otherwise create it
 echo "Creating virtual environment in $TT_BLACKSMITH_ENV_DIR"
-python3.12 -m venv $TT_BLACKSMITH_ENV_DIR
+# Latest torch-xla CUDA 12.6 GPU wheel is not available for Python 3.12, so we need to keep the GPU environment on Python 3.11
+# Also keep the FFE environment on Python 3.11
+case $EXPERIMENT_TYPE in
+    0|2)
+        python3.11 -m venv $TT_BLACKSMITH_ENV_DIR
+        ;;
+    1)
+        python3.12 -m venv $TT_BLACKSMITH_ENV_DIR
+        ;;
+    *)
+        echo "Unknown experiment type: $EXPERIMENT_TYPE"
+        return 1
+esac
 source $TT_BLACKSMITH_ENV_DIR/bin/activate
 pip install --upgrade pip
 

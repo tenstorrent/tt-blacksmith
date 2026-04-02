@@ -111,21 +111,32 @@ TRAINING_TEST_CASES = [
         ],
         id="tt-mlp-mnist-n300-tp-jax",
     ),
-    pytest.param(
-        {
-            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml",
-            "timeout": 3000,
-        },
-        marks=[
-            pytest.mark.uplift,
-            pytest.mark.n150,
-            pytest.mark.torch,
-            pytest.mark.single_chip,
-            pytest.mark.split_0,
-        ],
-        id="tt-llama_3_2_1b-sst2-n150",
-    ),
+    *[
+        pytest.param(
+            {
+                "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+                "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml",
+                "test_config": "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
+                "test_checkpoint_path": test_checkpoint_path,
+                "timeout": 5000,
+            },
+            marks=[
+                pytest.mark.uplift,
+                pytest.mark.n150,
+                pytest.mark.torch,
+                pytest.mark.single_chip,
+                pytest.mark.split_0,
+            ],
+            id=f"tt-llama_3_2_1b-sst2-n150-{i}",
+        )
+        for i, test_checkpoint_path in enumerate(
+            [
+                None,
+                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step1340_epoch0_20260325_211954.pt",
+                "tests/checkpoints/tt-llama_3_2_1b-sst2-n150_checkpoint_step2680_epoch0_20260326_081459.pt",
+            ]
+        )
+    ],
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
@@ -143,6 +154,20 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.n300_llmbox,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-n300-llmbox",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b.yaml",
             "timeout": 20000,
         },
@@ -155,6 +180,21 @@ TRAINING_TEST_CASES = [
             pytest.mark.tensor_parallel,
         ],
         id="tt-llama_3_1_8b-sst2-n300-galaxy",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_70b-sst2-n300-galaxy.yaml",
+            "timeout": 3000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.galaxy,
+            pytest.mark.torch,
+            pytest.mark.tensor_parallel,
+        ],
+        id="tt-llama_3_1_70b-sst2-n300-galaxy",
     ),
     pytest.param(
         {
