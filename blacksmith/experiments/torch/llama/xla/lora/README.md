@@ -125,8 +125,6 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 ### Llama 3.1 8B Instruct Training
 
-**Llama 3.1 8B Instruct requires multi-chip configuration.**
-
 **QuietBox Training:**
 ```bash
 python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml
