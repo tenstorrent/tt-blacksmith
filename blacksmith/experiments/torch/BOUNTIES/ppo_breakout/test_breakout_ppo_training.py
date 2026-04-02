@@ -58,7 +58,7 @@ class FireResetEnv(gym.Wrapper):
     # Press FIRE after reset to launch the ball
 
     def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
+        self.env.reset(**kwargs)
         obs, _, terminated, truncated, info = self.env.step(1)
         if terminated or truncated:
             obs, info = self.env.reset(**kwargs)
@@ -172,6 +172,48 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
 # ---------------------------------------------------------------------------
 
 
+def collect_rollout(agent, envs, buffer, obs, done, config, device, episode_returns, global_step):
+    for _ in range(config.num_steps):
+        global_step += config.num_envs
+
+        with torch.no_grad():
+            action, log_prob, _, value = agent.get_action_and_value(obs)
+
+        next_obs, reward, terminated, truncated, infos = envs.step(action.cpu().numpy())
+        next_done = np.logical_or(terminated, truncated).astype(np.float32)
+
+        buffer.insert(
+            obs,
+            action,
+            log_prob,
+            torch.tensor(reward, device=device),
+            done,
+            value.flatten(),
+        )
+
+        obs = torch.tensor(next_obs, device=device)
+        done = torch.tensor(next_done, device=device)
+
+        if "_episode" in infos:
+            for i, finished in enumerate(infos["_episode"]):
+                if finished:
+                    episode_returns.append(infos["episode"]["r"][i])
+
+    return obs, done, global_step
+
+
+def resume_from_checkpoint(config, checkpoint_manager, agent, optimizer, logger):
+    start_update = 1
+    global_step = 0
+    if config.resume_from_checkpoint:
+        checkpoint_info = checkpoint_manager.load_checkpoint(agent, optimizer)
+        if checkpoint_info:
+            start_update = checkpoint_info["step"] + 1
+            global_step = checkpoint_info.get("metrics", {}).get("global_step", 0)
+            logger.info(f"Resumed at update {start_update}, global_step {global_step:,}")
+    return start_update, global_step
+
+
 def train(
     config: TrainingConfig,
     device_manager: DeviceManager,
@@ -191,14 +233,7 @@ def train(
     logger.info(f"Model parameters: {sum(p.numel() for p in agent.parameters())}")
 
     # Resume from checkpoint if configured.
-    start_update = 1
-    global_step = 0
-    if config.resume_from_checkpoint:
-        checkpoint_info = checkpoint_manager.load_checkpoint(agent, optimizer)
-        if checkpoint_info:
-            start_update = checkpoint_info["step"] + 1
-            global_step = checkpoint_info.get("metrics", {}).get("global_step", 0)
-            logger.info(f"Resumed at update {start_update}, global_step {global_step:,}")
+    start_update, global_step = resume_from_checkpoint(config, checkpoint_manager, agent, optimizer, logger)
 
     buffer = RolloutBuffer(config, obs_shape, device)
 
@@ -224,32 +259,9 @@ def train(
                 optimizer.param_groups[0]["lr"] = config.learning_rate * frac
 
             # Collect rollout.
-            for _ in range(config.num_steps):
-                global_step += config.num_envs
-
-                with torch.no_grad():
-                    action, log_prob, _, value = agent.get_action_and_value(obs)
-
-                next_obs, reward, terminated, truncated, infos = envs.step(action.cpu().numpy())
-                next_done = np.logical_or(terminated, truncated).astype(np.float32)
-
-                buffer.insert(
-                    obs,
-                    action,
-                    log_prob,
-                    torch.tensor(reward, device=device),
-                    done,
-                    value.flatten(),
-                )
-
-                obs = torch.tensor(next_obs, device=device)
-                done = torch.tensor(next_done, device=device)
-
-                # Log completed episodes.
-                if "_episode" in infos:
-                    for i, finished in enumerate(infos["_episode"]):
-                        if finished:
-                            episode_returns.append(infos["episode"]["r"][i])
+            obs, done, global_step = collect_rollout(
+                agent, envs, buffer, obs, done, config, device, episode_returns, global_step
+            )
 
             # Compute GAE.
             with torch.no_grad():
