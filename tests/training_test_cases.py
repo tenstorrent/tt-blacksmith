@@ -169,6 +169,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b_instruct-metamathqa-n300-llmbox.yaml",
             "timeout": 5000,
         },
         marks=[
