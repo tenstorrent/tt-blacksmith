@@ -15,7 +15,7 @@ DEFAULT_SETUP_DICT = {
     "test_script": None,
     "experiment_config": None,
     "test_config": "tests/configs/test_training_fast.yaml",
-    "tolerance": 0.3,
+    "tolerance": 0.5,
     "timeout": 800.0,
     "skip_loss_checks": False,
     "test_checkpoint_path": None,

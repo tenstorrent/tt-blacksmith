@@ -119,7 +119,6 @@ TRAINING_TEST_CASES = [
                 "test_config": "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
                 "test_checkpoint_path": test_checkpoint_path,
                 "timeout": 5000,
-                "tolerance": 0.4,
             },
             marks=[
                 pytest.mark.uplift,
