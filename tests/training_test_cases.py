@@ -249,6 +249,8 @@ TRAINING_TEST_CASES = [
             "timeout": 3600,
         },
         marks=[
+            # TODO(agobeljic): https://github.com/tenstorrent/tt-metal/issues/41127
+            pytest.mark.xfail(reason="LayerNorm is regressed"),
             pytest.mark.uplift,
             pytest.mark.n150,
             pytest.mark.torch,
