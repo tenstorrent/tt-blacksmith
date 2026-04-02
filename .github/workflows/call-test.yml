@@ -53,6 +53,10 @@ jobs:
         - /mnt/dockercache:/mnt/dockercache
 
     steps:
+    
+    - name: Set up lfs
+      shell: bash
+      run: git lfs install
 
     - uses: actions/checkout@v4
       with:
