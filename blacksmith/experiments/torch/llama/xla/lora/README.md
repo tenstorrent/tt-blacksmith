@@ -5,6 +5,7 @@ This directory contains the code for the Llama with LoRA fine-tuning experiment 
 - Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
 - Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
 - Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
+- Llama 3.1 8B Instruct model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct).
 - Llama 3.1 70B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-70B)
 - Llama 3.3 70B Instruct model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct).
 
@@ -121,6 +122,20 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 | [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
 | [Blackhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
 | [Galaxy](galaxy/test_llama_3_1_8b.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+
+### Llama 3.1 8B Instruct Training
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml
+```
+
+#### Llama 3.3 8B Instruct Training Configurations
+
+| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [Wormhole QuietBox](quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml) | `[2, 4]`   | `["data", "model"]`                      | MetaMathQA    | LoRA   |
+
 
 ### Llama 3.1 70B Training
 
