@@ -261,14 +261,16 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
             kwargs["deterministic"] = not train
         out = m(**kwargs)
 
-        shift_logits = out.logits[:, :-1, :]
+        # NOTE: TT-MLIR eliminates bf16→f32 casts inside fused JIT graphs,
+        # so this softmax runs in bf16 on TT hardware.  The reported training
+        # loss is ~1-2 higher than the true f32 loss; gradient direction is
+        # unaffected (model still converges), only magnitude is approximate.
+        # Eval loss uses a separate JIT to get accurate f32 values.
+        shift_logits = out.logits[:, :-1, :].astype(jnp.float32)
         shift_labels = input_ids[:, 1:]
         one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        # Upcast logits to f32 for numerically stable cross-entropy on TT.
-        # bfloat16 log_softmax over vocab=151936 accumulates rounding errors;
-        # upcasting here matches what PyTorch/XLA does implicitly.
         per_token_loss = optax.softmax_cross_entropy(
-            shift_logits.astype(jnp.float32),
+            shift_logits,
             one_hot.astype(jnp.float32),
         )
         return jnp.mean(per_token_loss)
@@ -287,78 +289,96 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
     return jax.jit(train_step, static_argnames=("train",))
 
 
-def create_eval_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
-    """Create a JIT-compiled evaluation step (forward pass only, no gradients).
+def _create_forward_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
+    """Create a JIT-compiled forward-only function that returns raw logits.
 
-    Args:
-        graphdef: NNX graph definition from nnx.split.
-        call_signature: Model __call__ signature for keyword detection.
-
-    Returns:
-        JIT-compiled eval_loss_fn function.
-
+    Separated from loss computation because TT-MLIR silently eliminates
+    bf16→f32 type promotions inside fused JIT graphs.  The 151 k-element
+    softmax reduction then runs in bf16 and produces catastrophically wrong
+    loss values (~4.66 instead of ~3.1).  By computing the loss on the CPU
+    host we guarantee f32 precision.
     """
 
-    def eval_loss_fn(lora_params, frozen_state, input_ids):
+    @jax.jit
+    def forward_fn(lora_params, frozen_state, input_ids):
         m = nnx.merge(graphdef, lora_params, frozen_state)
         kwargs = {"input_ids": input_ids}
         if "train" in call_signature.parameters:
             kwargs["train"] = False
         if "deterministic" in call_signature.parameters:
             kwargs["deterministic"] = True
-        out = m(**kwargs)
+        return m(**kwargs).logits
 
-        shift_logits = out.logits[:, :-1, :]
-        shift_labels = input_ids[:, 1:]
-        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        # Upcast logits to f32 for numerically stable cross-entropy on TT.
-        per_token_loss = optax.softmax_cross_entropy(
-            shift_logits.astype(jnp.float32),
-            one_hot.astype(jnp.float32),
-        )
-        return jnp.mean(per_token_loss)
+    return forward_fn
 
-    return jax.jit(eval_loss_fn)
+
+def _cpu_cross_entropy(logits, input_ids):
+    """Compute cross-entropy loss on CPU host in f32.
+
+    TT-MLIR drops bf16→f32 casts inside compiled graphs, so any on-device
+    softmax over the 151 k vocabulary is unreliable.  This helper transfers
+    the logits to CPU and computes the loss there (~37 MB per sample).
+    """
+    cpu = jax.devices("cpu")[0]
+    logits_cpu = jax.device_put(logits, cpu)
+    ids_cpu = jax.device_put(input_ids, cpu)
+    logits_f32 = logits_cpu.astype(jnp.float32)
+    shift_logits = logits_f32[:, :-1, :]
+    shift_labels = ids_cpu[:, 1:]
+    one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
+    per_token_loss = optax.softmax_cross_entropy(
+        shift_logits,
+        one_hot.astype(jnp.float32),
+    )
+    return jnp.mean(per_token_loss)
+
+
+def _cpu_cross_entropy_with_inspect(logits, input_ids):
+    """Like _cpu_cross_entropy but also returns predictions and per-token losses."""
+    cpu = jax.devices("cpu")[0]
+    logits_cpu = jax.device_put(logits, cpu)
+    ids_cpu = jax.device_put(input_ids, cpu)
+    logits_f32 = logits_cpu.astype(jnp.float32)
+    shift_logits = logits_f32[:, :-1, :]
+    shift_labels = ids_cpu[:, 1:]
+    one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
+    per_token_loss = optax.softmax_cross_entropy(
+        shift_logits,
+        one_hot.astype(jnp.float32),
+    )
+    loss = jnp.mean(per_token_loss)
+    predictions = jnp.argmax(shift_logits, axis=-1)
+    return loss, predictions, per_token_loss
+
+
+def create_eval_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
+    """Create an evaluation step: forward on device, loss on CPU.
+
+    Returns a callable with signature:
+    ``(lora_params, frozen_state, input_ids) -> loss``.
+    """
+    jit_forward = _create_forward_fn(graphdef, call_signature)
+
+    def eval_step(lora_params, frozen_state, input_ids):
+        logits = jit_forward(lora_params, frozen_state, input_ids)
+        return _cpu_cross_entropy(logits, input_ids)
+
+    return eval_step
 
 
 def create_eval_inspect_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
-    """Create a JIT-compiled eval step that also returns predictions and per-token losses.
+    """Create an eval step that also returns predictions and per-token losses.
 
-    Same forward pass as :func:`create_eval_step_fn` but additionally
-    computes ``argmax`` predictions and keeps per-token losses so that
-    examples can be printed without a second (non-JIT) forward pass.
-
-    Args:
-        graphdef: NNX graph definition from nnx.split.
-        call_signature: Model __call__ signature for keyword detection.
-
-    Returns:
-        JIT-compiled function returning ``(loss, predictions, per_token_loss)``.
-
+    Returns a callable:
+    ``(lora_params, frozen_state, input_ids) -> (loss, predictions, per_token_loss)``.
     """
+    jit_forward = _create_forward_fn(graphdef, call_signature)
 
-    def eval_inspect_fn(lora_params, frozen_state, input_ids):
-        m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = {"input_ids": input_ids}
-        if "train" in call_signature.parameters:
-            kwargs["train"] = False
-        if "deterministic" in call_signature.parameters:
-            kwargs["deterministic"] = True
-        out = m(**kwargs)
+    def eval_inspect_step(lora_params, frozen_state, input_ids):
+        logits = jit_forward(lora_params, frozen_state, input_ids)
+        return _cpu_cross_entropy_with_inspect(logits, input_ids)
 
-        shift_logits = out.logits[:, :-1, :]
-        shift_labels = input_ids[:, 1:]
-        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        # Upcast logits to f32 for numerically stable cross-entropy on TT.
-        per_token_loss = optax.softmax_cross_entropy(
-            shift_logits.astype(jnp.float32),
-            one_hot.astype(jnp.float32),
-        )
-        loss = jnp.mean(per_token_loss)
-        predictions = jnp.argmax(shift_logits, axis=-1)
-        return loss, predictions, per_token_loss
-
-    return jax.jit(eval_inspect_fn)
+    return eval_inspect_step
 
 
 def _show_predictions(

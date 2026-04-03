@@ -4,20 +4,20 @@ dataset_configuration: "wikitext-2-raw-v1"
 
 # Model settings
 model_name: "Qwen/Qwen3-0.6B"
-max_length: 256
-mask_max_position_embeddings: 256
+max_length: 128
+mask_max_position_embeddings: 128
 dtype: "bfloat16"
 
 # Training hyperparameters
 learning_rate: 1e-5
 batch_size: 4
-gradient_accumulation_steps: 8
-num_epochs: 1
+gradient_accumulation_steps: 4
+num_epochs: 2
 val_steps_freq: 50
 max_val_batches: 20
 
 # LoRA settings
-lora_rank: 16
+lora_rank: 32
 lora_pattern: ".*(q_proj|v_proj).*"
 
 # Other settings
