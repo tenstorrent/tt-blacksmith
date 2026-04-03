@@ -60,27 +60,17 @@ class TTLayerNorm(nn.Module):
     def forward(self, x):
         # Determine which dimensions to compute the mean and variance over
         dims = tuple(range(-len(self.normalized_shape), 0))
-        
+
         # Compute mean and variance
         mean = x.mean(dim=dims, keepdim=True)
         # We use unbiased=False to match PyTorch's native nn.LayerNorm implementation
         var = x.var(dim=dims, unbiased=False, keepdim=True)
-        
+
         # Normalize
         x_norm = (x - mean) / torch.sqrt(var + self.eps)
-        
+
         # Apply learnable affine parameters if specified
         if self.elementwise_affine:
             x_norm = x_norm * self.weight + self.bias
-            
+
         return x_norm
-
-if __name__ == "__main__":
-    for _ in range(100):
-        x = torch.randn(1, 100, 100)
-        official_layer_norm = nn.LayerNorm(x.shape[-1], eps=1e-12, elementwise_affine=True)
-        layer_norm = TTLayerNorm(x.shape[-1], eps=1e-12, elementwise_affine=True)
-        official_output = official_layer_norm(x)
-        output = layer_norm(x)
-
-        assert torch.allclose(official_output, output, atol=1e-6, rtol=1e-6)

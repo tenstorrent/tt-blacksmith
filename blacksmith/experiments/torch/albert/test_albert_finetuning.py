@@ -109,6 +109,7 @@ def train(
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint()
 
+    # TODO(agobeljic): https://github.com/tenstorrent/tt-metal/issues/41127
     replace_layernorm(model)
 
     # Load dataset
