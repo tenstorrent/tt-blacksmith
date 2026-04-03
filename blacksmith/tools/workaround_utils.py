@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
@@ -39,6 +39,7 @@ def transform_labels(labels, ignored_index, vocab_size):
 
     return expected_output, labels_mask
 
+
 # Custom LayerNorm for TT-Forge. Necessary because of Albert experiment getting inf loss.
 class TTLayerNorm(nn.Module):
     def __init__(self, normalized_shape, eps=1e-5, elementwise_affine=True, device=None, dtype=None):
@@ -54,8 +55,8 @@ class TTLayerNorm(nn.Module):
             self.weight = nn.Parameter(torch.ones(self.normalized_shape, device=device, dtype=dtype))
             self.bias = nn.Parameter(torch.zeros(self.normalized_shape, device=device, dtype=dtype))
         else:
-            self.register_parameter('weight', None)
-            self.register_parameter('bias', None)
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
 
     def forward(self, x):
         # Determine which dimensions to compute the mean and variance over

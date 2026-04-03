@@ -34,7 +34,7 @@ def replace_layernorm(module):
                 eps=child.eps,
                 elementwise_affine=child.elementwise_affine,
                 device=child.weight.device if child.weight is not None else None,
-                dtype=child.weight.dtype if child.weight is not None else None
+                dtype=child.weight.dtype if child.weight is not None else None,
             )
 
             # 2. Copy the learned parameters if elementwise_affine is True
