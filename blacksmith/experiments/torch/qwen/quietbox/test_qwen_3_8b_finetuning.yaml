@@ -10,27 +10,22 @@ dtype: "torch.bfloat16"
 training_type: "lora"
 learning_rate: 2e-5
 batch_size: 1
-gradient_accumulation_steps: 1
+gradient_accumulation_steps: 4
 gradient_checkpointing: True
 num_epochs: 1
 optim: "adamw_torch"
 
-# Learning rate scheduler settings
-lr_scheduler: "step"
-lr_scheduler_step_size: 10
-lr_scheduler_gamma: 0.1
-
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "qwen3-8B-multichip-lora-quietbox"
-wandb_run_name: "tt-qwen3-8B-test-alpaca_256_1_1_0.00002_bh_qb"
+wandb_project: "qwen3-8B-lora-multichip-quietbox"
+wandb_run_name: "tt-qwen3-8B-test"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 5
-val_steps_freq: 5
+steps_freq: 10
+val_steps_freq: 20
 epoch_freq: 1
 print_examples: True
 ignored_index: -100
@@ -74,8 +69,8 @@ model_sharding_patterns:
   - ['\.mlp\.down_proj$', [null, "model"]]
 
 # LoRA setup
-lora_r: 16
-lora_alpha: 32
+lora_r: 8
+lora_alpha: 16
 lora_target_modules: ["q_proj", "v_proj"]
 lora_task_type: "CAUSAL_LM"
 

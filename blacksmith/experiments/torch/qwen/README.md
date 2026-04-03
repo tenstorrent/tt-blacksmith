@@ -7,6 +7,7 @@ This directory contains the code for the Qwen model with LoRA fine-tuning experi
 - Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
 - Qwen 3 8B Base model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B-Base).
 - Qwen 3 32B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-32B).
+- Qwen 3 8B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B).
 
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
@@ -36,39 +37,6 @@ model_sharding_patterns:
   - ['\.mlp\.up_proj$',                       ["model", null]]
   - ['\.mlp\.down_proj$',                     [null, "model"]]
 ```
-
-### Qwen 2.5 0.5B Training
-
-Qwen 2.5 0.5B is the default single chip example.
-
-**Single Chip Training:**
-```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_finetuning.yaml
-```
-
-### Qwen 2.5 1.5B Training
-
-Qwen 2.5 1.5B supports training on single chip configuration.
-
-**Single Chip Training:**
-```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml
-```
-
-### Qwen 3 4B Instruct 2507 Training
-
-Qwen 3 4B Instruct 2507 supports training on different configurations.
-
-**Single Chip Training:**
-```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml
-```
-
-**QuietBox Training:**
-```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml
-```
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 ### Qwen 2.5 0.5B Training
 
@@ -138,6 +106,7 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
 | [Wormhole Galaxy](galaxy/test_qwen_3_8b_base_finetuning.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
+<<<<<<< HEAD
 ### Qwen 3 32B Training
 
 Qwen 3 32B requires multi-chip configurations (not supported on single chip).
@@ -152,6 +121,23 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 | Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
 | [Wormhole Galaxy](galaxy/test_qwen_3_32b_finetuning.yaml)        | `[8, 4]`   | `["model", "batch"]` | Alpaca    | LoRA   |
+=======
+### Qwen 3 8B Training
+
+Qwen 3 8B requires multi-chip configurations (not supported on single chip).
+
+**Wormhole QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_8b_finetuning.yaml
+```
+
+#### Qwen 3 8B Training Configurations
+
+| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
+| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
+| [Wormhole QuietBox](galaxy/test_qwen_3_8b_finetuning.yaml)        | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["batch", "model"]`, `["model", "batch"]` | Alpaca    | LoRA   |
+
+>>>>>>> 41ce09447 (Add qwen-3-8b-alpaca)
 
 ## Data
 

@@ -45,7 +45,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # Forward pass.
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
-            # torch_xla.sync(wait=True)
             # Shift logits for causal LM: predict next token
             # logits[:, :-1] predicts tokens at positions 1:
             shift_logits = logits[:, :-1, :].contiguous()
@@ -96,7 +95,6 @@ def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
-    # torch_xla.sync(wait=True)
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
     # Scale loss by number of accumulation steps to get correct effective batch size.
     scaled_loss = loss / gradient_accumulation_steps
@@ -190,7 +188,6 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
-                torch_xla.sync(wait=True)
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
                     device_manager.optimizer_step(optimizer)
@@ -221,9 +218,9 @@ def train(
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
 
-                    # # Clear XLA computation cache to avoid memory issues.
-                    # if config.use_tt:
-                    #     xr.clear_computation_cache()
+                    # Clear XLA computation cache to avoid memory issues.
+                    if config.use_tt:
+                        xr.clear_computation_cache()
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
