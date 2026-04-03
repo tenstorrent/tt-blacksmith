@@ -36,19 +36,19 @@ def replace_layernorm(module):
                 device=child.weight.device if child.weight is not None else None,
                 dtype=child.weight.dtype if child.weight is not None else None
             )
-            
+
             # 2. Copy the learned parameters if elementwise_affine is True
             if child.elementwise_affine:
                 with torch.no_grad():
                     custom_ln.weight.copy_(child.weight)
                     custom_ln.bias.copy_(child.bias)
-                    
+
             # 3. Replace the original layer with the custom one
             setattr(module, name, custom_ln)
         else:
             # Recursively apply to child modules (e.g., inside nn.Sequential)
             replace_layernorm(child)
-            
+
     return module
 
 
@@ -108,7 +108,7 @@ def train(
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint()
-    
+
     replace_layernorm(model)
 
     # Load dataset
