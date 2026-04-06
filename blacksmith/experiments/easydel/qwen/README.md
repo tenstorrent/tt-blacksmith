@@ -31,6 +31,12 @@ Then install the additional EasyDel-specific dependencies:
 pip install -r blacksmith/experiments/easydel/requirements.txt
 ```
 
+For **GPU baseline** runs, also install the JAX CUDA plugin (`--no-deps` avoids a cuDNN version conflict with torch):
+
+```bash
+pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
+```
+
 ## Training
 
 On Tenstorrent hardware:
