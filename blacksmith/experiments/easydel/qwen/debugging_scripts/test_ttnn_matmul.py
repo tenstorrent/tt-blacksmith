@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Minimal reproducer: ttnn.matmul float32 vs bfloat16 accumulator precision.
 
 Tests whether ttnn matmul uses float32 accumulators for bfloat16 inputs

@@ -23,8 +23,8 @@ Usage:
 """
 
 import os
-import sys
 import subprocess
+import sys
 
 RESULTS_DIR = "/tmp/tt_layer_divergence"
 MODEL_NAME = "Qwen/Qwen3-0.6B"
@@ -41,25 +41,27 @@ def _setup_env(platform: str):
 
 def save(name, arr):
     import numpy as np
+
     os.makedirs(RESULTS_DIR, exist_ok=True)
     np.save(os.path.join(RESULTS_DIR, name), arr)
 
 
 def load(name):
     import numpy as np
+
     return np.load(os.path.join(RESULTS_DIR, name + ".npy"))
 
 
 def to_np(x):
     import jax
     import numpy as np
+
     cpu = jax.devices("cpu")[0]
     return np.array(jax.device_put(x, cpu), dtype=np.float32)
 
 
 def stat(label, arr_np):
-    print(f"  {label:<18} shape={str(arr_np.shape):<25} "
-          f"mean={arr_np.mean():>10.4f}  std={arr_np.std():>10.4f}")
+    print(f"  {label:<18} shape={str(arr_np.shape):<25} " f"mean={arr_np.mean():>10.4f}  std={arr_np.std():>10.4f}")
 
 
 def run_forward(platform: str):
@@ -68,9 +70,10 @@ def run_forward(platform: str):
 
     import jax
     import jax.numpy as jnp
-    from transformers import AutoTokenizer
     from easydel import AutoEasyDeLModelForCausalLM
     from easydel.layers.caching.transformer.cache import TransformerCache
+    from transformers import AutoTokenizer
+
     from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround
 
     apply_gqa_workaround()
@@ -81,10 +84,12 @@ def run_forward(platform: str):
     print(f"Platform: {device.platform} ({tag}), seq_len={seq_len}")
 
     import numpy as np_host
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
     # Use real WikiText text to get a representative 128-token input
     from datasets import load_dataset
+
     ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="validation")
     full_text = " ".join(t for t in ds["text"] if t.strip())
     all_ids = tokenizer(full_text, return_tensors="np")["input_ids"][0]
@@ -192,15 +197,17 @@ def run_with_lora(platform: str):
     _setup_env(platform)
 
     import inspect
+
     import jax
     import jax.numpy as jnp
     import numpy as np
     import optax
+    from easydel import AutoEasyDeLModelForCausalLM
     from flax import nnx
     from transformers import AutoTokenizer
-    from datasets import load_dataset
-    from easydel import AutoEasyDeLModelForCausalLM
+
     from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround
+    from datasets import load_dataset
 
     apply_gqa_workaround()
 
@@ -241,8 +248,7 @@ def run_with_lora(platform: str):
 
     # Save LoRA params for comparison
     lora_flat = jax.tree.leaves(lora_params)
-    lora_concat = np.concatenate([np.array(jax.device_put(x, cpu_device)).ravel()
-                                  for x in lora_flat])
+    lora_concat = np.concatenate([np.array(jax.device_put(x, cpu_device)).ravel() for x in lora_flat])
     save(f"{tag}_lora_params", lora_concat)
     print(f"  LoRA params: {len(lora_flat)} arrays, {lora_concat.shape[0]:,} total scalars")
     print(f"  LoRA mean={lora_concat.mean():.6f}  std={lora_concat.std():.6f}")
@@ -356,7 +362,8 @@ def run_with_lora(platform: str):
         shift_labels = input_ids[:, 1:]
         one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
         per_token_loss = optax.softmax_cross_entropy(
-            shift_logits, one_hot.astype(jnp.float32),
+            shift_logits,
+            one_hot.astype(jnp.float32),
         )
         return jnp.mean(per_token_loss)
 
@@ -381,7 +388,8 @@ def run_with_lora(platform: str):
         shift_labels = input_ids[:, 1:]
         one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
         per_token_loss = optax.softmax_cross_entropy(
-            shift_logits, one_hot.astype(jnp.float32),
+            shift_logits,
+            one_hot.astype(jnp.float32),
         )
         return jnp.mean(per_token_loss)
 
@@ -433,16 +441,16 @@ def compare_lora():
     logit_diff = np.abs(cpu_logits.astype(np.float32) - tt_logits.astype(np.float32))
     cpu_flat = cpu_logits.ravel().astype(np.float32)
     tt_flat = tt_logits.ravel().astype(np.float32)
-    cos_sim = np.dot(cpu_flat, tt_flat) / (
-        np.linalg.norm(cpu_flat) * np.linalg.norm(tt_flat) + 1e-12
-    )
+    cos_sim = np.dot(cpu_flat, tt_flat) / (np.linalg.norm(cpu_flat) * np.linalg.norm(tt_flat) + 1e-12)
 
     print(f"\n  Logits: max_diff={logit_diff.max():.4f}  mean_diff={logit_diff.mean():.4f}  cos_sim={cos_sim:.6f}")
     print(f"\n  Loss (on-device) — CPU: {cpu_loss:.6f},  TT: {tt_loss:.6f},  gap: {tt_loss - cpu_loss:+.6f}")
 
     # Recompute loss in numpy float64 from saved logits to isolate on-device issue
     from transformers import AutoTokenizer
+
     from datasets import load_dataset
+
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="validation")
     full_text = " ".join(t for t in ds["text"] if t.strip())
@@ -459,8 +467,10 @@ def compare_lora():
     cpu_np_loss = xent_numpy(cpu_logits, input_ids)
     tt_np_loss = xent_numpy(tt_logits, input_ids)
     print(f"  Loss (numpy f64)  — CPU: {cpu_np_loss:.6f},  TT: {tt_np_loss:.6f},  gap: {tt_np_loss - cpu_np_loss:+.6f}")
-    print(f"\n  ** TT on-device loss error: {tt_loss - tt_np_loss:+.6f} "
-          f"(on-device={tt_loss:.4f} vs correct={tt_np_loss:.4f}) **")
+    print(
+        f"\n  ** TT on-device loss error: {tt_loss - tt_np_loss:+.6f} "
+        f"(on-device={tt_loss:.4f} vs correct={tt_np_loss:.4f}) **"
+    )
     print()
 
 
@@ -474,6 +484,7 @@ def test_loss_ops(platform: str):
     import numpy as np
     import optax
     from transformers import AutoTokenizer
+
     from datasets import load_dataset
 
     device = jax.devices()[0]
@@ -576,10 +587,7 @@ def compare():
     print(f"  LAYER-BY-LAYER DIVERGENCE: CPU vs TT")
     print(f"{'=' * 91}\n")
 
-    cpu_files = sorted(
-        f for f in os.listdir(RESULTS_DIR)
-        if f.startswith("cpu_") and f.endswith(".npy")
-    )
+    cpu_files = sorted(f for f in os.listdir(RESULTS_DIR) if f.startswith("cpu_") and f.endswith(".npy"))
 
     if not cpu_files:
         print(f"ERROR: No CPU results in {RESULTS_DIR}. Run with --cpu first.")
@@ -587,8 +595,7 @@ def compare():
 
     labels = [f.replace("cpu_", "").replace(".npy", "") for f in cpu_files]
 
-    print(f"  {'Checkpoint':<22} {'Shape':<25} {'MaxDiff':>10} {'MeanDiff':>10} "
-          f"{'CosSim':>10} {'Verdict':>8}")
+    print(f"  {'Checkpoint':<22} {'Shape':<25} {'MaxDiff':>10} {'MeanDiff':>10} " f"{'CosSim':>10} {'Verdict':>8}")
     print("  " + "-" * 87)
 
     for label in labels:
@@ -608,9 +615,7 @@ def compare():
 
         cpu_flat = cpu_arr.ravel()
         tt_flat = tt_arr.ravel()
-        cos_sim = np.dot(cpu_flat, tt_flat) / (
-            np.linalg.norm(cpu_flat) * np.linalg.norm(tt_flat) + 1e-12
-        )
+        cos_sim = np.dot(cpu_flat, tt_flat) / (np.linalg.norm(cpu_flat) * np.linalg.norm(tt_flat) + 1e-12)
 
         if cos_sim > 0.9999:
             verdict = "OK"
@@ -621,8 +626,10 @@ def compare():
         else:
             verdict = "BROKEN"
 
-        print(f"  {label:<22} {str(cpu_arr.shape):<25} {max_diff:>10.4f} {mean_diff:>10.4f} "
-              f"{cos_sim:>10.6f} {verdict:>8}")
+        print(
+            f"  {label:<22} {str(cpu_arr.shape):<25} {max_diff:>10.4f} {mean_diff:>10.4f} "
+            f"{cos_sim:>10.6f} {verdict:>8}"
+        )
 
     # Compute loss from logits
     cpu_logits_path = sorted(f for f in os.listdir(RESULTS_DIR) if f.startswith("cpu_") and "logits" in f)
@@ -630,7 +637,9 @@ def compare():
 
     if cpu_logits_path and tt_logits_path:
         from transformers import AutoTokenizer
+
         from datasets import load_dataset
+
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="validation")
         full_text = " ".join(t for t in ds["text"] if t.strip())
@@ -649,8 +658,7 @@ def compare():
 
         cpu_loss = xent_loss(cpu_logits, input_ids)
         tt_loss = xent_loss(tt_logits, input_ids)
-        print(f"\n  Cross-entropy loss — CPU: {cpu_loss:.4f},  TT: {tt_loss:.4f},  "
-              f"gap: {tt_loss - cpu_loss:+.4f}")
+        print(f"\n  Cross-entropy loss — CPU: {cpu_loss:.4f},  TT: {tt_loss:.4f},  " f"gap: {tt_loss - cpu_loss:+.4f}")
 
     print()
 

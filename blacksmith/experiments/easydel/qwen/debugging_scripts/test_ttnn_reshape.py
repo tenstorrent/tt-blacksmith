@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Minimal reproducer: ttnn.reshape 4D -> 5D gives wrong results after to_layout.
 
 When a float32 tensor in ROW_MAJOR layout is converted to TILE layout

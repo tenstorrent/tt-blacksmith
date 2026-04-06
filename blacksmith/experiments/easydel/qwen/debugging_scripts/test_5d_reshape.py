@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Test: does a simple 4D -> 5D reshape produce correct results on TT?
 
 Compares JAX's reshape output against NumPy's reshape (ground truth).

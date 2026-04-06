@@ -8,7 +8,8 @@ Usage:  python repro_stride_bug.py          # TT (reproduces bug)
         python repro_stride_bug.py --cpu    # CPU (both pass)
 """
 
-import os, sys  # noqa: E401
+import os  # noqa: E401
+import sys
 
 if "--cpu" in sys.argv:
     os.environ["JAX_PLATFORMS"] = "cpu"
@@ -17,7 +18,7 @@ else:
     os.environ.setdefault("XLA_STABLEHLO_COMPILE", "1")
 
 import jax.numpy as jnp  # noqa: E402
-import numpy as np        # noqa: E402
+import numpy as np  # noqa: E402
 
 data = np.arange(12, dtype=np.float32).reshape(3, 4)
 fortran_order = data.T  # non-contiguous view (like PyTorch's permute(1, 0))

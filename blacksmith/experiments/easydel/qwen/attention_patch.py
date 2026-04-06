@@ -22,13 +22,12 @@ import logging
 import typing as tp
 
 import jax
+from easydel.layers.attention_operator._attention_impl import AttentionOutput
+from easydel.layers.attention_operator.modules.vanilla import VanillaAttn
 from eformer.escale import with_sharding_constraint
 from flax.nnx.nn.dtypes import promote_dtype
 from jax import Array
 from jax import numpy as jnp
-
-from easydel.layers.attention_operator._attention_impl import AttentionOutput
-from easydel.layers.attention_operator.modules.vanilla import VanillaAttn
 
 logger = logging.getLogger(__name__)
 
