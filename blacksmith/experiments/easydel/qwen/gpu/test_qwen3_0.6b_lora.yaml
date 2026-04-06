@@ -24,5 +24,7 @@ lora_pattern: ".*(q_proj|v_proj).*"
 
 # Other settings
 use_wandb: true
+wandb_project: "Qwen-GPU-EasyDel-LoRA-Training"
+wandb_run_name: "qwen3-0.6b-wikitext-gpu-easydel"
 print_examples: true
 use_tt: false
