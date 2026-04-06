@@ -6,7 +6,10 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 
 The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support. It performs causal language modelling with gradient accumulation and optional periodic validation. Per-topology YAML configs live in subdirectories:
 
-- **`single_chip/`** — Configs for single-device runs (e.g. Qwen3-0.6B)
+- **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150)
+- **`gpu/`** — Configs for GPU baseline runs
+
+The `use_tt` flag in each YAML config controls whether the experiment targets Tenstorrent hardware (`true`) or GPU (`false`).
 
 ## Prerequisites
 
@@ -14,7 +17,12 @@ Follow the environment setup in the top-level TT-Blacksmith documentation:
 
 ```bash
 cd /path/to/tt-blacksmith
+
+# For Tenstorrent hardware:
 source env/activate --xla
+
+# For GPU baseline:
+source env/activate --gpu
 ```
 
 Then install the additional EasyDel-specific dependencies:
@@ -25,8 +33,18 @@ pip install -r blacksmith/experiments/easydel/requirements.txt
 
 ## Training
 
+On Tenstorrent hardware:
+
 ```bash
-python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
+  --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
+```
+
+GPU baseline:
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
+  --config blacksmith/experiments/easydel/qwen/gpu/test_qwen3_0.6b_lora.yaml
 ```
 
 ## Data
