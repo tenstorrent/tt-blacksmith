@@ -34,6 +34,8 @@ class TrainingConfig(BaseModel):
 
     # Training hyperparameters
     learning_rate: float = Field(default=2e-4, gt=0)
+    warmup_steps: int = Field(default=0, ge=0)
+    end_learning_rate: float = Field(default=0.0, ge=0)
     batch_size: int = Field(default=4, gt=0)
     gradient_accumulation_steps: int = Field(default=1, ge=1)
     num_epochs: int = Field(default=1, gt=0)

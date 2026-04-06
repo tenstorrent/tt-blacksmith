@@ -5,6 +5,7 @@
 import inspect
 import logging
 import os
+import random
 from pathlib import Path
 from typing import Any, Optional
 
@@ -16,9 +17,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
 )
-
-os.environ.setdefault("PJRT_DEVICE", "TT")
-os.environ.setdefault("XLA_STABLEHLO_COMPILE", "1")
 
 import jax  # noqa: E402
 import jax.numpy as jnp  # noqa: E402
@@ -41,7 +39,7 @@ def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: s
     Args:
         training_config: Training configuration with wandb project/run settings.
         enable: Whether to enable wandb logging.
-        device: Device kind, one of {"tt", "cpu"}.
+        device: Device kind, one of {"tt", "gpu", "cpu"}.
 
     Returns:
         The wandb run object if enabled, None otherwise.
@@ -84,18 +82,24 @@ def log_to_wandb(data_dict: dict[str, Any], step: Optional[int] = None) -> None:
 
 
 def _select_preferred_device(use_tt: bool = True) -> tuple[jax.Device, str]:
-    """Select compute device.
+    """Select compute device: TT > GPU > CPU.
 
     Args:
         use_tt: When True, prefer TT device if available.
-            When False, always use CPU regardless of available hardware.
+            When False, try GPU first, then fall back to CPU.
 
     Returns:
-        The selected device and its kind ("tt" or "cpu").
+        The selected device and its kind ("tt", "gpu", or "cpu").
 
     """
     cpu = jax.devices("cpu")[0]
     if not use_tt:
+        try:
+            gpu_devs = jax.devices("gpu")
+            if gpu_devs:
+                return gpu_devs[0], "gpu"
+        except Exception:
+            pass
         return cpu, "cpu"
     try:
         tt_devs = jax.devices("tt")
@@ -213,12 +217,7 @@ def _set_nnx_model_mesh(module: Any, mesh: jax.sharding.Mesh) -> None:
         mesh: JAX mesh to attach.
 
     """
-    cfg = module.config
-    cfg.set_model_mesh(mesh)
-    if getattr(cfg, "text_config", None):
-        cfg.text_config.set_model_mesh(mesh)
-    if getattr(cfg, "vision_config", None):
-        cfg.vision_config.set_model_mesh(mesh)
+    module.config.set_model_mesh(mesh)
 
 
 def _count_params(state: Any) -> int:
@@ -239,8 +238,11 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
     """Create a JIT-compiled training step (forward + backward + optimizer).
 
     Compiles the entire forward pass, gradient computation, and optimizer
-    update into a single StableHLO graph. Uses optax.softmax_cross_entropy
-    with one-hot labels to avoid stablehlo.scatter (TT-MLIR limitation).
+    update into a single StableHLO graph.
+
+    One-hot labels are pre-computed outside the JIT graph.  On TT this
+    avoids a bug in ``ttnn.eq`` that doubles the one-hot value for even
+    uint32 labels.  On GPU/CPU the same interface is used for uniformity.
 
     Args:
         graphdef: NNX graph definition from nnx.split.
@@ -252,7 +254,7 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
 
     """
 
-    def loss_fn(lora_params, frozen_state, input_ids, *, train):
+    def loss_fn(lora_params, frozen_state, input_ids, one_hot_labels, *, train):
         m = nnx.merge(graphdef, lora_params, frozen_state)
         kwargs = {"input_ids": input_ids}
         if "train" in call_signature.parameters:
@@ -261,25 +263,24 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
             kwargs["deterministic"] = not train
         out = m(**kwargs)
 
-        # NOTE: TT-MLIR eliminates bf16→f32 casts inside fused JIT graphs,
-        # so this softmax runs in bf16 on TT hardware.  The reported training
-        # loss is ~1-2 higher than the true f32 loss; gradient direction is
-        # unaffected (model still converges), only magnitude is approximate.
-        # Eval loss uses a separate JIT to get accurate f32 values.
+        # NOTE (TT only): TT-MLIR eliminates bf16→f32 casts inside fused
+        # JIT graphs, so this softmax runs in bf16 on TT hardware.  The
+        # reported training loss is ~0.4-0.5 higher than the true f32 loss;
+        # gradient direction is unaffected, only magnitude is approximate.
+        # On GPU/CPU, f32 precision is preserved and the loss is accurate.
         shift_logits = out.logits[:, :-1, :].astype(jnp.float32)
-        shift_labels = input_ids[:, 1:]
-        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
         per_token_loss = optax.softmax_cross_entropy(
             shift_logits,
-            one_hot.astype(jnp.float32),
+            one_hot_labels,
         )
         return jnp.mean(per_token_loss)
 
-    def train_step(lora_params, frozen_state, opt_state, input_ids, *, train):
+    def train_step(lora_params, frozen_state, opt_state, input_ids, one_hot_labels, *, train):
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
             lora_params,
             frozen_state,
             input_ids,
+            one_hot_labels,
             train=train,
         )
         updates, new_opt_state = tx.update(grads, opt_state, lora_params)
@@ -293,10 +294,10 @@ def _create_forward_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
     """Create a JIT-compiled forward-only function that returns raw logits.
 
     Separated from loss computation because TT-MLIR silently eliminates
-    bf16→f32 type promotions inside fused JIT graphs.  The 151 k-element
-    softmax reduction then runs in bf16 and produces catastrophically wrong
-    loss values (~4.66 instead of ~3.1).  By computing the loss on the CPU
-    host we guarantee f32 precision.
+    bf16→f32 type promotions inside fused JIT graphs.  The large-vocabulary
+    softmax reduction then runs in bf16 and inflates the loss.  By returning
+    raw logits and computing the loss on the CPU host we guarantee f32
+    precision for evaluation metrics.
     """
 
     @jax.jit
@@ -351,32 +352,85 @@ def _cpu_cross_entropy_with_inspect(logits, input_ids):
     return loss, predictions, per_token_loss
 
 
-def create_eval_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
-    """Create an evaluation step: forward on device, loss on CPU.
+def create_eval_step_fn(
+    graphdef: Any,
+    call_signature: inspect.Signature,
+    *,
+    device_kind: str = "tt",
+) -> Any:
+    """Create an evaluation step.
+
+    On TT: forward on device, loss on CPU (bf16 precision workaround).
+    On GPU/CPU: fully on-device eval in f32.
 
     Returns a callable with signature:
     ``(lora_params, frozen_state, input_ids) -> loss``.
     """
-    jit_forward = _create_forward_fn(graphdef, call_signature)
+    if device_kind == "tt":
+        jit_forward = _create_forward_fn(graphdef, call_signature)
 
+        def eval_step(lora_params, frozen_state, input_ids):
+            logits = jit_forward(lora_params, frozen_state, input_ids)
+            return _cpu_cross_entropy(logits, input_ids)
+
+        return eval_step
+
+    @jax.jit
     def eval_step(lora_params, frozen_state, input_ids):
-        logits = jit_forward(lora_params, frozen_state, input_ids)
-        return _cpu_cross_entropy(logits, input_ids)
+        m = nnx.merge(graphdef, lora_params, frozen_state)
+        kwargs = {"input_ids": input_ids}
+        if "train" in call_signature.parameters:
+            kwargs["train"] = False
+        if "deterministic" in call_signature.parameters:
+            kwargs["deterministic"] = True
+        logits = m(**kwargs).logits
+        shift_logits = logits[:, :-1, :].astype(jnp.float32)
+        shift_labels = input_ids[:, 1:]
+        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
+        return jnp.mean(optax.softmax_cross_entropy(shift_logits, one_hot))
 
     return eval_step
 
 
-def create_eval_inspect_step_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
+def create_eval_inspect_step_fn(
+    graphdef: Any,
+    call_signature: inspect.Signature,
+    *,
+    device_kind: str = "tt",
+) -> Any:
     """Create an eval step that also returns predictions and per-token losses.
+
+    On TT: forward on device, loss on CPU (bf16 precision workaround).
+    On GPU/CPU: fully on-device eval in f32.
 
     Returns a callable:
     ``(lora_params, frozen_state, input_ids) -> (loss, predictions, per_token_loss)``.
     """
-    jit_forward = _create_forward_fn(graphdef, call_signature)
+    if device_kind == "tt":
+        jit_forward = _create_forward_fn(graphdef, call_signature)
 
+        def eval_inspect_step(lora_params, frozen_state, input_ids):
+            logits = jit_forward(lora_params, frozen_state, input_ids)
+            return _cpu_cross_entropy_with_inspect(logits, input_ids)
+
+        return eval_inspect_step
+
+    @jax.jit
     def eval_inspect_step(lora_params, frozen_state, input_ids):
-        logits = jit_forward(lora_params, frozen_state, input_ids)
-        return _cpu_cross_entropy_with_inspect(logits, input_ids)
+        m = nnx.merge(graphdef, lora_params, frozen_state)
+        kwargs = {"input_ids": input_ids}
+        if "train" in call_signature.parameters:
+            kwargs["train"] = False
+        if "deterministic" in call_signature.parameters:
+            kwargs["deterministic"] = True
+        logits = m(**kwargs).logits
+        shift_logits = logits[:, :-1, :].astype(jnp.float32)
+        shift_labels = input_ids[:, 1:]
+        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
+        per_token_loss = optax.softmax_cross_entropy(shift_logits, one_hot)
+        loss = jnp.mean(per_token_loss)
+        predictions = jnp.argmax(shift_logits, axis=-1)
+        return loss, predictions, per_token_loss
 
     return eval_inspect_step
 
@@ -463,7 +517,9 @@ def evaluate(
     for batch in val_batches:
         if can_inspect and len(collected) < num_examples:
             loss, predictions, per_token_loss = jit_inspect_step(
-                lora_params, frozen_state, batch,
+                lora_params,
+                frozen_state,
+                batch,
             )
             cpu = jax.devices("cpu")[0]
             batch_ids = np.array(jax.device_put(batch, cpu))
@@ -471,11 +527,13 @@ def evaluate(
             batch_losses = np.array(jax.device_put(per_token_loss, cpu))
             batch_size = batch_ids.shape[0]
             for idx in range(min(batch_size, num_examples - len(collected))):
-                collected.append({
-                    "input_ids": batch_ids[idx],
-                    "predictions": batch_preds[idx],
-                    "per_token_loss": batch_losses[idx],
-                })
+                collected.append(
+                    {
+                        "input_ids": batch_ids[idx],
+                        "predictions": batch_preds[idx],
+                        "per_token_loss": batch_losses[idx],
+                    }
+                )
         else:
             loss = jit_eval_step(lora_params, frozen_state, batch)
         total_loss += float(loss)
@@ -495,7 +553,9 @@ def _training_loop(
     opt_state: Any,
     jnp_train_batches: list[jnp.ndarray],
     jnp_val_batches: list[jnp.ndarray],
+    vocab_size: int,
     *,
+    device_kind: str = "tt",
     jit_inspect_step: Any = None,
     tokenizer: Any = None,
 ) -> tuple[int, list[float]]:
@@ -516,6 +576,8 @@ def _training_loop(
         opt_state: Optimizer state.
         jnp_train_batches: Pre-converted training batches.
         jnp_val_batches: Pre-converted validation batches.
+        vocab_size: Vocabulary size for one-hot encoding.
+        device_kind: Device type ("tt", "gpu", or "cpu").
         jit_inspect_step: JIT-compiled inspect step returning
             ``(loss, predictions, per_token_loss)``.
         tokenizer: HuggingFace tokenizer (needed for decoding examples).
@@ -538,18 +600,35 @@ def _training_loop(
         logger.info(f"  Initial validation loss: {val_loss:.4f}")
         log_to_wandb({"val_loss": val_loss}, step=0)
 
+    cpu = jax.devices("cpu")[0]
+    rng = np.random.default_rng(training_config.seed)
     for epoch in range(training_config.num_epochs):
         epoch_losses: list[float] = []
         num_batches = len(jnp_train_batches)
+        batch_order = rng.permutation(num_batches)
+        logger.info(f"Epoch {epoch + 1}: shuffled {num_batches} training batches (seed={training_config.seed})")
 
         for batch_idx in range(num_batches):
-            input_ids = jnp_train_batches[batch_idx]
+            input_ids = jnp_train_batches[batch_order[batch_idx]]
+
+            if device_kind == "tt":
+                with jax.default_device(cpu):
+                    one_hot_labels = jax.nn.one_hot(
+                        input_ids[:, 1:],
+                        vocab_size,
+                    ).astype(jnp.float32)
+            else:
+                one_hot_labels = jax.nn.one_hot(
+                    input_ids[:, 1:],
+                    vocab_size,
+                ).astype(jnp.float32)
 
             loss, lora_params, opt_state = jit_train_step(
                 lora_params,
                 frozen_state,
                 opt_state,
                 input_ids,
+                one_hot_labels,
                 train=True,
             )
 
@@ -572,13 +651,13 @@ def _training_loop(
                 avg_window_loss = np.mean(running_losses)
                 log_to_wandb({"avg_window_loss": avg_window_loss}, step=global_step)
                 logger.info(
-                    f"Epoch {epoch+1}, Batch {batch_idx+1:3d}: "
+                    f"Epoch {epoch + 1}, Batch {batch_idx + 1:3d}: "
                     f"Loss = {current_loss:.4f} | Avg {steps_freq} = {avg_window_loss:.4f}"
                 )
                 running_losses = []
             else:
                 logger.info(
-                    f"Epoch {epoch+1}, Batch {batch_idx+1:3d}: "
+                    f"Epoch {epoch + 1}, Batch {batch_idx + 1:3d}: "
                     f"Loss = {current_loss:.4f} ({len(running_losses)}/{steps_freq})"
                 )
 
@@ -592,11 +671,11 @@ def _training_loop(
                 log_to_wandb({"val_loss": val_loss}, step=global_step)
 
         avg_epoch_loss = np.mean(epoch_losses)
-        logger.info(f"Epoch {epoch+1} complete — avg loss: {avg_epoch_loss:.4f}")
+        logger.info(f"Epoch {epoch + 1} complete — avg loss: {avg_epoch_loss:.4f}")
 
         if jnp_val_batches:
             val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
-            logger.info(f"  Epoch {epoch+1} validation loss: {val_loss:.4f}")
+            logger.info(f"  Epoch {epoch + 1} validation loss: {val_loss:.4f}")
             log_to_wandb({"val_loss": val_loss}, step=global_step)
 
     return global_step, step_losses
@@ -609,15 +688,19 @@ def main(training_config: TrainingConfig) -> None:
         training_config: Training configuration with all hyperparameters.
 
     """
+    random.seed(training_config.seed)
+    np.random.seed(training_config.seed)
 
     cpu_device = jax.devices("cpu")[0]
     current_device, device_kind = _select_preferred_device(use_tt=training_config.use_tt)
     jax.config.update("jax_default_device", current_device)
 
-    # Patch EasyDel's GQA attention to avoid 5D tensor reshapes (TT tile-layout bug).
-    # Must be called before model loading so the monkey-patch is in place.
-    from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround
-    apply_gqa_workaround()
+    if device_kind == "tt":
+        from blacksmith.experiments.easydel.qwen.attention_patch import (
+            apply_gqa_workaround,
+        )
+
+        apply_gqa_workaround()
 
     logger.info(f"Loading {training_config.model_name} model... Using device: {device_kind} -> {current_device}")
 
@@ -645,19 +728,24 @@ def main(training_config: TrainingConfig) -> None:
     train_batches = load_data(training_config, tokenizer, split="train")
     val_batches_np = load_data(training_config, tokenizer, split="validation")
 
-    # LoRA init uses `he_uniform` (`jax.random.uniform`) to initialize `lora_a`.
-    # That RNG op must run on CPU as TT-MLIR cannot compile the StableHLO
-    # produced by the monkeypatched `jax.random` path on the TT device.
     logger.info(f"Applying LoRA (rank={training_config.lora_rank}, pattern={training_config.lora_pattern!r})...")
-    with jax.default_device(cpu_device):
+    if device_kind == "tt":
+        # LoRA init uses `he_uniform` (`jax.random.uniform`) to initialize
+        # `lora_a`.  That RNG op must run on CPU as TT-MLIR cannot compile
+        # the StableHLO produced by the monkeypatched `jax.random` path.
+        with jax.default_device(cpu_device):
+            model = model.apply_lora_to_layers(
+                lora_rank=training_config.lora_rank,
+                lora_pattern=training_config.lora_pattern,
+                verbose=True,
+            )
+    else:
         model = model.apply_lora_to_layers(
             lora_rank=training_config.lora_rank,
             lora_pattern=training_config.lora_pattern,
             verbose=True,
         )
 
-    # NNX split: separate LoRA params (trainable) from frozen state.
-    # Only `lora_params` is passed to `jax.value_and_grad`.
     graphdef, lora_params, frozen_state = nnx.split(model, nnx.LoRAParam, ...)
     call_signature = inspect.signature(model.__call__)
 
@@ -667,8 +755,25 @@ def main(training_config: TrainingConfig) -> None:
     logger.info(f"  Frozen params:           {n_frozen:,}")
     logger.info(f"  Trainable fraction:      {n_lora / (n_lora + n_frozen):.4%}")
 
-    base_tx = optax.adamw(learning_rate=training_config.learning_rate)
+    num_train_batches = len(train_batches)
+    total_batches = num_train_batches * training_config.num_epochs
     accum_steps = training_config.gradient_accumulation_steps
+    total_optimizer_steps = total_batches // accum_steps
+
+    schedule = optax.warmup_cosine_decay_schedule(
+        init_value=0.0,
+        peak_value=training_config.learning_rate,
+        warmup_steps=training_config.warmup_steps,
+        decay_steps=total_optimizer_steps,
+        end_value=training_config.end_learning_rate,
+    )
+    logger.info(
+        f"  LR schedule: warmup {training_config.warmup_steps} optimizer steps, "
+        f"cosine decay over {total_optimizer_steps} optimizer steps "
+        f"({training_config.learning_rate} -> {training_config.end_learning_rate})"
+    )
+
+    base_tx = optax.adamw(learning_rate=schedule)
     if accum_steps > 1:
         tx = optax.MultiSteps(base_tx, every_k_schedule=accum_steps)
         effective_batch = training_config.batch_size * accum_steps
@@ -678,9 +783,9 @@ def main(training_config: TrainingConfig) -> None:
     opt_state = tx.init(lora_params)
 
     jit_train_step = create_train_step_fn(graphdef, call_signature, tx)
-    jit_eval_step = create_eval_step_fn(graphdef, call_signature)
+    jit_eval_step = create_eval_step_fn(graphdef, call_signature, device_kind=device_kind)
     jit_inspect_step = (
-        create_eval_inspect_step_fn(graphdef, call_signature)
+        create_eval_inspect_step_fn(graphdef, call_signature, device_kind=device_kind)
         if training_config.print_examples
         else None
     )
@@ -704,6 +809,8 @@ def main(training_config: TrainingConfig) -> None:
                 opt_state,
                 jnp_train_batches,
                 jnp_val_batches,
+                model.config.vocab_size,
+                device_kind=device_kind,
                 jit_inspect_step=jit_inspect_step,
                 tokenizer=tokenizer if training_config.print_examples else None,
             )
@@ -737,4 +844,9 @@ if __name__ == "__main__":
     default_config = Path(__file__).parent / "single_chip" / "test_qwen3_0.6b_lora.yaml"
     args = parse_cli_options(default_config=default_config)
     training_config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
+
+    if training_config.use_tt:
+        os.environ.setdefault("PJRT_DEVICE", "TT")
+        os.environ.setdefault("XLA_STABLEHLO_COMPILE", "1")
+
     main(training_config)

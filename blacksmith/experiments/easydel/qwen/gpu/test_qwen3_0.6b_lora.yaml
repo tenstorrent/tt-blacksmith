@@ -25,4 +25,4 @@ lora_pattern: ".*(q_proj|v_proj).*"
 # Other settings
 use_wandb: true
 print_examples: true
-use_tt: true
+use_tt: false
