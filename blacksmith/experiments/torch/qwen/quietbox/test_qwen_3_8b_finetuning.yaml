@@ -56,6 +56,9 @@ mesh_axis_names: ["batch", "model"]
 
 # Sharding patterns for tensor parallelism (regex pattern -> partition spec)
 model_sharding_patterns:
+  - ['\.model\.embed_tokens\.weight$', [null, "batch"]]
+  - ['\.lm_head\.weight$', ["model", "batch"]]
+  - ['\.model\.norm\.weight$', ["batch"]]
   # === Attention ===
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
