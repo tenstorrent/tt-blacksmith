@@ -106,22 +106,6 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
 | [Wormhole Galaxy](galaxy/test_qwen_3_8b_base_finetuning.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
-<<<<<<< HEAD
-### Qwen 3 32B Training
-
-Qwen 3 32B requires multi-chip configurations (not supported on single chip).
-
-**Galaxy Training:**
-```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/galaxy/test_qwen_3_32b_finetuning.yaml
-```
-
-#### Qwen 3 32B Training Configurations
-
-| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
-| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole Galaxy](galaxy/test_qwen_3_32b_finetuning.yaml)        | `[8, 4]`   | `["model", "batch"]` | Alpaca    | LoRA   |
-=======
 ### Qwen 3 8B Training
 
 Qwen 3 8B requires multi-chip configurations (not supported on single chip).
@@ -137,7 +121,22 @@ python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config black
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
 | [Wormhole QuietBox](galaxy/test_qwen_3_8b_finetuning.yaml)        | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["batch", "model"]`, `["model", "batch"]` | Alpaca    | LoRA   |
 
->>>>>>> 41ce09447 (Add qwen-3-8b-alpaca)
+
+### Qwen 3 32B Training
+
+Qwen 3 32B requires multi-chip configurations (not supported on single chip).
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/galaxy/test_qwen_3_32b_finetuning.yaml
+```
+
+#### Qwen 3 32B Training Configurations
+
+| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
+| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
+| [Wormhole Galaxy](galaxy/test_qwen_3_32b_finetuning.yaml)        | `[8, 4]`   | `["model", "batch"]` | Alpaca    | LoRA   |
+
 
 ## Data
 
