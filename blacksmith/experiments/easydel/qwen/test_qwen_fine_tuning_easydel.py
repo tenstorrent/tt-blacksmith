@@ -283,9 +283,15 @@ def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: A
             one_hot_labels,
             train=train,
         )
+
+        grad_leaves = jax.tree.leaves(grads)
+        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in grad_leaves))
+        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in grad_leaves]))
+
         updates, new_opt_state = tx.update(grads, opt_state, lora_params)
         new_lora_params = optax.apply_updates(lora_params, updates)
-        return loss, new_lora_params, new_opt_state
+        grad_stats = {"grad_norm": grad_norm, "grad_max": grad_max}
+        return loss, new_lora_params, new_opt_state, grad_stats
 
     return jax.jit(train_step, static_argnames=("train",))
 
@@ -623,7 +629,7 @@ def _training_loop(
                     vocab_size,
                 ).astype(jnp.float32)
 
-            loss, lora_params, opt_state = jit_train_step(
+            loss, lora_params, opt_state, grad_stats = jit_train_step(
                 lora_params,
                 frozen_state,
                 opt_state,
@@ -633,6 +639,8 @@ def _training_loop(
             )
 
             current_loss = float(loss)
+            g_norm = float(grad_stats["grad_norm"])
+            g_max = float(grad_stats["grad_max"])
             epoch_losses.append(current_loss)
             running_losses.append(current_loss)
             step_losses.append(current_loss)
@@ -641,6 +649,8 @@ def _training_loop(
             log_to_wandb(
                 {
                     "step_loss": current_loss,
+                    "grad/global_norm": g_norm,
+                    "grad/global_max": g_max,
                     "epoch": epoch + 1,
                     "batch": batch_idx + 1,
                 },
@@ -652,13 +662,15 @@ def _training_loop(
                 log_to_wandb({"avg_window_loss": avg_window_loss}, step=global_step)
                 logger.info(
                     f"Epoch {epoch + 1}, Batch {batch_idx + 1:3d}: "
-                    f"Loss = {current_loss:.4f} | Avg {steps_freq} = {avg_window_loss:.4f}"
+                    f"Loss = {current_loss:.4f} | Avg {steps_freq} = {avg_window_loss:.4f} | "
+                    f"grad_norm = {g_norm:.4f}, grad_max = {g_max:.4f}"
                 )
                 running_losses = []
             else:
                 logger.info(
                     f"Epoch {epoch + 1}, Batch {batch_idx + 1:3d}: "
-                    f"Loss = {current_loss:.4f} ({len(running_losses)}/{steps_freq})"
+                    f"Loss = {current_loss:.4f} ({len(running_losses)}/{steps_freq}) | "
+                    f"grad_norm = {g_norm:.4f}, grad_max = {g_max:.4f}"
                 )
 
             if (
