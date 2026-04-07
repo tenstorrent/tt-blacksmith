@@ -6,8 +6,8 @@ This directory contains the code for the Qwen model with LoRA fine-tuning experi
 - Qwen 2.5 1.5B model specification can be found [here](https://huggingface.co/Qwen/Qwen2.5-1.5B).
 - Qwen 3 4B Instruct 2507 model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507).
 - Qwen 3 8B Base model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B-Base).
-- Qwen 3 32B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-32B).
 - Qwen 3 8B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-8B).
+- Qwen 3 32B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-32B).
 
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
