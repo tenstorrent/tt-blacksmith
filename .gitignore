@@ -11,6 +11,7 @@ generated/
 model/
 .vscode/
 tests/test_logs/
+stablehlo_dumps/
 
 # Python env
 env/*
