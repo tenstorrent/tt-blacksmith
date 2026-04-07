@@ -6,7 +6,7 @@ dataset_configuration: "wikitext-2-raw-v1"
 model_name: "Qwen/Qwen3-0.6B"
 max_length: 128
 mask_max_position_embeddings: 128
-dtype: "bfloat16"
+dtype: "float32"
 
 # Training hyperparameters
 learning_rate: 1e-5
@@ -24,7 +24,7 @@ lora_pattern: ".*(q_proj|v_proj).*"
 
 # Other settings
 use_wandb: true
-wandb_project: "Qwen-GPU-EasyDel-LoRA-Training"
+wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
 wandb_run_name: "qwen3-0.6b-wikitext-tt-easydel"
 print_examples: true
 use_tt: true
