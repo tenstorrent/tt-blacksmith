@@ -4,12 +4,26 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 
 ## Overview
 
-The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support. It performs causal language modelling with gradient accumulation and optional periodic validation. Per-topology YAML configs live in subdirectories:
+The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support on the SST-2 sentiment classification dataset, formatted as instruction-style causal language modelling.
+
+Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens (JSON label).
+
+Per-topology YAML configs live in subdirectories:
 
 - **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150)
 - **`gpu/`** — Configs for GPU baseline runs
 
 The `use_tt` flag in each YAML config controls whether the experiment targets Tenstorrent hardware (`true`) or GPU (`false`).
+
+## Module layout
+
+| File | Responsibility |
+|------|---------------|
+| `configs.py` | Pydantic `TrainingConfig` with all hyperparameters. |
+| `data_loading.py` | SST-2 data loading, tokenization, batching. |
+| `train_steps.py` | JIT-compiled train/eval steps, CPU f32 loss helpers, evaluation loop, prediction display. |
+| `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. |
+| `../../tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
 
 ## Prerequisites
 
@@ -46,27 +60,15 @@ python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
 ```
 
-GPU baseline:
-
-```bash
-python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
-  --config blacksmith/experiments/easydel/qwen/gpu/test_qwen3_0.6b_lora.yaml
-```
+The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`.  Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
 
 ## Data
 
-The [WikiText-2](https://huggingface.co/datasets/wikitext) dataset (`wikitext-2-raw-v1`) is used for training and validation. The raw text is concatenated, tokenized, and chunked into fixed-length sequences of `max_length` tokens.
+**SST-2** (GLUE): instruction-style prompt/response pairs padded to `max_length`, with masked labels.
 
 ## Configuration
 
-Each YAML config in the subdirectories specifies all training parameters. Alternatively, override individual fields via the CLI.
-
-### Dataset
-
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `dataset_id` | The training dataset id. | `"wikitext"` |
-| `dataset_configuration` | Dataset configuration/subset name. | `"wikitext-2-raw-v1"` |
+Each YAML config in the subdirectories specifies all training parameters.  Alternatively, override individual fields via the CLI.
 
 ### Model
 
@@ -74,8 +76,8 @@ Each YAML config in the subdirectories specifies all training parameters. Altern
 |-----------|-------------|---------------|
 | `model_name` | HuggingFace model identifier. | `"Qwen/Qwen3-0.6B"` |
 | `max_length` | Maximum sequence length for tokenization. | 128 |
-| `dtype` | Data type used for model parameters. | `"jnp.bfloat16"` |
-| `max_position_embeddings` | Max position embeddings (None = use model default). | None |
+| `dtype` | Data type used for model parameters. | `"bfloat16"` |
+| `mask_max_position_embeddings` | Cap for pre-allocated causal mask size (None = model default). | None |
 
 ### Training
 
@@ -87,6 +89,7 @@ Each YAML config in the subdirectories specifies all training parameters. Altern
 | `num_epochs` | Total number of training epochs. | 1 |
 | `val_steps_freq` | Run validation every N steps (null = disabled). | null |
 | `max_val_batches` | Limit number of validation batches per eval pass (null = use all). | null |
+| `ignored_label_index` | Sentinel value for masked label positions. | `-100` |
 
 ### LoRA
 
@@ -103,6 +106,6 @@ Each YAML config in the subdirectories specifies all training parameters. Altern
 | `log_level` | Logging verbosity level. | `"INFO"` |
 | `use_wandb` | Whether to log metrics to Weights & Biases. | True |
 | `wandb_project` | Weights & Biases project name. | `"Qwen-TT-EasyDel-LoRA-Training"` |
-| `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-wikitext-tt-easydel"` |
+| `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-sst2-tt-easydel"` |
 | `seed` | Random seed for reproducibility. | 42 |
 | `use_tt` | Whether to run on Tenstorrent device. | True |

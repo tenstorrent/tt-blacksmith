@@ -14,7 +14,7 @@ The workaround repeats K and V along the head axis so all tensors stay
 produces correct results.
 
 Usage (call before loading the model):
-    from blacksmith.experiments.easydel.qwen.attention_patch import apply_gqa_workaround
+    from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
     apply_gqa_workaround()
 """
 
@@ -80,7 +80,6 @@ def _forward_native_4d(
         bias = with_sharding_constraint(arr=bias, sharding=b_sharding) if bias is not None else bias
         mask = with_sharding_constraint(arr=mask, sharding=m_sharding) if mask is not None else mask
 
-        # Repeat K and V to match Q's head count instead of reshaping Q to 5D.
         if num_reps > 1:
             k = jnp.repeat(k, num_reps, axis=2)
             v = jnp.repeat(v, num_reps, axis=2)

@@ -14,11 +14,6 @@ _DTYPE_MAP = {
 
 
 class TrainingConfig(BaseModel):
-    # Dataset settings
-    dataset_id: str = Field(default="wikitext")
-    dataset_configuration: str = Field(default="wikitext-2-raw-v1")
-    text_column: str = Field(default="text")
-
     # Model settings
     model_name: str = Field(default="Qwen/Qwen3-0.6B")
     max_length: int = Field(default=128, gt=0)
@@ -41,6 +36,7 @@ class TrainingConfig(BaseModel):
     num_epochs: int = Field(default=1, gt=0)
     val_steps_freq: Optional[int] = Field(default=None, ge=1)
     max_val_batches: Optional[int] = Field(default=None, ge=1)
+    ignored_label_index: int = Field(default=-100)
 
     # LoRA settings
     lora_rank: int = Field(default=16, ge=1)
@@ -52,7 +48,7 @@ class TrainingConfig(BaseModel):
     use_wandb: bool = Field(default=True)
     print_examples: bool = Field(default=False)
     wandb_project: str = Field(default="Qwen-TT-EasyDel-LoRA-Training")
-    wandb_run_name: str = Field(default="qwen3-0.6b-wikitext-tt-easydel")
+    wandb_run_name: str = Field(default="qwen3-0.6b-sst2-tt-easydel")
 
     # Reproducibility settings
     seed: int = Field(default=42)
