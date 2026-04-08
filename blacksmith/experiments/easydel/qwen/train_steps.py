@@ -31,11 +31,6 @@ def _build_model_kwargs(call_signature, input_ids, attention_mask, *, train):
     return kwargs
 
 
-# ------------------------------------------------------------------
-# Training step
-# ------------------------------------------------------------------
-
-
 def create_train_step_fn(
     graphdef: Any,
     call_signature: inspect.Signature,
@@ -122,11 +117,6 @@ def create_train_step_fn(
     return jax.jit(train_step, static_argnames=("train",))
 
 
-# ------------------------------------------------------------------
-# Forward / eval helpers
-# ------------------------------------------------------------------
-
-
 def _create_forward_fn(
     graphdef: Any,
     call_signature: inspect.Signature,
@@ -201,11 +191,6 @@ def _cpu_cross_entropy_with_inspect(
     loss = jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
     predictions = jnp.argmax(shift_logits, axis=-1)
     return loss, predictions, per_token
-
-
-# ------------------------------------------------------------------
-# Evaluation step builders
-# ------------------------------------------------------------------
 
 
 def create_eval_step_fn(
@@ -334,11 +319,6 @@ def create_eval_inspect_step_fn(
         return loss, predictions, per_token
 
     return eval_inspect_step
-
-
-# ------------------------------------------------------------------
-# Evaluation loop + prediction display
-# ------------------------------------------------------------------
 
 
 def _show_predictions(collected, tokenizer, num_tokens=20):

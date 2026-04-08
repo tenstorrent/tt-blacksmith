@@ -81,11 +81,6 @@ def log_to_wandb(
         wandb.log(data_dict, step=step)
 
 
-# ------------------------------------------------------------------
-# Device / model helpers
-# ------------------------------------------------------------------
-
-
 def _select_preferred_device(
     use_tt: bool = True,
 ) -> tuple[jax.Device, str]:
@@ -149,11 +144,6 @@ def _count_params(state: Any) -> int:
     return sum(x.size for x in leaves if hasattr(x, "size"))
 
 
-# ------------------------------------------------------------------
-# Data preparation
-# ------------------------------------------------------------------
-
-
 def _load_and_prepare_batches(
     training_config: TrainingConfig,
 ) -> tuple[list[dict], list[dict]]:
@@ -184,11 +174,6 @@ def _load_and_prepare_batches(
     val_batches = [_to_batch(v_ids[i], v_lbl[i], v_msk[i]) for i in range(len(v_ids))]
 
     return train_batches, val_batches
-
-
-# ------------------------------------------------------------------
-# Training loop
-# ------------------------------------------------------------------
 
 
 def _training_loop(
@@ -358,11 +343,6 @@ def _training_loop(
             log_to_wandb({"val_loss": val_loss}, step=global_step)
 
     return global_step, step_losses
-
-
-# ------------------------------------------------------------------
-# Entry point
-# ------------------------------------------------------------------
 
 
 def main(training_config: TrainingConfig) -> None:
