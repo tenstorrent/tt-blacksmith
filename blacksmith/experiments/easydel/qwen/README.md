@@ -23,7 +23,7 @@ The `use_tt` flag in each YAML config controls whether the experiment targets Te
 | `data_loading.py` | SST-2 data loading, tokenization, batching. |
 | `train_steps.py` | JIT-compiled train/eval steps, CPU f32 loss helpers, evaluation loop, prediction display. |
 | `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. |
-| `attention_patch.py` | GQA workaround for TT devices. |
+| `../../tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
 
 ## Prerequisites
 

@@ -377,9 +377,7 @@ def main(training_config: TrainingConfig) -> None:
     jax.config.update("jax_default_device", current_device)
 
     if device_kind == "tt":
-        from blacksmith.experiments.easydel.qwen.attention_patch import (
-            apply_gqa_workaround,
-        )
+        from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
 
         apply_gqa_workaround()
 
