@@ -11,6 +11,7 @@ Prompt tokens are masked (`-100`) so the loss is computed only on the response t
 Per-topology YAML configs live in subdirectories:
 
 - **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150)
+- **`multi_chip/`** — Configs for multi-device TT runs (`num_devices` > 1; same training script, sharded mesh)
 - **`gpu/`** — Configs for GPU baseline runs
 
 The `use_tt` flag in each YAML config controls whether the experiment targets Tenstorrent hardware (`true`) or GPU (`false`).
@@ -53,11 +54,18 @@ pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
 
 ## Training
 
-On Tenstorrent hardware:
+On Tenstorrent hardware (single chip):
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
+```
+
+On Tenstorrent hardware (multi-chip; requires at least as many TT devices as `num_devices` in the YAML):
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
+  --config blacksmith/experiments/easydel/qwen/multi_chip/test_qwen3_0.6b_lora.yaml
 ```
 
 The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`.  Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
@@ -109,3 +117,4 @@ Each YAML config in the subdirectories specifies all training parameters.  Alter
 | `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-sst2-tt-easydel"` |
 | `seed` | Random seed for reproducibility. | 42 |
 | `use_tt` | Whether to run on Tenstorrent device. | True |
+| `num_devices` | Number of TT (or GPU) devices in the JAX mesh. | 1 |
