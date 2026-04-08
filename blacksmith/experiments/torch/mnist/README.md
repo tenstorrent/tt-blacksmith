@@ -16,7 +16,7 @@ Activate `tt-xla` environment using the provided scripts from `tt-blacksmith` do
 Test MNIST training with linear model running [test_mnist_training.py].
 
 ```bash
-python blacksmith/experiments/torch/mnist/test_mnist_training.py
+python blacksmith/experiments/torch/mnist/mnist_training.py
 ```
 
 ### 2. Single Chip - CNN Model
@@ -24,7 +24,7 @@ python blacksmith/experiments/torch/mnist/test_mnist_training.py
 Test MNIST training with convolutional model running [test_mnist_cnn_training.py].
 
 ```bash
-python blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.py
+python blacksmith/experiments/torch/mnist/cnn/mnist_cnn_training.py
 ```
 
 ### 3. Multichip - data parallel
@@ -32,7 +32,7 @@ python blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.py
 Test MNIST DP training with linear model running [test_mnist_training.py].
 
 ```bash
-python blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py
+python blacksmith/experiments/torch/mnist/data_parallel/mnist_training.py
 ```
 
 ### 4. Multichip - tensor parallel
@@ -40,21 +40,21 @@ python blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training.py
 Test MNIST TP training with linear model running [test_mnist_training.py].
 
 ```bash
-python blacksmith/experiments/torch/mnist/tensor_parallel/test_mnist_training.py
+python blacksmith/experiments/torch/mnist/tensor_parallel/mnist_training.py
 ```
 
 
 ## Configuration
 
 For each training you can change default values in configuration files:
-1. Single chip - Linear - `blacksmith/experiments/torch/mnist/test_mnist_training.yaml`
-2. Single chip - CNN - `blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.yaml`
-3. Data parallel - `blacksmith/experiments/torch/mnist/data_parallel/test_mnist_training_dp.yaml`
-4. Tensor parallel - `blacksmith/experiments/torch/mnist/tesnor_parallel/test_mnist_training_tp.yaml`
+1. Single chip - Linear - `blacksmith/experiments/torch/mnist/mnist_training.yaml`
+2. Single chip - CNN - `blacksmith/experiments/torch/mnist/cnn/mnist_cnn_training.yaml`
+3. Data parallel - `blacksmith/experiments/torch/mnist/data_parallel/mnist_training_dp.yaml`
+4. Tensor parallel - `blacksmith/experiments/torch/mnist/tesnor_parallel/mnist_training_tp.yaml`
 
 ### Linear Model Configuration
 
-In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change default values for following parameters.
+In `blacksmith/experiments/torch/mnist/mnist_training.yaml` you can change default values for following parameters.
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ In `blacksmith/experiments/torch/mnist/test_mnist_training.yaml` you can change 
 
 ### CNN Model Configuration
 
-In `blacksmith/experiments/torch/mnist/cnn/test_mnist_cnn_training.yaml` you can change values for following parameters.
+In `blacksmith/experiments/torch/mnist/cnn/mnist_cnn_training.yaml` you can change values for following parameters.
 
 Most parameters are the same as the Linear model configuration above, with the following CNN-specific model settings:
 

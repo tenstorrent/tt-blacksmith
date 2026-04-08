@@ -26,7 +26,7 @@ pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
 Run LoRA training on Tenstorrent device:
 
 ```bash
-python3 blacksmith/experiments/jax/llama/test_llama_fine_tuning_jax.py
+python3 blacksmith/experiments/jax/llama/llama_fine_tuning_jax.py
 ```
 
 ## Configuration Options

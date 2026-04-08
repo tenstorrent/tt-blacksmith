@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.mnist.configs import TrainingConfig
-from blacksmith.experiments.torch.mnist.data_parallel.utils import mse_loss
+from blacksmith.experiments.torch.mnist.tensor_parallel.utils import cross_entropy_loss
 from blacksmith.models.torch.mnist.mnist_linear import MNISTLinear
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
@@ -22,10 +22,15 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
 def validate(
-    model: torch.nn.Module, val_loader: DataLoader, device: torch.device, logger: TrainingLogger, config: TrainingConfig
+    model: torch.nn.Module,
+    val_loader: DataLoader,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    config: TrainingConfig,
 ) -> Tuple[float, float]:
     logger.info("Starting validation...")
 
+    device_manager.shard_model(model)
     total_loss = 0.0
     total_samples = 0
     correct = 0
@@ -35,15 +40,17 @@ def validate(
             inputs = inputs.view(inputs.size(0), -1)
             targets = targets.view(targets.size(0), -1)
 
-            inputs = inputs.to(device)
-            targets = targets.to(device)
+            batch = device_manager.prepare_batch({"inputs": inputs, "targets": targets})
 
-            outputs = model(inputs)
-            loss = mse_loss(outputs, targets)
+            # Forward pass
+            outputs = model(batch["inputs"])
+
+            # Compute loss
+            loss = cross_entropy_loss(outputs, batch["targets"])
             total_loss += loss.item() * inputs.size(0)
 
             preds = torch.argmax(outputs, dim=1)
-            labels = torch.argmax(targets, dim=1)
+            labels = torch.argmax(batch["targets"], dim=1)
             correct += (preds == labels).sum().item()
             total_samples += inputs.size(0)
 
@@ -59,9 +66,9 @@ def train(
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
-    logger.info("Starting MNIST training")
+    logger.info("Starting Tensor-Parallel MNIST training")
 
-    # Load model
+    # Build model
     model = MNISTLinear(config.input_size, config.hidden_size, config.output_size, bias=config.bias)
 
     # Convert model to specified dtype if configured
@@ -93,7 +100,7 @@ def train(
     try:
         # Initial validation
         model.eval()
-        val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
+        val_loss, val_acc = validate(model, val_loader, device_manager, logger, config)
         logger.log_metrics(
             {"val/loss": val_loss, "val/accuracy": val_acc},
             commit=True,
@@ -105,6 +112,7 @@ def train(
             logger.info(f"Starting epoch {epoch + 1}/{config.num_epochs}")
             for inputs, targets in train_loader:
                 global_step += 1
+                device_manager.shard_model(model)
                 batch = {"inputs": inputs.view(inputs.size(0), -1), "targets": targets.view(targets.size(0), -1)}
                 batch = device_manager.prepare_batch(batch)
 
@@ -115,7 +123,7 @@ def train(
                 outputs = model(batch["inputs"])
 
                 # Compute loss
-                loss = mse_loss(outputs, batch["targets"])
+                loss = cross_entropy_loss(outputs, batch["targets"])
 
                 # Backward pass
                 loss.backward()
@@ -133,7 +141,7 @@ def train(
                 # Validation
                 if global_step % config.val_steps_freq == 0:
                     model.eval()
-                    val_loss, val_acc = validate(model, val_loader, device_manager.device, logger, config)
+                    val_loss, val_acc = validate(model, val_loader, device_manager, logger, config)
                     logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=False, step=global_step)
                     model.train()
 
@@ -157,15 +165,17 @@ def train(
         logger.info("Training finished successfully.")
 
     except Exception as e:
-        logger.error(f"Training failed with error: {e}", traceback.format_exc())
+        tb = traceback.format_exc()
+        logger.error(f"Training failed with error: {e}", tb)
         raise
     finally:
         logger.finish()
 
 
 if __name__ == "__main__":
+
     # Generate config
-    default_config = Path(__file__).parent / "test_mnist_training_dp.yaml"
+    default_config = Path(__file__).parent / "mnist_training_tp.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 

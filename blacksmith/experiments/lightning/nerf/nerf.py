@@ -469,6 +469,6 @@ def main(config: NerfConfig):
 if __name__ == "__main__":
     import os
 
-    config_file_path = os.path.join(os.path.dirname(__file__), "test_nerf.yaml")
+    config_file_path = os.path.join(os.path.dirname(__file__), "nerf.yaml")
     config = load_config(config_file_path)
     main(config)

@@ -10,7 +10,7 @@ This experiment fine-tunes a classification head on top of a frozen ALBERT-base 
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/albert/test_albert_finetuning.py
+python3 blacksmith/experiments/torch/albert/albert_finetuning.py
 ```
 
 ## Data

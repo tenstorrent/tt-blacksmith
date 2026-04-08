@@ -24,7 +24,7 @@ def test_training():
     disable_forge_logger()
 
     config: ExperimentConfig = generate_config(
-        ExperimentConfig, "blacksmith/experiments/lightning/mnist/test_mnist_lightning_ffe.yaml"
+        ExperimentConfig, "blacksmith/experiments/lightning/mnist/mnist_lightning_ffe.yaml"
     )
     logger_config = config.logger_config
 

@@ -7,68 +7,85 @@ from pathlib import Path
 
 import torch
 import torch_xla
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
-from blacksmith.experiments.torch.albert.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.albert import AlbertWithMLP
+from blacksmith.experiments.torch.gemma11.configs import TrainingConfig
+from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.torch_helpers import (
+    collate_fn_for_causal_lm,
+    collect_examples,
+    show_examples,
+)
 
 
-def validate(
-    model: torch.nn.Module,
-    val_data_loader: DataLoader,
-    logger: TrainingLogger,
-    device_manager: DeviceManager,
-    loss_fn: torch.nn.Module,
-) -> float:
-    logger.info("Starting validation...")
-
+def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
+    logger.info(f"\n=== Starting Validation ===")
     total_val_loss = 0.0
     num_val_batches = 0
+    collected_examples = []
+    max_examples = 10
 
-    correct = 0
-    total = 0
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
 
-            # Forward pass
-            logits = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-            predictions = torch.argmax(logits, dim=-1)
+            # Forward pass + loss
+            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            logits = outputs.logits
 
-            # Compute loss
-            loss = loss_fn(logits, batch["labels"])
+            # Shift logits to match pre-shifted labels from collate_fn
+            shift_logits = logits[:, :-1, :].contiguous()
+
+            # Labels are already shifted by collate_fn
+            loss = loss_fn(
+                shift_logits.view(-1, model.model.config.vocab_size),
+                batch["labels"].view(-1),
+            )
             total_val_loss += loss.item()
+            predictions = shift_logits.argmax(dim=-1)
 
-            correct += (predictions == batch["labels"]).sum().item()
-            total += batch["labels"].size(0)
+            if config.use_tt:
+                torch_xla.sync(wait=True)
 
             num_val_batches += 1
 
-    avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
-    metrics = {"accuracy": correct / total if total > 0 else 0.0, "correct": correct, "total": total}
+            if config.print_examples:
+                collected_examples = collect_examples(
+                    batch_size=batch["labels"].shape[0],
+                    collected_examples=collected_examples,
+                    max_examples=max_examples,
+                    input_ids=batch["input_ids"],
+                    expected_output=batch["labels"],
+                    predictions=predictions,
+                    num_val_batches=num_val_batches,
+                )
 
-    return avg_val_loss, metrics
+    if config.print_examples and tokenizer is not None:
+        logger.info(f"\n=== Validation Examples (Random samples) ===")
+        show_examples(collected_examples, tokenizer, config, logger)
+
+    avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
+    logger.info(f"Average validation loss: {avg_val_loss}")
+    return avg_val_loss
 
 
 def train(
-    config: TrainingConfig, device_manager: DeviceManager, logger: TrainingLogger, checkpoint_manager: CheckpointManager
+    config: TrainingConfig,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
 ):
     logger.info("Starting training...")
 
     # Load model
-    model = AlbertWithMLP(config)
-    model.to(eval(config.dtype))
-    model.to(device_manager.device)
-    if config.use_tt:
-        compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_experimental_compile": False}
-        model = torch.compile(model, backend="tt", options=compile_options)
+    model = get_model(config, device_manager.device)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -78,30 +95,28 @@ def train(
         checkpoint_manager.load_checkpoint()
 
     # Load dataset
-    train_dataset = get_dataset(config=config, split="train")
+    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
 
-    eval_dataset = get_dataset(config=config, split="test")
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     # Init training components (optimizer, lr scheduler, etc.)
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
-    loss_fn = torch.nn.CrossEntropyLoss()
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     global_step = 0
     running_loss = 0.0
     try:
         # Initial validation
         model.eval()
-        valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
-        logger.log_metrics(
-            {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
-            commit=True,
-            step=global_step,
+        avg_val_loss = validate(
+            model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
         )
+        logger.log_metrics({"epoch": 0, "val/loss": avg_val_loss}, commit=True, step=global_step)
         model.train()
 
         for epoch in range(config.num_epochs):
@@ -112,10 +127,18 @@ def train(
                 batch = device_manager.prepare_batch(batch)
 
                 # Forward pass
-                logits = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+                outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
 
-                # Compute loss
-                loss = loss_fn(logits, batch["labels"])
+                logits = outputs.logits
+
+                # Shift logits to match pre-shifted labels from collate_fn
+                # logits[:, :-1] predicts tokens at positions 1:, matching our pre-shifted labels
+                shift_logits = logits[:, :-1, :].contiguous()
+
+                loss = loss_fn(
+                    shift_logits.view(-1, model.model.config.vocab_size),
+                    batch["labels"].view(-1),
+                )
                 running_loss += loss.item()
 
                 # Backward pass
@@ -134,18 +157,15 @@ def train(
                 # Validation
                 if global_step % config.val_steps_freq == 0:
                     model.eval()
-                    valid_loss, metrics = validate(model, eval_dataloader, logger, device_manager, loss_fn)
-                    logger.log_metrics(
-                        {"val/loss": valid_loss, "val/accuracy": metrics["accuracy"]},
-                        commit=False,
-                        step=global_step,
+                    avg_val_loss = validate(
+                        model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
                     )
+                    logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, commit=False, step=global_step)
                     model.train()
 
                 # Commit metrics to W&B.
                 logger.log_metrics({}, commit=True, step=global_step)
 
-                # Save checkpoint
                 if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
@@ -166,7 +186,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "test_albert_finetuning_banking77.yaml"
+    default_config = Path(__file__).parent / "gemma11_finetuning_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 

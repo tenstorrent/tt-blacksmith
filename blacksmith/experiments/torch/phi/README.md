@@ -12,7 +12,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/phi/test_phi_finetuning.py
+python3 blacksmith/experiments/torch/phi/phi_finetuning.py
 ```
 
 ## Data

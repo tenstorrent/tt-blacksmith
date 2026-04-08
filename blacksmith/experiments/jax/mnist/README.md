@@ -5,16 +5,16 @@ The connection to the Tenstorrent device is established in script ```blacksmith/
 ## Training
 To run the single chip training script in JAX, run the command
 ```
-python3 blacksmith/experiments/jax/mnist/single_chip/test_pure_jax_mnist.py
+python3 blacksmith/experiments/jax/mnist/single_chip/pure_jax_mnist.py
 ```
 To run the single chip training script in Flax, run the command
 ```
-python3 blacksmith/experiments/jax/mnist/single_chip/test_flax_mnist.py
+python3 blacksmith/experiments/jax/mnist/single_chip/flax_mnist.py
 ```
 To run the multi chip training script (data or tensor parallel), run the command(s)
 ```
-python3 blacksmith/experiments/jax/mnist/multi_chip/data_parallel/test_pure_jax_mnist.py
-python3 blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/test_pure_jax_mnist.py
+python3 blacksmith/experiments/jax/mnist/multi_chip/data_parallel/pure_jax_mnist.py
+python3 blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/pure_jax_mnist.py
 ```
 For now, data and tensor parallel strategies are supported in multi chip case while other strategies (FSDP and Pipeline parallel) are work in progress.
 All commands should be run from project root directory (```tt-blacksmith```).

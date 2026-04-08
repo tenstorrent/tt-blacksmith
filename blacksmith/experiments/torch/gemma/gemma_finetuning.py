@@ -10,7 +10,7 @@ import torch_xla
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
-from blacksmith.experiments.torch.gemma11.configs import TrainingConfig
+from blacksmith.experiments.torch.gemma.configs import TrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
@@ -103,6 +103,8 @@ def train(
     eval_dataloader = eval_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
+    tokenizer = train_dataset.tokenizer
+
     # Init training components (optimizer, lr scheduler, etc.)
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
@@ -113,9 +115,7 @@ def train(
     try:
         # Initial validation
         model.eval()
-        avg_val_loss = validate(
-            model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
-        )
+        avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
         logger.log_metrics({"epoch": 0, "val/loss": avg_val_loss}, commit=True, step=global_step)
         model.train()
 
@@ -139,7 +139,8 @@ def train(
                     shift_logits.view(-1, model.model.config.vocab_size),
                     batch["labels"].view(-1),
                 )
-                running_loss += loss.item()
+                loss_cpu = loss.item()
+                running_loss += loss_cpu
 
                 # Backward pass
                 loss.backward()
@@ -157,9 +158,7 @@ def train(
                 # Validation
                 if global_step % config.val_steps_freq == 0:
                     model.eval()
-                    avg_val_loss = validate(
-                        model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
-                    )
+                    avg_val_loss = validate(model, eval_dataloader, loss_fn, device_manager, config, logger, tokenizer)
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, commit=False, step=global_step)
                     model.train()
 
@@ -186,9 +185,9 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "test_gemma11_finetuning_sst2.yaml"
+    default_config = Path(__file__).parent / "gemma_finetuning_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

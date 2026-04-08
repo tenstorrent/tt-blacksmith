@@ -13,7 +13,7 @@ The experiment is designed to run in the JAX framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/jax/nerf/test_nerf.py
+python3 blacksmith/experiments/jax/nerf/nerf.py
 ```
 
 ## Data
