@@ -37,9 +37,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_llama_fine_tuning_pure_torch.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `test_llama_fine_tuning_pure_torch_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `test_llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 

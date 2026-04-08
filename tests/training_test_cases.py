@@ -140,7 +140,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_1b.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
         },
         marks=[
@@ -154,7 +154,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_sst2.yaml",
             "timeout": 5000,
         },
         marks=[
@@ -183,7 +183,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b_sst2.yaml",
             "timeout": 20000,
         },
         marks=[
@@ -199,7 +199,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_70b-sst2-n300-galaxy.yaml",
             "timeout": 3000,
         },
@@ -214,7 +214,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py",
-            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
         },
         marks=[
@@ -229,7 +229,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/qwen/test_qwen_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml",
+            "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning_text2sql.yaml",
             "timeout": 2000,
         },
         marks=[
@@ -259,7 +259,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/albert/test_albert_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/albert/test_albert_finetuning.yaml",
+            "experiment_config": "blacksmith/experiments/torch/albert/test_albert_finetuning_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
             "timeout": 3600,
         },
@@ -307,7 +307,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.py",
-            "experiment_config": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax.yaml",
+            "experiment_config": "blacksmith/experiments/jax/llama_dora/test_llama_fine_tuning_jax_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },
@@ -323,7 +323,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py",
-            "experiment_config": "blacksmith/experiments/jax/distil_bert/test_distil_bert_flax.yaml",
+            "experiment_config": "blacksmith/experiments/jax/distil_bert/test_distil_bert_flax_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },

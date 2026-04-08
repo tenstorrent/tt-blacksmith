@@ -439,7 +439,7 @@ def train(config: ExperimentConfig, sharding_config: ShardingConfig):
 if __name__ == "__main__":
     jax.config.update("jax_use_shardy_partitioner", True)
 
-    default_config = Path(__file__).parents[2] / "test_distil_bert_flax.yaml"
+    default_config = Path(__file__).parents[2] / "test_distil_bert_flax_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: ExperimentConfig = generate_config(ExperimentConfig, args.config)
 
