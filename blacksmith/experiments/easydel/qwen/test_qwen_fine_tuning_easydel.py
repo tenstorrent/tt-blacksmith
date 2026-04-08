@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import contextlib
 import inspect
 import logging
 import os
@@ -27,24 +28,26 @@ from flax import nnx  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: E402
+from blacksmith.experiments.easydel.qwen.data_loading import (  # noqa: E402
+    load_sst2_batches,
+)
+from blacksmith.experiments.easydel.qwen.train_steps import (  # noqa: E402
+    create_eval_inspect_step_fn,
+    create_eval_step_fn,
+    create_train_step_fn,
+    evaluate,
+)
 from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
-from datasets import load_dataset  # noqa: E402
 
 WANDB_ENABLED = False
 
 
-def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: str = "tt") -> Optional[Any]:
-    """Set up wandb for experiment tracking.
-
-    Args:
-        training_config: Training configuration with wandb project/run settings.
-        enable: Whether to enable wandb logging.
-        device: Device kind, one of {"tt", "gpu", "cpu"}.
-
-    Returns:
-        The wandb run object if enabled, None otherwise.
-
-    """
+def setup_wandb(
+    training_config: TrainingConfig,
+    enable: bool = False,
+    device: str = "tt",
+) -> Optional[Any]:
+    """Set up wandb for experiment tracking."""
     global WANDB_ENABLED
     WANDB_ENABLED = bool(enable and (wandb is not None))
     if not WANDB_ENABLED:
@@ -54,7 +57,7 @@ def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: s
         name=training_config.wandb_run_name,
         config={
             "model_name": training_config.model_name,
-            "dataset_id": training_config.dataset_id,
+            "dataset_id": "sst2",
             "max_length": training_config.max_length,
             "learning_rate": training_config.learning_rate,
             "batch_size": training_config.batch_size,
@@ -69,29 +72,24 @@ def setup_wandb(training_config: TrainingConfig, enable: bool = False, device: s
     return wandb_run
 
 
-def log_to_wandb(data_dict: dict[str, Any], step: Optional[int] = None) -> None:
-    """Log metrics to wandb if enabled, otherwise no-op.
-
-    Args:
-        data_dict: Dictionary of metric names and values.
-        step: Training step number.
-
-    """
+def log_to_wandb(
+    data_dict: dict[str, Any],
+    step: Optional[int] = None,
+) -> None:
+    """Log metrics to wandb if enabled, otherwise no-op."""
     if WANDB_ENABLED and wandb is not None:
         wandb.log(data_dict, step=step)
 
 
-def _select_preferred_device(use_tt: bool = True) -> tuple[jax.Device, str]:
-    """Select compute device: TT > GPU > CPU.
+# ------------------------------------------------------------------
+# Device / model helpers
+# ------------------------------------------------------------------
 
-    Args:
-        use_tt: When True, prefer TT device if available.
-            When False, try GPU first, then fall back to CPU.
 
-    Returns:
-        The selected device and its kind ("tt", "gpu", or "cpu").
-
-    """
+def _select_preferred_device(
+    use_tt: bool = True,
+) -> tuple[jax.Device, str]:
+    """Select compute device: TT > GPU > CPU."""
     cpu = jax.devices("cpu")[0]
     if not use_tt:
         try:
@@ -110,444 +108,87 @@ def _select_preferred_device(use_tt: bool = True) -> tuple[jax.Device, str]:
     return cpu, "cpu"
 
 
-def create_batches(data: np.ndarray, batch_size: int = 4) -> np.ndarray:
-    """Reshape flat numpy data into batches.
-
-    Stays as numpy arrays to avoid TT device slice issues.
-
-    Args:
-        data: Array of shape (num_examples, seq_length).
-        batch_size: Number of samples per batch.
-
-    Returns:
-        Array of shape (num_batches, batch_size, seq_length).
-
-    """
-    num_batches = len(data) // batch_size
-    batched_data = data[: num_batches * batch_size].reshape(num_batches, batch_size, -1)
-    return batched_data
-
-
 def load_model(
     model_name: str,
     *,
     dtype: Any = jnp.bfloat16,
     mask_max_position_embeddings: Optional[int] = None,
 ) -> Any:
-    """Load a causal LM via EasyDel with optional config overrides.
-
-    Args:
-        model_name: HuggingFace model identifier.
-        dtype: Data type for model parameters.
-        mask_max_position_embeddings: Cap the pre-allocated causal mask
-            size independently of ``max_position_embeddings``.  Set to
-            your actual ``max_length`` to avoid a multi-GB mask while
-            keeping the original RoPE frequencies intact.
-
-    Returns:
-        The loaded EasyDel model.
-
-    """
-
+    """Load a causal LM via EasyDel with optional config overrides."""
     config_overrides = {}
     if mask_max_position_embeddings is not None:
         config_overrides["mask_max_position_embeddings"] = mask_max_position_embeddings
-
     kwargs = {"dtype": dtype}
     if config_overrides:
         kwargs["config_kwargs"] = config_overrides
-
-    return AutoEasyDeLModelForCausalLM.from_pretrained(model_name, **kwargs)
+    return AutoEasyDeLModelForCausalLM.from_pretrained(
+        model_name,
+        **kwargs,
+    )
 
 
 def load_tokenizer(model_name: str) -> Any:
-    """Load a HuggingFace tokenizer and ensure it has a pad token.
-
-    Args:
-        model_name: HuggingFace model identifier.
-
-    Returns:
-        The configured tokenizer.
-
-    """
+    """Load a HuggingFace tokenizer, ensuring a pad token exists."""
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     return tokenizer
 
 
-def load_data(training_config: TrainingConfig, tokenizer: Any, split: str = "train") -> np.ndarray:
-    """Load, tokenize, and batch a dataset split.
-
-    Args:
-        training_config: Training configuration with dataset and tokenization settings.
-        tokenizer: Pre-loaded HuggingFace tokenizer.
-        split: Dataset split name (e.g. "train", "validation").
-
-    Returns:
-        Batched numpy array of shape (num_batches, batch_size, seq_length).
-
-    """
-    logger.info(f"Loading dataset {training_config.dataset_id}/{training_config.dataset_configuration} ({split})...")
-    ds = load_dataset(training_config.dataset_id, training_config.dataset_configuration, split=split)
-    all_text = "\n".join(line for line in ds[training_config.text_column] if line.strip())
-
-    logger.info(f"Tokenizing {split} split...")
-    all_ids = tokenizer.encode(all_text, add_special_tokens=False)
-    logger.info(f"  {split} tokens: {len(all_ids):,}")
-
-    seq_length = training_config.max_length
-    batch_size = training_config.batch_size
-    num_examples = len(all_ids) // seq_length
-    ids_array = np.array(all_ids[: num_examples * seq_length], dtype=np.uint32).reshape(num_examples, seq_length)
-
-    batches = create_batches(ids_array, batch_size)
-    logger.info(f"  prepared {len(batches)} {split} batches of shape ({batch_size}, {seq_length})")
-    return batches
-
-
-def _set_nnx_model_mesh(module: Any, mesh: jax.sharding.Mesh) -> None:
-    """Attach a JAX mesh to an EasyDel model config.
-
-    EasyDel/eformer requires a mesh on the config object and an active
-    ``with mesh:`` context during the forward pass.
-
-    Args:
-        module: EasyDel NNX model.
-        mesh: JAX mesh to attach.
-
-    """
+def _set_nnx_model_mesh(
+    module: Any,
+    mesh: jax.sharding.Mesh,
+) -> None:
+    """Attach a JAX mesh to an EasyDel model config."""
     module.config.set_model_mesh(mesh)
 
 
 def _count_params(state: Any) -> int:
-    """Count total number of scalar parameters in an NNX state pytree.
-
-    Args:
-        state: NNX state pytree (e.g. lora_params or frozen_state).
-
-    Returns:
-        Total number of scalar parameters.
-
-    """
+    """Count total scalar parameters in an NNX state pytree."""
     leaves = jax.tree.leaves(state)
     return sum(x.size for x in leaves if hasattr(x, "size"))
 
 
-def create_train_step_fn(graphdef: Any, call_signature: inspect.Signature, tx: Any) -> Any:
-    """Create a JIT-compiled training step (forward + backward + optimizer).
+# ------------------------------------------------------------------
+# Data preparation
+# ------------------------------------------------------------------
 
-    Compiles the entire forward pass, gradient computation, and optimizer
-    update into a single StableHLO graph.
 
-    One-hot labels are pre-computed outside the JIT graph.  On TT this
-    avoids a bug in ``ttnn.eq`` that doubles the one-hot value for even
-    uint32 labels.  On GPU/CPU the same interface is used for uniformity.
+def _load_and_prepare_batches(
+    training_config: TrainingConfig,
+) -> tuple[list[dict], list[dict]]:
+    """Load SST-2 dataset and return train/val lists of batch dicts.
 
-    Args:
-        graphdef: NNX graph definition from nnx.split.
-        call_signature: Model __call__ signature for keyword detection.
-        tx: Optax optimizer transform.
-
-    Returns:
-        JIT-compiled train_step function.
-
+    Each batch dict has keys ``input_ids``, ``labels``, and
+    ``attention_mask`` (all ``jnp.ndarray``).  Labels contain
+    ``-100`` at prompt positions so only response tokens contribute
+    to the loss.
     """
-
-    def loss_fn(lora_params, frozen_state, input_ids, one_hot_labels, *, train):
-        m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = {"input_ids": input_ids}
-        if "train" in call_signature.parameters:
-            kwargs["train"] = train
-        if "deterministic" in call_signature.parameters:
-            kwargs["deterministic"] = not train
-        out = m(**kwargs)
-
-        # NOTE (TT only): TT-MLIR eliminates bf16→f32 casts inside fused
-        # JIT graphs, so this softmax runs in bf16 on TT hardware.  The
-        # reported training loss is ~0.4-0.5 higher than the true f32 loss;
-        # gradient direction is unaffected, only magnitude is approximate.
-        # On GPU/CPU, f32 precision is preserved and the loss is accurate.
-        shift_logits = out.logits[:, :-1, :].astype(jnp.float32)
-        per_token_loss = optax.softmax_cross_entropy(
-            shift_logits,
-            one_hot_labels,
-        )
-        return jnp.mean(per_token_loss)
-
-    def train_step(lora_params, frozen_state, opt_state, input_ids, one_hot_labels, *, train):
-        loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
-            lora_params,
-            frozen_state,
-            input_ids,
-            one_hot_labels,
-            train=train,
-        )
-
-        grad_leaves = jax.tree.leaves(grads)
-        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in grad_leaves))
-        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in grad_leaves]))
-
-        updates, new_opt_state = tx.update(grads, opt_state, lora_params)
-        new_lora_params = optax.apply_updates(lora_params, updates)
-        grad_stats = {"grad_norm": grad_norm, "grad_max": grad_max}
-        return loss, new_lora_params, new_opt_state, grad_stats
-
-    return jax.jit(train_step, static_argnames=("train",))
-
-
-def _create_forward_fn(graphdef: Any, call_signature: inspect.Signature) -> Any:
-    """Create a JIT-compiled forward-only function that returns raw logits.
-
-    Separated from loss computation because TT-MLIR silently eliminates
-    bf16→f32 type promotions inside fused JIT graphs.  The large-vocabulary
-    softmax reduction then runs in bf16 and inflates the loss.  By returning
-    raw logits and computing the loss on the CPU host we guarantee f32
-    precision for evaluation metrics.
-    """
-
-    @jax.jit
-    def forward_fn(lora_params, frozen_state, input_ids):
-        m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = {"input_ids": input_ids}
-        if "train" in call_signature.parameters:
-            kwargs["train"] = False
-        if "deterministic" in call_signature.parameters:
-            kwargs["deterministic"] = True
-        return m(**kwargs).logits
-
-    return forward_fn
-
-
-def _cpu_cross_entropy(logits, input_ids):
-    """Compute cross-entropy loss on CPU host in f32.
-
-    TT-MLIR drops bf16→f32 casts inside compiled graphs, so any on-device
-    softmax over the 151 k vocabulary is unreliable.  This helper transfers
-    the logits to CPU and computes the loss there (~37 MB per sample).
-    """
-    cpu = jax.devices("cpu")[0]
-    logits_cpu = jax.device_put(logits, cpu)
-    ids_cpu = jax.device_put(input_ids, cpu)
-    logits_f32 = logits_cpu.astype(jnp.float32)
-    shift_logits = logits_f32[:, :-1, :]
-    shift_labels = ids_cpu[:, 1:]
-    one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-    per_token_loss = optax.softmax_cross_entropy(
-        shift_logits,
-        one_hot.astype(jnp.float32),
+    t_ids, t_lbl, t_msk = load_sst2_batches(
+        training_config,
+        split="train",
     )
-    return jnp.mean(per_token_loss)
-
-
-def _cpu_cross_entropy_with_inspect(logits, input_ids):
-    """Like _cpu_cross_entropy but also returns predictions and per-token losses."""
-    cpu = jax.devices("cpu")[0]
-    logits_cpu = jax.device_put(logits, cpu)
-    ids_cpu = jax.device_put(input_ids, cpu)
-    logits_f32 = logits_cpu.astype(jnp.float32)
-    shift_logits = logits_f32[:, :-1, :]
-    shift_labels = ids_cpu[:, 1:]
-    one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-    per_token_loss = optax.softmax_cross_entropy(
-        shift_logits,
-        one_hot.astype(jnp.float32),
+    v_ids, v_lbl, v_msk = load_sst2_batches(
+        training_config,
+        split="validation",
     )
-    loss = jnp.mean(per_token_loss)
-    predictions = jnp.argmax(shift_logits, axis=-1)
-    return loss, predictions, per_token_loss
+
+    def _to_batch(ids, lbl, msk):
+        return {
+            "input_ids": jnp.array(ids, dtype=jnp.uint32),
+            "labels": jnp.array(lbl, dtype=jnp.int32),
+            "attention_mask": jnp.array(msk, dtype=jnp.int32),
+        }
+
+    train_batches = [_to_batch(t_ids[i], t_lbl[i], t_msk[i]) for i in range(len(t_ids))]
+    val_batches = [_to_batch(v_ids[i], v_lbl[i], v_msk[i]) for i in range(len(v_ids))]
+
+    return train_batches, val_batches
 
 
-def create_eval_step_fn(
-    graphdef: Any,
-    call_signature: inspect.Signature,
-    *,
-    device_kind: str = "tt",
-) -> Any:
-    """Create an evaluation step.
-
-    On TT: forward on device, loss on CPU (bf16 precision workaround).
-    On GPU/CPU: fully on-device eval in f32.
-
-    Returns a callable with signature:
-    ``(lora_params, frozen_state, input_ids) -> loss``.
-    """
-    if device_kind == "tt":
-        jit_forward = _create_forward_fn(graphdef, call_signature)
-
-        def eval_step(lora_params, frozen_state, input_ids):
-            logits = jit_forward(lora_params, frozen_state, input_ids)
-            return _cpu_cross_entropy(logits, input_ids)
-
-        return eval_step
-
-    @jax.jit
-    def eval_step(lora_params, frozen_state, input_ids):
-        m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = {"input_ids": input_ids}
-        if "train" in call_signature.parameters:
-            kwargs["train"] = False
-        if "deterministic" in call_signature.parameters:
-            kwargs["deterministic"] = True
-        logits = m(**kwargs).logits
-        shift_logits = logits[:, :-1, :].astype(jnp.float32)
-        shift_labels = input_ids[:, 1:]
-        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        return jnp.mean(optax.softmax_cross_entropy(shift_logits, one_hot))
-
-    return eval_step
-
-
-def create_eval_inspect_step_fn(
-    graphdef: Any,
-    call_signature: inspect.Signature,
-    *,
-    device_kind: str = "tt",
-) -> Any:
-    """Create an eval step that also returns predictions and per-token losses.
-
-    On TT: forward on device, loss on CPU (bf16 precision workaround).
-    On GPU/CPU: fully on-device eval in f32.
-
-    Returns a callable:
-    ``(lora_params, frozen_state, input_ids) -> (loss, predictions, per_token_loss)``.
-    """
-    if device_kind == "tt":
-        jit_forward = _create_forward_fn(graphdef, call_signature)
-
-        def eval_inspect_step(lora_params, frozen_state, input_ids):
-            logits = jit_forward(lora_params, frozen_state, input_ids)
-            return _cpu_cross_entropy_with_inspect(logits, input_ids)
-
-        return eval_inspect_step
-
-    @jax.jit
-    def eval_inspect_step(lora_params, frozen_state, input_ids):
-        m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = {"input_ids": input_ids}
-        if "train" in call_signature.parameters:
-            kwargs["train"] = False
-        if "deterministic" in call_signature.parameters:
-            kwargs["deterministic"] = True
-        logits = m(**kwargs).logits
-        shift_logits = logits[:, :-1, :].astype(jnp.float32)
-        shift_labels = input_ids[:, 1:]
-        one_hot = jax.nn.one_hot(shift_labels, shift_logits.shape[-1])
-        per_token_loss = optax.softmax_cross_entropy(shift_logits, one_hot)
-        loss = jnp.mean(per_token_loss)
-        predictions = jnp.argmax(shift_logits, axis=-1)
-        return loss, predictions, per_token_loss
-
-    return eval_inspect_step
-
-
-def _show_predictions(
-    collected_examples: list[dict[str, Any]],
-    tokenizer: Any,
-    num_tokens: int = 20,
-) -> None:
-    """Print collected prediction examples (CPU-only, no forward pass).
-
-    Args:
-        collected_examples: List of dicts with keys ``input_ids``,
-            ``predictions``, and ``per_token_loss`` (all numpy arrays).
-        tokenizer: HuggingFace tokenizer for decoding IDs back to text.
-        num_tokens: How many leading tokens to show per example.
-
-    """
-    for i, ex in enumerate(collected_examples):
-        input_ids = ex["input_ids"]
-        predictions = ex["predictions"]
-        per_token_loss = ex["per_token_loss"]
-        shift_labels = input_ids[1:]
-
-        target_ids = shift_labels[:num_tokens]
-        pred_ids = predictions[:num_tokens]
-        token_losses = per_token_loss[:num_tokens]
-
-        input_text = tokenizer.decode(input_ids.tolist(), skip_special_tokens=True)[:200]
-        target_text = tokenizer.decode(target_ids.tolist(), skip_special_tokens=False)
-        pred_text = tokenizer.decode(pred_ids.tolist(), skip_special_tokens=False)
-
-        correct = int((predictions == shift_labels).sum())
-        total = len(shift_labels)
-
-        logger.info(f"\n--- Example {i + 1} ---")
-        logger.info(f"  Input:        {input_text!r}")
-        logger.info(f"  Target IDs:   {target_ids.tolist()}")
-        logger.info(f"  Pred IDs:     {pred_ids.tolist()}")
-        logger.info(f"  Target text:  {target_text!r}")
-        logger.info(f"  Pred text:    {pred_text!r}")
-        logger.info(f"  Token losses: {np.round(token_losses, 4).tolist()}")
-        logger.info(f"  Mean loss:    {float(per_token_loss.mean()):.4f}")
-        logger.info(f"  Accuracy:     {correct}/{total} = {correct / total:.3f}")
-
-
-def evaluate(
-    jit_eval_step: Any,
-    lora_params: Any,
-    frozen_state: Any,
-    val_batches: list[jnp.ndarray],
-    *,
-    jit_inspect_step: Any = None,
-    tokenizer: Any = None,
-    num_examples: int = 3,
-    num_tokens: int = 20,
-) -> float:
-    """Run evaluation on validation batches and return average loss.
-
-    When ``jit_inspect_step`` and ``tokenizer`` are provided, also collects
-    predictions from the first few batches and prints decoded examples
-    (following the same pattern as the Llama experiment).
-
-    Args:
-        jit_eval_step: JIT-compiled evaluation function (returns loss).
-        lora_params: Trainable LoRA parameters.
-        frozen_state: Frozen (non-trainable) model state.
-        val_batches: List of validation batch arrays.
-        jit_inspect_step: JIT-compiled function returning
-            ``(loss, predictions, per_token_loss)``.  Only needed when
-            printing examples.
-        tokenizer: HuggingFace tokenizer (needed to decode examples).
-        num_examples: How many examples to collect and print.
-        num_tokens: How many leading tokens to show per example.
-
-    Returns:
-        Average validation loss across all batches.
-
-    """
-    total_loss = 0.0
-    collected: list[dict[str, Any]] = []
-    can_inspect = jit_inspect_step is not None and tokenizer is not None
-
-    for batch in val_batches:
-        if can_inspect and len(collected) < num_examples:
-            loss, predictions, per_token_loss = jit_inspect_step(
-                lora_params,
-                frozen_state,
-                batch,
-            )
-            cpu = jax.devices("cpu")[0]
-            batch_ids = np.array(jax.device_put(batch, cpu))
-            batch_preds = np.array(jax.device_put(predictions, cpu))
-            batch_losses = np.array(jax.device_put(per_token_loss, cpu))
-            batch_size = batch_ids.shape[0]
-            for idx in range(min(batch_size, num_examples - len(collected))):
-                collected.append(
-                    {
-                        "input_ids": batch_ids[idx],
-                        "predictions": batch_preds[idx],
-                        "per_token_loss": batch_losses[idx],
-                    }
-                )
-        else:
-            loss = jit_eval_step(lora_params, frozen_state, batch)
-        total_loss += float(loss)
-
-    if collected:
-        _show_predictions(collected, tokenizer, num_tokens)
-
-    return total_loss / len(val_batches) if val_batches else 0.0
+# ------------------------------------------------------------------
+# Training loop
+# ------------------------------------------------------------------
 
 
 def _training_loop(
@@ -557,8 +198,8 @@ def _training_loop(
     lora_params: Any,
     frozen_state: Any,
     opt_state: Any,
-    jnp_train_batches: list[jnp.ndarray],
-    jnp_val_batches: list[jnp.ndarray],
+    train_batches: list[dict[str, Any]],
+    val_batches: list[dict[str, Any]],
     vocab_size: int,
     *,
     device_kind: str = "tt",
@@ -569,63 +210,66 @@ def _training_loop(
 
     Must be called inside a ``with mesh:`` context.
 
-    When ``jit_inspect_step`` and ``tokenizer`` are provided the evaluation
-    helper automatically collects and prints decoded example predictions
-    (same pattern as the Llama experiment).
+    *train_batches* / *val_batches* are lists of dicts with keys
+    ``input_ids``, ``labels``, ``attention_mask``.
 
-    Args:
-        training_config: Training configuration with all hyperparameters.
-        jit_train_step: JIT-compiled training step function.
-        jit_eval_step: JIT-compiled evaluation step function.
-        lora_params: Trainable LoRA parameters.
-        frozen_state: Frozen (non-trainable) model state.
-        opt_state: Optimizer state.
-        jnp_train_batches: Pre-converted training batches.
-        jnp_val_batches: Pre-converted validation batches.
-        vocab_size: Vocabulary size for one-hot encoding.
-        device_kind: Device type ("tt", "gpu", or "cpu").
-        jit_inspect_step: JIT-compiled inspect step returning
-            ``(loss, predictions, per_token_loss)``.
-        tokenizer: HuggingFace tokenizer (needed for decoding examples).
+    Returns ``(global_step, step_losses)``.
 
-    Returns:
-        A tuple of (global_step, step_losses).
-
+    ``global_step`` counts micro-batches.  When
+    ``gradient_accumulation_steps > 1`` the underlying optimizer
+    (wrapped in ``optax.MultiSteps``) only updates weights every
+    *k* micro-batches, but the step counter still increments per
+    micro-batch.
     """
     global_step = 0
     steps_freq = training_config.steps_freq
+    ignored = training_config.ignored_label_index
     running_losses: list[float] = []
     step_losses: list[float] = []
 
     inspect_kwargs: dict[str, Any] = {}
     if jit_inspect_step is not None and tokenizer is not None:
-        inspect_kwargs = {"jit_inspect_step": jit_inspect_step, "tokenizer": tokenizer}
+        inspect_kwargs = {
+            "jit_inspect_step": jit_inspect_step,
+            "tokenizer": tokenizer,
+        }
 
-    if jnp_val_batches:
-        val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
+    if val_batches:
+        val_loss = evaluate(
+            jit_eval_step,
+            lora_params,
+            frozen_state,
+            val_batches,
+            **inspect_kwargs,
+        )
         logger.info(f"  Initial validation loss: {val_loss:.4f}")
         log_to_wandb({"val_loss": val_loss}, step=0)
 
     cpu = jax.devices("cpu")[0]
     rng = np.random.default_rng(training_config.seed)
+
     for epoch in range(training_config.num_epochs):
         epoch_losses: list[float] = []
-        num_batches = len(jnp_train_batches)
+        num_batches = len(train_batches)
         batch_order = rng.permutation(num_batches)
-        logger.info(f"Epoch {epoch + 1}: shuffled {num_batches} training batches (seed={training_config.seed})")
+        logger.info(f"Epoch {epoch + 1}: shuffled {num_batches} " f"training batches (seed={training_config.seed})")
 
         for batch_idx in range(num_batches):
-            input_ids = jnp_train_batches[batch_order[batch_idx]]
+            batch = train_batches[batch_order[batch_idx]]
+            input_ids = batch["input_ids"]
+            labels = batch["labels"]
+            attention_mask = batch["attention_mask"]
 
-            if device_kind == "tt":
-                with jax.default_device(cpu):
-                    one_hot_labels = jax.nn.one_hot(
-                        input_ids[:, 1:],
-                        vocab_size,
-                    ).astype(jnp.float32)
-            else:
-                one_hot_labels = jax.nn.one_hot(
-                    input_ids[:, 1:],
+            # All label prep on CPU for TT (ttnn.slice can't handle
+            # eager device-only slices outside a JIT graph).
+            ctx = jax.default_device(cpu) if device_kind == "tt" else contextlib.nullcontext()
+            with ctx:
+                shift = labels[:, 1:].astype(jnp.int32)
+                valid = shift != ignored
+                safe = jnp.where(valid, shift, 0)
+                label_mask = valid.astype(jnp.float32)
+                one_hot = jax.nn.one_hot(
+                    safe,
                     vocab_size,
                 ).astype(jnp.float32)
 
@@ -634,7 +278,9 @@ def _training_loop(
                 frozen_state,
                 opt_state,
                 input_ids,
-                one_hot_labels,
+                one_hot,
+                label_mask,
+                attention_mask,
                 train=True,
             )
 
@@ -658,53 +304,76 @@ def _training_loop(
             )
 
             if len(running_losses) == steps_freq:
-                avg_window_loss = np.mean(running_losses)
-                log_to_wandb({"avg_window_loss": avg_window_loss}, step=global_step)
+                avg = np.mean(running_losses)
+                log_to_wandb(
+                    {"avg_window_loss": avg},
+                    step=global_step,
+                )
                 logger.info(
-                    f"Epoch {epoch + 1}, Batch {batch_idx + 1:3d}: "
-                    f"Loss = {current_loss:.4f} | Avg {steps_freq} = {avg_window_loss:.4f} | "
-                    f"grad_norm = {g_norm:.4f}, grad_max = {g_max:.4f}"
+                    f"Epoch {epoch + 1}, "
+                    f"Batch {batch_idx + 1:3d}: "
+                    f"Loss = {current_loss:.4f} | "
+                    f"Avg {steps_freq} = {avg:.4f} | "
+                    f"grad_norm = {g_norm:.4f}, "
+                    f"grad_max = {g_max:.4f}"
                 )
                 running_losses = []
             else:
                 logger.info(
-                    f"Epoch {epoch + 1}, Batch {batch_idx + 1:3d}: "
-                    f"Loss = {current_loss:.4f} ({len(running_losses)}/{steps_freq}) | "
-                    f"grad_norm = {g_norm:.4f}, grad_max = {g_max:.4f}"
+                    f"Epoch {epoch + 1}, "
+                    f"Batch {batch_idx + 1:3d}: "
+                    f"Loss = {current_loss:.4f} "
+                    f"({len(running_losses)}/{steps_freq}) | "
+                    f"grad_norm = {g_norm:.4f}, "
+                    f"grad_max = {g_max:.4f}"
                 )
 
             if (
                 training_config.val_steps_freq is not None
-                and jnp_val_batches
+                and val_batches
                 and global_step % training_config.val_steps_freq == 0
             ):
-                val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
-                logger.info(f"  [Step {global_step}] Validation loss: {val_loss:.4f}")
+                val_loss = evaluate(
+                    jit_eval_step,
+                    lora_params,
+                    frozen_state,
+                    val_batches,
+                    **inspect_kwargs,
+                )
+                logger.info(f"  [Step {global_step}] " f"Validation loss: {val_loss:.4f}")
                 log_to_wandb({"val_loss": val_loss}, step=global_step)
 
-        avg_epoch_loss = np.mean(epoch_losses)
-        logger.info(f"Epoch {epoch + 1} complete — avg loss: {avg_epoch_loss:.4f}")
+        avg_epoch = np.mean(epoch_losses)
+        logger.info(f"Epoch {epoch + 1} complete — " f"avg loss: {avg_epoch:.4f}")
 
-        if jnp_val_batches:
-            val_loss = evaluate(jit_eval_step, lora_params, frozen_state, jnp_val_batches, **inspect_kwargs)
-            logger.info(f"  Epoch {epoch + 1} validation loss: {val_loss:.4f}")
+        if val_batches:
+            val_loss = evaluate(
+                jit_eval_step,
+                lora_params,
+                frozen_state,
+                val_batches,
+                **inspect_kwargs,
+            )
+            logger.info(f"  Epoch {epoch + 1} " f"validation loss: {val_loss:.4f}")
             log_to_wandb({"val_loss": val_loss}, step=global_step)
 
     return global_step, step_losses
 
 
+# ------------------------------------------------------------------
+# Entry point
+# ------------------------------------------------------------------
+
+
 def main(training_config: TrainingConfig) -> None:
-    """Run full LoRA fine-tuning pipeline.
-
-    Args:
-        training_config: Training configuration with all hyperparameters.
-
-    """
+    """Run full LoRA fine-tuning pipeline."""
     random.seed(training_config.seed)
     np.random.seed(training_config.seed)
 
     cpu_device = jax.devices("cpu")[0]
-    current_device, device_kind = _select_preferred_device(use_tt=training_config.use_tt)
+    current_device, device_kind = _select_preferred_device(
+        use_tt=training_config.use_tt,
+    )
     jax.config.update("jax_default_device", current_device)
 
     if device_kind == "tt":
@@ -714,37 +383,42 @@ def main(training_config: TrainingConfig) -> None:
 
         apply_gqa_workaround()
 
-    logger.info(f"Loading {training_config.model_name} model... Using device: {device_kind} -> {current_device}")
+    logger.info(f"Loading {training_config.model_name} model... " f"Using device: {device_kind} -> {current_device}")
 
     model = load_model(
         training_config.model_name,
         dtype=training_config.jax_dtype,
-        mask_max_position_embeddings=training_config.mask_max_position_embeddings,
+        mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
     )
 
     num_devices = training_config.num_devices
-    devices_for_mesh = tuple(jax.devices(device_kind)[:num_devices])
+    devices_for_mesh = tuple(
+        jax.devices(device_kind)[:num_devices],
+    )
     mesh = jax.make_mesh((num_devices,), ("X",), devices=devices_for_mesh)
     _set_nnx_model_mesh(model, mesh)
 
-    logger.info(f"  num_hidden_layers:       {model.config.num_hidden_layers}")
+    logger.info(f"  num_hidden_layers:       " f"{model.config.num_hidden_layers}")
     logger.info(f"  hidden_size:             {model.config.hidden_size}")
-    logger.info(f"  intermediate_size:       {model.config.intermediate_size}")
+    logger.info(f"  intermediate_size:       " f"{model.config.intermediate_size}")
     logger.info(f"  vocab_size:              {model.config.vocab_size}")
-    logger.info(f"  max_position_embeddings: {model.config.max_position_embeddings}")
+    logger.info(f"  max_position_embeddings: " f"{model.config.max_position_embeddings}")
 
-    setup_wandb(training_config, enable=training_config.use_wandb, device=device_kind)
+    setup_wandb(
+        training_config,
+        enable=training_config.use_wandb,
+        device=device_kind,
+    )
 
     tokenizer = load_tokenizer(training_config.model_name)
+    train_batches, val_batches = _load_and_prepare_batches(
+        training_config,
+    )
 
-    train_batches = load_data(training_config, tokenizer, split="train")
-    val_batches_np = load_data(training_config, tokenizer, split="validation")
-
-    logger.info(f"Applying LoRA (rank={training_config.lora_rank}, pattern={training_config.lora_pattern!r})...")
+    logger.info(
+        f"Applying LoRA " f"(rank={training_config.lora_rank}, " f"pattern={training_config.lora_pattern!r})..."
+    )
     if device_kind == "tt":
-        # LoRA init uses `he_uniform` (`jax.random.uniform`) to initialize
-        # `lora_a`.  That RNG op must run on CPU as TT-MLIR cannot compile
-        # the StableHLO produced by the monkeypatched `jax.random` path.
         with jax.default_device(cpu_device):
             model = model.apply_lora_to_layers(
                 lora_rank=training_config.lora_rank,
@@ -758,57 +432,74 @@ def main(training_config: TrainingConfig) -> None:
             verbose=True,
         )
 
-    graphdef, lora_params, frozen_state = nnx.split(model, nnx.LoRAParam, ...)
+    graphdef, lora_params, frozen_state = nnx.split(
+        model,
+        nnx.LoRAParam,
+        ...,
+    )
     call_signature = inspect.signature(model.__call__)
 
     n_lora = _count_params(lora_params)
     n_frozen = _count_params(frozen_state)
     logger.info(f"  Trainable (LoRA) params: {n_lora:,}")
     logger.info(f"  Frozen params:           {n_frozen:,}")
-    logger.info(f"  Trainable fraction:      {n_lora / (n_lora + n_frozen):.4%}")
+    logger.info(f"  Trainable fraction:      " f"{n_lora / (n_lora + n_frozen):.4%}")
 
     num_train_batches = len(train_batches)
     total_batches = num_train_batches * training_config.num_epochs
-    accum_steps = training_config.gradient_accumulation_steps
-    total_optimizer_steps = total_batches // accum_steps
+    accum = training_config.gradient_accumulation_steps
+    total_opt_steps = total_batches // accum
 
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=0.0,
         peak_value=training_config.learning_rate,
         warmup_steps=training_config.warmup_steps,
-        decay_steps=total_optimizer_steps,
+        decay_steps=total_opt_steps,
         end_value=training_config.end_learning_rate,
     )
     logger.info(
-        f"  LR schedule: warmup {training_config.warmup_steps} optimizer steps, "
-        f"cosine decay over {total_optimizer_steps} optimizer steps "
-        f"({training_config.learning_rate} -> {training_config.end_learning_rate})"
+        f"  LR schedule: warmup {training_config.warmup_steps} "
+        f"optimizer steps, cosine decay over {total_opt_steps} "
+        f"optimizer steps "
+        f"({training_config.learning_rate} -> "
+        f"{training_config.end_learning_rate})"
     )
 
     base_tx = optax.adamw(learning_rate=schedule)
-    if accum_steps > 1:
-        tx = optax.MultiSteps(base_tx, every_k_schedule=accum_steps)
-        effective_batch = training_config.batch_size * accum_steps
-        logger.info(f"  Gradient accumulation: {accum_steps} steps -> Effective batch size {effective_batch}")
+    if accum > 1:
+        tx = optax.MultiSteps(base_tx, every_k_schedule=accum)
+        eff = training_config.batch_size * accum
+        logger.info(f"  Gradient accumulation: {accum} steps -> " f"Effective batch size {eff}")
     else:
         tx = base_tx
     opt_state = tx.init(lora_params)
 
-    jit_train_step = create_train_step_fn(graphdef, call_signature, tx)
-    jit_eval_step = create_eval_step_fn(graphdef, call_signature, device_kind=device_kind)
+    jit_train_step = create_train_step_fn(
+        graphdef,
+        call_signature,
+        tx,
+    )
+    jit_eval_step = create_eval_step_fn(
+        graphdef,
+        call_signature,
+        device_kind=device_kind,
+    )
     jit_inspect_step = (
-        create_eval_inspect_step_fn(graphdef, call_signature, device_kind=device_kind)
+        create_eval_inspect_step_fn(
+            graphdef,
+            call_signature,
+            device_kind=device_kind,
+        )
         if training_config.print_examples
         else None
     )
 
-    jnp_train_batches = [jnp.array(train_batches[i], dtype=jnp.uint32) for i in range(len(train_batches))]
-    jnp_val_batches = [jnp.array(val_batches_np[i], dtype=jnp.uint32) for i in range(len(val_batches_np))]
     if training_config.max_val_batches is not None:
-        jnp_val_batches = jnp_val_batches[: training_config.max_val_batches]
-        logger.info(f"  Using {len(jnp_val_batches)} of {len(val_batches_np)} validation batches")
+        orig = len(val_batches)
+        val_batches = val_batches[: training_config.max_val_batches]
+        logger.info(f"  Using {len(val_batches)} of {orig} " f"validation batches")
 
-    logger.info(f"Starting training on {training_config.dataset_id} dataset...")
+    logger.info("Starting training on SST-2 dataset...")
 
     try:
         with mesh:
@@ -819,21 +510,19 @@ def main(training_config: TrainingConfig) -> None:
                 lora_params,
                 frozen_state,
                 opt_state,
-                jnp_train_batches,
-                jnp_val_batches,
+                train_batches,
+                val_batches,
                 model.config.vocab_size,
                 device_kind=device_kind,
                 jit_inspect_step=jit_inspect_step,
-                tokenizer=tokenizer if training_config.print_examples else None,
+                tokenizer=(tokenizer if training_config.print_examples else None),
             )
 
-        # NOTE: Checkpoint saving is not implemented here. JAX/EasyDel checkpoint
-        # serialisation on TT is not well supported yet (device-to-host transfers
-        # for large state trees can hang or OOM). Add once the TT PJRT plugin
-        # stabilises its checkpoint path.
-
         log_to_wandb(
-            {"training_completed": True, "total_steps": global_step},
+            {
+                "training_completed": True,
+                "total_steps": global_step,
+            },
             step=global_step,
         )
 
@@ -853,9 +542,13 @@ def main(training_config: TrainingConfig) -> None:
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "single_chip" / "test_qwen3_0.6b_lora.yaml"
-    args = parse_cli_options(default_config=default_config)
-    training_config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
+    default_cfg = Path(__file__).parent / "single_chip" / "test_qwen3_0.6b_lora.yaml"
+    args = parse_cli_options(default_config=default_cfg)
+    training_config: TrainingConfig = generate_config(
+        TrainingConfig,
+        args.config,
+        args.test_config,
+    )
 
     if training_config.use_tt:
         os.environ.setdefault("PJRT_DEVICE", "TT")
