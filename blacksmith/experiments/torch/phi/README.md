@@ -59,15 +59,15 @@ Example:
 
 ### Phi=1
 
-The Phi-1 model to be trained on SST2 dataset is configured using the configuration file `test_phi1_finetuning_sst2.yaml`. This is the default setting.
+The Phi-1 model to be trained on SST2 dataset is configured using the configuration file `phi1_finetuning_sst2.yaml`. This is the default setting.
 
-The Phi-1 model to be trained on Squad-V2 dataset is configured using the configuration file `test_phi1_finetuning_squadV2.yaml`.
+The Phi-1 model to be trained on Squad-V2 dataset is configured using the configuration file `phi1_finetuning_squadV2.yaml`.
 
 ### Phi-1.5
 
-The Phi-1.5 model to be trained on SST2 dataset is configured using the configuration file `test_phi15_finetuning_sst2.yaml`. This is the default setting.
+The Phi-1.5 model to be trained on SST2 dataset is configured using the configuration file `phi15_finetuning_sst2.yaml`. This is the default setting.
 
-The Phi-1.5 model to be trained on Squad-V2 dataset is configured using the configuration file `test_phi15_finetuning_squadV2.yaml`.
+The Phi-1.5 model to be trained on Squad-V2 dataset is configured using the configuration file `phi15_finetuning_squadV2.yaml`.
 
 ### Configuration Parameters for Phi-1 model to be trained on SST2 dataset (default setting)
 

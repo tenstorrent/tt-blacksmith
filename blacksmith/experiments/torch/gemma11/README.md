@@ -57,11 +57,11 @@ Example:
 
 ## Configuration
 
-The experiment to be trained on SST2 dataset is configured using the configuration file `test_gemma11_finetuning_sst2.yaml`. This is the default setting.
+The experiment to be trained on SST2 dataset is configured using the configuration file `gemma11_finetuning_sst2.yaml`. This is the default setting.
 
-The experiment to be trained on Squad-V2 dataset is configured using the configuration file `test_gemma11_finetuning_squadV2.yaml`.
+The experiment to be trained on Squad-V2 dataset is configured using the configuration file `gemma11_finetuning_squadV2.yaml`.
 
-Current `test_gemma11_finetuning.yaml` has the recommended and tested hyperparameters for the experiment (using SST2 as the default dataset).
+Current `gemma11_finetuning.yaml` has the recommended and tested hyperparameters for the experiment (using SST2 as the default dataset).
 
 ### Configuration Parameters for SST2 dataset
 

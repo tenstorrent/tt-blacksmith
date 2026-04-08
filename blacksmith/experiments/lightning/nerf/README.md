@@ -41,9 +41,9 @@ Check the dataset documentation mentioned above for more information.
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_nerf.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the learning rate.
+The experiment is configured using the configuration file `nerf.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the learning rate.
 
-Current `test_nerf.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `nerf.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 

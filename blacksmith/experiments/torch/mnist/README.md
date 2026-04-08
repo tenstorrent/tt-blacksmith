@@ -13,7 +13,7 @@ Activate `tt-xla` environment using the provided scripts from `tt-blacksmith` do
 
 ### 1. Single Chip - Linear Model
 
-Test MNIST training with linear model running [test_mnist_training.py].
+Test MNIST training with linear model running [mnist_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/mnist_training.py
@@ -21,7 +21,7 @@ python blacksmith/experiments/torch/mnist/mnist_training.py
 
 ### 2. Single Chip - CNN Model
 
-Test MNIST training with convolutional model running [test_mnist_cnn_training.py].
+Test MNIST training with convolutional model running [mnist_cnn_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/cnn/mnist_cnn_training.py
@@ -29,7 +29,7 @@ python blacksmith/experiments/torch/mnist/cnn/mnist_cnn_training.py
 
 ### 3. Multichip - data parallel
 
-Test MNIST DP training with linear model running [test_mnist_training.py].
+Test MNIST DP training with linear model running [mnist_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/data_parallel/mnist_training.py
@@ -37,7 +37,7 @@ python blacksmith/experiments/torch/mnist/data_parallel/mnist_training.py
 
 ### 4. Multichip - tensor parallel
 
-Test MNIST TP training with linear model running [test_mnist_training.py].
+Test MNIST TP training with linear model running [mnist_training.py].
 
 ```bash
 python blacksmith/experiments/torch/mnist/tensor_parallel/mnist_training.py

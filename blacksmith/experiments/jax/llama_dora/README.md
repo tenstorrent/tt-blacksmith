@@ -5,7 +5,7 @@ JAX-based DoRA (Low-Rank Adaptation) fine-tuning for the Llama 3.2-1B model on T
 ## Overview
 
 This directory includes:
-- TT device training (`test_llama_fine_tuning_jax.py`)
+- TT device training (`llama_fine_tuning_jax.py`)
 - Custom LoRAx implementation in `lorax/`
 - SST-2 example task and basic wandb integration
 

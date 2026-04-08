@@ -93,7 +93,7 @@ The experiment is configured using the configuration file `lora/loudbox/gpt_oss_
 configuration file specifies the hyperparameters for the experiment, such as the number of epochs,
 the batch size, and the LoRA configuration.
 
-Current `test_gpt_oss_20b_finetuning_sst2.yaml` has the recommended and tested hyperparameters for the
+Current `gpt_oss_20b_finetuning_sst2.yaml` has the recommended and tested hyperparameters for the
 experiment.
 
 ### Configuration Parameters

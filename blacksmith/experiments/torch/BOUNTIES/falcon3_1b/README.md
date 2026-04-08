@@ -41,9 +41,9 @@ Example:
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_falcon3_finetuning_wikitext.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the LoRA configuration.
+The experiment is configured using the configuration file `falcon3_finetuning_wikitext.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the LoRA configuration.
 
-Current `test_falcon3_finetuning_wikitext.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `falcon3_finetuning_wikitext.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Parameters
 
