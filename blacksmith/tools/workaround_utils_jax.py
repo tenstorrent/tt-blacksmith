@@ -2,22 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Monkey-patch EasyDel's VanillaAttn to avoid 5D tensors (TT reshape bug).
-
-EasyDel's GQA implementation reshapes Q from 4D to 5D by splitting heads
-into (num_kv_heads, num_reps). This triggers a ttnn.reshape bug on
-Tenstorrent hardware when the tiled tensor is reshaped to 5D with a
-small non-tile-aligned dimension.
-
-The workaround repeats K and V along the head axis so all tensors stay
-4D throughout the attention computation. This uses ~2x KV memory but
-produces correct results.
-
-Usage (call before loading the model):
-    from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
-    apply_gqa_workaround()
-"""
-
 import logging
 import typing as tp
 

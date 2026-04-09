@@ -14,6 +14,9 @@ _DTYPE_MAP = {
 
 
 class TrainingConfig(BaseModel):
+    # Dataset settings
+    dataset_id: str = Field(default="sst2")
+
     # Model settings
     model_name: str = Field(default="Qwen/Qwen3-0.6B")
     max_length: int = Field(default=128, gt=0)
