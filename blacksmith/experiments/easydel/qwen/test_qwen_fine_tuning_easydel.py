@@ -57,7 +57,7 @@ def setup_wandb(
         name=training_config.wandb_run_name,
         config={
             "model_name": training_config.model_name,
-            "dataset_id": "sst2",
+            "dataset_id": training_config.dataset_id,
             "max_length": training_config.max_length,
             "learning_rate": training_config.learning_rate,
             "batch_size": training_config.batch_size,
