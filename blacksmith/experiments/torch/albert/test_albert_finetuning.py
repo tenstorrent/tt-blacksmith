@@ -20,6 +20,7 @@ from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.workaround_utils import replace_layernorm
 
+
 def validate(
     model: torch.nn.Module,
     val_data_loader: DataLoader,
