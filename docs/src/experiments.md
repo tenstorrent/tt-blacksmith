@@ -31,6 +31,7 @@ The following table provides an overview of different model and dataset combinat
 | Pytorch | Qwen 3 4B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | Pytorch | Qwen 3 4B | SST-2 | LoRA, Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | Pytorch | Qwen 3 8B-Base | SST-2 | LoRA, Data + Tensor parallel | WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| Pytorch | Qwen 3 8B | Alpaca | LoRA, Data + Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Qwen 3 32B | Alpaca | LoRA, Tensor parallel| WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Gemma 3 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
 | PyTorch | Gemma 1.1 2B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/README.md) |
