@@ -367,11 +367,12 @@ def main(training_config: TrainingConfig) -> None:
 
     logger.info(f"Loading {training_config.model_name} model... " f"Using device: {device_kind} -> {current_device}")
 
-    model = load_model(
-        training_config.model_name,
-        dtype=training_config.jax_dtype,
-        mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
-    )
+    with jax.default_device(cpu_device):
+        model = load_model(
+            training_config.model_name,
+            dtype=training_config.jax_dtype,
+            mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
+        )
 
     num_devices = training_config.num_devices
     devices_for_mesh = tuple(
