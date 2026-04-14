@@ -1,6 +1,5 @@
 # Dataset settings
-dataset_id: "wikitext"
-dataset_configuration: "wikitext-2-raw-v1"
+dataset_id: "sst2"
 
 # Model settings
 model_name: "Qwen/Qwen3-4B"
@@ -22,10 +21,17 @@ max_val_batches: 10
 lora_rank: 16
 lora_pattern: ".*(q_proj|v_proj).*"
 
-# Other settings
+# Reproducibility settings
+seed: 42
+
+# Logging settings
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
-wandb_run_name: "qwen3-4b-wikitext-tt-easydel-n300"
+wandb_run_name: "qwen3-4b-sst2-tt-multichip-easydel"
 print_examples: true
+steps_freq: 10
+log_level: "INFO"
+
+# Other settings
 use_tt: true
 num_devices: 2

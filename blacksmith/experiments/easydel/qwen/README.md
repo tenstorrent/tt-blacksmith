@@ -78,7 +78,14 @@ python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
 ```
 
 For other layouts, pass the YAML under **`single_chip/`** or **`multi_chip/`** as appropriate (`multi_chip/` sets `num_devices` > 1).
+
+Configs use **`dataset_id: "sst2"`** (SST-2 / GLUE) to match the single-chip LoRA YAMLs; the training script always loads SST-2 via `load_sst2_batches`.
+
 The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`.  Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
+
+### Troubleshooting (Tenstorrent backend)
+
+If JAX fails while initializing the **`tt`** backend with errors mentioning **tt-metal** firmware builds, **`lto1`**, **`riscv-tt-elf-g++`**, or **SFPI**, that comes from the **device compiler / toolchain** JIT-compiling firmware, not from this Python script. Try: (1) remove stale artifacts with `rm -rf ~/.cache/tt-metal-cache/*` and rerun; (2) ensure the **SFPI** install under `/opt/tenstorrent/sfpi` matches the **pjrt_plugin_tt** / system guidance for your card. If the failure persists, report it with logs to **Tenstorrent** / **github.com/tenstorrent/sfpi** as the compiler output suggests. For **GPU baselines** (`use_tt: false` in the YAML), the training script sets **`JAX_PLATFORMS=cpu`** before importing JAX so the TT plugin is not loaded; you can also set that variable yourself when debugging on machines without TT.
 
 ## Data
 

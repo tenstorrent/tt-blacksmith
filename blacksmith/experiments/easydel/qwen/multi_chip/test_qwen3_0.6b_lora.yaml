@@ -1,3 +1,6 @@
+# Dataset settings
+dataset_id: "sst2"
+
 # Model settings
 model_name: "Qwen/Qwen3-0.6B"
 max_length: 128

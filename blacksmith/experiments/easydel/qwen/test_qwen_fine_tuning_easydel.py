@@ -2,10 +2,46 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import sys
+from pathlib import Path
+
+
+def _configure_jax_platforms_before_jax_import() -> None:
+    """If the primary --config YAML sets ``use_tt: false``, load CPU only.
+
+    This runs before JAX (and the TT PJRT plugin) are imported so JAX does not
+    probe the Tenstorrent backend when running GPU/CPU baselines. It does not
+    change behaviour for ``use_tt: true`` (hardware runs still use the TT stack).
+
+    Users can always override with ``JAX_PLATFORMS`` in the environment.
+    """
+    if os.environ.get("JAX_PLATFORMS"):
+        return
+    try:
+        idx = sys.argv.index("--config")
+        cfg_path = Path(sys.argv[idx + 1])
+    except (ValueError, IndexError, OSError):
+        return
+    try:
+        resolved = cfg_path if cfg_path.is_absolute() else Path.cwd() / cfg_path
+        if not resolved.is_file():
+            return
+        import yaml
+
+        with resolved.open() as f:
+            data = yaml.safe_load(f) or {}
+        if data.get("use_tt") is False:
+            os.environ["JAX_PLATFORMS"] = "cpu"
+    except Exception:
+        return
+
+
+_configure_jax_platforms_before_jax_import()
+
 import contextlib
 import inspect
 import logging
-import os
 import random
 from pathlib import Path
 from typing import Any, Optional
