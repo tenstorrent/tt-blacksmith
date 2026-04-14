@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Data loading helpers for SST-2 instruction CLM."""
-
 import logging
 
 import numpy as np

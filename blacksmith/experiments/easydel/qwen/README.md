@@ -14,7 +14,7 @@ Per-topology YAML configs live in subdirectories:
 - **`multi_chip/`** — Configs for multi-device TT runs (`num_devices` > 1; same training script, sharded mesh)
 - **`gpu/`** — Configs for GPU baseline runs
 
-The `use_tt` flag in each YAML config controls whether the experiment targets Tenstorrent hardware (`true`) or GPU (`false`).
+The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`false`). Default configs are TT-oriented with **`use_tt: true`**.
 
 ## Module layout
 
@@ -54,29 +54,44 @@ pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
 
 ## Training
 
-On Tenstorrent hardware (single chip):
+Tenstorrent — single chip (`use_tt: true` in the YAML):
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
 ```
 
-On Tenstorrent hardware (multi-chip; requires at least as many TT devices as `num_devices` in the YAML):
+Tenstorrent — multi-chip (requires at least as many TT devices as `num_devices` in the YAML):
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/multi_chip/test_qwen3_0.6b_lora.yaml
 ```
 
+GPU baseline (override `use_tt`; requires GPU JAX and the CUDA plugin above):
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
+  --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml \
+  --test_config '{"use_tt": false}'
+```
+
+For other layouts, pass the YAML under **`single_chip/`** or **`multi_chip/`** as appropriate (`multi_chip/` sets `num_devices` > 1).
 The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`.  Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
 
 ## Data
 
-**SST-2** (GLUE): instruction-style prompt/response pairs padded to `max_length`, with masked labels.
+**SST-2** (GLUE): instruction-style prompt/response pairs padded to `max_length`, with masked labels. The Hugging Face load uses `glue` / `sst2`; `dataset_id` in the config is the logical dataset tag (e.g. `sst2`), aligned with other LoRA experiment YAMLs.
 
 ## Configuration
 
-Each YAML config in the subdirectories specifies all training parameters.  Alternatively, override individual fields via the CLI.
+Each YAML specifies training parameters. Override fields via `--test_config` JSON as needed.
+
+### Dataset
+
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| `dataset_id` | Dataset identifier (SST-2 tag; matches other LoRA configs). | `"sst2"` |
 
 ### Model
 

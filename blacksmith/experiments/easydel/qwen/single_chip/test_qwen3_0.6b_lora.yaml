@@ -1,3 +1,6 @@
+# Dataset settings
+dataset_id: "sst2"
+
 # Model settings
 model_name: "Qwen/Qwen3-0.6B"
 max_length: 128
@@ -18,9 +21,17 @@ max_val_batches: 20
 lora_rank: 32
 lora_pattern: ".*(q_proj|v_proj).*"
 
-# Other settings
+# Reproducibility settings
+seed: 42
+
+# Logging settings
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
 wandb_run_name: "qwen3-0.6b-sst2-tt-easydel"
 print_examples: true
+steps_freq: 10
+log_level: "INFO"
+
+# Other settings
 use_tt: true
+num_devices: 1
