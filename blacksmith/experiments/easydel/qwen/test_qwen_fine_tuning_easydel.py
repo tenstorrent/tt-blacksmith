@@ -154,6 +154,10 @@ def _load_and_prepare_batches(
     ``-100`` at prompt positions so only response tokens contribute
     to the loss.
     """
+    if training_config.dataset_id != "sst2":
+        raise ValueError(
+            f"Unsupported dataset_id {training_config.dataset_id!r}; " "only 'sst2' is implemented for this experiment."
+        )
     t_ids, t_lbl, t_msk = load_sst2_batches(
         training_config,
         split="train",
