@@ -12,9 +12,8 @@ Per-topology YAML configs live in subdirectories:
 
 - **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150)
 - **`multi_chip/`** — Configs for multi-device TT runs (`num_devices` > 1; same training script, sharded mesh)
-- **`gpu/`** — Configs for GPU baseline runs
 
-The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`false`). Default configs are TT-oriented with **`use_tt: true`**.
+The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`false`); default configs are TT-oriented with **`use_tt: true`**. For GPU baselines, use a **`single_chip/`** YAML and override with **`use_tt: false`** (see below).
 
 ## Module layout
 
