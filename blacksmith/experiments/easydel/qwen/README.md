@@ -8,7 +8,12 @@ The shared training script (`test_qwen_fine_tuning_easydel.py`) implements LoRA 
 
 Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens (JSON label).
 
-YAML configs live under **`single_chip/`** and **`multi_chip/`** for different device counts and topologies (multi-chip sets `num_devices` > 1; same training script, sharded mesh). Use **`use_tt`** in the config to select Tenstorrent (`true`) or GPU/CPU (`false`). The default configs are TT-oriented with **`use_tt: true`**.
+Per-topology YAML configs live in subdirectories:
+
+- **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150)
+- **`multi_chip/`** — Configs for multi-device TT runs (`num_devices` > 1; same training script, sharded mesh)
+
+The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`false`); default configs are TT-oriented with **`use_tt: true`**. For GPU baselines, use a **`single_chip/`** YAML and override with **`use_tt: false`** (see below).
 
 ## Module layout
 
@@ -50,14 +55,14 @@ pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
 
 ## Training
 
-Default (Tenstorrent, `use_tt: true` in the YAML):
+Tenstorrent — single chip (`use_tt: true` in the YAML):
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
 ```
 
-On Tenstorrent hardware (multi-chip; requires at least as many TT devices as `num_devices` in the YAML):
+Tenstorrent — multi-chip (requires at least as many TT devices as `num_devices` in the YAML):
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
@@ -72,9 +77,15 @@ python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --test_config '{"use_tt": false}'
 ```
 
-When **`multi_chip/`** configs exist, pass the appropriate YAML path (they set `num_devices` > 1).
+For other layouts, pass the YAML under **`single_chip/`** or **`multi_chip/`** as appropriate (`multi_chip/` sets `num_devices` > 1).
+
+Configs use **`dataset_id: "sst2"`** (SST-2 / GLUE) to match the single-chip LoRA YAMLs; the training script always loads SST-2 via `load_sst2_batches`.
 
 The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`.  Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
+
+### Troubleshooting (Tenstorrent backend)
+
+If JAX fails while initializing the **`tt`** backend with errors mentioning **tt-metal** firmware builds, **`lto1`**, **`riscv-tt-elf-g++`**, or **SFPI**, that comes from the **device compiler / toolchain** JIT-compiling firmware, not from this Python script. Try: (1) remove stale artifacts with `rm -rf ~/.cache/tt-metal-cache/*` and rerun; (2) ensure the **SFPI** install under `/opt/tenstorrent/sfpi` matches the **pjrt_plugin_tt** / system guidance for your card. If the failure persists, report it with logs to **Tenstorrent** / **github.com/tenstorrent/sfpi** as the compiler output suggests. For **GPU baselines** on a host where you want to skip loading the TT plugin, set **`JAX_PLATFORMS=cpu`** (or the appropriate platform) in the environment before running Python.
 
 ## Data
 
