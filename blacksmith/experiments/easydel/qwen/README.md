@@ -40,6 +40,8 @@ Then install the additional EasyDel-specific dependencies:
 pip install -r blacksmith/experiments/easydel/requirements.txt
 ```
 
+That file pins **Triton 3.2.x** to match the pinned EasyDeL revision (`triton~=3.2.0` in EasyDeL’s metadata). Using Triton **3.3+** with the current pin will make `pip` report a dependency conflict.
+
 For **GPU baseline** runs, also install the JAX CUDA plugin (`--no-deps` avoids a cuDNN version conflict with torch):
 
 ```bash
