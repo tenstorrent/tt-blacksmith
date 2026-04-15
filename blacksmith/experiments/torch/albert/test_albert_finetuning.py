@@ -18,6 +18,7 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.workaround_utils import replace_layernorm
 
 
 def validate(
@@ -76,6 +77,9 @@ def train(
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint()
+
+    # TODO(agobeljic): https://github.com/tenstorrent/tt-metal/issues/41127
+    replace_layernorm(model)
 
     # Load dataset
     train_dataset = get_dataset(config=config, split="train")
