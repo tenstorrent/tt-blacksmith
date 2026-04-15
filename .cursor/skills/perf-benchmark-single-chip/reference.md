@@ -89,19 +89,22 @@ Additional files in `<output_folder>/.logs/`:
 
 Signposts mark named boundaries in the trace. Use them to isolate specific steps for analysis.
 
-**In training script:**
+**In training script** (signpost names are derived from `BENCH_MAX_STEPS`; with N=5, the last steady step is `steady_4`):
 ```python
 import tracy
-tracy.signpost("step_steady_3_start")
+bench_step = len(step_times)
+step_label = "compile" if bench_step == 0 else f"steady_{bench_step}"
+tracy.signpost(f"step_{step_label}_start")
 # ... training step ...
-tracy.signpost("step_steady_3_end")
+tracy.signpost(f"step_{step_label}_end")
 ```
 
-**In tt-perf-report:**
+**In tt-perf-report** (use the last steady step for most stable data):
 ```bash
+# With BENCH_MAX_STEPS=5, last steady step = steady_4:
 tt-perf-report ops_perf_results.csv \
-    --start-signpost step_steady_3_start \
-    --end-signpost step_steady_3_end
+    --start-signpost step_steady_4_start \
+    --end-signpost step_steady_4_end
 ```
 
 Without signpost flags, tt-perf-report analyzes ops after the last signpost. If no signpost has ops after it, you get "No device operations found" -- always use explicit signpost ranges.
