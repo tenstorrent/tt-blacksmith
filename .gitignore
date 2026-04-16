@@ -22,3 +22,6 @@ env/*
 
 # Local EasyDeL clone (reference only; not part of tt-blacksmith)
 EasyDeL/
+
+# Local EasyDeL Qwen debugging helpers (not tracked)
+blacksmith/experiments/easydel/qwen/debug_scripts/
