@@ -22,6 +22,7 @@ The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`fal
 | `configs.py` | Pydantic `TrainingConfig` with all hyperparameters. |
 | `data_loading.py` | SST-2 data loading, tokenization, batching. |
 | `train_steps.py` | JIT-compiled train/eval steps, CPU f32 loss helpers, evaluation loop, prediction display. |
+| `multi_chip/sharding_config.py` | TT mesh helper (`make_tt_mesh`) and replicated `ShardingConfig` (DistilBERT-style layout). |
 | `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. |
 | `../../tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
 

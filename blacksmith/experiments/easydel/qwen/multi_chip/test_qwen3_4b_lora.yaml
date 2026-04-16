@@ -3,16 +3,16 @@ dataset_id: "sst2"
 
 # Model settings
 model_name: "Qwen/Qwen3-4B"
-max_length: 128
-mask_max_position_embeddings: 128
+max_length: 64
+mask_max_position_embeddings: 64
 dtype: "bfloat16"
 
 # Training hyperparameters
 learning_rate: 1e-4
 warmup_steps: 0
 end_learning_rate: 0.0
-batch_size: 2
-gradient_accumulation_steps: 4
+batch_size: 1
+gradient_accumulation_steps: 1
 num_epochs: 1
 val_steps_freq: 25
 max_val_batches: 10
@@ -25,6 +25,6 @@ lora_pattern: ".*(q_proj|v_proj).*"
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
 wandb_run_name: "qwen3-4b-sst2-tt-multichip-easydel"
-print_examples: true
+print_examples: false
 use_tt: true
 num_devices: 2

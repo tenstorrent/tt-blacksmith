@@ -31,7 +31,11 @@ from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: 
 from blacksmith.experiments.easydel.qwen.data_loading import (  # noqa: E402
     load_sst2_batches,
 )
+from blacksmith.experiments.easydel.qwen.multi_chip.sharding_config import (  # noqa: E402
+    make_tt_mesh,
+)
 from blacksmith.experiments.easydel.qwen.train_steps import (  # noqa: E402
+    _maybe_replicate_batch_on_tt_mesh,
     create_eval_inspect_step_fn,
     create_eval_step_fn,
     create_train_step_fn,
@@ -108,8 +112,17 @@ def load_model(
     *,
     dtype: Any = jnp.bfloat16,
     mask_max_position_embeddings: Optional[int] = None,
+    mesh_axis_size: int = 1,
 ) -> Any:
-    """Load a causal LM via EasyDel with optional config overrides."""
+    """Load a causal LM via EasyDel with optional config overrides.
+
+    *mesh_axis_size* is the product dimension for eformer's ``create_mesh`` and
+    must match how many JAX devices that path sees for the accelerator (e.g. on
+    TT, ``len(jax.devices("tt"))``).  It is independent of YAML ``num_devices``:
+    training still uses :func:`make_tt_mesh` with ``training_config.num_devices``
+    (single-chip yaml on a multi-chip host keeps ``num_devices=1`` and a 1-device
+    mesh after load).
+    """
     config_overrides = {}
     if mask_max_position_embeddings is not None:
         config_overrides["mask_max_position_embeddings"] = mask_max_position_embeddings
@@ -118,7 +131,7 @@ def load_model(
         kwargs["config_kwargs"] = config_overrides
     return AutoEasyDeLModelForCausalLM.from_pretrained(
         model_name,
-        sharding_axis_dims=(1,),
+        sharding_axis_dims=(mesh_axis_size,),
         sharding_axis_names=("X",),
         auto_shard_model=False,
         **kwargs,
@@ -194,6 +207,7 @@ def _training_loop(
     val_batches: list[dict[str, Any]],
     vocab_size: int,
     *,
+    mesh: Any = None,
     device_kind: str = "tt",
     jit_inspect_step: Any = None,
     tokenizer: Any = None,
@@ -232,6 +246,9 @@ def _training_loop(
             lora_params,
             frozen_state,
             val_batches,
+            mesh=mesh,
+            num_devices=training_config.num_devices,
+            device_kind=device_kind,
             **inspect_kwargs,
         )
         logger.info(f"  Initial validation loss: {val_loss:.4f}")
@@ -264,6 +281,17 @@ def _training_loop(
                     safe,
                     vocab_size,
                 ).astype(jnp.float32)
+
+            if mesh is not None:
+                input_ids, one_hot, label_mask, attention_mask = _maybe_replicate_batch_on_tt_mesh(
+                    mesh,
+                    device_kind,
+                    training_config.num_devices,
+                    input_ids,
+                    one_hot,
+                    label_mask,
+                    attention_mask,
+                )
 
             loss, lora_params, opt_state, grad_stats = jit_train_step(
                 lora_params,
@@ -330,6 +358,9 @@ def _training_loop(
                     lora_params,
                     frozen_state,
                     val_batches,
+                    mesh=mesh,
+                    num_devices=training_config.num_devices,
+                    device_kind=device_kind,
                     **inspect_kwargs,
                 )
                 logger.info(f"  [Step {global_step}] " f"Validation loss: {val_loss:.4f}")
@@ -344,6 +375,9 @@ def _training_loop(
                 lora_params,
                 frozen_state,
                 val_batches,
+                mesh=mesh,
+                num_devices=training_config.num_devices,
+                device_kind=device_kind,
                 **inspect_kwargs,
             )
             logger.info(f"  Epoch {epoch + 1} " f"validation loss: {val_loss:.4f}")
@@ -361,7 +395,6 @@ def main(training_config: TrainingConfig) -> None:
     current_device, device_kind = _select_preferred_device(
         use_tt=training_config.use_tt,
     )
-    jax.config.update("jax_default_device", current_device)
 
     if device_kind == "tt":
         from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
@@ -370,18 +403,26 @@ def main(training_config: TrainingConfig) -> None:
 
     logger.info(f"Loading {training_config.model_name} model... " f"Using device: {device_kind} -> {current_device}")
 
-    model = load_model(
-        training_config.model_name,
-        dtype=training_config.jax_dtype,
-        mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
-    )
+    # eformer ``create_mesh`` uses the global JAX TT device count (not
+    # ``jax.default_device``).  ``sharding_axis_dims`` must multiply to that
+    # count.  Training mesh size still comes from YAML ``num_devices`` below.
+    if device_kind == "tt":
+        mesh_axis_size = len(jax.devices("tt"))
+    else:
+        mesh_axis_size = 1
+
+    with jax.default_device(cpu_device):
+        model = load_model(
+            training_config.model_name,
+            dtype=training_config.jax_dtype,
+            mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
+            mesh_axis_size=mesh_axis_size,
+        )
 
     num_devices = training_config.num_devices
-    devices_for_mesh = tuple(
-        jax.devices(device_kind)[:num_devices],
-    )
-    mesh = jax.make_mesh((num_devices,), ("X",), devices=devices_for_mesh)
+    mesh = make_tt_mesh(num_devices, device_kind)
     _set_nnx_model_mesh(model, mesh)
+    jax.config.update("jax_default_device", current_device)
 
     logger.info(f"  num_hidden_layers:       " f"{model.config.num_hidden_layers}")
     logger.info(f"  hidden_size:             {model.config.hidden_size}")
@@ -463,6 +504,9 @@ def main(training_config: TrainingConfig) -> None:
         graphdef,
         call_signature,
         tx,
+        mesh=mesh,
+        device_kind=device_kind,
+        num_devices=training_config.num_devices,
     )
     jit_eval_step = create_eval_step_fn(
         graphdef,
@@ -498,6 +542,7 @@ def main(training_config: TrainingConfig) -> None:
                 train_batches,
                 val_batches,
                 model.config.vocab_size,
+                mesh=mesh,
                 device_kind=device_kind,
                 jit_inspect_step=jit_inspect_step,
                 tokenizer=(tokenizer if training_config.print_examples else None),

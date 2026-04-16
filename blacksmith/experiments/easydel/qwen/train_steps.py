@@ -35,12 +35,20 @@ def create_train_step_fn(
     graphdef: Any,
     call_signature: inspect.Signature,
     tx: Any,
+    *,
+    mesh: Any = None,
+    device_kind: str = "tt",
+    num_devices: int = 1,
 ) -> Any:
     """Create a JIT-compiled training step (fwd + bwd + optimizer).
 
     One-hot labels and ``label_mask`` are pre-computed outside JIT.
     On TT this avoids a ``ttnn.eq`` bug that doubles the one-hot
     value for even uint32 labels.
+
+    *mesh*, *device_kind*, and *num_devices* replicate parameter / optimizer
+    pytrees and batch arrays on the mesh before each jitted step on TT
+    multi-chip (see :func:`_maybe_replicate_pytrees_on_tt_mesh`).
 
     Signature of the returned function::
 
@@ -114,7 +122,39 @@ def create_train_step_fn(
         stats = {"grad_norm": grad_norm, "grad_max": grad_max}
         return loss, new_lora, new_opt, stats
 
-    return jax.jit(train_step, static_argnames=("train",))
+    jit_train = jax.jit(train_step, static_argnames=("train",))
+
+    def train_step_with_maybe_replicate(
+        lora_params,
+        frozen_state,
+        opt_state,
+        input_ids,
+        one_hot_labels,
+        label_mask,
+        attention_mask,
+        *,
+        train,
+    ):
+        lora_params, frozen_state, opt_state = _maybe_replicate_pytrees_on_tt_mesh(
+            mesh,
+            device_kind,
+            num_devices,
+            lora_params,
+            frozen_state,
+            opt_state,
+        )
+        return jit_train(
+            lora_params,
+            frozen_state,
+            opt_state,
+            input_ids,
+            one_hot_labels,
+            label_mask,
+            attention_mask,
+            train=train,
+        )
+
+    return train_step_with_maybe_replicate
 
 
 def _create_forward_fn(
@@ -321,6 +361,56 @@ def create_eval_inspect_step_fn(
     return eval_inspect_step
 
 
+def _maybe_replicate_batch_on_tt_mesh(
+    mesh: Any,
+    device_kind: str,
+    num_devices: int,
+    *arrays: Any,
+) -> tuple[Any, ...]:
+    """Replicate batch arrays on the JAX mesh for Tenstorrent multi-chip jits.
+
+    Custom PJRT can hit ``UnspecifiedValue`` when feeding CPU-local arrays into
+    a multidevice ``jit`` (openxla/xla#24400).  Fully replicated
+    ``NamedSharding`` matches data-parallel style activations on our 1D mesh.
+    No-op unless ``device_kind == "tt"`` and ``num_devices > 1``.
+    """
+    if device_kind != "tt" or num_devices <= 1:
+        return arrays
+    from jax.sharding import NamedSharding
+    from jax.sharding import PartitionSpec as P
+
+    rep = NamedSharding(mesh, P())
+    return tuple(jax.device_put(x, rep) for x in arrays)
+
+
+def _maybe_replicate_pytrees_on_tt_mesh(
+    mesh: Any,
+    device_kind: str,
+    num_devices: int,
+    *pytrees: Any,
+) -> tuple[Any, ...]:
+    """Replicate JAX array leaves of state pytrees on *mesh* for TT multi-chip jits.
+
+    Params / optimizer state can remain without concrete multidevice shardings
+    after ``nnx.split``; custom PJRT then hits ``UnspecifiedValue`` at ``jit``
+    entry.  No-op unless ``device_kind == "tt"``, ``num_devices > 1``, and
+    *mesh* is not ``None``.
+    """
+    if device_kind != "tt" or num_devices <= 1 or mesh is None:
+        return pytrees
+    from jax.sharding import NamedSharding
+    from jax.sharding import PartitionSpec as P
+
+    rep = NamedSharding(mesh, P())
+
+    def _replicate_leaf(x: Any) -> Any:
+        if isinstance(x, jax.Array):
+            return jax.device_put(x, rep)
+        return x
+
+    return tuple(jax.tree.map(_replicate_leaf, pytree) for pytree in pytrees)
+
+
 def _show_predictions(collected, tokenizer, num_tokens=20):
     """Print collected prediction examples (CPU-only, no forward pass).
 
@@ -386,6 +476,9 @@ def evaluate(
     tokenizer: Any = None,
     num_examples: int = 3,
     num_tokens: int = 20,
+    mesh: Any = None,
+    num_devices: int = 1,
+    device_kind: str = "tt",
 ) -> float:
     """Run evaluation on validation batches and return average loss.
 
@@ -394,7 +487,18 @@ def evaluate(
 
     When *jit_inspect_step* and *tokenizer* are provided, the first
     few batches also collect decoded prediction examples.
+
+    *mesh*, *num_devices*, and *device_kind* replicate state and batches for TT
+    multi-chip (same as training).
     """
+    lora_params, frozen_state = _maybe_replicate_pytrees_on_tt_mesh(
+        mesh,
+        device_kind,
+        num_devices,
+        lora_params,
+        frozen_state,
+    )
+
     total_loss = 0.0
     collected: list[dict[str, Any]] = []
     can_inspect = jit_inspect_step is not None and tokenizer is not None
@@ -403,6 +507,15 @@ def evaluate(
         ids = batch["input_ids"]
         labels = batch["labels"]
         attn = batch["attention_mask"]
+        if mesh is not None:
+            ids, labels, attn = _maybe_replicate_batch_on_tt_mesh(
+                mesh,
+                device_kind,
+                num_devices,
+                ids,
+                labels,
+                attn,
+            )
 
         if can_inspect and len(collected) < num_examples:
             loss, preds, ptl = jit_inspect_step(
