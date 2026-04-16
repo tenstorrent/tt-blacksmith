@@ -19,3 +19,6 @@ env/*
 !env/ffe_requirements.txt
 !env/xla_requirements.txt
 !env/requirements.txt
+
+# Local EasyDeL clone (reference only; not part of tt-blacksmith)
+EasyDeL/
