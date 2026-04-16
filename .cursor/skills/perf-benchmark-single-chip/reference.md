@@ -1,4 +1,4 @@
-# tt-perf-report & Tracy Reference
+# tt-perf-report & Tracy reference
 
 ## tt-perf-report metrics
 
@@ -26,7 +26,7 @@ Each row in the enriched CSV corresponds to one device op.
 | **SLOW** | Neither DRAM nor compute saturated | Both < 65% -- **biggest optimization target** |
 | **HOST** | Bottlenecked by host dispatch | Op-to-op gap dominates |
 
-## Wormhole peak numbers
+## Wormhole peak numbers (single chip)
 
 | Math Fidelity | Peak TFLOPs | Description |
 |---|---|---|
@@ -37,7 +37,20 @@ Each row in the enriched CSV corresponds to one device op.
 - **Peak DRAM BW**: 288 GB/s
 - **Max cores**: 64 Tensix cores
 
+## Blackhole peak numbers (P150, single chip)
+
+| Math Fidelity | Peak TFLOPs | Description |
+|---|---|---|
+| HiFi4 | 180 | Full precision |
+| HiFi2 | 359 | Half precision mantissa |
+| LoFi | 719 | Lowest precision |
+
+- **Peak DRAM BW**: 512 GB/s (GDDR6)
+- **Max cores**: 130 Tensix cores
+
 ## tt-perf-report CLI flags
+
+Run `tt-perf-report --help` for the full list. Key flags:
 
 ```
 tt-perf-report <ops_perf_results.csv> [options]

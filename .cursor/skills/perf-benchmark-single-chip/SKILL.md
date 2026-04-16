@@ -3,7 +3,7 @@ name: perf-benchmark-single-chip
 description: Run device performance benchmarks for tt-blacksmith single-chip training workloads. Use when the user asks to benchmark, profile, or measure performance of a training workload on Tenstorrent hardware, or mentions tracy, tt-perf-report, or device time analysis.
 ---
 
-# Single-Chip Perf Benchmark
+# Single-chip perf benchmark
 
 Benchmark a tt-blacksmith training workload by running Tracy device profiling on the actual training loop and analyzing with `tt-perf-report`. This gives per-op device timing, wall-clock timing, and a host-side trace in a single run.
 
@@ -13,28 +13,29 @@ Any workload under `blacksmith/experiments/torch/` that targets a single chip. C
 
 ## Prerequisites
 
-### 1. Clean device state
+### 1. Virtual environment
+
+Activate the tt-blacksmith XLA virtual environment to isolate dependencies from other projects on the machine:
+
+```bash
+cd <tt-blacksmith-repo-root>
+source env/activate --xla
+```
+
+### 2. Clean device state
 
 Before running any workload, ensure no stale processes are holding the TT device. A previous process that was force-killed (kill -9) leaves the device in a bad state, causing "Timeout waiting for Ethernet core service" or "Waiting for lock 'CHIP_IN_USE_*_PCIe'" errors.
 
 ```bash
 ps aux | grep -E "python3.*blacksmith|python3.*torch" | grep -v grep
 
-# Kill any stale processes, then reset both chips:
-tt-smi -r 0
-tt-smi -r 1
+# Kill any stale processes, then reset all devices:
+tt-smi -r
 ```
 
-If `tt-smi` is not installed: `pip install tt-smi`.
+If `tt-smi` is not installed, install it inside the activated venv: `pip install tt-smi`.
 
 Always reset devices between runs (after a crash or kill) to avoid "Timeout waiting for Ethernet core" errors. Wait a few seconds after reset before starting a new process.
-
-### 2. tt-blacksmith xla venv
-
-```bash
-cd <tt-blacksmith-repo-root>
-source env/activate --xla
-```
 
 ### 3. Tracy
 
@@ -58,6 +59,8 @@ Pick the path under `build_Release/tools/profiler/bin` or similar.
 
 ### 4. tt-perf-report
 
+`tt-perf-report` analyzes the raw per-op CSV from Tracy and classifies each op as compute-bound, memory-bound, or slow. It also generates aggregate stacked reports and charts. Install it inside the activated venv:
+
 ```bash
 pip install tt-perf-report
 ```
@@ -66,7 +69,7 @@ pip install tt-perf-report
 
 ### Step 1: Instrument the training script
 
-Make these temporary changes to the training script:
+Make these temporary changes to the training script (all will be reverted in Step 5):
 
 1. **Add imports:**
 
@@ -104,7 +107,7 @@ print(f"[TIMER] Step {len(step_times)}: fwd+bwd = {step_ms:.1f} ms  ({tag})")
 - If the script uses `torch_xla.sync(wait=True)` -- place `t_start` before the forward call, `t_end` right after the sync.
 - If the script has no explicit sync -- add `torch_xla.sync(wait=True)` after backward and before `t_end`.
 
-**Gradient accumulation:** If the loop accumulates gradients over multiple micro-steps before an optimizer step, place the signpost/timer around each individual fwd+bwd+sync micro-step (not the full accumulation cycle). The early stopping check (step 4 below) should go inside the accumulation-complete branch where `global_step` is incremented.
+**Gradient accumulation:** If the loop accumulates gradients over multiple micro-steps before an optimizer step, place the signpost/timer around each individual fwd+bwd+sync micro-step (not the full accumulation cycle). The early stopping check (step 4 below) should go inside the accumulation-complete branch, **immediately after `global_step` is incremented** and before any validation, logging, or checkpointing. Make sure `BENCH_MAX_STEPS` is large enough to include at least one full optimizer step (i.e., `BENCH_MAX_STEPS >= gradient_accumulation_steps + 1`) so the trace captures the optimizer update as well.
 
 4. **Add a timer summary function and early stopping** after ~5 steps (keeps the Tracy trace small):
 
@@ -126,7 +129,7 @@ def _print_timer_summary():
     print(f"{'='*50}\n")
 ```
 
-Then in the training loop, after the timer/signpost block:
+Then in the training loop, place the early stopping check **immediately after `global_step` is incremented** -- before any logging, validation, metric commits, cache clearing, or checkpointing. If early stopping comes after these, a validation pass at the final step will run unnecessarily, wasting minutes and polluting the Tracy trace.
 
 ```python
 if global_step >= BENCH_MAX_STEPS:
@@ -144,7 +147,7 @@ if global_step >= BENCH_MAX_STEPS:
 
 ```bash
 source env/activate --xla
-tt-smi -r 0 && tt-smi -r 1
+tt-smi -r
 
 export PYTHONPATH="<tt-xla-repo>/python_package:<tt-blacksmith-repo-root>:$PYTHONPATH"
 WANDB_MODE=disabled python3 -m tracy -p -r --sync-host-device \
@@ -219,9 +222,13 @@ Overhead sources: host dispatch latency, Python loop overhead, data transfer.
 
 HOST-bound overhead scales with op count and is inversely proportional to tensor size (smaller batch/seq = less device work per op = higher overhead %). For HOST-bound workloads, the main optimization targets are reducing op count (graph-level fusion) and increasing batch/sequence length.
 
+### Step 5: Revert the training script
+
+After Tracy and tt-perf-report are done, revert all instrumentation changes from Step 1 (imports, signposts, timers, early stopping, skipped validation). The training script must be restored to its original state so it remains usable for actual training.
+
 ## Output summary
 
-After completing steps 1-4, present a summary to the user with:
+After completing steps 1-5, present a summary to the user with:
 - Steady-state wall-clock time (mean, median, min, max)
 - Device time from tt-perf-report (sum `Device_Time_Sum_us` from `tt_perf_report_stacked.csv`)
 - Overhead percentage and per-op dispatch cost (`(wall_clock - device_time) / op_count`)
@@ -238,10 +245,10 @@ Tracy device profiling gives per-op device timing. It does **not** break down ho
 
 ## Troubleshooting
 
-- **"Timeout waiting for Ethernet core service" / "Waiting for lock 'CHIP_IN_USE_*_PCIe'"**: Kill all stale Python processes, then reset both chips: `tt-smi -r 0 && tt-smi -r 1`. Wait a few seconds before starting a new process.
+- **"Timeout waiting for Ethernet core service" / "Waiting for lock 'CHIP_IN_USE_*_PCIe'"**: Kill all stale Python processes, then reset all devices: `tt-smi -r`. Wait a few seconds before starting a new process.
 - **Tracy `ImportError: cannot import name 'setup_tt_metal_home' from 'pjrt_plugin_tt'`**: The installed `pjrt_plugin_tt` wheel is out of sync with the source tree. Fix by adding the tt-xla source package to PYTHONPATH and using `python3 -m tracy` instead of bare `tracy`. See [Tracy setup](#3-tracy).
 - **Tracy `No device operations found`**: Default analysis uses ops after the last signpost. Use `--start-signpost` and `--end-signpost` flags to select a specific step range.
-- **`env/activate --xla` triggers a slow package upgrade**: The activate script auto-detects pjrt-plugin-tt version mismatches and runs `pip install`, which can take 1-2 minutes and churn package versions. Avoid re-sourcing the activate script between tracy and tt-perf-report steps if the venv is already active.
+- **`env/activate --xla` triggers a package upgrade**: The activate script auto-detects pjrt-plugin-tt version mismatches and runs `pip install` to upgrade. This is expected and ensures profiling uses the current wheel. It can take 1-2 minutes -- let it complete. To avoid repeating it, don't re-source the activate script between tracy and tt-perf-report steps if the venv is already active.
 - **Tracy crashes with `TypeError: Invalid value ... for dtype 'str'` during report generation**: Pandas version incompatibility in `process_device_log.py`. Fix by replacing `df.iloc[:, 8] = ...` with column-name-based assignment: `col8 = df.columns[8]; df[col8] = pd.to_numeric(df[col8], errors="coerce").fillna(-1).astype(int)` (same for column 9).
 - **`tt-perf-report` missing**: `pip install tt-perf-report`.
 - **`tt-smi` not installed**: `pip install tt-smi`.
