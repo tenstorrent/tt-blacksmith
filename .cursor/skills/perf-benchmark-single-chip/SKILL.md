@@ -104,8 +104,9 @@ print(f"[TIMER] Step {len(step_times)}: fwd+bwd = {step_ms:.1f} ms  ({tag})")
 
 **Adapting to different loop structures:**
 
-- If the script uses `torch_xla.sync(wait=True)` -- place `t_start` before the forward call, `t_end` right after the sync.
-- If the script has no explicit sync -- add `torch_xla.sync(wait=True)` after backward and before `t_end`.
+- The sync must come **after backward**, not between forward and backward. Calls like `loss.item()` force an implicit sync -- move them after backward or remove them when benchmarking.
+- If the script already has `torch_xla.sync(wait=True)` after backward -- place `t_start` before the forward call and `t_end` right after that sync.
+- If the script has no explicit sync after backward -- add `torch_xla.sync(wait=True)` after `loss.backward()` and place `t_end` right after it.
 
 **Gradient accumulation:** If the loop accumulates gradients over multiple micro-steps before an optimizer step, place the signpost/timer around each individual fwd+bwd+sync micro-step (not the full accumulation cycle). The early stopping check (step 4 below) should go inside the accumulation-complete branch, **immediately after `global_step` is incremented** and before any validation, logging, or checkpointing. Make sure `BENCH_MAX_STEPS` is large enough to include at least one full optimizer step (i.e., `BENCH_MAX_STEPS >= gradient_accumulation_steps + 1`) so the trace captures the optimizer update as well.
 

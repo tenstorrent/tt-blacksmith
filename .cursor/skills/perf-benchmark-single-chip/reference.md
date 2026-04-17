@@ -26,7 +26,7 @@ Each row in the enriched CSV corresponds to one device op.
 | **SLOW** | Neither DRAM nor compute saturated | Both < 65% -- **biggest optimization target** |
 | **HOST** | Bottlenecked by host dispatch | Op-to-op gap dominates |
 
-## Wormhole peak numbers (single chip)
+## Wormhole peak numbers (N150, single chip)
 
 | Math Fidelity | Peak TFLOPs | Description |
 |---|---|---|
@@ -50,34 +50,11 @@ Each row in the enriched CSV corresponds to one device op.
 
 ## tt-perf-report CLI flags
 
-Run `tt-perf-report --help` for the full list. Key flags:
-
-```
-tt-perf-report <ops_perf_results.csv> [options]
-
---no-advice          Suppress optimization suggestions (compact output)
---csv <path>         Export enriched per-op CSV + stacked aggregate CSV + PNG chart
---min-percentage N   Hide ops contributing <N% of total device time (default: 0)
---id-range M-N       Analyze only ops with IDs in [M, N] (useful for single-layer analysis)
---start-signpost S   Analyze ops after signpost S (Tracy signpost name)
---end-signpost S     Analyze ops before signpost S (Tracy signpost name)
-```
+Run `tt-perf-report --help` for the full list.
 
 ## Tracy CLI flags
 
-```
-tracy [-m module | scriptfile] [arg] ...
-
--p                        Only profile explicitly enabled zones (recommended)
--r                        Generate ops report
---sync-host-device        Synchronize host and device timelines
--o FOLDER                 Output folder for profiler artifacts (default: .tracy_artifacts/)
--n NAME                   Append a custom name to the report filename
---tracy-tools-folder PATH Path to directory containing capture-release and csvexport-release
---no-device               Do not include device data (host-only profiling)
---profile-dispatch-cores  Collect dispatch cores profiling data
---check-exit-code         Exit if the test command fails (do not attempt post processing)
-```
+Run `PYTHONPATH="<tt-xla-repo>/python_package:$PYTHONPATH" python3 -m tracy --help` for the full list.
 
 ## Tracy output files
 
