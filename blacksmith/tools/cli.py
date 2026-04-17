@@ -9,7 +9,12 @@ import yaml
 from pydantic import BaseModel
 
 
-def generate_config(config: BaseModel, yaml_path: Path, test_yaml_path: Optional[Path] = None) -> BaseModel:
+def generate_config(
+    config: BaseModel,
+    yaml_path: Path,
+    test_yaml_path: Optional[Path] = None,
+    test_checkpoint_path: Optional[str] = None,
+) -> BaseModel:
     assert yaml_path.exists(), f"Config file {yaml_path} does not exist"
     with yaml_path.open() as file:
         config_data = yaml.safe_load(file)
@@ -19,6 +24,11 @@ def generate_config(config: BaseModel, yaml_path: Path, test_yaml_path: Optional
         assert test_yaml_path.exists(), f"Test config file {yaml_path} does not exist"
         with test_yaml_path.open() as file:
             config_data |= yaml.safe_load(file)
+
+    if test_checkpoint_path:
+        config_data["resume_from_checkpoint"] = True
+        config_data["resume_option"] = "path"
+        config_data["checkpoint_path"] = test_checkpoint_path
 
     return config.model_validate(config_data)
 
@@ -37,6 +47,10 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
 
     parser.add_argument(
         "--test-log-filename-prefix", type=str, required=False, help="[Testing utils] Prefix for the test log filename"
+    )
+
+    parser.add_argument(
+        "--test-checkpoint-path", type=str, required=False, help="[Testing utils] Path to the checkpoint to resume from"
     )
 
     args = parser.parse_args()

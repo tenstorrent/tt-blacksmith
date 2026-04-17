@@ -1,8 +1,8 @@
 test_config:
-  max_steps_per_epoch: 15
+  max_steps_per_epoch: 32
 
-steps_freq: 5
-val_steps_freq: 5
+steps_freq: 1
+val_steps_freq: 1
 
 save_strategy: "none"
 

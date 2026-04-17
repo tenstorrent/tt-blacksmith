@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 import traceback
@@ -6,12 +6,11 @@ from pathlib import Path
 
 import torch
 import torch_xla
-import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
-from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model
+from blacksmith.experiments.torch.gpt_oss.configs import TrainingConfig
+from blacksmith.models.torch.gpt_oss.model_overrides import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -57,7 +56,11 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             if config.use_tt:
                 loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
             else:
-                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
+                loss = loss_fn(
+                    shift_logits,
+                    expected_output_one_hot.to(device),
+                    labels_mask.to(device),
+                )
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
@@ -135,6 +138,9 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
+    GRAD_CLAMP_VALUE = 10_000
+    GRAD_CLIP_MAX_NORM = 1.0
+
     global_step = 0
     running_loss = 0.0
 
@@ -150,6 +156,7 @@ def train(
             config,
             tokenizer,
         )
+
         logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
@@ -173,17 +180,26 @@ def train(
                 }
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
-                # Shard model if tensor parallelism is used.
                 device_manager.shard_model(model)
 
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+
+                # Clamp gradient values.
+                for p in trainable_params:
+                    if p.grad is not None:
+                        p.grad = p.grad.clamp(-GRAD_CLAMP_VALUE, GRAD_CLAMP_VALUE)
+
+                # Clip gradient norms.
+                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=GRAD_CLIP_MAX_NORM)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
                 running_loss += loss_.item()
                 accumulation_step += 1
+
+                logger.info(f"Current loss and step: {loss_.item()} {global_step}")
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
@@ -215,10 +231,6 @@ def train(
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
 
-                    # Clear XLA computation cache to avoid memory issues.
-                    if config.use_tt:
-                        xr.clear_computation_cache()
-
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
@@ -243,9 +255,9 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "single_chip" / "test_llama_3_2_1b_sst2.yaml"
+    default_config = Path(__file__).parent / "lora" / "loudbox" / "test_gpt_oss_20b_finetuning.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
