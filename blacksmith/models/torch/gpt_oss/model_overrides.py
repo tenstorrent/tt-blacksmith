@@ -4,9 +4,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_xla.core.xla_model as xm
 from peft import LoraConfig, get_peft_model
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
+from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
 
 
 def get_model(config, device):
@@ -44,6 +46,7 @@ def get_model(config, device):
         compile_options = {
             "tt_enable_torch_fx_fusion_pass": False,
             "tt_legacy_compile": True,
+            "experimental_enable_dram_space_saving_optimization": True,
         }
         model = torch.compile(model, backend="tt", options=compile_options)
 
@@ -62,6 +65,8 @@ def override_gpt_oss_modules(model):
             _deinterleave_expert_weights(module)
         if isinstance(module, gpt_oss_mod.GptOssTopKRouter):
             module.forward = _expert_router_forward.__get__(module, type(module))
+        if isinstance(module, gpt_oss_mod.GptOssMLP):
+            module.forward = _mlp_forward.__get__(module, type(module))
 
 
 def _deinterleave_expert_weights(experts):
@@ -115,3 +120,11 @@ def _expert_router_forward(self, hidden_states):
     router_scores = torch.zeros_like(router_logits).scatter_(1, router_indices, router_top_value)
 
     return router_scores.to(hidden_states.dtype), router_indices
+
+
+def _mlp_forward(self, hidden_states):
+    router_scores, router_indices = self.router(hidden_states)
+    re = self.experts(hidden_states, router_indices=router_indices, routing_weights=router_scores)
+    # re = sharding_constraint_tensor(re, self.mesh, ("data", None, None))
+    xm.optimization_barrier_([re])
+    return re, router_scores

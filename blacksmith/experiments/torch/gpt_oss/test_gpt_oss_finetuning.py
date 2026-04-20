@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 import torch_xla
+import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_mod
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -15,6 +16,7 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.recompute import apply_recompute
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_helpers import (
     collate_fn_for_causal_lm,
@@ -116,12 +118,14 @@ def train(
 
     # Load model.
     model = get_model(config, device_manager.device)
+    model = apply_recompute(model, [gpt_oss_mod.GptOssExperts])
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
@@ -146,19 +150,19 @@ def train(
 
     try:
         # Initial validation
-        model.eval()
-        val_loss = validate(
-            model,
-            eval_dataloader,
-            cross_entropy_loss,
-            logger,
-            device_manager.device,
-            config,
-            tokenizer,
-        )
+        # model.eval()
+        # val_loss = validate(
+        #     model,
+        #     eval_dataloader,
+        #     cross_entropy_loss,
+        #     logger,
+        #     device_manager.device,
+        #     config,
+        #     tokenizer,
+        # )
 
-        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
-        model.train()
+        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # model.train()
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
