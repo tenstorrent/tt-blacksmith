@@ -186,7 +186,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "gemma11_finetuning_sst2.yaml"
+    default_config = Path(__file__).parent / "gemma11_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 

@@ -12,7 +12,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/adapters/adapters_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/adapters/llama_3_2_1b_sst2.yaml
 ```
 
 ## Data

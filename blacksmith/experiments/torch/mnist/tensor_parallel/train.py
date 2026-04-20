@@ -175,7 +175,7 @@ def train(
 if __name__ == "__main__":
 
     # Generate config
-    default_config = Path(__file__).parent / "mnist_training_tp.yaml"
+    default_config = Path(__file__).parent / "mnist_tp.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 

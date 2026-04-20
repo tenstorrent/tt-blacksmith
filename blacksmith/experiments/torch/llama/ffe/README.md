@@ -12,7 +12,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/llama/ffe/llama_fine_tuning_pure_torch.py
+python3 blacksmith/experiments/torch/llama/ffe/train.py
 ```
 
 ## Data
@@ -37,9 +37,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `llama_fine_tuning_pure_torch_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `llama_3_2_1b_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `llama_3_2_1b_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 

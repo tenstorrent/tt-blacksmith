@@ -13,7 +13,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/vit/vit_finetuning.py --config blacksmith/experiments/torch/vit/vit_stanfordcars.yaml
+python3 blacksmith/experiments/torch/vit/train.py --config blacksmith/experiments/torch/vit/vit_stanfordcars.yaml
 ```
 
 ## Data

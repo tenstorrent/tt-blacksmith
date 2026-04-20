@@ -46,22 +46,22 @@ Llama 1B supports training on all hardware configurations:
 
 SST2 dataset:
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
 ```
 
 Alpaca dataset:
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_alpaca.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_alpaca.yaml
 ```
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml
 ```
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml
 ```
 
 #### Llama 3.2 1B Training Configurations
@@ -81,7 +81,7 @@ python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py -
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_3b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_3b_sst2.yaml
 ```
 
 #### Llama 3.2 3B Training Configuration
@@ -97,19 +97,19 @@ python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py -
 **P150 Training:**
 
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml
 ```
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml
 ```
 
 *Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml
 ```
 
 #### Llama 3.1 8B Training Configurations
@@ -127,7 +127,7 @@ python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py -
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml
 ```
 
 #### Llama 3.3 8B Instruct Training Configurations
@@ -143,12 +143,12 @@ python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py -
 
 **LoudBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_1_70b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_1_70b_sst2.yaml
 ```
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml
 ```
 
 #### Llama 3.1 70B Training Configurations
@@ -165,12 +165,12 @@ python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py -
 
 **LoudBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_3_70b_instruct_alpaca.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_3_70b_instruct_alpaca.yaml
 ```
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_3_70b_instruct_alpaca.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_3_70b_instruct_alpaca.yaml
 ```
 
 #### Llama 3.3 70B Instruct Training Configurations

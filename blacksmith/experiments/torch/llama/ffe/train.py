@@ -294,7 +294,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "llama_fine_tuning_pure_torch_sst2.yaml"
+    default_config = Path(__file__).parent / "llama_3_2_1b_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

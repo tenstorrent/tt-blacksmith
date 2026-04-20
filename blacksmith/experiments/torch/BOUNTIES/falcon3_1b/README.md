@@ -20,7 +20,7 @@ its token representations during fine-tuning, significantly improving loss conve
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/BOUNTIES/falcon3_1b/falcon3_finetuning.py --config blacksmith/experiments/torch/BOUNTIES/falcon3_1b/falcon3_finetuning_wikitext.yaml
+python3 blacksmith/experiments/torch/BOUNTIES/falcon3_1b/train.py --config blacksmith/experiments/torch/BOUNTIES/falcon3_1b/falcon3_1b_wikitext.yaml
 ```
 
 For CPU baseline testing, set `use_tt: False` in the config file.
@@ -41,9 +41,9 @@ Example:
 
 ## Configuration
 
-The experiment is configured using the configuration file `falcon3_finetuning_wikitext.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the LoRA configuration.
+The experiment is configured using the configuration file `falcon3_1b_wikitext.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the LoRA configuration.
 
-Current `falcon3_finetuning_wikitext.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `falcon3_1b_wikitext.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Parameters
 

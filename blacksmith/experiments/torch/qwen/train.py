@@ -204,7 +204,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup.
-    default_config = Path(__file__).parent / "single_chip" / "qwen_finetuning_text2sql.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "qwen_text2sql.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config)
 

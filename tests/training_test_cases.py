@@ -7,8 +7,8 @@ import pytest
 TRAINING_TEST_CASES = [
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/mnist_training.py",
-            "experiment_config": "blacksmith/experiments/torch/mnist/tensor_parallel/mnist_training_tp.yaml",
+            "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/train.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/tensor_parallel/mnist_tp.yaml",
             "timeout": 300,
         },
         marks=[
@@ -21,8 +21,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/mnist/data_parallel/mnist_training.py",
-            "experiment_config": "blacksmith/experiments/torch/mnist/data_parallel/mnist_training_dp.yaml",
+            "test_script": "blacksmith/experiments/torch/mnist/data_parallel/train.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/data_parallel/mnist_dp.yaml",
             "timeout": 300,
         },
         marks=[
@@ -35,8 +35,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/mnist/mnist_training.py",
-            "experiment_config": "blacksmith/experiments/torch/mnist/mnist_training.yaml",
+            "test_script": "blacksmith/experiments/torch/mnist/train.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/mnist.yaml",
             "timeout": 300,
         },
         marks=[
@@ -114,7 +114,7 @@ TRAINING_TEST_CASES = [
     *[
         pytest.param(
             {
-                "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+                "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
                 "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml",
                 "test_config": "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
                 "test_checkpoint_path": test_checkpoint_path,
@@ -139,7 +139,7 @@ TRAINING_TEST_CASES = [
     ],
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
         },
@@ -153,7 +153,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
             "timeout": 5000,
         },
@@ -167,7 +167,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b_instruct-metamathqa-n300-llmbox.yaml",
             "timeout": 5000,
@@ -182,7 +182,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
             "timeout": 20000,
         },
@@ -198,7 +198,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_70b-sst2-n300-galaxy.yaml",
             "timeout": 3000,
@@ -213,7 +213,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/llama/xla/llama_fine_tuning_pure_torch.py",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
         },
@@ -228,8 +228,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/qwen/qwen_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/qwen_1-5b_finetuning_text2sql.yaml",
+            "test_script": "blacksmith/experiments/torch/qwen/train.py",
+            "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/qwen_1-5b_text2sql.yaml",
             "timeout": 2000,
         },
         marks=[
@@ -243,8 +243,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/gemma11/gemma11_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/gemma11/gemma11_finetuning_squadV2.yaml",
+            "test_script": "blacksmith/experiments/torch/gemma11/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma11/gemma11_squadV2.yaml",
             "timeout": 10000,
         },
         marks=[
@@ -258,8 +258,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/albert/albert_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/albert/albert_finetuning_banking77.yaml",
+            "test_script": "blacksmith/experiments/torch/albert/train.py",
+            "experiment_config": "blacksmith/experiments/torch/albert/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
             "timeout": 3600,
         },
@@ -275,8 +275,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/torch/phi/phi_finetuning.py",
-            "experiment_config": "blacksmith/experiments/torch/phi/phi1_finetuning_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/phi/train.py",
+            "experiment_config": "blacksmith/experiments/torch/phi/phi1_sst2.yaml",
             "timeout": 7000,
         },
         marks=[
