@@ -261,6 +261,21 @@ def _training_loop(
                 attention_mask,
             )
 
+            # DP sanity check (one-shot, first batch only): print the concrete
+            # sharding of the batch and a sample LoRA parameter so we can verify
+            # the batch dim is split across devices and params are replicated.
+            if global_step == 0 and epoch == 0 and batch_idx == 0:
+                try:
+                    training_logger.info(f"[DP] input_ids.shape={input_ids.shape} "
+                                         f"input_ids.sharding={input_ids.sharding}")
+                    leaf = jax.tree.leaves(lora_params)[0]
+                    training_logger.info(f"[DP] sample lora leaf shape={leaf.shape} "
+                                         f"sharding={leaf.sharding}")
+                    training_logger.info("[DP] input_ids sharding visualization:")
+                    jax.debug.visualize_array_sharding(input_ids)
+                except Exception as e:
+                    training_logger.warning(f"[DP] sharding introspection failed: {e}")
+
             loss, lora_params, opt_state, grad_stats = jit_train_step(
                 lora_params,
                 frozen_state,
@@ -368,6 +383,36 @@ def _training_loop(
     return global_step, step_losses
 
 
+def _log_dp_setup(
+    training_logger: TrainingLogger,
+    mesh: jax.sharding.Mesh,
+    sharding_config: Any,
+    device_kind: str,
+) -> None:
+    """Print mesh, device, and sharding spec info so DP setup is visible in logs.
+
+    Logs once at startup (cheap, no device work). Together with the one-shot
+    per-tensor sharding dump on the first training batch (see ``_training_loop``),
+    this is enough to confirm that data-parallel training is actually splitting
+    the batch across the requested TT devices.
+    """
+    try:
+        tt_devs = jax.devices(device_kind)
+    except Exception as e:
+        training_logger.warning(f"[DP] jax.devices({device_kind!r}) failed: {e}")
+        tt_devs = []
+    training_logger.info(f"[DP] jax.devices({device_kind!r}): {tt_devs} (count={len(tt_devs)})")
+    training_logger.info(f"[DP] mesh.shape: {dict(mesh.shape)}")
+    training_logger.info(f"[DP] mesh.devices:\n{np.asarray(mesh.devices)}")
+    if sharding_config is None:
+        training_logger.info("[DP] sharding_config=None → single-device path (no DP collectives)")
+    else:
+        training_logger.info(f"[DP] param_partition: {sharding_config.param_partition}")
+        training_logger.info(f"[DP] data_partition:  {sharding_config.data_partition}")
+        training_logger.info(f"[DP] param_sharding:  {sharding_config.param_sharding}")
+        training_logger.info(f"[DP] data_sharding:   {sharding_config.data_sharding}")
+
+
 def _validate_multichip_config(cfg: TrainingConfig) -> None:
     """Sanity-check multi-chip (data-parallel) YAML settings."""
     if cfg.num_devices <= 1:
@@ -429,6 +474,10 @@ def main(training_config: TrainingConfig) -> None:
     )
     _set_nnx_model_mesh(model, mesh)
     jax.config.update("jax_default_device", current_device)
+
+    # DP sanity check: confirm JAX sees the expected device count and that the
+    # mesh/shardings have the expected shape. Prints once at startup.
+    _log_dp_setup(training_logger, mesh, sharding_config, device_kind)
 
     parallelism = "data_parallel" if sharding_config is not None else "single_device"
     training_logger.log_model_info(
