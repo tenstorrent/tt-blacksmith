@@ -55,7 +55,6 @@ def _vanilla_attn_forward_4d_repeat_kv(
 
         b, qs, qh, d = q.shape
         b, ks, kh, d = k.shape
-        *_, vd = v.shape
         num_reps = qh // kh
 
         q = with_sharding_constraint(arr=q, sharding=q_sharding)

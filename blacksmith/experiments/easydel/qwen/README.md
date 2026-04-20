@@ -17,7 +17,7 @@ YAML configs live under **`single_chip/`** (and **`multi_chip/`** when present) 
 | `configs.py` | Pydantic `TrainingConfig` with all hyperparameters. |
 | `data_loading.py` | SST-2 data loading, tokenization, batching. |
 | `train_steps.py` | JIT-compiled train/eval steps, CPU f32 loss helpers, evaluation loop, prediction display. |
-| `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. |
+| `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. Uses `TrainingLogger` for stdout + W&B. |
 | `../../tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
 
 ## Prerequisites
@@ -96,7 +96,9 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 
 | Parameter | Description | Default Value |
 |-----------|-------------|---------------|
-| `learning_rate` | Learning rate for the AdamW optimizer. | 2e-4 |
+| `learning_rate` | Peak learning rate for the AdamW optimizer. | 2e-4 |
+| `warmup_steps` | Linear warm-up steps before the cosine decay begins. | 0 |
+| `end_learning_rate` | Final learning rate after the cosine decay. | 0.0 |
 | `batch_size` | Number of samples per training batch. | 4 |
 | `gradient_accumulation_steps` | Number of mini-batches to accumulate before an optimizer step. | 1 |
 | `num_epochs` | Total number of training epochs. | 1 |
@@ -117,9 +119,10 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 |-----------|-------------|---------------|
 | `steps_freq` | Log average loss every N steps. | 10 |
 | `log_level` | Logging verbosity level. | `"INFO"` |
-| `use_wandb` | Whether to log metrics to Weights & Biases. | True |
+| `use_wandb` | Whether to log metrics to Weights & Biases. Can also be globally toggled with `wandb disabled` / `wandb enabled` (or `WANDB_MODE=disabled`). | True |
 | `wandb_project` | Weights & Biases project name. | `"Qwen-TT-EasyDel-LoRA-Training"` |
 | `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-sst2-tt-easydel"` |
+| `print_examples` | Print a few decoded training examples at the start of a run. | False |
 | `seed` | Random seed for reproducibility. | 42 |
 | `use_tt` | Whether to run on Tenstorrent device. | True |
 | `num_devices` | Number of TT (or GPU) devices in the JAX mesh. | 1 |
