@@ -318,7 +318,7 @@ def main(training_config: TrainingConfig) -> None:
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "llama_fine_tuning_jax_sst2.yaml"
+    default_config = Path(__file__).parent / "llama_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     training_config: TrainingConfig = generate_config(TrainingConfig, args.config)
     main(training_config)

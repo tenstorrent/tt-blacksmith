@@ -306,7 +306,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/llama_dora/train.py",
-            "experiment_config": "blacksmith/experiments/jax/llama_dora/llama_fine_tuning_jax_sst2.yaml",
+            "experiment_config": "blacksmith/experiments/jax/llama_dora/llama_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },
