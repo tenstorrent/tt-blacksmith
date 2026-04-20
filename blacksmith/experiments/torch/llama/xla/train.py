@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 import torch_xla
+import torch_xla.debug.metrics as xla_met
 import torch_xla.runtime as xr
 from tqdm import tqdm
 
@@ -118,7 +119,7 @@ def train(
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
@@ -137,6 +138,7 @@ def train(
 
     global_step = 0
     running_loss = 0.0
+    prev_uncached_compiles = 0
 
     try:
         # Initial validation
@@ -214,10 +216,6 @@ def train(
 
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
-
-                    # Clear XLA computation cache to avoid memory issues.
-                    if config.use_tt:
-                        xr.clear_computation_cache()
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
