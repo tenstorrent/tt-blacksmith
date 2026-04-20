@@ -39,18 +39,16 @@ from blacksmith.experiments.easydel.qwen.train_steps import (  # noqa: E402
 )
 from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
 
-WANDB_ENABLED = False
-
-
 def setup_wandb(
     training_config: TrainingConfig,
-    enable: bool = False,
     device: str = "tt",
 ) -> Optional[Any]:
-    """Set up wandb for experiment tracking."""
-    global WANDB_ENABLED
-    WANDB_ENABLED = bool(enable and (wandb is not None))
-    if not WANDB_ENABLED:
+    """Initialize a wandb run if enabled in config, else no-op.
+
+    Runs can also be globally disabled via ``wandb disabled`` /
+    ``WANDB_MODE=disabled`` — no code change required.
+    """
+    if not training_config.use_wandb:
         return None
     wandb_run = wandb.init(
         project=training_config.wandb_project,
@@ -76,8 +74,8 @@ def log_to_wandb(
     data_dict: dict[str, Any],
     step: Optional[int] = None,
 ) -> None:
-    """Log metrics to wandb if enabled, otherwise no-op."""
-    if WANDB_ENABLED and wandb is not None:
+    """Log metrics to wandb if a run is active, otherwise no-op."""
+    if wandb.run is not None:
         wandb.log(data_dict, step=step)
 
 
@@ -384,7 +382,6 @@ def main(training_config: TrainingConfig) -> None:
 
     setup_wandb(
         training_config,
-        enable=training_config.use_wandb,
         device=device_kind,
     )
 
@@ -514,7 +511,7 @@ def main(training_config: TrainingConfig) -> None:
         raise
 
     finally:
-        if WANDB_ENABLED and wandb is not None:
+        if wandb.run is not None:
             wandb.finish()
             logger.info("Finished wandb run")
 
