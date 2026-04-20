@@ -49,7 +49,7 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/glue/viewer/s
 
 ## Configuration
 
-The experiment parameters are defined in `distil_bert_flax_sst2.yaml`.
+The experiment parameters are defined in `distil_bert_sst2.yaml`.
 This configuration specifies dataset, model settings, training hyperparameters, and loss weighting used during distillation.
 
 The current configuration reflects tested and recommended defaults for the SST-2 experiment.

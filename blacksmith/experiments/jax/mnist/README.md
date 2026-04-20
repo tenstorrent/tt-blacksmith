@@ -5,11 +5,11 @@ The connection to the Tenstorrent device is established in script ```blacksmith/
 ## Training
 To run the single chip training script in JAX, run the command
 ```
-python3 blacksmith/experiments/jax/mnist/single_chip/pure_jax_mnist.py
+python3 blacksmith/experiments/jax/mnist/single_chip/train.py
 ```
 To run the single chip training script in Flax, run the command
 ```
-python3 blacksmith/experiments/jax/mnist/single_chip/flax_mnist.py
+python3 blacksmith/experiments/jax/mnist/single_chip/train_flax.py
 ```
 To run the multi chip training script (data or tensor parallel), run the command(s)
 ```

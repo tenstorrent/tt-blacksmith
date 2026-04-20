@@ -65,7 +65,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/mnist/single_chip/pure_jax_mnist.py",
+            "test_script": "blacksmith/experiments/jax/mnist/single_chip/train.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 200,
             "skip_loss_checks": True,
@@ -80,7 +80,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/mnist/single_chip/flax_mnist.py",
+            "test_script": "blacksmith/experiments/jax/mnist/single_chip/train_flax.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 400,
             "skip_loss_checks": True,
@@ -322,7 +322,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/train.py",
-            "experiment_config": "blacksmith/experiments/jax/distil_bert/distil_bert_flax_sst2.yaml",
+            "experiment_config": "blacksmith/experiments/jax/distil_bert/distil_bert_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },
