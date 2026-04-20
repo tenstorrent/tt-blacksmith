@@ -50,7 +50,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/pure_jax_mnist.py",
+            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/train.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 3000,
             "skip_loss_checks": True,
@@ -95,7 +95,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/pure_jax_mnist.py",
+            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/train.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 3000,
             "skip_loss_checks": True,
@@ -289,7 +289,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/nerf/nerf.py",
+            "test_script": "blacksmith/experiments/jax/nerf/train.py",
             "experiment_config": "blacksmith/experiments/jax/nerf/nerf.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
@@ -305,7 +305,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/llama_dora/llama_fine_tuning_jax.py",
+            "test_script": "blacksmith/experiments/jax/llama_dora/train.py",
             "experiment_config": "blacksmith/experiments/jax/llama_dora/llama_fine_tuning_jax_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
@@ -321,7 +321,7 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/distil_bert_flax.py",
+            "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/train.py",
             "experiment_config": "blacksmith/experiments/jax/distil_bert/distil_bert_flax_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,

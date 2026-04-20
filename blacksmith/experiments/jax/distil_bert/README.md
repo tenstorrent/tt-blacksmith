@@ -19,11 +19,11 @@ Training is implemented in **Flax (JAX)** and designed to run on **TT devices** 
 
 For single chip training, run command:
 ```bash
-python3 blacksmith/experiments/jax/distil_bert/single_chip/distil_bert_flax.py
+python3 blacksmith/experiments/jax/distil_bert/single_chip/train.py
 ```
 For multi chip training (only data parallel is supported for now), run command:
 ```bash
-python3 blacksmith/experiments/jax/distil_bert/multi_chip/data_parallel/distil_bert_flax.py
+python3 blacksmith/experiments/jax/distil_bert/multi_chip/data_parallel/train.py
 ```
 
 ---
