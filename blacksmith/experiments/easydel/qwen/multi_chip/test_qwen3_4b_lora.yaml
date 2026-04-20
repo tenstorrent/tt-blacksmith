@@ -11,7 +11,7 @@ dtype: "bfloat16"
 learning_rate: 1e-4
 warmup_steps: 0
 end_learning_rate: 0.0
-batch_size: 1
+batch_size: 2
 gradient_accumulation_steps: 1
 num_epochs: 1
 val_steps_freq: 25
@@ -27,4 +27,6 @@ wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
 wandb_run_name: "qwen3-4b-sst2-tt-multichip-easydel"
 print_examples: false
 use_tt: true
+# num_devices > 1 on TT enables data-parallel training (batch sharded on
+# mesh axis "data", params replicated). batch_size must be divisible by num_devices.
 num_devices: 2

@@ -58,4 +58,7 @@ class TrainingConfig(BaseModel):
 
     # Device settings
     use_tt: bool = Field(default=True)
+    #: Number of TT (or GPU) devices. ``num_devices > 1`` enables data-parallel
+    #: training: parameters replicated, inputs sharded on mesh axis ``data``
+    #: (see :mod:`.multi_chip.sharding_config`).
     num_devices: int = Field(default=1, ge=1)

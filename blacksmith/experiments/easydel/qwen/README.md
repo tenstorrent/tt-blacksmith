@@ -10,8 +10,8 @@ Prompt tokens are masked (`-100`) so the loss is computed only on the response t
 
 Per-topology YAML configs live in subdirectories:
 
-- **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150)
-- **`multi_chip/`** — Configs for multi-device TT runs (`num_devices` > 1; same training script, sharded mesh)
+- **`single_chip/`** — Configs for single-device TT runs (e.g. Qwen3-0.6B on N150). `num_devices: 1`.
+- **`multi_chip/`** — Configs for multi-device TT runs (`num_devices > 1`). Multi-chip always uses **data parallelism**: parameters replicated, inputs sharded on mesh axis `"data"` (same convention as `blacksmith/experiments/jax/distil_bert/multi_chip/data_parallel/`). Only requirement: `batch_size` divisible by `num_devices`.
 
 The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`false`); default configs are TT-oriented with **`use_tt: true`**. For GPU baselines, use a **`single_chip/`** YAML and override with **`use_tt: false`** (see below).
 
@@ -19,10 +19,10 @@ The **`use_tt`** flag in each YAML selects Tenstorrent (`true`) or GPU/CPU (`fal
 
 | File | Responsibility |
 |------|---------------|
-| `configs.py` | Pydantic `TrainingConfig` with all hyperparameters. |
+| `configs.py` | Pydantic `TrainingConfig`. |
 | `data_loading.py` | SST-2 data loading, tokenization, batching. |
-| `train_steps.py` | JIT-compiled train/eval steps, CPU f32 loss helpers, evaluation loop, prediction display. |
-| `multi_chip/sharding_config.py` | TT mesh helper (`make_tt_mesh`) and replicated `ShardingConfig` (DistilBERT-style layout). |
+| `train_steps.py` | JIT-compiled train/eval steps (single-chip + multi-chip DP), CPU f32 loss helpers, evaluation loop, prediction display. |
+| `multi_chip/sharding_config.py` | TT mesh helper (`make_tt_mesh`) plus DistilBERT-style `ShardingConfig` (replicated params, batch sharded on `"data"`). |
 | `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. |
 | `../../tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
 
@@ -63,11 +63,16 @@ python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/single_chip/test_qwen3_0.6b_lora.yaml
 ```
 
-Tenstorrent — multi-chip (requires at least as many TT devices as `num_devices` in the YAML):
+Tenstorrent — multi-chip (requires at least as many TT devices as `num_devices` in the YAML). Qwen3-4B does **not** fit on a single N150 and must be run multi-chip:
 
 ```bash
+# Qwen3-0.6B on 2 chips (small, easy sanity check):
 python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
   --config blacksmith/experiments/easydel/qwen/multi_chip/test_qwen3_0.6b_lora.yaml
+
+# Qwen3-4B on 2 chips (OOMs on single N150):
+python3 blacksmith/experiments/easydel/qwen/test_qwen_fine_tuning_easydel.py \
+  --config blacksmith/experiments/easydel/qwen/multi_chip/test_qwen3_4b_lora.yaml
 ```
 
 GPU baseline (override `use_tt`; requires GPU JAX and the CUDA plugin above):

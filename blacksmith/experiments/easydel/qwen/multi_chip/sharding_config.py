@@ -2,35 +2,38 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""JAX mesh and :class:`~jax.sharding.NamedSharding` for TT multi-chip EasyDeL Qwen.
+"""Concrete JAX data-parallel sharding config for TT multi-chip EasyDeL Qwen.
 
-Same layout as ``jax/distil_bert/multi_chip/data_parallel/sharding_config.py``:
-``PartitionSpec()`` for replicated tensors on the mesh.  Here both *param* and
-*data* use replication (workaround for PJRT ``UnspecifiedValue`` on multidevice
-``jit``; see ``train_steps``).  Axis name **X** matches ``load_model`` and
-``make_tt_mesh``.
+Same shape as DistilBERT data-parallel config:
+- parameters are replicated (`PartitionSpec()`)
+- input/label tensors are sharded on axis `data` (`PartitionSpec("data")`)
 """
 
 import jax
 import numpy as np
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
-# Must match ``sharding_axis_names`` in :func:`test_qwen_fine_tuning_easydel.load_model`.
-AXIS_NAME = "X"
+# Matches DistilBERT data-parallel axis.
+AXIS_NAME = "data"
 
 
 def make_tt_mesh(num_devices: int, device_kind: str = "tt") -> Mesh:
-    """Build a 1D mesh over the first *num_devices* accelerators of *device_kind*."""
+    """Build a 1D mesh over the first *num_devices* accelerators of *device_kind*.
+
+    The axis is always :data:`AXIS_NAME` (``"data"``) so single-chip and
+    multi-chip paths share the same mesh axis name.
+    """
     devices = tuple(jax.devices(device_kind)[:num_devices])
     return jax.make_mesh((num_devices,), (AXIS_NAME,), devices=devices)
 
 
 class ShardingConfig:
-    """Replicated parameters and batch tensors on *mesh* (full ``PartitionSpec()``)."""
+    """Container for mesh, PartitionSpec, and NamedSharding objects."""
 
-    def __init__(self, mesh: Mesh):
-        self.mesh = mesh
+    def __init__(self, num_devices: int, device_kind: str = "tt"):
+        devices = tuple(jax.devices(device_kind)[:num_devices])
+        self.mesh: Mesh = Mesh(np.array(devices), axis_names=(AXIS_NAME,))
         self.param_partition = PartitionSpec()
-        self.data_partition = PartitionSpec()
+        self.data_partition = PartitionSpec(AXIS_NAME)
         self.param_sharding = NamedSharding(self.mesh, self.param_partition)
         self.data_sharding = NamedSharding(self.mesh, self.data_partition)

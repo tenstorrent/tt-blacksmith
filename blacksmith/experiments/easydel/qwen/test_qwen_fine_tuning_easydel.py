@@ -32,10 +32,12 @@ from blacksmith.experiments.easydel.qwen.data_loading import (  # noqa: E402
     load_sst2_batches,
 )
 from blacksmith.experiments.easydel.qwen.multi_chip.sharding_config import (  # noqa: E402
+    AXIS_NAME,
+    ShardingConfig,
     make_tt_mesh,
 )
 from blacksmith.experiments.easydel.qwen.train_steps import (  # noqa: E402
-    _maybe_replicate_batch_on_tt_mesh,
+    _place_batch_on_sharding,
     create_eval_inspect_step_fn,
     create_eval_step_fn,
     create_train_step_fn,
@@ -70,6 +72,7 @@ def setup_wandb(
             "lora_pattern": training_config.lora_pattern,
             "device": device,
             "framework": "jax_easydel",
+            "num_devices": training_config.num_devices,
         },
     )
     logger.info(f"Started wandb run: {wandb_run.name}")
@@ -121,7 +124,8 @@ def load_model(
     TT, ``len(jax.devices("tt"))``).  It is independent of YAML ``num_devices``:
     training still uses :func:`make_tt_mesh` with ``training_config.num_devices``
     (single-chip yaml on a multi-chip host keeps ``num_devices=1`` and a 1-device
-    mesh after load).
+    mesh after load). The mesh axis is always ``AXIS_NAME`` (``"data"``) for
+    consistency with :func:`make_tt_mesh` and the data-parallel ``ShardingConfig``.
     """
     config_overrides = {}
     if mask_max_position_embeddings is not None:
@@ -132,8 +136,9 @@ def load_model(
     return AutoEasyDeLModelForCausalLM.from_pretrained(
         model_name,
         sharding_axis_dims=(mesh_axis_size,),
-        sharding_axis_names=("X",),
+        sharding_axis_names=(AXIS_NAME,),
         auto_shard_model=False,
+        param_dtype=dtype,
         **kwargs,
     )
 
@@ -183,11 +188,14 @@ def _load_and_prepare_batches(
         split="validation",
     )
 
+    # Keep batches as host numpy; per-step transfer to the target device happens
+    # inside :func:`_place_batch_on_sharding` (``jax.device_put``) so the
+    # accelerator is touched only once per step, not per batch at load time.
     def _to_batch(ids, lbl, msk):
         return {
-            "input_ids": jnp.array(ids, dtype=jnp.uint32),
-            "labels": jnp.array(lbl, dtype=jnp.int32),
-            "attention_mask": jnp.array(msk, dtype=jnp.int32),
+            "input_ids": np.asarray(ids, dtype=np.uint32),
+            "labels": np.asarray(lbl, dtype=np.int32),
+            "attention_mask": np.asarray(msk, dtype=np.int32),
         }
 
     train_batches = [_to_batch(t_ids[i], t_lbl[i], t_msk[i]) for i in range(len(t_ids))]
@@ -207,14 +215,14 @@ def _training_loop(
     val_batches: list[dict[str, Any]],
     vocab_size: int,
     *,
-    mesh: Any = None,
+    sharding_config: Any = None,
     device_kind: str = "tt",
     jit_inspect_step: Any = None,
     tokenizer: Any = None,
 ) -> tuple[int, list[float]]:
     """Execute the training and validation loop.
 
-    Must be called inside a ``with mesh:`` context.
+    Must be called inside a mesh context for multichip.
 
     *train_batches* / *val_batches* are lists of dicts with keys
     ``input_ids``, ``labels``, ``attention_mask``.
@@ -246,9 +254,7 @@ def _training_loop(
             lora_params,
             frozen_state,
             val_batches,
-            mesh=mesh,
-            num_devices=training_config.num_devices,
-            device_kind=device_kind,
+            sharding_config=sharding_config,
             **inspect_kwargs,
         )
         logger.info(f"  Initial validation loss: {val_loss:.4f}")
@@ -282,16 +288,13 @@ def _training_loop(
                     vocab_size,
                 ).astype(jnp.float32)
 
-            if mesh is not None:
-                input_ids, one_hot, label_mask, attention_mask = _maybe_replicate_batch_on_tt_mesh(
-                    mesh,
-                    device_kind,
-                    training_config.num_devices,
-                    input_ids,
-                    one_hot,
-                    label_mask,
-                    attention_mask,
-                )
+            input_ids, one_hot, label_mask, attention_mask = _place_batch_on_sharding(
+                sharding_config,
+                input_ids,
+                one_hot,
+                label_mask,
+                attention_mask,
+            )
 
             loss, lora_params, opt_state, grad_stats = jit_train_step(
                 lora_params,
@@ -358,9 +361,7 @@ def _training_loop(
                     lora_params,
                     frozen_state,
                     val_batches,
-                    mesh=mesh,
-                    num_devices=training_config.num_devices,
-                    device_kind=device_kind,
+                    sharding_config=sharding_config,
                     **inspect_kwargs,
                 )
                 logger.info(f"  [Step {global_step}] " f"Validation loss: {val_loss:.4f}")
@@ -375,15 +376,26 @@ def _training_loop(
                 lora_params,
                 frozen_state,
                 val_batches,
-                mesh=mesh,
-                num_devices=training_config.num_devices,
-                device_kind=device_kind,
+                sharding_config=sharding_config,
                 **inspect_kwargs,
             )
             logger.info(f"  Epoch {epoch + 1} " f"validation loss: {val_loss:.4f}")
             log_to_wandb({"val_loss": val_loss}, step=global_step)
 
     return global_step, step_losses
+
+
+def _validate_multichip_config(cfg: TrainingConfig) -> None:
+    """Sanity-check multi-chip (data-parallel) YAML settings."""
+    if cfg.num_devices <= 1:
+        return
+    if not cfg.use_tt:
+        raise ValueError("num_devices > 1 is only supported on TT (set use_tt: true)")
+    if cfg.batch_size % cfg.num_devices != 0:
+        raise ValueError(
+            f"batch_size ({cfg.batch_size}) must be divisible by num_devices ({cfg.num_devices}) "
+            "for data-parallel multi-chip training"
+        )
 
 
 def main(training_config: TrainingConfig) -> None:
@@ -400,6 +412,8 @@ def main(training_config: TrainingConfig) -> None:
         from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
 
         apply_gqa_workaround()
+
+    _validate_multichip_config(training_config)
 
     logger.info(f"Loading {training_config.model_name} model... " f"Using device: {device_kind} -> {current_device}")
 
@@ -421,9 +435,16 @@ def main(training_config: TrainingConfig) -> None:
 
     num_devices = training_config.num_devices
     mesh = make_tt_mesh(num_devices, device_kind)
+    sharding_config = (
+        ShardingConfig(num_devices=num_devices, device_kind=device_kind)
+        if device_kind == "tt" and num_devices > 1
+        else None
+    )
     _set_nnx_model_mesh(model, mesh)
     jax.config.update("jax_default_device", current_device)
 
+    parallelism = "data_parallel" if sharding_config is not None else "single_device"
+    logger.info(f"  num_devices={num_devices}, parallelism={parallelism}, mesh_axis={AXIS_NAME!r}")
     logger.info(f"  num_hidden_layers:       " f"{model.config.num_hidden_layers}")
     logger.info(f"  hidden_size:             {model.config.hidden_size}")
     logger.info(f"  intermediate_size:       " f"{model.config.intermediate_size}")
@@ -500,26 +521,35 @@ def main(training_config: TrainingConfig) -> None:
         tx = base_tx
     opt_state = tx.init(lora_params)
 
+    if sharding_config is not None:
+        lora_params = jax.tree.map(lambda x: jax.device_put(x, sharding_config.param_sharding), lora_params)
+        frozen_state = jax.tree.map(lambda x: jax.device_put(x, sharding_config.param_sharding), frozen_state)
+        opt_state = jax.tree.map(lambda x: jax.device_put(x, sharding_config.param_sharding), opt_state)
+
     jit_train_step = create_train_step_fn(
         graphdef,
         call_signature,
         tx,
-        mesh=mesh,
         device_kind=device_kind,
         num_devices=training_config.num_devices,
+        sharding_config=sharding_config,
+        lora_params_template=lora_params,
     )
     jit_eval_step = create_eval_step_fn(
         graphdef,
         call_signature,
         device_kind=device_kind,
+        num_devices=training_config.num_devices,
+        sharding_config=sharding_config,
     )
+    use_inspect = training_config.print_examples
     jit_inspect_step = (
         create_eval_inspect_step_fn(
             graphdef,
             call_signature,
             device_kind=device_kind,
         )
-        if training_config.print_examples
+        if use_inspect
         else None
     )
 
@@ -542,10 +572,10 @@ def main(training_config: TrainingConfig) -> None:
                 train_batches,
                 val_batches,
                 model.config.vocab_size,
-                mesh=mesh,
+                sharding_config=sharding_config,
                 device_kind=device_kind,
                 jit_inspect_step=jit_inspect_step,
-                tokenizer=(tokenizer if training_config.print_examples else None),
+                tokenizer=(tokenizer if use_inspect else None),
             )
 
         log_to_wandb(

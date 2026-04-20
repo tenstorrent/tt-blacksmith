@@ -9,10 +9,14 @@ import logging
 from typing import Any
 
 import jax
+import jax.lax as lax
 import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import nnx
+from jax.experimental import shard_map
+
+from blacksmith.experiments.easydel.qwen.multi_chip.sharding_config import ShardingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +40,10 @@ def create_train_step_fn(
     call_signature: inspect.Signature,
     tx: Any,
     *,
-    mesh: Any = None,
     device_kind: str = "tt",
     num_devices: int = 1,
+    sharding_config: ShardingConfig | None = None,
+    lora_params_template: Any = None,
 ) -> Any:
     """Create a JIT-compiled training step (fwd + bwd + optimizer).
 
@@ -46,9 +51,10 @@ def create_train_step_fn(
     On TT this avoids a ``ttnn.eq`` bug that doubles the one-hot
     value for even uint32 labels.
 
-    *mesh*, *device_kind*, and *num_devices* replicate parameter / optimizer
-    pytrees and batch arrays on the mesh before each jitted step on TT
-    multi-chip (see :func:`_maybe_replicate_pytrees_on_tt_mesh`).
+    On TT multi-chip (``num_devices > 1``) this uses explicit data-parallel
+    sharding via :func:`jax.experimental.shard_map.shard_map`: parameters are
+    replicated, batch is sharded on mesh axis ``data``, and gradients are
+    averaged with :func:`jax.lax.pmean`.
 
     Signature of the returned function::
 
@@ -58,6 +64,7 @@ def create_train_step_fn(
             -> (loss, new_lora_params, new_opt_state, grad_stats)
 
     """
+    use_dp = device_kind == "tt" and num_devices > 1
 
     def loss_fn(
         lora_params,
@@ -124,7 +131,79 @@ def create_train_step_fn(
 
     jit_train = jax.jit(train_step, static_argnames=("train",))
 
-    def train_step_with_maybe_replicate(
+    if not use_dp:
+        return jit_train
+
+    if sharding_config is None or lora_params_template is None:
+        raise ValueError("TT data-parallel training requires sharding_config and lora_params_template")
+
+    P_rep = sharding_config.param_partition
+    P_batch = sharding_config.data_partition
+    grad_out_specs = jax.tree.map(lambda _: P_rep, lora_params_template)
+
+    def compute_loss_and_grads(
+        lora_params,
+        frozen_state,
+        input_ids,
+        one_hot_labels,
+        label_mask,
+        attention_mask,
+    ):
+        def local_loss(lp, fs, ids, oh, lm, am):
+            m = nnx.merge(graphdef, lp, fs)
+            kwargs = _build_model_kwargs(call_signature, ids, am, train=True)
+            out = m(**kwargs)
+            shift_logits = out.logits[:, :-1, :].astype(jnp.float32)
+            per_token = optax.softmax_cross_entropy(shift_logits, oh)
+            masked = per_token * lm
+            num = jnp.sum(masked)
+            den = jnp.sum(lm)
+            # Per-shard (purely local) loss: no collectives inside the
+            # differentiated function.  Reductions across ``"data"`` happen
+            # exactly once below, outside ``value_and_grad``, so the TT
+            # backend gets a single ``AggregateTensorOp`` per output
+            # (avoids ``TT_FATAL: dims must be unique``).
+            return num / jnp.maximum(den, 1.0)
+
+        loss, grads = jax.value_and_grad(local_loss, argnums=0)(
+            lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
+        )
+        loss = lax.pmean(loss, "data")
+        grads = jax.tree.map(lambda g: lax.pmean(g, "data"), grads)
+        return loss, grads
+
+    # fwd + bwd + pmean inside a shard_map, jitted with an explicit replicated
+    # out_sharding.  Mirrors the DistilBERT data-parallel pattern.  The
+    # optimizer update is a SEPARATE jit below: tt-mlir currently records
+    # output shardings only for outputs that leave a ``shard_map`` region, so
+    # keeping the shard_map jit's output pytree equal to ``(loss, grads)``
+    # (1 + len(lora_params) leaves) keeps tt-mlir's output-count /
+    # output-sharding-count in sync.
+    jit_loss_grads = jax.jit(
+        shard_map.shard_map(
+            compute_loss_and_grads,
+            mesh=sharding_config.mesh,
+            in_specs=(P_rep, P_rep, P_batch, P_batch, P_batch, P_batch),
+            out_specs=(P_rep, grad_out_specs),
+            check_rep=False,
+        ),
+        out_shardings=(
+            sharding_config.param_sharding,
+            jax.tree.map(lambda _: sharding_config.param_sharding, lora_params_template),
+        ),
+    )
+
+    def apply_opt(lora_params, opt_state, grads):
+        leaves = jax.tree.leaves(grads)
+        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
+        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]))
+        updates, new_opt = tx.update(grads, opt_state, lora_params)
+        new_lora = optax.apply_updates(lora_params, updates)
+        return new_lora, new_opt, {"grad_norm": grad_norm, "grad_max": grad_max}
+
+    jit_apply_opt = jax.jit(apply_opt, out_shardings=sharding_config.param_sharding)
+
+    def train_step_dp(
         lora_params,
         frozen_state,
         opt_state,
@@ -133,28 +212,16 @@ def create_train_step_fn(
         label_mask,
         attention_mask,
         *,
-        train,
+        train: bool = True,
     ):
-        lora_params, frozen_state, opt_state = _maybe_replicate_pytrees_on_tt_mesh(
-            mesh,
-            device_kind,
-            num_devices,
-            lora_params,
-            frozen_state,
-            opt_state,
+        _ = train
+        loss, grads = jit_loss_grads(
+            lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
         )
-        return jit_train(
-            lora_params,
-            frozen_state,
-            opt_state,
-            input_ids,
-            one_hot_labels,
-            label_mask,
-            attention_mask,
-            train=train,
-        )
+        new_lora, new_opt, stats = jit_apply_opt(lora_params, opt_state, grads)
+        return loss, new_lora, new_opt, stats
 
-    return train_step_with_maybe_replicate
+    return train_step_dp
 
 
 def _create_forward_fn(
@@ -238,10 +305,14 @@ def create_eval_step_fn(
     call_signature: inspect.Signature,
     *,
     device_kind: str = "tt",
+    num_devices: int = 1,
+    sharding_config: ShardingConfig | None = None,
 ) -> Any:
     """Create an evaluation step.
 
-    On TT: forward on device, loss on CPU (bf16 workaround).
+    On TT single-chip: forward on device, loss on CPU (bf16 workaround).
+    On TT multi-chip (``num_devices > 1``): data-parallel ``shard_map`` with
+    on-device f32 loss and ``lax.psum`` aggregation across the ``data`` axis.
     On GPU/CPU: fully on-device eval in f32.
 
     Signature::
@@ -251,7 +322,40 @@ def create_eval_step_fn(
 
     Labels may contain ``-100`` at masked positions.
     """
+    use_dp = device_kind == "tt" and num_devices > 1
+
     if device_kind == "tt":
+        if use_dp:
+            if sharding_config is None:
+                raise ValueError("TT multi-chip eval requires sharding_config")
+
+            P_rep = sharding_config.param_partition
+            P_batch = sharding_config.data_partition
+
+            def compute_eval_loss(lora_params, frozen_state, input_ids, labels, attention_mask):
+                m = nnx.merge(graphdef, lora_params, frozen_state)
+                kwargs = _build_model_kwargs(call_signature, input_ids, attention_mask, train=False)
+                logits = m(**kwargs).logits
+                shift_logits = logits[:, :-1, :].astype(jnp.float32)
+                shift_labels = labels[:, 1:].astype(jnp.int32)
+                valid = shift_labels != IGNORED_LABEL
+                safe = jnp.where(valid, shift_labels, 0)
+                one_hot = jax.nn.one_hot(safe, shift_logits.shape[-1]).astype(jnp.float32)
+                per_token = optax.softmax_cross_entropy(shift_logits, one_hot)
+                masked = per_token * valid.astype(jnp.float32)
+                num = jnp.sum(masked)
+                den = jnp.sum(valid.astype(jnp.float32))
+                return lax.psum(num, "data") / jnp.maximum(lax.psum(den, "data"), 1.0)
+
+            sm_eval = shard_map.shard_map(
+                compute_eval_loss,
+                mesh=sharding_config.mesh,
+                in_specs=(P_rep, P_rep, P_batch, P_batch, P_batch),
+                out_specs=P_rep,
+                check_rep=False,
+            )
+            return jax.jit(sm_eval)
+
         jit_fwd = _create_forward_fn(graphdef, call_signature)
 
         def eval_step(
@@ -361,54 +465,17 @@ def create_eval_inspect_step_fn(
     return eval_inspect_step
 
 
-def _maybe_replicate_batch_on_tt_mesh(
-    mesh: Any,
-    device_kind: str,
-    num_devices: int,
+def _place_batch_on_sharding(
+    sharding_config: ShardingConfig | None,
     *arrays: Any,
 ) -> tuple[Any, ...]:
-    """Replicate batch arrays on the JAX mesh for Tenstorrent multi-chip jits.
+    """Shard batch arrays on the ``data`` axis for multi-chip data parallel.
 
-    Custom PJRT can hit ``UnspecifiedValue`` when feeding CPU-local arrays into
-    a multidevice ``jit`` (openxla/xla#24400).  Fully replicated
-    ``NamedSharding`` matches data-parallel style activations on our 1D mesh.
-    No-op unless ``device_kind == "tt"`` and ``num_devices > 1``.
+    No-op when *sharding_config* is ``None`` (single-chip or GPU/CPU).
     """
-    if device_kind != "tt" or num_devices <= 1:
+    if sharding_config is None:
         return arrays
-    from jax.sharding import NamedSharding
-    from jax.sharding import PartitionSpec as P
-
-    rep = NamedSharding(mesh, P())
-    return tuple(jax.device_put(x, rep) for x in arrays)
-
-
-def _maybe_replicate_pytrees_on_tt_mesh(
-    mesh: Any,
-    device_kind: str,
-    num_devices: int,
-    *pytrees: Any,
-) -> tuple[Any, ...]:
-    """Replicate JAX array leaves of state pytrees on *mesh* for TT multi-chip jits.
-
-    Params / optimizer state can remain without concrete multidevice shardings
-    after ``nnx.split``; custom PJRT then hits ``UnspecifiedValue`` at ``jit``
-    entry.  No-op unless ``device_kind == "tt"``, ``num_devices > 1``, and
-    *mesh* is not ``None``.
-    """
-    if device_kind != "tt" or num_devices <= 1 or mesh is None:
-        return pytrees
-    from jax.sharding import NamedSharding
-    from jax.sharding import PartitionSpec as P
-
-    rep = NamedSharding(mesh, P())
-
-    def _replicate_leaf(x: Any) -> Any:
-        if isinstance(x, jax.Array):
-            return jax.device_put(x, rep)
-        return x
-
-    return tuple(jax.tree.map(_replicate_leaf, pytree) for pytree in pytrees)
+    return tuple(jax.device_put(x, sharding_config.data_sharding) for x in arrays)
 
 
 def _show_predictions(collected, tokenizer, num_tokens=20):
@@ -476,9 +543,7 @@ def evaluate(
     tokenizer: Any = None,
     num_examples: int = 3,
     num_tokens: int = 20,
-    mesh: Any = None,
-    num_devices: int = 1,
-    device_kind: str = "tt",
+    sharding_config: ShardingConfig | None = None,
 ) -> float:
     """Run evaluation on validation batches and return average loss.
 
@@ -488,17 +553,8 @@ def evaluate(
     When *jit_inspect_step* and *tokenizer* are provided, the first
     few batches also collect decoded prediction examples.
 
-    *mesh*, *num_devices*, and *device_kind* replicate state and batches for TT
-    multi-chip (same as training).
+    *sharding_config* (multi-chip only) shards each batch on the ``data`` axis.
     """
-    lora_params, frozen_state = _maybe_replicate_pytrees_on_tt_mesh(
-        mesh,
-        device_kind,
-        num_devices,
-        lora_params,
-        frozen_state,
-    )
-
     total_loss = 0.0
     collected: list[dict[str, Any]] = []
     can_inspect = jit_inspect_step is not None and tokenizer is not None
@@ -507,15 +563,7 @@ def evaluate(
         ids = batch["input_ids"]
         labels = batch["labels"]
         attn = batch["attention_mask"]
-        if mesh is not None:
-            ids, labels, attn = _maybe_replicate_batch_on_tt_mesh(
-                mesh,
-                device_kind,
-                num_devices,
-                ids,
-                labels,
-                attn,
-            )
+        ids, labels, attn = _place_batch_on_sharding(sharding_config, ids, labels, attn)
 
         if can_inspect and len(collected) < num_examples:
             loss, preds, ptl = jit_inspect_step(
