@@ -23,9 +23,7 @@ def test_training():
     # Currently, forge prints a log on every call of forward and backward, disabling it for now
     disable_forge_logger()
 
-    config: ExperimentConfig = generate_config(
-        ExperimentConfig, "blacksmith/experiments/lightning/mnist/mnist.yaml"
-    )
+    config: ExperimentConfig = generate_config(ExperimentConfig, "blacksmith/experiments/lightning/mnist/mnist.yaml")
     logger_config = config.logger_config
 
     # Dataset
