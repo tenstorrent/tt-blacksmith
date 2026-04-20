@@ -6,8 +6,6 @@ from pathlib import Path
 
 import torch
 import torch_xla
-import torch_xla.debug.metrics as xla_met
-import torch_xla.runtime as xr
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -138,7 +136,6 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-    prev_uncached_compiles = 0
 
     try:
         # Initial validation
