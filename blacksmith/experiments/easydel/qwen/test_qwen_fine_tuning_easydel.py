@@ -12,7 +12,6 @@ from typing import Any, Optional
 
 from easydel import AutoEasyDeLModelForCausalLM
 
-logger = logging.getLogger(__name__)
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -23,7 +22,6 @@ import jax  # noqa: E402
 import jax.numpy as jnp  # noqa: E402
 import numpy as np  # noqa: E402
 import optax  # noqa: E402
-import wandb  # noqa: E402
 from flax import nnx  # noqa: E402
 from transformers import AutoTokenizer  # noqa: E402
 
@@ -44,48 +42,7 @@ from blacksmith.experiments.easydel.qwen.train_steps import (  # noqa: E402
     evaluate,
 )
 from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
-
-WANDB_ENABLED = False
-
-
-def setup_wandb(
-    training_config: TrainingConfig,
-    enable: bool = False,
-    device: str = "tt",
-) -> Optional[Any]:
-    """Set up wandb for experiment tracking."""
-    global WANDB_ENABLED
-    WANDB_ENABLED = bool(enable and (wandb is not None))
-    if not WANDB_ENABLED:
-        return None
-    wandb_run = wandb.init(
-        project=training_config.wandb_project,
-        name=training_config.wandb_run_name,
-        config={
-            "model_name": training_config.model_name,
-            "dataset_id": training_config.dataset_id,
-            "max_length": training_config.max_length,
-            "learning_rate": training_config.learning_rate,
-            "batch_size": training_config.batch_size,
-            "num_epochs": training_config.num_epochs,
-            "lora_rank": training_config.lora_rank,
-            "lora_pattern": training_config.lora_pattern,
-            "device": device,
-            "framework": "jax_easydel",
-            "num_devices": training_config.num_devices,
-        },
-    )
-    logger.info(f"Started wandb run: {wandb_run.name}")
-    return wandb_run
-
-
-def log_to_wandb(
-    data_dict: dict[str, Any],
-    step: Optional[int] = None,
-) -> None:
-    """Log metrics to wandb if enabled, otherwise no-op."""
-    if WANDB_ENABLED and wandb is not None:
-        wandb.log(data_dict, step=step)
+from blacksmith.tools.logging_manager import TrainingLogger  # noqa: E402
 
 
 def _select_preferred_device(
@@ -192,6 +149,11 @@ def _load_and_prepare_batches(
     # inside :func:`_place_batch_on_sharding` (``jax.device_put``) so the
     # accelerator is touched only once per step, not per batch at load time.
     def _to_batch(ids, lbl, msk):
+        # Keep batches as host numpy arrays. If these were ``jnp.array`` and
+        # ``jax.default_device`` is already set to TT, constructing tens of
+        # thousands of tiny arrays triggers one eager host->device transfer
+        # per tensor and stalls before training starts. JIT will transfer
+        # them on first use.
         return {
             "input_ids": np.asarray(ids, dtype=np.uint32),
             "labels": np.asarray(lbl, dtype=np.int32),
@@ -206,6 +168,7 @@ def _load_and_prepare_batches(
 
 def _training_loop(
     training_config: TrainingConfig,
+    training_logger: TrainingLogger,
     jit_train_step: Any,
     jit_eval_step: Any,
     lora_params: Any,
@@ -257,8 +220,8 @@ def _training_loop(
             sharding_config=sharding_config,
             **inspect_kwargs,
         )
-        logger.info(f"  Initial validation loss: {val_loss:.4f}")
-        log_to_wandb({"val_loss": val_loss}, step=0)
+        training_logger.info(f"  Initial validation loss: {val_loss:.4f}")
+        training_logger.log_metrics({"val/loss": val_loss}, step=0)
 
     cpu = jax.devices("cpu")[0]
     rng = np.random.default_rng(training_config.seed)
@@ -267,7 +230,9 @@ def _training_loop(
         epoch_losses: list[float] = []
         num_batches = len(train_batches)
         batch_order = rng.permutation(num_batches)
-        logger.info(f"Epoch {epoch + 1}: shuffled {num_batches} " f"training batches (seed={training_config.seed})")
+        training_logger.info(
+            f"Epoch {epoch + 1}: shuffled {num_batches} training batches (seed={training_config.seed})"
+        )
 
         for batch_idx in range(num_batches):
             batch = train_batches[batch_order[batch_idx]]
@@ -315,9 +280,9 @@ def _training_loop(
             step_losses.append(current_loss)
             global_step += 1
 
-            log_to_wandb(
+            training_logger.log_metrics(
                 {
-                    "step_loss": current_loss,
+                    "train/loss": current_loss,
                     "grad/global_norm": g_norm,
                     "grad/global_max": g_max,
                     "epoch": epoch + 1,
@@ -327,12 +292,12 @@ def _training_loop(
             )
 
             if len(running_losses) == steps_freq:
-                avg = np.mean(running_losses)
-                log_to_wandb(
-                    {"avg_window_loss": avg},
+                avg = float(np.mean(running_losses))
+                training_logger.log_metrics(
+                    {"train/avg_window_loss": avg},
                     step=global_step,
                 )
-                logger.info(
+                training_logger.info(
                     f"Epoch {epoch + 1}, "
                     f"Batch {batch_idx + 1:3d}: "
                     f"Loss = {current_loss:.4f} | "
@@ -342,7 +307,7 @@ def _training_loop(
                 )
                 running_losses = []
             else:
-                logger.info(
+                training_logger.info(
                     f"Epoch {epoch + 1}, "
                     f"Batch {batch_idx + 1:3d}: "
                     f"Loss = {current_loss:.4f} "
@@ -364,11 +329,11 @@ def _training_loop(
                     sharding_config=sharding_config,
                     **inspect_kwargs,
                 )
-                logger.info(f"  [Step {global_step}] " f"Validation loss: {val_loss:.4f}")
-                log_to_wandb({"val_loss": val_loss}, step=global_step)
+                training_logger.info(f"  [Step {global_step}] Validation loss: {val_loss:.4f}")
+                training_logger.log_metrics({"val/loss": val_loss}, step=global_step)
 
-        avg_epoch = np.mean(epoch_losses)
-        logger.info(f"Epoch {epoch + 1} complete — " f"avg loss: {avg_epoch:.4f}")
+        avg_epoch = float(np.mean(epoch_losses))
+        training_logger.info(f"Epoch {epoch + 1} complete — avg loss: {avg_epoch:.4f}")
 
         if val_batches:
             val_loss = evaluate(
@@ -379,8 +344,8 @@ def _training_loop(
                 sharding_config=sharding_config,
                 **inspect_kwargs,
             )
-            logger.info(f"  Epoch {epoch + 1} " f"validation loss: {val_loss:.4f}")
-            log_to_wandb({"val_loss": val_loss}, step=global_step)
+            training_logger.info(f"  Epoch {epoch + 1} validation loss: {val_loss:.4f}")
+            training_logger.log_metrics({"val/loss": val_loss}, step=global_step)
 
     return global_step, step_losses
 
@@ -403,6 +368,8 @@ def main(training_config: TrainingConfig) -> None:
     random.seed(training_config.seed)
     np.random.seed(training_config.seed)
 
+    training_logger = TrainingLogger(training_config)
+
     cpu_device = jax.devices("cpu")[0]
     current_device, device_kind = _select_preferred_device(
         use_tt=training_config.use_tt,
@@ -415,7 +382,9 @@ def main(training_config: TrainingConfig) -> None:
 
     _validate_multichip_config(training_config)
 
-    logger.info(f"Loading {training_config.model_name} model... " f"Using device: {device_kind} -> {current_device}")
+    training_logger.info(
+        f"Loading {training_config.model_name} model... Using device: {device_kind} -> {current_device}"
+    )
 
     # eformer ``create_mesh`` uses the global JAX TT device count (not
     # ``jax.default_device``).  ``sharding_axis_dims`` must multiply to that
@@ -444,17 +413,19 @@ def main(training_config: TrainingConfig) -> None:
     jax.config.update("jax_default_device", current_device)
 
     parallelism = "data_parallel" if sharding_config is not None else "single_device"
-    logger.info(f"  num_devices={num_devices}, parallelism={parallelism}, mesh_axis={AXIS_NAME!r}")
-    logger.info(f"  num_hidden_layers:       " f"{model.config.num_hidden_layers}")
-    logger.info(f"  hidden_size:             {model.config.hidden_size}")
-    logger.info(f"  intermediate_size:       " f"{model.config.intermediate_size}")
-    logger.info(f"  vocab_size:              {model.config.vocab_size}")
-    logger.info(f"  max_position_embeddings: " f"{model.config.max_position_embeddings}")
-
-    setup_wandb(
-        training_config,
-        enable=training_config.use_wandb,
-        device=device_kind,
+    training_logger.log_model_info(
+        {
+            "num_hidden_layers": model.config.num_hidden_layers,
+            "hidden_size": model.config.hidden_size,
+            "intermediate_size": model.config.intermediate_size,
+            "vocab_size": model.config.vocab_size,
+            "max_position_embeddings": model.config.max_position_embeddings,
+            "device": device_kind,
+            "framework": "jax_easydel",
+            "num_devices": num_devices,
+            "parallelism": parallelism,
+            "mesh_axis": AXIS_NAME,
+        }
     )
 
     tokenizer = load_tokenizer(training_config.model_name)
@@ -462,8 +433,8 @@ def main(training_config: TrainingConfig) -> None:
         training_config,
     )
 
-    logger.info(
-        f"Applying LoRA " f"(rank={training_config.lora_rank}, " f"pattern={training_config.lora_pattern!r})..."
+    training_logger.info(
+        f"Applying LoRA (rank={training_config.lora_rank}, pattern={training_config.lora_pattern!r})..."
     )
     if device_kind == "tt":
         with jax.default_device(cpu_device):
@@ -488,9 +459,9 @@ def main(training_config: TrainingConfig) -> None:
 
     n_lora = _count_params(lora_params)
     n_frozen = _count_params(frozen_state)
-    logger.info(f"  Trainable (LoRA) params: {n_lora:,}")
-    logger.info(f"  Frozen params:           {n_frozen:,}")
-    logger.info(f"  Trainable fraction:      " f"{n_lora / (n_lora + n_frozen):.4%}")
+    training_logger.info(f"  Trainable (LoRA) params: {n_lora:,}")
+    training_logger.info(f"  Frozen params:           {n_frozen:,}")
+    training_logger.info(f"  Trainable fraction:      {n_lora / (n_lora + n_frozen):.4%}")
 
     num_train_batches = len(train_batches)
     total_batches = num_train_batches * training_config.num_epochs
@@ -504,19 +475,18 @@ def main(training_config: TrainingConfig) -> None:
         decay_steps=total_opt_steps,
         end_value=training_config.end_learning_rate,
     )
-    logger.info(
+    training_logger.info(
         f"  LR schedule: warmup {training_config.warmup_steps} "
         f"optimizer steps, cosine decay over {total_opt_steps} "
         f"optimizer steps "
-        f"({training_config.learning_rate} -> "
-        f"{training_config.end_learning_rate})"
+        f"({training_config.learning_rate} -> {training_config.end_learning_rate})"
     )
 
     base_tx = optax.adamw(learning_rate=schedule)
     if accum > 1:
         tx = optax.MultiSteps(base_tx, every_k_schedule=accum)
         eff = training_config.batch_size * accum
-        logger.info(f"  Gradient accumulation: {accum} steps -> " f"Effective batch size {eff}")
+        training_logger.info(f"  Gradient accumulation: {accum} steps -> Effective batch size {eff}")
     else:
         tx = base_tx
     opt_state = tx.init(lora_params)
@@ -556,14 +526,15 @@ def main(training_config: TrainingConfig) -> None:
     if training_config.max_val_batches is not None:
         orig = len(val_batches)
         val_batches = val_batches[: training_config.max_val_batches]
-        logger.info(f"  Using {len(val_batches)} of {orig} " f"validation batches")
+        training_logger.info(f"  Using {len(val_batches)} of {orig} validation batches")
 
-    logger.info("Starting training on SST-2 dataset...")
+    training_logger.info("Starting training on SST-2 dataset...")
 
     try:
         with mesh:
             global_step, step_losses = _training_loop(
                 training_config,
+                training_logger,
                 jit_train_step,
                 jit_eval_step,
                 lora_params,
@@ -578,27 +549,20 @@ def main(training_config: TrainingConfig) -> None:
                 tokenizer=(tokenizer if use_inspect else None),
             )
 
-        log_to_wandb(
+        training_logger.log_summary(
             {
-                "training_completed": True,
                 "total_steps": global_step,
-            },
-            step=global_step,
+                "final_loss": float(step_losses[-1]) if step_losses else float("nan"),
+            }
         )
-
-        logger.info("TRAINING COMPLETED")
-        logger.info(f"  Steps:      {global_step}")
-        logger.info(f"  Final loss: {step_losses[-1]:.4f}")
+        training_logger.info("TRAINING COMPLETED")
 
     except Exception as e:
-        logger.error(f"Error during training: {e}")
-        log_to_wandb({"error": str(e), "training_failed": True})
+        training_logger.error(f"Error during training: {e}")
         raise
 
     finally:
-        if WANDB_ENABLED and wandb is not None:
-            wandb.finish()
-            logger.info("Finished wandb run")
+        training_logger.finish()
 
 
 if __name__ == "__main__":

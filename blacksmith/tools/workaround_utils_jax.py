@@ -16,8 +16,8 @@ from jax import numpy as jnp
 logger = logging.getLogger(__name__)
 
 
-@jax.named_scope("easydel-vanillaimpl-native-xla-4d")
-def _forward_native_4d(
+@jax.named_scope("easydel-vanillaimpl-native-xla-4d-repeat-kv")
+def _vanilla_attn_forward_4d_repeat_kv(
     self,
     q: Array,
     k: Array,
@@ -30,11 +30,14 @@ def _forward_native_4d(
     softmax_aux: Array | None = None,
     **ignore,
 ) -> AttentionOutput:
-    """4D repeat-KV attention — drop-in replacement for forward_native.
+    """Drop-in replacement for ``easydel.layers...VanillaAttn.forward_native``.
 
-    Instead of reshaping Q to 5D (b, seq, kv_heads, num_reps, d), this
-    repeats K and V so they have the same number of heads as Q, keeping
-    every tensor at 4D throughout.
+    EasyDeL's default GQA path reshapes Q to 5D
+    ``(b, seq, kv_heads, num_reps, d)`` which ``tt-mlir`` cannot currently
+    lower.  This variant repeats K and V along the head axis so every tensor
+    stays 4D throughout the attention computation, while preserving the
+    original ``forward_native`` contract (including the lazy ``init_bias``
+    callback used by EasyDeL for causal masks).
     """
     sm_scale = self.metadata.softmax_scale
     sm_scale = sm_scale if sm_scale is not None else q.shape[-1] ** -0.5
@@ -46,15 +49,12 @@ def _forward_native_4d(
 
     model_mode = self.get_mode(q=q, BTHD=True)
     q_sharding, k_sharding, v_sharding, b_sharding, m_sharding, a_sharding = self.metadata.get_shardings(model_mode)
-    if mask is None and bias is None and init_bias is not None:
-        bias = init_bias()
     with self.metadata.mesh:
         if bias is None and mask is None and init_bias is not None:
             bias = init_bias()
 
         b, qs, qh, d = q.shape
         b, ks, kh, d = k.shape
-        *_, vd = v.shape
         num_reps = qh // kh
 
         q = with_sharding_constraint(arr=q, sharding=q_sharding)
@@ -141,6 +141,9 @@ def _forward_native_4d(
 
 
 def apply_gqa_workaround() -> None:
-    """Replace VanillaAttn.forward_native with the 4D repeat-KV version."""
-    VanillaAttn.forward_native = _forward_native_4d
+    """Patch ``VanillaAttn.forward_native`` with the 4D repeat-KV variant.
+
+    See :func:`_vanilla_attn_forward_4d_repeat_kv` for rationale.
+    """
+    VanillaAttn.forward_native = _vanilla_attn_forward_4d_repeat_kv
     logger.info("Applied GQA 4D workaround: VanillaAttn.forward_native patched to avoid 5D tensors")

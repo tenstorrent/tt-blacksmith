@@ -52,6 +52,12 @@ class TrainingConfig(BaseModel):
     print_examples: bool = Field(default=False)
     wandb_project: str = Field(default="Qwen-TT-EasyDel-LoRA-Training")
     wandb_run_name: str = Field(default="qwen3-0.6b-sst2-tt-easydel")
+    # Extra fields consumed by :class:`blacksmith.tools.logging_manager.TrainingLogger`.
+    # They have sensible defaults so YAMLs don't need to set them.
+    wandb_tags: list[str] = Field(default_factory=lambda: ["easydel", "qwen", "lora"])
+    wandb_watch_mode: str = Field(default="all")
+    wandb_log_freq: int = Field(default=1000)
+    model_to_wandb: bool = Field(default=False)
 
     # Reproducibility settings
     seed: int = Field(default=42)
