@@ -243,6 +243,12 @@ def _training_loop(
             step_losses.append(current_loss)
             global_step += 1
 
+            # W&B step contract: once a step is committed, any later log to
+            # the same step is silently dropped. To bundle ``train/*`` and
+            # ``val/*`` at the same ``global_step`` we buffer every per-step
+            # metric with ``commit=False`` and emit exactly one empty
+            # ``commit=True`` flush at the end of the iteration. Mirrors the
+            # repo-wide pattern (see e.g. ``torch/mnist``, ``torch/qwen``).
             training_logger.log_metrics(
                 {
                     "train/loss": current_loss,
@@ -252,6 +258,7 @@ def _training_loop(
                     "batch": batch_idx + 1,
                 },
                 step=global_step,
+                commit=False,
             )
 
             if len(running_losses) == steps_freq:
@@ -259,6 +266,7 @@ def _training_loop(
                 training_logger.log_metrics(
                     {"train/avg_window_loss": avg},
                     step=global_step,
+                    commit=False,
                 )
                 training_logger.info(
                     f"Epoch {epoch + 1}, "
@@ -292,12 +300,22 @@ def _training_loop(
                     **inspect_kwargs,
                 )
                 training_logger.info(f"  [Step {global_step}] Validation loss: {val_loss:.4f}")
-                training_logger.log_metrics({"val/loss": val_loss}, step=global_step)
+                training_logger.log_metrics(
+                    {"val/loss": val_loss},
+                    step=global_step,
+                    commit=False,
+                )
+
+            # Flush all buffered metrics for this ``global_step`` in one commit.
+            training_logger.log_metrics({}, step=global_step, commit=True)
 
         avg_epoch = float(np.mean(epoch_losses))
         training_logger.info(f"Epoch {epoch + 1} complete — avg loss: {avg_epoch:.4f}")
 
         if val_batches:
+            # The last batch of the epoch already committed ``global_step``;
+            # bump by one so the end-of-epoch val lands on a fresh W&B step.
+            global_step += 1
             val_loss = evaluate(
                 jit_eval_step,
                 lora_params,
