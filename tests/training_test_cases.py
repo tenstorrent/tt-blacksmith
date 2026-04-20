@@ -36,7 +36,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/mnist/train.py",
-            "experiment_config": "blacksmith/experiments/torch/mnist/mnist.yaml",
+            "experiment_config": "blacksmith/experiments/torch/mnist/single_chip/mnist.yaml",
             "timeout": 300,
         },
         marks=[
@@ -244,7 +244,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/gemma11/train.py",
-            "experiment_config": "blacksmith/experiments/torch/gemma11/gemma11_squadV2.yaml",
+            "experiment_config": "blacksmith/experiments/torch/gemma11/single_chip/gemma11_squadV2.yaml",
             "timeout": 10000,
         },
         marks=[
@@ -259,7 +259,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/albert/train.py",
-            "experiment_config": "blacksmith/experiments/torch/albert/albert_banking77.yaml",
+            "experiment_config": "blacksmith/experiments/torch/albert/single_chip/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
             "timeout": 3600,
         },
@@ -276,7 +276,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/phi/train.py",
-            "experiment_config": "blacksmith/experiments/torch/phi/phi1_sst2.yaml",
+            "experiment_config": "blacksmith/experiments/torch/phi/single_chip/phi1_sst2.yaml",
             "timeout": 7000,
         },
         marks=[

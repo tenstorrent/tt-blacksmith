@@ -47,14 +47,14 @@ python blacksmith/experiments/torch/mnist/tensor_parallel/train.py
 ## Configuration
 
 For each training you can change default values in configuration files:
-1. Single chip - Linear - `blacksmith/experiments/torch/mnist/mnist.yaml`
-2. Single chip - CNN - `blacksmith/experiments/torch/mnist/cnn/mnist_cnn.yaml`
+1. Single chip - Linear - `blacksmith/experiments/torch/mnist/single_chip/mnist.yaml`
+2. Single chip - CNN - `blacksmith/experiments/torch/mnist/cnn/single_chip/mnist_cnn.yaml`
 3. Data parallel - `blacksmith/experiments/torch/mnist/data_parallel/mnist_dp.yaml`
 4. Tensor parallel - `blacksmith/experiments/torch/mnist/tensor_parallel/mnist_tp.yaml`
 
 ### Linear Model Configuration
 
-In `blacksmith/experiments/torch/mnist/mnist.yaml` you can change default values for following parameters.
+In `blacksmith/experiments/torch/mnist/single_chip/mnist.yaml` you can change default values for following parameters.
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
@@ -116,7 +116,7 @@ In `blacksmith/experiments/torch/mnist/mnist.yaml` you can change default values
 
 ### CNN Model Configuration
 
-In `blacksmith/experiments/torch/mnist/cnn/mnist_cnn.yaml` you can change values for following parameters.
+In `blacksmith/experiments/torch/mnist/cnn/single_chip/mnist_cnn.yaml` you can change values for following parameters.
 
 Most parameters are the same as the Linear model configuration above, with the following CNN-specific model settings:
 

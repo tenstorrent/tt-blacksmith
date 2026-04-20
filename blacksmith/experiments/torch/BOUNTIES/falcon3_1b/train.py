@@ -211,7 +211,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "falcon3_1b_wikitext.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "falcon3_1b_wikitext.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

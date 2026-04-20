@@ -168,7 +168,7 @@ def train(
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "mnist_cnn.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "mnist_cnn.yaml"
 
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)

@@ -20,7 +20,7 @@ its token representations during fine-tuning, significantly improving loss conve
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/BOUNTIES/falcon3_1b/train.py --config blacksmith/experiments/torch/BOUNTIES/falcon3_1b/falcon3_1b_wikitext.yaml
+python3 blacksmith/experiments/torch/BOUNTIES/falcon3_1b/train.py --config blacksmith/experiments/torch/BOUNTIES/falcon3_1b/single_chip/falcon3_1b_wikitext.yaml
 ```
 
 For CPU baseline testing, set `use_tt: False` in the config file.
