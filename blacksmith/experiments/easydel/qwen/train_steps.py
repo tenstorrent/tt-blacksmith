@@ -4,9 +4,8 @@
 
 """JIT-compiled training / evaluation steps and evaluation helpers."""
 
-import inspect
 import logging
-from typing import Any
+from typing import Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -18,22 +17,37 @@ logger = logging.getLogger(__name__)
 
 IGNORED_LABEL = -100
 
+# Epsilon used inside ``log`` to keep gradients finite when a row of the
+# renormalized softmax has near-zero probability.
+_LOG_EPS = 1e-12
 
-def _build_model_kwargs(call_signature, input_ids, attention_mask, *, train):
-    """Build model ``__call__`` kwargs, adding only supported args."""
-    kwargs = {"input_ids": input_ids}
-    if "attention_mask" in call_signature.parameters:
-        kwargs["attention_mask"] = attention_mask
-    if "train" in call_signature.parameters:
-        kwargs["train"] = train
-    if "deterministic" in call_signature.parameters:
-        kwargs["deterministic"] = not train
-    return kwargs
+
+def _clamped_softmax_cross_entropy_per_token(logits_f32, one_hot):
+    """Per-token cross-entropy that defeats TT bf16 fused-softmax drift.
+
+    On TT the fused ``softmax`` kernel in bf16 can produce rows that do not
+    sum to 1 (observed ~+/-2% drift) and occasionally individual entries
+    > 1.0 -- see ``debug_scripts/repro_softmax_bf16.py``. Plain
+    :func:`optax.softmax_cross_entropy` then yields a per-token term that
+    can go slightly negative.
+
+    Fix, all on-device:
+      1. compute softmax,
+      2. clamp output to the valid probability range ``[0, 1]`` (pulls any
+         rogue ``>1`` entries back to ``1``),
+      3. renormalize so each row sums to exactly 1 again.
+    Then take the standard ``-sum(one_hot * log(probs))``.
+    """
+    probs = jax.nn.softmax(logits_f32, axis=-1)
+    probs = jnp.clip(probs, 0.0, 1.0)
+    probs = probs / jnp.maximum(jnp.sum(probs, axis=-1, keepdims=True), _LOG_EPS)
+    log_probs = jnp.log(jnp.maximum(probs, _LOG_EPS))
+    return -jnp.sum(one_hot * log_probs, axis=-1)
 
 
 def create_train_step_fn(
     graphdef: Any,
-    call_signature: inspect.Signature,
+    call_fn: Callable,
     tx: Any,
 ) -> Any:
     """Create a JIT-compiled training step (fwd + bwd + optimizer).
@@ -46,7 +60,7 @@ def create_train_step_fn(
 
         train_step(lora_params, frozen_state, opt_state,
                    input_ids, one_hot_labels, label_mask,
-                   attention_mask, *, train)
+                   attention_mask)
             -> (loss, new_lora_params, new_opt_state, grad_stats)
 
     """
@@ -58,23 +72,16 @@ def create_train_step_fn(
         one_hot_labels,
         label_mask,
         attention_mask,
-        *,
-        train,
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = _build_model_kwargs(
-            call_signature,
-            input_ids,
-            attention_mask,
-            train=train,
-        )
-        out = m(**kwargs)
+        out = call_fn(m, input_ids, attention_mask)
 
-        # NOTE (TT): TT-MLIR may run softmax in bf16 inside fused
-        # graphs.  Gradient direction is preserved; magnitude is
-        # approximate.  Rely on CPU f32 eval for accurate metrics.
+        # NOTE (TT): TT-MLIR may run softmax in bf16 inside fused graphs,
+        # which drifts the row sum away from 1 and can push individual
+        # entries above 1. We compensate with a clamp-and-renormalize CE;
+        # see :func:`_clamped_softmax_cross_entropy_per_token`.
         shift_logits = out.logits[:, :-1, :].astype(jnp.float32)
-        per_token = optax.softmax_cross_entropy(
+        per_token = _clamped_softmax_cross_entropy_per_token(
             shift_logits,
             one_hot_labels,
         )
@@ -92,8 +99,6 @@ def create_train_step_fn(
         one_hot_labels,
         label_mask,
         attention_mask,
-        *,
-        train,
     ):
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
             lora_params,
@@ -102,7 +107,6 @@ def create_train_step_fn(
             one_hot_labels,
             label_mask,
             attention_mask,
-            train=train,
         )
         leaves = jax.tree.leaves(grads)
         grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
@@ -114,46 +118,17 @@ def create_train_step_fn(
         stats = {"grad_norm": grad_norm, "grad_max": grad_max}
         return loss, new_lora, new_opt, stats
 
-    return jax.jit(train_step, static_argnames=("train",))
+    return jax.jit(train_step)
 
 
-def _create_forward_fn(
-    graphdef: Any,
-    call_signature: inspect.Signature,
-) -> Any:
-    """JIT-compiled forward returning raw logits (no loss).
+def _clamped_cross_entropy(logits, labels, ignored_index=IGNORED_LABEL):
+    """On-device CE with clamp+renorm to defeat TT bf16 softmax drift.
 
-    Used by TT evaluation path: logits are computed on device, then
-    transferred to CPU for f32 loss computation.
+    Replaces the older CPU-transfer workaround. Positions where
+    ``labels == ignored_index`` are excluded from the mean.
     """
-
-    @jax.jit
-    def forward_fn(lora_params, frozen_state, input_ids, attention_mask):
-        m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = _build_model_kwargs(
-            call_signature,
-            input_ids,
-            attention_mask,
-            train=False,
-        )
-        return m(**kwargs).logits
-
-    return forward_fn
-
-
-def _cpu_cross_entropy(logits, labels, ignored_index=IGNORED_LABEL):
-    """CE loss on CPU host in f32, with label masking.
-
-    Transfers logits to CPU to avoid TT bf16 softmax inflation.
-    Positions where ``labels == ignored_index`` are excluded from
-    the mean.
-    """
-    cpu = jax.devices("cpu")[0]
-    logits_f32 = jax.device_put(logits, cpu).astype(jnp.float32)
-    labels_cpu = jax.device_put(labels, cpu)
-
-    shift_logits = logits_f32[:, :-1, :]
-    shift_labels = labels_cpu[:, 1:].astype(jnp.int32)
+    shift_logits = logits[:, :-1, :].astype(jnp.float32)
+    shift_labels = labels[:, 1:].astype(jnp.int32)
 
     valid = shift_labels != ignored_index
     safe = jnp.where(valid, shift_labels, 0)
@@ -161,24 +136,20 @@ def _cpu_cross_entropy(logits, labels, ignored_index=IGNORED_LABEL):
         safe,
         shift_logits.shape[-1],
     ).astype(jnp.float32)
-    per_token = optax.softmax_cross_entropy(shift_logits, one_hot)
+    per_token = _clamped_softmax_cross_entropy_per_token(shift_logits, one_hot)
     masked = per_token * valid
     return jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
 
 
-def _cpu_cross_entropy_with_inspect(
+def _clamped_cross_entropy_with_inspect(
     logits,
     labels,
     ignored_index=IGNORED_LABEL,
 ):
-    """Like ``_cpu_cross_entropy`` but also returns predictions
+    """Like ``_clamped_cross_entropy`` but also returns predictions
     and per-token losses."""
-    cpu = jax.devices("cpu")[0]
-    logits_f32 = jax.device_put(logits, cpu).astype(jnp.float32)
-    labels_cpu = jax.device_put(labels, cpu)
-
-    shift_logits = logits_f32[:, :-1, :]
-    shift_labels = labels_cpu[:, 1:].astype(jnp.int32)
+    shift_logits = logits[:, :-1, :].astype(jnp.float32)
+    shift_labels = labels[:, 1:].astype(jnp.int32)
 
     valid = shift_labels != ignored_index
     safe = jnp.where(valid, shift_labels, 0)
@@ -186,7 +157,7 @@ def _cpu_cross_entropy_with_inspect(
         safe,
         shift_logits.shape[-1],
     ).astype(jnp.float32)
-    per_token = optax.softmax_cross_entropy(shift_logits, one_hot)
+    per_token = _clamped_softmax_cross_entropy_per_token(shift_logits, one_hot)
     masked = per_token * valid
     loss = jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
     predictions = jnp.argmax(shift_logits, axis=-1)
@@ -195,14 +166,15 @@ def _cpu_cross_entropy_with_inspect(
 
 def create_eval_step_fn(
     graphdef: Any,
-    call_signature: inspect.Signature,
+    call_fn: Callable,
     *,
     device_kind: str = "tt",
 ) -> Any:
     """Create an evaluation step.
 
-    On TT: forward on device, loss on CPU (bf16 workaround).
-    On GPU/CPU: fully on-device eval in f32.
+    Fully on-device for all devices. On TT the softmax-in-CE is guarded by
+    :func:`_clamped_softmax_cross_entropy_per_token` (clamp to ``[0, 1]`` +
+    renormalize) to correct the bf16 fused-softmax drift observed on TT.
 
     Signature::
 
@@ -211,25 +183,7 @@ def create_eval_step_fn(
 
     Labels may contain ``-100`` at masked positions.
     """
-    if device_kind == "tt":
-        jit_fwd = _create_forward_fn(graphdef, call_signature)
-
-        def eval_step(
-            lora_params,
-            frozen_state,
-            input_ids,
-            labels,
-            attention_mask,
-        ):
-            logits = jit_fwd(
-                lora_params,
-                frozen_state,
-                input_ids,
-                attention_mask,
-            )
-            return _cpu_cross_entropy(logits, labels)
-
-        return eval_step
+    del device_kind  # dispatch is the same on all devices now
 
     @jax.jit
     def eval_step(
@@ -240,55 +194,25 @@ def create_eval_step_fn(
         attention_mask,
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = _build_model_kwargs(
-            call_signature,
-            input_ids,
-            attention_mask,
-            train=False,
-        )
-        logits = m(**kwargs).logits
-        shift_logits = logits[:, :-1, :].astype(jnp.float32)
-        shift_labels = labels[:, 1:].astype(jnp.int32)
-
-        valid = shift_labels != IGNORED_LABEL
-        safe = jnp.where(valid, shift_labels, 0)
-        one_hot = jax.nn.one_hot(safe, shift_logits.shape[-1])
-        per_token = optax.softmax_cross_entropy(shift_logits, one_hot)
-        masked = per_token * valid
-        return jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
+        logits = call_fn(m, input_ids, attention_mask).logits
+        return _clamped_cross_entropy(logits, labels)
 
     return eval_step
 
 
 def create_eval_inspect_step_fn(
     graphdef: Any,
-    call_signature: inspect.Signature,
+    call_fn: Callable,
     *,
     device_kind: str = "tt",
 ) -> Any:
     """Eval step returning ``(loss, predictions, per_token_loss)``.
 
-    Same device dispatch as :func:`create_eval_step_fn`.
+    Fully on-device; on TT the CE uses clamp+renorm via
+    :func:`_clamped_cross_entropy_with_inspect` to correct bf16 softmax
+    drift.
     """
-    if device_kind == "tt":
-        jit_fwd = _create_forward_fn(graphdef, call_signature)
-
-        def eval_inspect_step(
-            lora_params,
-            frozen_state,
-            input_ids,
-            labels,
-            attention_mask,
-        ):
-            logits = jit_fwd(
-                lora_params,
-                frozen_state,
-                input_ids,
-                attention_mask,
-            )
-            return _cpu_cross_entropy_with_inspect(logits, labels)
-
-        return eval_inspect_step
+    del device_kind  # dispatch is the same on all devices now
 
     @jax.jit
     def eval_inspect_step(
@@ -299,24 +223,8 @@ def create_eval_inspect_step_fn(
         attention_mask,
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
-        kwargs = _build_model_kwargs(
-            call_signature,
-            input_ids,
-            attention_mask,
-            train=False,
-        )
-        logits = m(**kwargs).logits
-        shift_logits = logits[:, :-1, :].astype(jnp.float32)
-        shift_labels = labels[:, 1:].astype(jnp.int32)
-
-        valid = shift_labels != IGNORED_LABEL
-        safe = jnp.where(valid, shift_labels, 0)
-        one_hot = jax.nn.one_hot(safe, shift_logits.shape[-1])
-        per_token = optax.softmax_cross_entropy(shift_logits, one_hot)
-        masked = per_token * valid
-        loss = jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
-        predictions = jnp.argmax(shift_logits, axis=-1)
-        return loss, predictions, per_token
+        logits = call_fn(m, input_ids, attention_mask).logits
+        return _clamped_cross_entropy_with_inspect(logits, labels)
 
     return eval_inspect_step
 

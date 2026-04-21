@@ -6,6 +6,8 @@ import logging
 
 import numpy as np
 
+from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +26,10 @@ def create_batches(data: np.ndarray, batch_size: int = 4) -> np.ndarray:
     return data[: num_batches * batch_size].reshape(num_batches, batch_size, -1)
 
 
-def load_sst2_batches(config, split="train"):
+def load_sst2_batches(
+    config: TrainingConfig,
+    split: str = "train",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load SST-2 instruction-CLM batches via SSTDataset.
 
     Uses the same prompt/response templates as the Torch SST

@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
-import inspect
 import logging
 import os
 import random
@@ -96,10 +95,20 @@ def _set_nnx_model_mesh(
     module.config.set_model_mesh(mesh)
 
 
-def _count_params(state: Any) -> int:
-    """Count total scalar parameters in an NNX state pytree."""
-    leaves = jax.tree.leaves(state)
-    return sum(x.size for x in leaves if hasattr(x, "size"))
+def call_model(
+    module: nnx.Module,
+    input_ids: jax.Array,
+    attention_mask: jax.Array,
+):
+    """Invoke the EasyDel Qwen3 causal LM with the kwargs it accepts.
+
+    The call signature is hardcoded on purpose. ``Qwen3ForCausalLM.__call__``
+    is part of EasyDel's stable API for this model family, so there is no
+    need to feature-detect kwargs via ``inspect`` at runtime. If we ever
+    switch to a model whose ``__call__`` takes different kwargs, this
+    function is the single place to update.
+    """
+    return module(input_ids=input_ids, attention_mask=attention_mask)
 
 
 def _load_and_prepare_batches(
@@ -232,7 +241,6 @@ def _training_loop(
                 one_hot,
                 label_mask,
                 attention_mask,
-                train=True,
             )
 
             current_loss = float(loss)
@@ -403,13 +411,6 @@ def main(training_config: TrainingConfig) -> None:
         nnx.LoRAParam,
         ...,
     )
-    call_signature = inspect.signature(model.__call__)
-
-    n_lora = _count_params(lora_params)
-    n_frozen = _count_params(frozen_state)
-    training_logger.info(f"  Trainable (LoRA) params: {n_lora:,}")
-    training_logger.info(f"  Frozen params:           {n_frozen:,}")
-    training_logger.info(f"  Trainable fraction:      {n_lora / (n_lora + n_frozen):.4%}")
 
     num_train_batches = len(train_batches)
     total_batches = num_train_batches * training_config.num_epochs
@@ -441,18 +442,18 @@ def main(training_config: TrainingConfig) -> None:
 
     jit_train_step = create_train_step_fn(
         graphdef,
-        call_signature,
+        call_model,
         tx,
     )
     jit_eval_step = create_eval_step_fn(
         graphdef,
-        call_signature,
+        call_model,
         device_kind=device_kind,
     )
     jit_inspect_step = (
         create_eval_inspect_step_fn(
             graphdef,
-            call_signature,
+            call_model,
             device_kind=device_kind,
         )
         if training_config.print_examples
