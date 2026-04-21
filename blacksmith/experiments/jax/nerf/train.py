@@ -908,7 +908,7 @@ def save_rendered_images(system, output_dir):
 
 
 if __name__ == "__main__":
-    default_config = Path(__file__).parent / "nerf.yaml"
+    default_config = Path(__file__).parent / "nerf_blender.yaml"
     args = parse_cli_options(default_config=default_config)
     config: NerfConfig = generate_config(NerfConfig, args.config, args.test_config)
     if config.training.render:

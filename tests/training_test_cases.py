@@ -290,7 +290,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/nerf/train.py",
-            "experiment_config": "blacksmith/experiments/jax/nerf/nerf.yaml",
+            "experiment_config": "blacksmith/experiments/jax/nerf/nerf_blender.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },
