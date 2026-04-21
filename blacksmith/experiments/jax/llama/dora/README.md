@@ -24,7 +24,7 @@ pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
 Run DoRA training on Tenstorrent device:
 
 ```bash
-python3 blacksmith/experiments/jax/llama_dora/train.py
+python3 blacksmith/experiments/jax/llama/dora/train.py
 ```
 
 ## Configuration Options
