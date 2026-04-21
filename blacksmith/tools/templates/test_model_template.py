@@ -72,7 +72,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     # Init training components (optimizer, lr scheduler, etc.)
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
 
     global_step = 0
     running_loss = 0.0

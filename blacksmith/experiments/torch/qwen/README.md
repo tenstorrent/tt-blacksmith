@@ -44,14 +44,14 @@ Qwen 2.5 0.5B is the default single chip example.
 
 **Single Chip Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/single_chip/qwen_text2sql.yaml
 ```
 
 #### Qwen 2.5 0.5B Training Configuration
 
 | Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](single_chip/test_qwen_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
+| [Single-Chip](single_chip/qwen_text2sql.yaml)        | None       | None            | Text2SQL    | LoRA   |
 
 ### Qwen 2.5 1.5B Training
 
@@ -59,14 +59,14 @@ Qwen 2.5 1.5B supports training on single chip configuration.
 
 **Single Chip Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_1-5b_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/single_chip/qwen_1-5b_text2sql.yaml
 ```
 
 #### Qwen 2.5 1.5B Training Configuration
 
 | Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](single_chip/test_qwen_1-5b_finetuning.yaml)        | None       | None            | SST2    | LoRA   |
+| [Single-Chip](single_chip/qwen_1-5b_text2sql.yaml)        | None       | None            | Text2SQL    | LoRA   |
 
 ### Qwen 3 4B Instruct 2507 Training
 
@@ -74,12 +74,12 @@ Qwen 3 4B Instruct 2507 supports training on different configurations.
 
 **Single Chip Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/single_chip/qwen_3_4b_instruct_2507_sst2.yaml
 ```
 
 **Blackhole QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/quietbox/qwen_3_4b_instruct_2507_sst2.yaml
 ```
 Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
@@ -87,9 +87,9 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 | Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Single-Chip](single_chip/test_qwen_3_4b_instruct_2507_finetuning.yaml)        | None               | None                                      | SST2    | LoRA   |
-| [N300](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
-| [Blackhole QuietBox](quietbox/test_qwen_3_4b_instruct_2507_finetuning.yaml) | `[1, 4]`           | `["data", "model"]`                       | SST2    | LoRA   |
+| [Single-Chip](single_chip/qwen_3_4b_instruct_2507_sst2.yaml)        | None               | None                                      | SST2    | LoRA   |
+| [N300](quietbox/qwen_3_4b_instruct_2507_sst2.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/qwen_3_4b_instruct_2507_sst2.yaml) | `[1, 4]`           | `["data", "model"]`                       | SST2    | LoRA   |
 
 ### Qwen 3 8B Base Training
 
@@ -97,14 +97,14 @@ Qwen 3 8B Base requires multi-chip configurations (not supported on single chip)
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/galaxy/test_qwen_3_8b_base_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/galaxy/qwen_3_8b_base_sst2.yaml
 ```
 
 #### Qwen 3 8B Base Training Configurations
 
 | Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole Galaxy](galaxy/test_qwen_3_8b_base_finetuning.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Wormhole Galaxy](galaxy/qwen_3_8b_base_sst2.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
 ### Qwen 3 8B Training
 
@@ -112,14 +112,14 @@ Qwen 3 8B requires multi-chip configurations (not supported on single chip).
 
 **Wormhole QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/quietbox/test_qwen_3_8b_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/quietbox/qwen_3_8b_alpaca.yaml
 ```
 
 #### Qwen 3 8B Training Configurations
 
 | Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole QuietBox](galaxy/test_qwen_3_8b_finetuning.yaml)        | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["batch", "model"]`, `["model", "batch"]` | Alpaca    | LoRA   |
+| [Wormhole QuietBox](quietbox/qwen_3_8b_alpaca.yaml)        | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["batch", "model"]`, `["model", "batch"]` | Alpaca    | LoRA   |
 
 
 ### Qwen 3 32B Training
@@ -128,14 +128,14 @@ Qwen 3 32B requires multi-chip configurations (not supported on single chip).
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/qwen/test_qwen_finetuning.py --config blacksmith/experiments/torch/qwen/galaxy/test_qwen_3_32b_finetuning.yaml
+python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experiments/torch/qwen/galaxy/qwen_3_32b_alpaca.yaml
 ```
 
 #### Qwen 3 32B Training Configurations
 
 | Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
 | ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole Galaxy](galaxy/test_qwen_3_32b_finetuning.yaml)        | `[8, 4]`   | `["model", "batch"]` | Alpaca    | LoRA   |
+| [Wormhole Galaxy](galaxy/qwen_3_32b_alpaca.yaml)        | `[8, 4]`   | `["model", "batch"]` | Alpaca    | LoRA   |
 
 
 ## Data

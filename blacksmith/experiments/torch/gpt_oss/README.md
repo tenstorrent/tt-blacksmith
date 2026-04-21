@@ -53,14 +53,14 @@ param_sharding_patterns:
 
 **BH LoudBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/gpt_oss/test_gpt_oss_finetuning.py --config blacksmith/experiments/torch/gpt_oss/lora/loudbox/test_gpt_oss_20b_finetuning.yaml
+python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experiments/torch/gpt_oss/lora/loudbox/gpt_oss_20b_sst2.yaml
 ```
 
 #### GPT-OSS 20B Training Configurations
 
 | Architecture | mesh_shape | mesh_axis_names | Dataset | Method |
 | --- | --- | --- | --- | --- |
-| [BH LoudBox](lora/loudbox/test_gpt_oss_20b_finetuning.yaml) | `[1, 8]` | `["batch", "model"]` | SST-2 | LoRA |
+| [BH LoudBox](lora/loudbox/gpt_oss_20b_sst2.yaml) | `[1, 8]` | `["batch", "model"]` | SST-2 | LoRA |
 
 ## Data
 
@@ -89,11 +89,11 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `lora/loudbox/test_gpt_oss_20b_finetuning.yaml`. The
+The experiment is configured using the configuration file `lora/loudbox/gpt_oss_20b_sst2.yaml`. The
 configuration file specifies the hyperparameters for the experiment, such as the number of epochs,
 the batch size, and the LoRA configuration.
 
-Current `test_gpt_oss_20b_finetuning.yaml` has the recommended and tested hyperparameters for the
+Current `gpt_oss_20b_sst2.yaml` has the recommended and tested hyperparameters for the
 experiment.
 
 ### Configuration Parameters
