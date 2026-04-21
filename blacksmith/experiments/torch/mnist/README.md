@@ -105,4 +105,3 @@ In `blacksmith/experiments/torch/mnist/single_chip/mnist.yaml` you can change de
 | `framework` | Framework being used. | "pytorch" |
 | `output_dir` | Output directory for results. | "experiments/results/mnist" |
 | `use_tt` | Whether to use TT device. | true |
-
