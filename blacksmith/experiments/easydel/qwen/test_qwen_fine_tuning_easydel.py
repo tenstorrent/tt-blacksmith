@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import contextlib
-import inspect
 import logging
 import os
 import random
@@ -23,7 +22,8 @@ import jax.numpy as jnp  # noqa: E402
 import numpy as np  # noqa: E402
 import optax  # noqa: E402
 from flax import nnx  # noqa: E402
-from transformers import AutoTokenizer  # noqa: E402
+from jax.typing import DTypeLike  # noqa: E402
+from transformers import AutoTokenizer, PreTrainedTokenizerBase  # noqa: E402
 
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: E402
 from blacksmith.experiments.easydel.qwen.data_loading import (  # noqa: E402
@@ -67,14 +67,22 @@ def _select_preferred_device(
     return cpu, "cpu"
 
 
+def load_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
+    """Load a HuggingFace tokenizer, ensuring a pad token exists."""
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
 def load_model(
     model_name: str,
     *,
-    dtype: Any = jnp.bfloat16,
+    dtype: DTypeLike = jnp.bfloat16,
     mask_max_position_embeddings: Optional[int] = None,
     mesh_axis_size: int = 1,
-) -> Any:
-    """Load a causal LM via EasyDel with optional config overrides.
+) -> tuple[nnx.Module, PreTrainedTokenizerBase]:
+    """Load a causal LM and its tokenizer via EasyDel + HuggingFace.
 
     *mesh_axis_size* is the product dimension for eformer's ``create_mesh`` and
     must match how many JAX devices that path sees for the accelerator (e.g. on
@@ -90,7 +98,7 @@ def load_model(
     kwargs = {"dtype": dtype}
     if config_overrides:
         kwargs["config_kwargs"] = config_overrides
-    return AutoEasyDeLModelForCausalLM.from_pretrained(
+    model = AutoEasyDeLModelForCausalLM.from_pretrained(
         model_name,
         sharding_axis_dims=(mesh_axis_size,),
         sharding_axis_names=(AXIS_NAME,),
@@ -98,28 +106,32 @@ def load_model(
         param_dtype=dtype,
         **kwargs,
     )
-
-
-def load_tokenizer(model_name: str) -> Any:
-    """Load a HuggingFace tokenizer, ensuring a pad token exists."""
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    return tokenizer
+    tokenizer = load_tokenizer(model_name)
+    return model, tokenizer
 
 
 def _set_nnx_model_mesh(
-    module: Any,
+    module: nnx.Module,
     mesh: jax.sharding.Mesh,
 ) -> None:
     """Attach a JAX mesh to an EasyDel model config."""
     module.config.set_model_mesh(mesh)
 
 
-def _count_params(state: Any) -> int:
-    """Count total scalar parameters in an NNX state pytree."""
-    leaves = jax.tree.leaves(state)
-    return sum(x.size for x in leaves if hasattr(x, "size"))
+def call_model(
+    module: nnx.Module,
+    input_ids: jax.Array,
+    attention_mask: jax.Array,
+):
+    """Invoke the EasyDel Qwen3 causal LM with the kwargs it accepts.
+
+    The call signature is hardcoded on purpose. ``Qwen3ForCausalLM.__call__``
+    is part of EasyDel's stable API for this model family, so there is no
+    need to feature-detect kwargs via ``inspect`` at runtime. If we ever
+    switch to a model whose ``__call__`` takes different kwargs, this
+    function is the single place to update.
+    """
+    return module(input_ids=input_ids, attention_mask=attention_mask)
 
 
 def _load_and_prepare_batches(
@@ -284,7 +296,6 @@ def _training_loop(
                 one_hot,
                 label_mask,
                 attention_mask,
-                train=True,
             )
 
             current_loss = float(loss)
@@ -458,7 +469,7 @@ def main(training_config: TrainingConfig) -> None:
         mesh_axis_size = 1
 
     with jax.default_device(cpu_device):
-        model = load_model(
+        model, tokenizer = load_model(
             training_config.model_name,
             dtype=training_config.jax_dtype,
             mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
@@ -495,7 +506,6 @@ def main(training_config: TrainingConfig) -> None:
         }
     )
 
-    tokenizer = load_tokenizer(training_config.model_name)
     train_batches, val_batches = _load_and_prepare_batches(
         training_config,
     )
@@ -522,13 +532,6 @@ def main(training_config: TrainingConfig) -> None:
         nnx.LoRAParam,
         ...,
     )
-    call_signature = inspect.signature(model.__call__)
-
-    n_lora = _count_params(lora_params)
-    n_frozen = _count_params(frozen_state)
-    training_logger.info(f"  Trainable (LoRA) params: {n_lora:,}")
-    training_logger.info(f"  Frozen params:           {n_frozen:,}")
-    training_logger.info(f"  Trainable fraction:      {n_lora / (n_lora + n_frozen):.4%}")
 
     num_train_batches = len(train_batches)
     total_batches = num_train_batches * training_config.num_epochs
@@ -565,7 +568,7 @@ def main(training_config: TrainingConfig) -> None:
 
     jit_train_step = create_train_step_fn(
         graphdef,
-        call_signature,
+        call_model,
         tx,
         device_kind=device_kind,
         num_devices=training_config.num_devices,
@@ -574,7 +577,7 @@ def main(training_config: TrainingConfig) -> None:
     )
     jit_eval_step = create_eval_step_fn(
         graphdef,
-        call_signature,
+        call_model,
         device_kind=device_kind,
         num_devices=training_config.num_devices,
         sharding_config=sharding_config,
@@ -583,7 +586,7 @@ def main(training_config: TrainingConfig) -> None:
     jit_inspect_step = (
         create_eval_inspect_step_fn(
             graphdef,
-            call_signature,
+            call_model,
             device_kind=device_kind,
         )
         if use_inspect
