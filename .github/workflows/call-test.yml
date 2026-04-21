@@ -74,4 +74,4 @@ jobs:
         export HF_HOME=/mnt/dockercache/huggingface
         export HF_TOKEN=${{ secrets.HF_TOKEN }}
         source env/activate --${{ matrix.build.frontend }}
-        pytest -m '${{ matrix.build.marks }}' tests/
+        pytest -svv -m '${{ matrix.build.marks }}' tests/
