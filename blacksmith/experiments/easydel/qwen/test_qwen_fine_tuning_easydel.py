@@ -22,7 +22,8 @@ import jax.numpy as jnp  # noqa: E402
 import numpy as np  # noqa: E402
 import optax  # noqa: E402
 from flax import nnx  # noqa: E402
-from transformers import AutoTokenizer  # noqa: E402
+from jax.typing import DTypeLike  # noqa: E402
+from transformers import AutoTokenizer, PreTrainedTokenizerBase  # noqa: E402
 
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: E402
 from blacksmith.experiments.easydel.qwen.data_loading import (  # noqa: E402
@@ -60,26 +61,7 @@ def _select_preferred_device(
     return cpu, "cpu"
 
 
-def load_model(
-    model_name: str,
-    *,
-    dtype: Any = jnp.bfloat16,
-    mask_max_position_embeddings: Optional[int] = None,
-) -> Any:
-    """Load a causal LM via EasyDel with optional config overrides."""
-    config_overrides = {}
-    if mask_max_position_embeddings is not None:
-        config_overrides["mask_max_position_embeddings"] = mask_max_position_embeddings
-    kwargs = {"dtype": dtype}
-    if config_overrides:
-        kwargs["config_kwargs"] = config_overrides
-    return AutoEasyDeLModelForCausalLM.from_pretrained(
-        model_name,
-        **kwargs,
-    )
-
-
-def load_tokenizer(model_name: str) -> Any:
+def load_tokenizer(model_name: str) -> PreTrainedTokenizerBase:
     """Load a HuggingFace tokenizer, ensuring a pad token exists."""
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
@@ -87,8 +69,29 @@ def load_tokenizer(model_name: str) -> Any:
     return tokenizer
 
 
+def load_model(
+    model_name: str,
+    *,
+    dtype: DTypeLike = jnp.bfloat16,
+    mask_max_position_embeddings: Optional[int] = None,
+) -> tuple[nnx.Module, PreTrainedTokenizerBase]:
+    """Load a causal LM and its tokenizer via EasyDel + HuggingFace."""
+    config_overrides = {}
+    if mask_max_position_embeddings is not None:
+        config_overrides["mask_max_position_embeddings"] = mask_max_position_embeddings
+    kwargs = {"dtype": dtype}
+    if config_overrides:
+        kwargs["config_kwargs"] = config_overrides
+    model = AutoEasyDeLModelForCausalLM.from_pretrained(
+        model_name,
+        **kwargs,
+    )
+    tokenizer = load_tokenizer(model_name)
+    return model, tokenizer
+
+
 def _set_nnx_model_mesh(
-    module: Any,
+    module: nnx.Module,
     mesh: jax.sharding.Mesh,
 ) -> None:
     """Attach a JAX mesh to an EasyDel model config."""
@@ -359,7 +362,7 @@ def main(training_config: TrainingConfig) -> None:
         f"Loading {training_config.model_name} model... Using device: {device_kind} -> {current_device}"
     )
 
-    model = load_model(
+    model, tokenizer = load_model(
         training_config.model_name,
         dtype=training_config.jax_dtype,
         mask_max_position_embeddings=(training_config.mask_max_position_embeddings),
@@ -384,7 +387,6 @@ def main(training_config: TrainingConfig) -> None:
         }
     )
 
-    tokenizer = load_tokenizer(training_config.model_name)
     train_batches, val_batches = _load_and_prepare_batches(
         training_config,
     )
