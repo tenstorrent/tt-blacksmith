@@ -48,7 +48,7 @@ checkpoint_metric_mode: "min" # [min, max]
 keep_last_n: 3
 keep_best_n: 1
 save_strategy: "epoch"
-project_dir: "blacksmith/experiments/torch/mnist"
+project_dir: "blacksmith/experiments/torch/mnist_cnn"
 save_optim: false
 storage_backend: "local"
 sync_to_storage: false
