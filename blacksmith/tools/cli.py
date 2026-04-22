@@ -13,6 +13,9 @@ _TEST_MODE_DEFAULTS = {
     "test_config": {"max_steps_per_epoch": 15},
     "steps_freq": 5,
     "val_steps_freq": 5,
+    "save_strategy": "none",
+    "use_tt": True,
+    "log_on_wandb": False,
 }
 
 
