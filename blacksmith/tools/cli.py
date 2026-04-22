@@ -2,11 +2,18 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import argparse
+import os
 from pathlib import Path
 from typing import Optional
 
 import yaml
 from pydantic import BaseModel
+
+_TEST_MODE_DEFAULTS = {
+    "test_config": {"max_steps_per_epoch": 15},
+    "steps_freq": 5,
+    "val_steps_freq": 5,
+}
 
 
 def generate_config(
@@ -18,6 +25,11 @@ def generate_config(
     assert yaml_path.exists(), f"Config file {yaml_path} does not exist"
     with yaml_path.open() as file:
         config_data = yaml.safe_load(file)
+
+    # When running under pytest with no explicit test config, apply defaults to
+    # limit training duration and logging frequency.
+    if "PYTEST_CURRENT_TEST" in os.environ and test_yaml_path is None:
+        config_data |= _TEST_MODE_DEFAULTS
 
     if test_yaml_path is not None:
         # This enables test config to overwrite some fields in original config or add new ones for example `test_config`.
