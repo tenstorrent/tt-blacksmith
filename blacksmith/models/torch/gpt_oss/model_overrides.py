@@ -9,8 +9,12 @@ from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
 
 
-def get_model(config, device):
-    """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation."""
+def get_model(config, device, device_manager=None):
+    """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation.
+
+    If device_manager is provided, sharding (FSDP / tensor parallelism) is applied
+    before torch.compile so that the compiler sees the final sharded graph.
+    """
     quantization_config = Mxfp4Config(dequantize=True)
 
     model_config = AutoConfig.from_pretrained(config.model_name, trust_remote_code=True)
@@ -39,6 +43,9 @@ def get_model(config, device):
         model = get_peft_model(model, lora_config)
 
     model.to(device)
+
+    if device_manager is not None:
+        model = device_manager.shard_model(model)
 
     if config.use_tt:
         compile_options = {
