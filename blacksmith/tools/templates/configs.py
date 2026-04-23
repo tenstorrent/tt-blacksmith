@@ -17,7 +17,9 @@ class TrainingConfig(BaseModel):
 
     # Mixed precision settings (tt-xla backend only). See tt-xla/docs/src/mixed_precision.md.
     weight_dtype_overrides: Optional[str] = Field(default=None)  # JSON path (relative to the yaml if not absolute)
-    experimental_weight_dtype: Optional[str] = Field(default=None)  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
+    experimental_weight_dtype: Optional[str] = Field(
+        default=None
+    )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
 
     # Training hyperparameters
     learning_rate: float = Field(default=2e-5, gt=0)

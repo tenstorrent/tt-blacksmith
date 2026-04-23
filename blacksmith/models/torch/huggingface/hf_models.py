@@ -22,9 +22,7 @@ def _is_trainable_param(model: torch.nn.Module, param_path: str) -> bool:
     except AttributeError:
         return False
     param = None
-    if hasattr(module, "parametrizations") and param_name in getattr(
-        module.parametrizations, "_modules", {}
-    ):
+    if hasattr(module, "parametrizations") and param_name in getattr(module.parametrizations, "_modules", {}):
         param = getattr(module.parametrizations[param_name], "original", None)
     if param is None:
         param = getattr(module, param_name, None)
@@ -68,8 +66,7 @@ def get_model(config: TrainingConfig, device: torch.device):
                 "weight_dtype_overrides matched trainable parameters, which is "
                 "unsupported during training on XLA (torch parametrize freezes "
                 "their storage and optimizer.step() will fail). Restrict the "
-                "config to frozen weights only.\nOffending parameters:\n  - "
-                + "\n  - ".join(trainable_hits)
+                "config to frozen weights only.\nOffending parameters:\n  - " + "\n  - ".join(trainable_hits)
             )
 
     if config.use_tt:
