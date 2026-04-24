@@ -30,14 +30,13 @@ def _vanilla_attn_forward_4d_repeat_kv(
     softmax_aux: Array | None = None,
     **ignore,
 ) -> AttentionOutput:
-    """Drop-in replacement for ``easydel.layers...VanillaAttn.forward_native``.
+    """Drop-in replacement for easydel.layers...VanillaAttn.forward_native.
 
-    EasyDeL's default GQA path reshapes Q to 5D
-    ``(b, seq, kv_heads, num_reps, d)`` which ``tt-mlir`` cannot currently
-    lower.  This variant repeats K and V along the head axis so every tensor
-    stays 4D throughout the attention computation, while preserving the
-    original ``forward_native`` contract (including the lazy ``init_bias``
-    callback used by EasyDeL for causal masks).
+    EasyDeL's default GQA path reshapes Q to 5D (b, seq, kv_heads, num_reps, d)
+    which tt-mlir cannot currently lower. This variant repeats K and V along
+    the head axis so every tensor stays 4D throughout the attention
+    computation, while preserving the original forward_native contract
+    (including the lazy init_bias callback used by EasyDeL for causal masks).
     """
     sm_scale = self.metadata.softmax_scale
     sm_scale = sm_scale if sm_scale is not None else q.shape[-1] ** -0.5
@@ -141,9 +140,9 @@ def _vanilla_attn_forward_4d_repeat_kv(
 
 
 def apply_gqa_workaround() -> None:
-    """Patch ``VanillaAttn.forward_native`` with the 4D repeat-KV variant.
+    """Patch VanillaAttn.forward_native with the 4D repeat-KV variant.
 
-    See :func:`_vanilla_attn_forward_4d_repeat_kv` for rationale.
+    See _vanilla_attn_forward_4d_repeat_kv for rationale.
     """
     VanillaAttn.forward_native = _vanilla_attn_forward_4d_repeat_kv
     logger.info("Applied GQA 4D workaround: VanillaAttn.forward_native patched to avoid 5D tensors")

@@ -6,36 +6,34 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Optional
+from typing import Callable, Optional
 
+import jax
+import jax.numpy as jnp
+import numpy as np
+import optax
 from easydel import AutoEasyDeLModelForCausalLM
+from flax import nnx
+from jax.typing import DTypeLike
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
+
+from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
+from blacksmith.experiments.easydel.qwen.data_loading import load_sst2_batches
+from blacksmith.experiments.easydel.qwen.train_steps import (
+    create_eval_inspect_step_fn,
+    create_eval_step_fn,
+    create_train_step_fn,
+    evaluate,
+)
+from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     level=logging.INFO,
 )
-
-import jax  # noqa: E402
-import jax.numpy as jnp  # noqa: E402
-import numpy as np  # noqa: E402
-import optax  # noqa: E402
-from flax import nnx  # noqa: E402
-from jax.typing import DTypeLike  # noqa: E402
-from transformers import AutoTokenizer, PreTrainedTokenizerBase  # noqa: E402
-
-from blacksmith.experiments.easydel.qwen.configs import TrainingConfig  # noqa: E402
-from blacksmith.experiments.easydel.qwen.data_loading import (  # noqa: E402
-    load_sst2_batches,
-)
-from blacksmith.experiments.easydel.qwen.train_steps import (  # noqa: E402
-    create_eval_inspect_step_fn,
-    create_eval_step_fn,
-    create_train_step_fn,
-    evaluate,
-)
-from blacksmith.tools.cli import generate_config, parse_cli_options  # noqa: E402
-from blacksmith.tools.logging_manager import TrainingLogger  # noqa: E402
 
 
 def _select_preferred_device(
@@ -99,15 +97,6 @@ def _set_nnx_model_mesh(
     module.config.set_model_mesh(mesh)
 
 
-def call_model(
-    module: nnx.Module,
-    input_ids: jax.Array,
-    attention_mask: jax.Array,
-):
-    """Invoke the EasyDel Qwen3 causal LM."""
-    return module(input_ids=input_ids, attention_mask=attention_mask)
-
-
 def _load_and_prepare_batches(
     training_config: TrainingConfig,
 ) -> tuple[list[dict], list[dict]]:
@@ -142,18 +131,17 @@ def _load_and_prepare_batches(
 def _training_loop(
     training_config: TrainingConfig,
     training_logger: TrainingLogger,
-    jit_train_step: Any,
-    jit_eval_step: Any,
-    lora_params: Any,
-    frozen_state: Any,
-    opt_state: Any,
-    train_batches: list[dict[str, Any]],
-    val_batches: list[dict[str, Any]],
+    jit_train_step: Callable,
+    jit_eval_step: Callable,
+    lora_params: nnx.State,
+    frozen_state: nnx.State,
+    opt_state: optax.OptState,
+    train_batches: list[dict[str, np.ndarray]],
+    val_batches: list[dict[str, np.ndarray]],
     vocab_size: int,
     *,
-    device_kind: str = "tt",
-    jit_inspect_step: Any = None,
-    tokenizer: Any = None,
+    jit_inspect_step: Optional[Callable] = None,
+    tokenizer: Optional[PreTrainedTokenizerBase] = None,
 ) -> tuple[int, list[float]]:
     """Execute the training and validation loop.
 
@@ -175,7 +163,7 @@ def _training_loop(
     running_losses: list[float] = []
     step_losses: list[float] = []
 
-    inspect_kwargs: dict[str, Any] = {}
+    inspect_kwargs = {}
     if jit_inspect_step is not None and tokenizer is not None:
         inspect_kwargs = {
             "jit_inspect_step": jit_inspect_step,
@@ -334,8 +322,6 @@ def main(training_config: TrainingConfig) -> None:
     jax.config.update("jax_default_device", current_device)
 
     if device_kind == "tt":
-        from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
-
         apply_gqa_workaround()
 
     training_logger.info(
@@ -415,25 +401,9 @@ def main(training_config: TrainingConfig) -> None:
         optimizer = base_optimizer
     opt_state = optimizer.init(lora_params)
 
-    jit_train_step = create_train_step_fn(
-        graphdef,
-        call_model,
-        optimizer,
-    )
-    jit_eval_step = create_eval_step_fn(
-        graphdef,
-        call_model,
-        device_kind=device_kind,
-    )
-    jit_inspect_step = (
-        create_eval_inspect_step_fn(
-            graphdef,
-            call_model,
-            device_kind=device_kind,
-        )
-        if training_config.print_examples
-        else None
-    )
+    jit_train_step = create_train_step_fn(graphdef, optimizer)
+    jit_eval_step = create_eval_step_fn(graphdef)
+    jit_inspect_step = create_eval_inspect_step_fn(graphdef) if training_config.print_examples else None
 
     if training_config.max_val_batches is not None:
         orig = len(val_batches)
@@ -455,7 +425,6 @@ def main(training_config: TrainingConfig) -> None:
                 train_batches,
                 val_batches,
                 model.config.vocab_size,
-                device_kind=device_kind,
                 jit_inspect_step=jit_inspect_step,
                 tokenizer=(tokenizer if training_config.print_examples else None),
             )

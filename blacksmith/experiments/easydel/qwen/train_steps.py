@@ -3,13 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
-from typing import Any, Callable
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import nnx
+from transformers import PreTrainedTokenizerBase
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,9 @@ def _clamped_softmax_cross_entropy_per_token(logits_f32, one_hot):
 
 
 def create_train_step_fn(
-    graphdef: Any,
-    call_fn: Callable,
-    optimizer: Any,
-) -> Any:
+    graphdef: nnx.GraphDef,
+    optimizer: optax.GradientTransformation,
+) -> Callable:
     """Create a JIT-compiled training step (fwd + bwd + optimizer).
 
     One-hot labels and label_mask are pre-computed outside JIT.
@@ -68,7 +68,7 @@ def create_train_step_fn(
         attention_mask,
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
-        out = call_fn(m, input_ids, attention_mask)
+        out = m(input_ids=input_ids, attention_mask=attention_mask)
 
         # NOTE (TT): TT-MLIR may run softmax in bf16 inside fused graphs,
         # which drifts the row sum away from 1 and can push individual
@@ -156,12 +156,7 @@ def _clamped_cross_entropy_with_inspect(
     return loss, predictions, per_token
 
 
-def create_eval_step_fn(
-    graphdef: Any,
-    call_fn: Callable,
-    *,
-    device_kind: str = "tt",
-) -> Any:
+def create_eval_step_fn(graphdef: nnx.GraphDef) -> Callable:
     """Create an evaluation step.
 
     Fully on-device for all devices. On TT the softmax-in-CE is guarded by
@@ -175,7 +170,6 @@ def create_eval_step_fn(
 
     Labels may contain -100 at masked positions.
     """
-    del device_kind
 
     @jax.jit
     def eval_step(
@@ -186,24 +180,18 @@ def create_eval_step_fn(
         attention_mask,
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = call_fn(m, input_ids, attention_mask).logits
+        logits = m(input_ids=input_ids, attention_mask=attention_mask).logits
         return _clamped_cross_entropy(logits, labels)
 
     return eval_step
 
 
-def create_eval_inspect_step_fn(
-    graphdef: Any,
-    call_fn: Callable,
-    *,
-    device_kind: str = "tt",
-) -> Any:
+def create_eval_inspect_step_fn(graphdef: nnx.GraphDef) -> Callable:
     """Eval step returning (loss, predictions, per_token_loss).
 
     Fully on-device; on TT the CE uses clamp+renorm via
     _clamped_cross_entropy_with_inspect to correct bf16 softmax drift.
     """
-    del device_kind
 
     @jax.jit
     def eval_inspect_step(
@@ -214,7 +202,7 @@ def create_eval_inspect_step_fn(
         attention_mask,
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = call_fn(m, input_ids, attention_mask).logits
+        logits = m(input_ids=input_ids, attention_mask=attention_mask).logits
         return _clamped_cross_entropy_with_inspect(logits, labels)
 
     return eval_inspect_step
@@ -275,13 +263,13 @@ def _show_predictions(collected, tokenizer, num_tokens=20):
 
 
 def evaluate(
-    jit_eval_step: Any,
-    lora_params: Any,
-    frozen_state: Any,
-    val_batches: list[dict[str, Any]],
+    jit_eval_step: Callable,
+    lora_params: nnx.State,
+    frozen_state: nnx.State,
+    val_batches: list[dict[str, np.ndarray]],
     *,
-    jit_inspect_step: Any = None,
-    tokenizer: Any = None,
+    jit_inspect_step: Optional[Callable] = None,
+    tokenizer: Optional[PreTrainedTokenizerBase] = None,
     num_examples: int = 3,
     num_tokens: int = 20,
 ) -> float:
@@ -294,7 +282,7 @@ def evaluate(
     few batches also collect decoded prediction examples.
     """
     total_loss = 0.0
-    collected: list[dict[str, Any]] = []
+    collected: list[dict[str, np.ndarray]] = []
     can_inspect = jit_inspect_step is not None and tokenizer is not None
 
     for batch in val_batches:

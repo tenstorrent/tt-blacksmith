@@ -25,10 +25,7 @@ class TrainingConfig(BaseModel):
 
     @property
     def jax_dtype(self):
-        key = self.dtype.removeprefix("jnp.")
-        if key not in _DTYPE_MAP:
-            raise ValueError(f"Unsupported dtype '{self.dtype}'. Use one of: {list(_DTYPE_MAP)}")
-        return _DTYPE_MAP[key]
+        return _DTYPE_MAP[self.dtype]
 
     # Training hyperparameters
     learning_rate: float = Field(default=2e-4, gt=0)
@@ -52,8 +49,8 @@ class TrainingConfig(BaseModel):
     print_examples: bool = Field(default=False)
     wandb_project: str = Field(default="Qwen-TT-EasyDel-LoRA-Training")
     wandb_run_name: str = Field(default="qwen3-0.6b-sst2-tt-easydel")
-    # Extra fields consumed by :class:`blacksmith.tools.logging_manager.TrainingLogger`.
-    # They have sensible defaults so YAMLs don't need to set them.
+    # Extra fields consumed by TrainingLogger. They have sensible defaults
+    # so YAMLs don't need to set them.
     wandb_tags: list[str] = Field(default_factory=lambda: ["easydel", "qwen", "lora"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
