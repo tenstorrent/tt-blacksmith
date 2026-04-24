@@ -33,14 +33,12 @@ def load_sst2_batches(
     """Load SST-2 instruction-CLM batches via SSTDataset.
 
     Uses the same prompt/response templates as the Torch SST
-    experiments (``blacksmith.datasets.torch.sst2``).  Labels contain
-    ``-100`` at prompt positions so only response tokens contribute
-    to the loss.
+    experiments (blacksmith.datasets.torch.sst2). Labels contain -100
+    at prompt positions so only response tokens contribute to the loss.
 
     Returns:
-        Tuple of ``(input_ids, labels, attention_mask)``, each a numpy
-        array of shape ``(num_batches, batch_size, seq_len)``.
-
+        Tuple of (input_ids, labels, attention_mask), each a numpy
+        array of shape (num_batches, batch_size, seq_len).
     """
     from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 

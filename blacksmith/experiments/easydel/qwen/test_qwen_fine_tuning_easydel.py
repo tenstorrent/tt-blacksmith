@@ -104,14 +104,7 @@ def call_model(
     input_ids: jax.Array,
     attention_mask: jax.Array,
 ):
-    """Invoke the EasyDel Qwen3 causal LM with the kwargs it accepts.
-
-    The call signature is hardcoded on purpose. ``Qwen3ForCausalLM.__call__``
-    is part of EasyDel's stable API for this model family, so there is no
-    need to feature-detect kwargs via ``inspect`` at runtime. If we ever
-    switch to a model whose ``__call__`` takes different kwargs, this
-    function is the single place to update.
-    """
+    """Invoke the EasyDel Qwen3 causal LM."""
     return module(input_ids=input_ids, attention_mask=attention_mask)
 
 
@@ -120,10 +113,9 @@ def _load_and_prepare_batches(
 ) -> tuple[list[dict], list[dict]]:
     """Load SST-2 dataset and return train/val lists of batch dicts.
 
-    Each batch dict has keys ``input_ids``, ``labels``, and
-    ``attention_mask`` (all ``jnp.ndarray``).  Labels contain
-    ``-100`` at prompt positions so only response tokens contribute
-    to the loss.
+    Each batch dict has keys input_ids, labels, and attention_mask
+    (all jnp.ndarray). Labels contain -100 at prompt positions so
+    only response tokens contribute to the loss.
     """
     train_ids, train_labels, train_masks = load_sst2_batches(
         training_config,
@@ -165,18 +157,17 @@ def _training_loop(
 ) -> tuple[int, list[float]]:
     """Execute the training and validation loop.
 
-    Must be called inside a ``with mesh:`` context.
+    Must be called inside a with mesh: context.
 
-    *train_batches* / *val_batches* are lists of dicts with keys
-    ``input_ids``, ``labels``, ``attention_mask``.
+    train_batches / val_batches are lists of dicts with keys
+    input_ids, labels, attention_mask.
 
-    Returns ``(global_step, step_losses)``.
+    Returns (global_step, step_losses).
 
-    ``global_step`` counts micro-batches.  When
-    ``gradient_accumulation_steps > 1`` the underlying optimizer
-    (wrapped in ``optax.MultiSteps``) only updates weights every
-    *k* micro-batches, but the step counter still increments per
-    micro-batch.
+    global_step counts micro-batches. When gradient_accumulation_steps > 1
+    the underlying optimizer (wrapped in optax.MultiSteps) only updates
+    weights every k micro-batches, but the step counter still increments
+    per micro-batch.
     """
     global_step = 0
     steps_freq = training_config.steps_freq

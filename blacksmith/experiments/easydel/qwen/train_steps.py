@@ -15,26 +15,23 @@ logger = logging.getLogger(__name__)
 
 IGNORED_LABEL = -100
 
-# Epsilon used inside ``log`` to keep gradients finite when a row of the
+# Epsilon used inside log to keep gradients finite when a row of the
 # renormalized softmax has near-zero probability.
 _LOG_EPS = 1e-12
 
 
 def _clamped_softmax_cross_entropy_per_token(logits_f32, one_hot):
-    """Per-token cross-entropy that defeats TT bf16 fused-softmax drift.
+    """Per-token cross-entropy that is robust to TT bf16 fused-softmax drift.
 
-    On TT the fused ``softmax`` kernel in bf16 can produce rows that do not
-    sum to 1 (observed ~+/-2% drift) and occasionally individual entries
-    > 1.0 -- see ``debug_scripts/repro_softmax_bf16.py``. Plain
-    :func:`optax.softmax_cross_entropy` then yields a per-token term that
-    can go slightly negative.
+    On TT the fused softmax kernel in bf16 can produce rows that do not
+    sum to 1 and occasionally individual entries > 1.0, which makes
+    optax.softmax_cross_entropy yield slightly negative per-token values.
 
-    Fix, all on-device:
+    All on-device:
       1. compute softmax,
-      2. clamp output to the valid probability range ``[0, 1]`` (pulls any
-         rogue ``>1`` entries back to ``1``),
-      3. renormalize so each row sums to exactly 1 again.
-    Then take the standard ``-sum(one_hot * log(probs))``.
+      2. clamp to [0, 1],
+      3. renormalize so each row sums to 1,
+      4. take the standard -sum(one_hot * log(probs)).
     """
     probs = jax.nn.softmax(logits_f32, axis=-1)
     probs = jnp.clip(probs, 0.0, 1.0)
@@ -50,17 +47,16 @@ def create_train_step_fn(
 ) -> Any:
     """Create a JIT-compiled training step (fwd + bwd + optimizer).
 
-    One-hot labels and ``label_mask`` are pre-computed outside JIT.
-    On TT this avoids a ``ttnn.eq`` bug that doubles the one-hot
+    One-hot labels and label_mask are pre-computed outside JIT.
+    On TT this avoids a ttnn.eq bug that doubles the one-hot
     value for even uint32 labels.
 
-    Signature of the returned function::
+    Signature of the returned function:
 
         train_step(lora_params, frozen_state, opt_state,
                    input_ids, one_hot_labels, label_mask,
                    attention_mask)
             -> (loss, new_lora_params, new_opt_state, grad_stats)
-
     """
 
     def loss_fn(
@@ -77,7 +73,7 @@ def create_train_step_fn(
         # NOTE (TT): TT-MLIR may run softmax in bf16 inside fused graphs,
         # which drifts the row sum away from 1 and can push individual
         # entries above 1. We compensate with a clamp-and-renormalize CE;
-        # see :func:`_clamped_softmax_cross_entropy_per_token`.
+        # see _clamped_softmax_cross_entropy_per_token.
         shift_logits = out.logits[:, :-1, :].astype(jnp.float32)
         per_token = _clamped_softmax_cross_entropy_per_token(
             shift_logits,
@@ -122,8 +118,7 @@ def create_train_step_fn(
 def _clamped_cross_entropy(logits, labels, ignored_index=IGNORED_LABEL):
     """On-device CE with clamp+renorm to defeat TT bf16 softmax drift.
 
-    Replaces the older CPU-transfer workaround. Positions where
-    ``labels == ignored_index`` are excluded from the mean.
+    Positions where labels == ignored_index are excluded from the mean.
     """
     shift_logits = logits[:, :-1, :].astype(jnp.float32)
     shift_labels = labels[:, 1:].astype(jnp.int32)
@@ -144,8 +139,7 @@ def _clamped_cross_entropy_with_inspect(
     labels,
     ignored_index=IGNORED_LABEL,
 ):
-    """Like ``_clamped_cross_entropy`` but also returns predictions
-    and per-token losses."""
+    """Like _clamped_cross_entropy but also returns predictions and per-token losses."""
     shift_logits = logits[:, :-1, :].astype(jnp.float32)
     shift_labels = labels[:, 1:].astype(jnp.int32)
 
@@ -171,17 +165,17 @@ def create_eval_step_fn(
     """Create an evaluation step.
 
     Fully on-device for all devices. On TT the softmax-in-CE is guarded by
-    :func:`_clamped_softmax_cross_entropy_per_token` (clamp to ``[0, 1]`` +
-    renormalize) to correct the bf16 fused-softmax drift observed on TT.
+    _clamped_softmax_cross_entropy_per_token (clamp to [0, 1] + renormalize)
+    to correct the bf16 fused-softmax drift observed on TT.
 
-    Signature::
+    Signature:
 
         eval_step(lora_params, frozen_state,
                   input_ids, labels, attention_mask) -> loss
 
-    Labels may contain ``-100`` at masked positions.
+    Labels may contain -100 at masked positions.
     """
-    del device_kind  # dispatch is the same on all devices now
+    del device_kind
 
     @jax.jit
     def eval_step(
@@ -204,13 +198,12 @@ def create_eval_inspect_step_fn(
     *,
     device_kind: str = "tt",
 ) -> Any:
-    """Eval step returning ``(loss, predictions, per_token_loss)``.
+    """Eval step returning (loss, predictions, per_token_loss).
 
     Fully on-device; on TT the CE uses clamp+renorm via
-    :func:`_clamped_cross_entropy_with_inspect` to correct bf16 softmax
-    drift.
+    _clamped_cross_entropy_with_inspect to correct bf16 softmax drift.
     """
-    del device_kind  # dispatch is the same on all devices now
+    del device_kind
 
     @jax.jit
     def eval_inspect_step(
@@ -231,11 +224,10 @@ def _show_predictions(collected, tokenizer, num_tokens=20):
     """Print collected prediction examples (CPU-only, no forward pass).
 
     Args:
-        collected: List of dicts with keys ``input_ids``, ``labels``,
-            ``predictions``, ``per_token_loss`` (numpy arrays).
+        collected: List of dicts with keys input_ids, labels,
+            predictions, per_token_loss (numpy arrays).
         tokenizer: HuggingFace tokenizer for decoding.
         num_tokens: Leading tokens to show per example.
-
     """
     for i, ex in enumerate(collected):
         input_ids = ex["input_ids"]
@@ -295,10 +287,10 @@ def evaluate(
 ) -> float:
     """Run evaluation on validation batches and return average loss.
 
-    Each element of *val_batches* is a dict with keys
-    ``input_ids``, ``labels``, and ``attention_mask``.
+    Each element of val_batches is a dict with keys
+    input_ids, labels, and attention_mask.
 
-    When *jit_inspect_step* and *tokenizer* are provided, the first
+    When jit_inspect_step and tokenizer are provided, the first
     few batches also collect decoded prediction examples.
     """
     total_loss = 0.0
