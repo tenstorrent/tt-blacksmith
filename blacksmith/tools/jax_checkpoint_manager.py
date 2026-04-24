@@ -18,12 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 class JaxCheckpointManager:
-    """Manage JAX training checkpoints (pickle + JSON history).
+    """Manage JAX training checkpoints via pickle with a JSON history file.
 
     Args:
-        config: Training configuration (inherits checkpoint
-            fields from the base ``TrainingConfig``).
-        training_logger: Shared :class:`TrainingLogger`.
+        config: Training configuration with the standard checkpoint fields.
+        training_logger: Shared TrainingLogger.
     """
 
     def __init__(
@@ -58,7 +57,7 @@ class JaxCheckpointManager:
         step: int,
         epoch: Optional[int] = None,
     ) -> bool:
-        """Decide whether to checkpoint at *step* / *epoch*."""
+        """Decide whether to checkpoint at the given step or epoch."""
         if epoch is not None:
             if self.config.save_strategy == "epoch":
                 return epoch % self.config.epoch_freq == 0
@@ -79,21 +78,20 @@ class JaxCheckpointManager:
         extra: Optional[dict] = None,
         checkpoint_name: Optional[str] = None,
     ) -> str:
-        """Persist a checkpoint to disk (pickle).
+        """Persist a checkpoint to disk as a pickle file.
 
-        All pytrees are moved to CPU before serialisation so
-        that checkpoints are device-agnostic.
+        All pytrees are moved to CPU before serialisation so checkpoints
+        are device-agnostic.
 
         Args:
             step: Current global training step.
             epoch: Current epoch number.
-            params: Model parameters (pytree).
-            opt_state: Optimizer state (optional).
-            rng: JAX PRNG key (optional).
-            metrics: Scalar metrics dict (optional).
-            extra: Arbitrary extra payload (optional).
-            checkpoint_name: Custom filename (auto-generated
-                when *None*).
+            params: Model parameters pytree.
+            opt_state: Optimizer state.
+            rng: JAX PRNG key.
+            metrics: Scalar metrics dict.
+            extra: Arbitrary extra payload.
+            checkpoint_name: Custom filename; auto-generated when None.
 
         Returns:
             Absolute path to the saved checkpoint file.
@@ -107,7 +105,9 @@ class JaxCheckpointManager:
         path = self.checkpoint_dir / checkpoint_name
 
         cpu = jax.devices("cpu")[0]
-        cpu_put = lambda t: jax.tree.map(lambda x: jax.device_put(x, cpu), t)
+
+        def cpu_put(t):
+            return jax.tree.map(lambda x: jax.device_put(x, cpu), t)
 
         data: dict = {
             "step": step,
@@ -172,23 +172,12 @@ class JaxCheckpointManager:
 
         self.checkpoint_history["checkpoints"] = all_ckpts[-self.config.keep_last_n :]
 
-    def load_checkpoint(
-        self,
-        *,
-        params_template=None,
-        opt_state_template=None,
-    ) -> Optional[dict]:
-        """Load a checkpoint based on ``config.resume_option``.
-
-        Args:
-            params_template: Unused in the pickle backend
-                (kept for API parity with the Torch manager).
-            opt_state_template: Unused (same reason).
+    def load_checkpoint(self) -> Optional[dict]:
+        """Load a checkpoint according to config.resume_option.
 
         Returns:
-            Dict with keys ``step``, ``epoch``, ``params``,
-            ``opt_state`` (may be *None*), ``rng``, ``metrics``
-            — or *None* if no checkpoint is found.
+            Dict with keys step, epoch, params, opt_state, rng, metrics; or
+            None if no checkpoint is found.
         """
         option = self.config.resume_option
         if option == "last":
@@ -197,7 +186,7 @@ class JaxCheckpointManager:
             return self._load_best()
         if option == "path":
             if not self.config.checkpoint_path:
-                raise ValueError("checkpoint_path must be set when " "resume_option='path'")
+                raise ValueError("checkpoint_path must be set when resume_option='path'")
             return self._load_from_path(self.config.checkpoint_path)
         raise ValueError(f"Unknown resume_option: {option}")
 
@@ -238,4 +227,4 @@ class JaxCheckpointManager:
 
     def __repr__(self) -> str:
         n = len(self.checkpoint_history["checkpoints"])
-        return f"JaxCheckpointManager(" f"dir={self.checkpoint_dir!r}, " f"tracked={n})"
+        return f"JaxCheckpointManager(dir={self.checkpoint_dir!r}, tracked={n})"

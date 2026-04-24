@@ -40,23 +40,19 @@ def load_easydel_causal_lm(
 ) -> tuple[nnx.Module, PreTrainedTokenizerBase]:
     """Load an EasyDel causal LM and its tokenizer.
 
-    The model is loaded on CPU when the target device is TT (to
-    avoid eager transfers that stall device init), then its mesh
-    is set via ``model.config.set_model_mesh``.
+    On TT the model is loaded under a CPU default-device context to avoid
+    eager host-to-device transfers during init; the mesh is attached afterwards.
 
     Args:
         model_name: HuggingFace model identifier.
-        device_manager: Initialised :class:`JaxDeviceManager`.
+        device_manager: Initialised JaxDeviceManager.
         dtype: JAX dtype for model weights.
-        mask_max_position_embeddings: Override for the model's
-            ``max_position_embeddings`` (optional).
-        auto_shard_model: Whether to let EasyDel auto-shard
-            during loading (default ``False``).
-        extra_config_kwargs: Additional kwargs forwarded to the
-            EasyDel model config.
+        mask_max_position_embeddings: Override for the model's max_position_embeddings.
+        auto_shard_model: Let EasyDel auto-shard during loading.
+        extra_config_kwargs: Extra kwargs forwarded to the EasyDel model config.
 
     Returns:
-        ``(model, tokenizer)`` tuple.
+        (model, tokenizer) tuple.
     """
     config_overrides: dict = {}
     if mask_max_position_embeddings is not None:
@@ -75,8 +71,6 @@ def load_easydel_causal_lm(
     load_kwargs["sharding_axis_names"] = (mesh_name,)
     load_kwargs["auto_shard_model"] = auto_shard_model
 
-    # Load on CPU for TT to prevent eager host->device
-    # transfers during model init.
     cpu = jax.devices("cpu")[0]
     on_tt = device_manager.device_kind == "tt"
     if on_tt:
@@ -104,20 +98,17 @@ def apply_lora(
     on_cpu: bool = True,
     verbose: bool = True,
 ) -> nnx.Module:
-    """Apply LoRA adapters to matching layers.
-
-    On TT the operation must run under a CPU default-device context
-    to avoid eager transfers.
+    """Apply LoRA adapters to layers matching pattern, optionally under a CPU context.
 
     Args:
         model: An EasyDel NNX model.
         rank: LoRA rank.
         pattern: Regex matching layer names to adapt.
-        on_cpu: Force CPU context (needed on TT).
+        on_cpu: Force CPU context (needed on TT to avoid eager transfers).
         verbose: Print matched layers.
 
     Returns:
-        The model with LoRA layers injected (in-place).
+        The model with LoRA layers injected in-place.
     """
     if on_cpu:
         cpu = jax.devices("cpu")[0]
@@ -137,7 +128,7 @@ def apply_lora(
 
 
 def split_lora_state(model: nnx.Module):
-    """Split an NNX model into ``(graphdef, lora_state, frozen_state)``."""
+    """Split an NNX model into (graphdef, lora_state, frozen_state)."""
     return nnx.split(model, nnx.LoRAParam, ...)
 
 
@@ -146,20 +137,16 @@ def build_optimizer(
     *,
     total_opt_steps: int,
 ) -> tuple[optax.GradientTransformation, optax.Schedule]:
-    """Build an AdamW optimizer with warmup-cosine-decay schedule.
+    """Build an AdamW optimizer with a warmup-cosine-decay schedule.
 
-    Wraps in ``optax.MultiSteps`` when
-    ``config.gradient_accumulation_steps > 1``.
+    Wraps in optax.MultiSteps when config.gradient_accumulation_steps > 1.
 
     Args:
-        config: Training config with LR, warmup, and accumulation
-            fields.
-        total_opt_steps: Total number of *optimizer* updates
-            (after accounting for gradient accumulation).
+        config: Training config with LR, warmup, and accumulation fields.
+        total_opt_steps: Total number of optimizer updates after accumulation.
 
     Returns:
-        ``(tx, schedule)`` — the composed optax transform and the
-        learning-rate schedule function.
+        (tx, schedule) tuple.
     """
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=0.0,

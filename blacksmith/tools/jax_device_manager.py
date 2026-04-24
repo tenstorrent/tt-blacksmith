@@ -19,12 +19,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ShardingSpecs:
-    """Immutable container for mesh + sharding objects.
-
-    Produced by :class:`JaxDeviceManager` at init time so that
-    callers never have to construct ``PartitionSpec`` / ``NamedSharding``
-    themselves.
-    """
+    """Immutable container for mesh and sharding objects."""
 
     mesh: Mesh
     data_partition: PartitionSpec
@@ -34,17 +29,7 @@ class ShardingSpecs:
 
 
 class JaxDeviceManager:
-    """Manage JAX devices, environment, mesh, and sharding.
-
-    Analogous to :class:`~blacksmith.tools.device_manager.DeviceManager`
-    (Torch) but for JAX/EasyDel experiments.
-
-    Expects the config to carry the standard fields from
-    :class:`~blacksmith.tools.templates.configs.TrainingConfig` plus
-    optional JAX-specific attributes (``num_devices``,
-    ``apply_gqa_workaround``, ``optimizer_on_cpu``, etc.).
-    Missing attributes fall back to safe defaults via ``getattr``.
-    """
+    """Manage JAX devices, environment, mesh, and sharding for JAX/EasyDel training."""
 
     def __init__(self, config: TrainingConfig) -> None:
         self.config = config
@@ -94,11 +79,7 @@ class JaxDeviceManager:
         return jax.devices("cpu")[0], "cpu"
 
     def _create_mesh(self) -> Mesh:
-        """Build a :class:`jax.sharding.Mesh`.
-
-        Defaults to a single-axis ``("data",)`` mesh when explicit
-        ``mesh_shape`` / ``mesh_axis_names`` are not provided.
-        """
+        """Build a JAX mesh, defaulting to a single-axis ('data',) layout."""
         n = getattr(self.config, "num_devices", 1)
         shape = tuple(getattr(self.config, "mesh_shape", None) or [n])
         names = tuple(getattr(self.config, "mesh_axis_names", None) or ["data"])
@@ -166,7 +147,7 @@ class JaxDeviceManager:
         return jax.tree.map(lambda x: jax.device_put(x, cpu), pytree)
 
     def to_device(self, pytree):
-        """Move every leaf onto ``self.device``."""
+        """Move every leaf onto self.device."""
         return jax.tree.map(
             lambda x: jax.device_put(x, self.device),
             pytree,
@@ -179,11 +160,10 @@ class JaxDeviceManager:
         params,
         grads,
     ):
-        """Apply an optax update, using the CPU workaround when needed.
+        """Apply an optax update.
 
-        When ``optimizer_on_cpu`` is True and the device is TT,
-        params/grads/opt_state are moved to CPU before the update and
-        back to device afterwards (workaround for ``tt-metal#27072``).
+        When optimizer_on_cpu is True and the device is TT, params/grads/opt_state
+        are moved to CPU for the update and replicated back afterwards.
         """
         on_cpu = getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt"
 
@@ -204,11 +184,9 @@ class JaxDeviceManager:
         return new_params, new_opt
 
     def easydel_load_axis_size(self) -> int:
-        """Axis size to pass to EasyDel ``sharding_axis_dims``.
+        """Return the axis size EasyDel should use for sharding_axis_dims at load time.
 
-        On TT this is the *total* number of TT devices visible to
-        JAX (not necessarily the mesh size), because EasyDel uses
-        this at model-load time to decide internal sharding.
+        On TT this is the total number of TT devices visible to JAX, not the mesh size.
         """
         if self.device_kind == "tt":
             try:
@@ -218,7 +196,7 @@ class JaxDeviceManager:
         return 1
 
     def describe(self) -> dict:
-        """Summary dict suitable for ``TrainingLogger.log_model_info``."""
+        """Summary dict suitable for TrainingLogger.log_model_info."""
         return {
             "device": self.device_kind,
             "num_devices": getattr(self.config, "num_devices", 1),
