@@ -54,7 +54,6 @@ def get_model(config: TrainingConfig, device: torch.device):
         from tt_torch import apply_weight_dtype_overrides
 
         applied = apply_weight_dtype_overrides(model, overrides)
-        print(f"Applied {len(applied)} weight dtype overrides.")
 
         # register_parametrization does `set_(original, original)` internally,
         # which freezes XLA storage. If the target is trainable, the optimizer
