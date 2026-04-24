@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""JIT-compiled training / evaluation steps and evaluation helpers."""
-
 import logging
 from typing import Any, Callable
 
@@ -48,7 +46,7 @@ def _clamped_softmax_cross_entropy_per_token(logits_f32, one_hot):
 def create_train_step_fn(
     graphdef: Any,
     call_fn: Callable,
-    tx: Any,
+    optimizer: Any,
 ) -> Any:
     """Create a JIT-compiled training step (fwd + bwd + optimizer).
 
@@ -113,7 +111,7 @@ def create_train_step_fn(
         grad_max = jnp.max(
             jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]),
         )
-        updates, new_opt = tx.update(grads, opt_state, lora_params)
+        updates, new_opt = optimizer.update(grads, opt_state, lora_params)
         new_lora = optax.apply_updates(lora_params, updates)
         stats = {"grad_norm": grad_norm, "grad_max": grad_max}
         return loss, new_lora, new_opt, stats

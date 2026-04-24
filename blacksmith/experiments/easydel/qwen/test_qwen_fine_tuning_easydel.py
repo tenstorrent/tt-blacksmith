@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import contextlib
 import logging
 import os
 import random
@@ -43,6 +42,7 @@ def _select_preferred_device(
     use_tt: bool = True,
 ) -> tuple[jax.Device, str]:
     """Select compute device: TT > GPU > CPU."""
+    logger = logging.getLogger(__name__)
     cpu = jax.devices("cpu")[0]
     if not use_tt:
         try:
@@ -50,11 +50,12 @@ def _select_preferred_device(
             if gpu_devs:
                 return gpu_devs[0], "gpu"
         except Exception:
-            pass
+            logger.info("No GPU devices available, falling back to CPU")
         return cpu, "cpu"
     try:
         tt_devs = jax.devices("tt")
     except Exception:
+        logger.info("No TT devices available, falling back to CPU")
         tt_devs = []
     if tt_devs:
         return tt_devs[0], "tt"
@@ -124,29 +125,28 @@ def _load_and_prepare_batches(
     ``-100`` at prompt positions so only response tokens contribute
     to the loss.
     """
-    t_ids, t_lbl, t_msk = load_sst2_batches(
+    train_ids, train_labels, train_masks = load_sst2_batches(
         training_config,
         split="train",
     )
-    v_ids, v_lbl, v_msk = load_sst2_batches(
+    val_ids, val_labels, val_masks = load_sst2_batches(
         training_config,
         split="validation",
     )
 
-    def _to_batch(ids, lbl, msk):
-        # Keep batches as host numpy arrays. If these were ``jnp.array`` and
-        # ``jax.default_device`` is already set to TT, constructing tens of
-        # thousands of tiny arrays triggers one eager host->device transfer
-        # per tensor and stalls before training starts. JIT will transfer
-        # them on first use.
+    def _to_batch(ids, labels, masks):
         return {
             "input_ids": np.asarray(ids, dtype=np.uint32),
-            "labels": np.asarray(lbl, dtype=np.int32),
-            "attention_mask": np.asarray(msk, dtype=np.int32),
+            "labels": np.asarray(labels, dtype=np.int32),
+            "attention_mask": np.asarray(masks, dtype=np.int32),
         }
 
-    train_batches = [_to_batch(t_ids[i], t_lbl[i], t_msk[i]) for i in range(len(t_ids))]
-    val_batches = [_to_batch(v_ids[i], v_lbl[i], v_msk[i]) for i in range(len(v_ids))]
+    train_batches = [
+        _to_batch(train_ids[i], train_labels[i], train_masks[i]) for i in range(len(train_ids))
+    ]
+    val_batches = [
+        _to_batch(val_ids[i], val_labels[i], val_masks[i]) for i in range(len(val_ids))
+    ]
 
     return train_batches, val_batches
 
@@ -223,10 +223,7 @@ def _training_loop(
             labels = batch["labels"]
             attention_mask = batch["attention_mask"]
 
-            # All label prep on CPU for TT (ttnn.slice can't handle
-            # eager device-only slices outside a JIT graph).
-            ctx = jax.default_device(cpu) if device_kind == "tt" else contextlib.nullcontext()
-            with ctx:
+            with jax.default_device(cpu):
                 shift = labels[:, 1:].astype(jnp.int32)
                 valid = shift != ignored
                 safe = jnp.where(valid, shift, 0)
@@ -254,12 +251,8 @@ def _training_loop(
             step_losses.append(current_loss)
             global_step += 1
 
-            # W&B step contract: once a step is committed, any later log to
-            # the same step is silently dropped. To bundle ``train/*`` and
-            # ``val/*`` at the same ``global_step`` we buffer every per-step
-            # metric with ``commit=False`` and emit exactly one empty
-            # ``commit=True`` flush at the end of the iteration. Mirrors the
-            # repo-wide pattern (see e.g. ``torch/mnist``, ``torch/qwen``).
+            # Buffer per-step metrics with commit=False so train/* and val/*
+            # land on the same W&B step; flush with commit=True at end of iteration.
             training_logger.log_metrics(
                 {
                     "train/loss": current_loss,
@@ -317,14 +310,14 @@ def _training_loop(
                     commit=False,
                 )
 
-            # Flush all buffered metrics for this ``global_step`` in one commit.
+            # Flush all buffered metrics for this global_step in one commit.
             training_logger.log_metrics({}, step=global_step, commit=True)
 
         avg_epoch = float(np.mean(epoch_losses))
         training_logger.info(f"Epoch {epoch + 1} complete — avg loss: {avg_epoch:.4f}")
 
         if val_batches:
-            # The last batch of the epoch already committed ``global_step``;
+            # The last batch of the epoch already committed global_step;
             # bump by one so the end-of-epoch val lands on a fresh W&B step.
             global_step += 1
             val_loss = evaluate(
@@ -394,14 +387,7 @@ def main(training_config: TrainingConfig) -> None:
     training_logger.info(
         f"Applying LoRA (rank={training_config.lora_rank}, pattern={training_config.lora_pattern!r})..."
     )
-    if device_kind == "tt":
-        with jax.default_device(cpu_device):
-            model = model.apply_lora_to_layers(
-                lora_rank=training_config.lora_rank,
-                lora_pattern=training_config.lora_pattern,
-                verbose=True,
-            )
-    else:
+    with jax.default_device(cpu_device):
         model = model.apply_lora_to_layers(
             lora_rank=training_config.lora_rank,
             lora_pattern=training_config.lora_pattern,
@@ -433,19 +419,19 @@ def main(training_config: TrainingConfig) -> None:
         f"({training_config.learning_rate} -> {training_config.end_learning_rate})"
     )
 
-    base_tx = optax.adamw(learning_rate=schedule)
+    base_optimizer = optax.adamw(learning_rate=schedule)
     if accum > 1:
-        tx = optax.MultiSteps(base_tx, every_k_schedule=accum)
+        optimizer = optax.MultiSteps(base_optimizer, every_k_schedule=accum)
         eff = training_config.batch_size * accum
         training_logger.info(f"  Gradient accumulation: {accum} steps -> Effective batch size {eff}")
     else:
-        tx = base_tx
-    opt_state = tx.init(lora_params)
+        optimizer = base_optimizer
+    opt_state = optimizer.init(lora_params)
 
     jit_train_step = create_train_step_fn(
         graphdef,
         call_model,
-        tx,
+        optimizer,
     )
     jit_eval_step = create_eval_step_fn(
         graphdef,
