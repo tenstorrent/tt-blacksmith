@@ -112,7 +112,7 @@ def train(
     logger.info("Starting training...")
 
     # Load model.
-    model = get_model(config, device_manager.device, device_manager)
+    model = get_model(config, device_manager, shard_model=True)
 
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")

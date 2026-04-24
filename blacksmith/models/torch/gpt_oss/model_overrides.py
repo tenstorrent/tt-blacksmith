@@ -8,8 +8,10 @@ from peft import LoraConfig, get_peft_model
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
 
+from blacksmith.tools.device_manager import DeviceManager
 
-def get_model(config, device, device_manager=None):
+
+def get_model(config, device_manager: DeviceManager, shard_model=False):
     """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation.
 
     If device_manager is provided, sharding (FSDP / tensor parallelism) is applied
@@ -42,9 +44,9 @@ def get_model(config, device, device_manager=None):
         )
         model = get_peft_model(model, lora_config)
 
-    model.to(device)
+    model.to(device_manager.device)
 
-    if device_manager is not None:
+    if shard_model:
         model = device_manager.shard_model(model)
 
     if config.use_tt:
