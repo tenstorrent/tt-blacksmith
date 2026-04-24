@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import random
 
+import jax
 import numpy as np
 import torch
 
@@ -37,4 +38,9 @@ class ReproducibilityManager:
             torch.backends.cudnn.benchmark = False
 
     def _setup_jax(self):
-        pass
+        if self.config.deterministic:
+            jax.config.update("jax_default_matmul_precision", "highest")
+
+    def get_jax_rng(self):
+        """Return a JAX PRNG key seeded from ``config.seed``."""
+        return jax.random.PRNGKey(self.config.seed)
