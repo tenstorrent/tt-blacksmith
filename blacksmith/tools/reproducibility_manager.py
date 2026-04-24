@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
+import logging
 import random
 
 import jax
@@ -8,6 +10,8 @@ import numpy as np
 import torch
 
 from blacksmith.tools.templates.configs import TrainingConfig
+
+logger = logging.getLogger(__name__)
 
 
 class ReproducibilityManager:
@@ -22,7 +26,7 @@ class ReproducibilityManager:
         elif self.config.framework.lower() == "jax":
             self._setup_jax()
         else:
-            print(f"Unknown framework: {self.config.framework}")
+            logger.warning(f"Unknown framework: {self.config.framework}")
 
     def _setup_python(self):
         random.seed(self.config.seed)
@@ -42,5 +46,5 @@ class ReproducibilityManager:
             jax.config.update("jax_default_matmul_precision", "highest")
 
     def get_jax_rng(self):
-        """Return a JAX PRNG key seeded from ``config.seed``."""
+        """Return a JAX PRNG key seeded from config.seed."""
         return jax.random.PRNGKey(self.config.seed)

@@ -22,19 +22,14 @@ def show_predictions(
 ) -> None:
     """Print collected prediction examples (CPU-only, no forward pass).
 
-    Generalised from the Qwen branch's ``_show_predictions``
-    in ``train_steps.py``.
-
     Args:
-        collected: List of dicts with keys ``input_ids``,
-            ``labels``, ``predictions``, ``per_token_loss``
-            (numpy arrays).
+        collected: List of dicts with keys input_ids, labels, predictions,
+            per_token_loss (numpy arrays).
         tokenizer: HuggingFace tokenizer for decoding.
-        num_tokens: Number of leading tokens to show per
-            example.
+        num_tokens: Number of leading tokens to show per example.
         ignored_index: Label value treated as "don't care".
-        training_logger: Optional :class:`TrainingLogger`;
-            when *None* falls back to module-level logger.
+        training_logger: Optional TrainingLogger; falls back to the
+            module-level logger when None.
     """
     log = training_logger.info if training_logger is not None else logging.getLogger(__name__).info
 
@@ -76,7 +71,7 @@ def show_predictions(
         log(f"  Pred IDs:     {pred_ids.tolist()}")
         log(f"  Target text:  {target_text!r}")
         log(f"  Pred text:    {pred_text!r}")
-        log(f"  Token losses: " f"{np.round(token_losses, 4).tolist()}")
+        log(f"  Token losses: {np.round(token_losses, 4).tolist()}")
         mean_loss = float(per_token_loss.mean())
         log(f"  Mean loss:    {mean_loss:.4f}")
         acc = correct / max(total, 1)
