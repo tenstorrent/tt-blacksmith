@@ -11,6 +11,7 @@ from transformers.utils.quantization_config import Mxfp4Config
 from blacksmith.tools.device_manager import DeviceManager
 
 
+# TODO(pglusac): Align get_model signatures between hf_models.py and this function.
 def get_model(config, device_manager: DeviceManager, shard_model=False):
     """
     Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation.
