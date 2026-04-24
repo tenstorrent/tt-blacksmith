@@ -1,13 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
 import jax
 import jax.numpy as jnp
 import optax
 from flax import linen as nn
 
 
-# Optimizer schedule with linear warmup and linear decay.
 def build_schedule(learning_rate, warmup_ratio, num_train_steps: int):
     warmup_steps = int(warmup_ratio * num_train_steps)
     schedule = optax.join_schedules(
@@ -20,7 +20,6 @@ def build_schedule(learning_rate, warmup_ratio, num_train_steps: int):
     return schedule
 
 
-# KL Divergence between two sets of logits with temperature scaling.
 def kl_divergence(p_logits, q_logits, T):
     p = nn.softmax(p_logits / T, axis=-1)
     log_p = jax.nn.log_softmax(p_logits / T, axis=-1)
@@ -29,14 +28,12 @@ def kl_divergence(p_logits, q_logits, T):
     return (T**2) * jnp.mean(kl)
 
 
-# Cross-entropy loss with integer labels.
 def ce_with_labels(logits, labels):
     num_classes = logits.shape[-1]
     one_hot_labels = jax.nn.one_hot(labels, num_classes)
     return optax.softmax_cross_entropy(logits, one_hot_labels).mean()
 
 
-# Cosine embedding loss between two sets of vectors.
 def cosine_embedding_loss(x, y, eps=1e-8):
     x_norm = x / (jnp.linalg.norm(x, axis=-1, keepdims=True) + eps)
     y_norm = y / (jnp.linalg.norm(y, axis=-1, keepdims=True) + eps)
@@ -52,19 +49,10 @@ def clamped_softmax_cross_entropy_per_token(
     one_hot: jax.Array,
     eps: float = _LOG_EPS,
 ) -> jax.Array:
-    """Per-token cross-entropy that defeats TT bf16 fused-softmax drift.
+    """Per-token cross-entropy robust to TT bf16 fused-softmax drift.
 
-    On TT the fused ``softmax`` kernel in bf16 can produce rows that
-    do not sum to 1 (observed ~+/-2% drift) and occasionally
-    individual entries > 1.0.  Plain
-    :func:`optax.softmax_cross_entropy` then yields a per-token term
-    that can go slightly negative.
-
-    Fix (all on-device):
-      1. compute softmax,
-      2. clamp to ``[0, 1]``,
-      3. renormalize so each row sums to 1,
-      4. ``-sum(one_hot * log(probs))``.
+    Computes softmax, clamps to [0, 1], renormalises, then returns
+    -sum(one_hot * log(probs)) per token.
     """
     probs = jax.nn.softmax(logits_f32, axis=-1)
     probs = jnp.clip(probs, 0.0, 1.0)
@@ -87,20 +75,16 @@ def masked_cross_entropy(
 ) -> jax.Array:
     """Shift-by-one causal cross-entropy with label masking.
 
-    Positions where ``labels == ignored_index`` are excluded
-    from the mean.  When *clamped* is ``True`` (default) the
-    TT-safe :func:`clamped_softmax_cross_entropy_per_token`
-    variant is used; otherwise plain
-    :func:`optax.softmax_cross_entropy`.
+    Positions where labels == ignored_index are excluded from the mean.
+    When clamped is True the TT-safe CE variant is used; otherwise
+    plain optax softmax cross-entropy.
 
     Args:
-        logits: ``(batch, seq_len, vocab)`` model output.
-        labels: ``(batch, seq_len)`` integer labels (may
-            contain *ignored_index*).
+        logits: (batch, seq_len, vocab) model output.
+        labels: (batch, seq_len) integer labels.
         ignored_index: Value treated as "don't care".
         clamped: Use the TT bf16-safe CE variant.
-        vocab_size: Vocabulary size for one-hot encoding.
-            Inferred from *logits* when *None*.
+        vocab_size: Vocabulary size; inferred from logits when None.
     """
     shift_logits = logits[:, :-1, :].astype(jnp.float32)
     shift_labels = labels[:, 1:].astype(jnp.int32)
