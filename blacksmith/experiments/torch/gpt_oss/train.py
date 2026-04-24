@@ -196,8 +196,6 @@ def train(
                 running_loss += loss_.item()
                 accumulation_step += 1
 
-                logger.info(f"Current loss and step: {loss_.item()} {global_step}")
-
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
                     device_manager.optimizer_step(optimizer)

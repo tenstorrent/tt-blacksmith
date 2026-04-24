@@ -12,10 +12,8 @@ from blacksmith.tools.device_manager import DeviceManager
 
 
 def get_model(config, device_manager: DeviceManager, shard_model=False):
-    """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation.
-
-    If device_manager is provided, sharding (FSDP / tensor parallelism) is applied
-    before torch.compile so that the compiler sees the final sharded graph.
+    """
+    Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation.
     """
     quantization_config = Mxfp4Config(dequantize=True)
 

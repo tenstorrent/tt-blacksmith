@@ -147,6 +147,7 @@ class DeviceManager:
             partition_spec = ("fsdp",) + (None,) * (real_output.dim() - 1)
             xs.mark_sharding(real_output, mesh, partition_spec)
 
+        # TODO(pglusac): Investigate if shard_output is necessary.
         model = FSDP(model, mesh=self.mesh, shard_output=shard_output)
         return model
 
