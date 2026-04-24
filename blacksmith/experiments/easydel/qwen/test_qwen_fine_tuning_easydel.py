@@ -141,12 +141,8 @@ def _load_and_prepare_batches(
             "attention_mask": np.asarray(masks, dtype=np.int32),
         }
 
-    train_batches = [
-        _to_batch(train_ids[i], train_labels[i], train_masks[i]) for i in range(len(train_ids))
-    ]
-    val_batches = [
-        _to_batch(val_ids[i], val_labels[i], val_masks[i]) for i in range(len(val_ids))
-    ]
+    train_batches = [_to_batch(train_ids[i], train_labels[i], train_masks[i]) for i in range(len(train_ids))]
+    val_batches = [_to_batch(val_ids[i], val_labels[i], val_masks[i]) for i in range(len(val_ids))]
 
     return train_batches, val_batches
 
