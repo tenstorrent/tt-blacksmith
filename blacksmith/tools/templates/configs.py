@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -12,6 +14,12 @@ class TrainingConfig(BaseModel):
     model_name: str = Field(default="path/to/model")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
+
+    # Mixed precision settings (tt-xla backend only). See tt-xla/docs/src/mixed_precision.md.
+    weight_dtype_overrides: Optional[str] = Field(default=None)  # JSON path (relative to the yaml if not absolute)
+    experimental_weight_dtype: Optional[str] = Field(
+        default=None
+    )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
 
     # Training hyperparameters
     learning_rate: float = Field(default=2e-5, gt=0)

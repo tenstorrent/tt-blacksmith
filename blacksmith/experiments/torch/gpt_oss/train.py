@@ -38,9 +38,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
             expected_output = batch["labels"]
 
-            # Shard model if tensor parallelism is used.
-            device_manager.shard_model(model)
-
             # Forward pass.
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits
@@ -115,7 +112,8 @@ def train(
     logger.info("Starting training...")
 
     # Load model.
-    model = get_model(config, device_manager.device)
+    model = get_model(config, device_manager, shard_model=True)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -180,7 +178,6 @@ def train(
                 }
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
-                device_manager.shard_model(model)
 
                 # Training step.
                 loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
@@ -198,8 +195,6 @@ def train(
 
                 running_loss += loss_.item()
                 accumulation_step += 1
-
-                logger.info(f"Current loss and step: {loss_.item()} {global_step}")
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:

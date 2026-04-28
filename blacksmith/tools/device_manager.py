@@ -12,6 +12,9 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
+    SpmdFullyShardedDataParallel as FSDP,
+)
 
 from blacksmith.tools.templates.configs import TrainingConfig
 
@@ -94,13 +97,19 @@ class DeviceManager:
         """Check if tensor parallelism is enabled based on mesh configuration."""
         return self.config.model_sharding_patterns is not None and self.mesh is not None
 
+    def is_fsdp(self) -> bool:
+        """Check if FSDP is enabled based on mesh axis."""
+        return self.mesh is not None and "fsdp" in self.mesh.axis_names
+
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
 
     def shard_model(self, model: nn.Module) -> nn.Module:
         """Shard model based on mesh configuration."""
+        if self.is_fsdp():
+            model = self._apply_fsdp(model)
         if self.is_tensor_parallel():
-            return self._apply_tensor_parallelism(model)
+            model = self._apply_tensor_parallelism(model)
 
         return model
 
@@ -123,6 +132,23 @@ class DeviceManager:
                 xs.mark_sharding(param, self.mesh, tuple(match[1]))
 
         torch_xla.sync(wait=True)
+        return model
+
+    def _apply_fsdp(self, model: nn.Module) -> nn.Module:
+        # TODO(pglusac): Add support for FSDP granularity configuration.
+        def shard_output(output, mesh):
+            # Extract logits and shard its batch dimension along the fsdp axis.
+            real_output = getattr(output, "logits", None)
+            if real_output is None:
+                real_output = output[0] if isinstance(output, tuple) else output
+            # Skip if the sharding annotation is already set.
+            if torch_xla._XLAC._get_xla_sharding_spec(real_output) not in (None, ""):
+                return
+            partition_spec = ("fsdp",) + (None,) * (real_output.dim() - 1)
+            xs.mark_sharding(real_output, mesh, partition_spec)
+
+        # TODO(pglusac): Investigate if shard_output is necessary.
+        model = FSDP(model, mesh=self.mesh, shard_output=shard_output)
         return model
 
     def shard_optimizer(self, optimizer: torch.optim.Optimizer):

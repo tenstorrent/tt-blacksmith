@@ -242,6 +242,13 @@ if __name__ == "__main__":
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
 
+    # Resolve a relative weight_dtype_overrides JSON path against the yaml's directory
+    # so configs can live next to the yaml that references them.
+    if isinstance(config.weight_dtype_overrides, str) and config.weight_dtype_overrides.endswith(".json"):
+        override_path = Path(config.weight_dtype_overrides)
+        if not override_path.is_absolute():
+            config.weight_dtype_overrides = str((args.config.parent / override_path).resolve())
+
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
@@ -257,7 +264,10 @@ if __name__ == "__main__":
     # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
-        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+        compile_options = {"fp32_dest_acc_en": True, "math_fidelity": "hifi4"}
+        if config.experimental_weight_dtype:
+            compile_options["experimental_weight_dtype"] = config.experimental_weight_dtype
+        torch_xla.set_custom_compile_options(compile_options)
 
     # Checkpoint manager setup
     checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
