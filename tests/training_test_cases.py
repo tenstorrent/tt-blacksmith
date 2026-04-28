@@ -213,6 +213,20 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.p150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-llama_3_1_8b-sst2-p150",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
             "timeout": 20000,
         },
@@ -224,6 +238,22 @@ TRAINING_TEST_CASES = [
             pytest.mark.tensor_parallel,
         ],
         id="tt-llama_3_1_8b-sst2-n300-galaxy",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-galaxy-batch-model.yaml",
+            "timeout": 20000,
+        },
+        marks=[
+            pytest.mark.push,
+            pytest.mark.galaxy,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-n300-galaxy-batch-model",
     ),
     pytest.param(
         {
