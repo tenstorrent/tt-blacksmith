@@ -53,7 +53,7 @@ model_sharding_patterns:
 
 param_sharding_patterns:
   # === Attention sinks ===
-  - ['\.self_attn\.sinks$',                          [null]]         
+  - ['\.self_attn\.sinks$',                          [null]]
   # === Attention biases ===
   - ['\.self_attn\.q_proj\.(base_layer\.)?bias$',    ["model"]]
   - ['\.self_attn\.k_proj\.(base_layer\.)?bias$',    ["model"]]
