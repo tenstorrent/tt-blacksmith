@@ -89,14 +89,6 @@ def load_model(
     return model, tokenizer
 
 
-def _set_nnx_model_mesh(
-    module: nnx.Module,
-    mesh: jax.sharding.Mesh,
-) -> None:
-    """Attach a JAX mesh to an EasyDel model config."""
-    module.config.set_model_mesh(mesh)
-
-
 def _load_and_prepare_batches(
     training_config: TrainingConfig,
 ) -> tuple[list[dict], list[dict]]:
@@ -339,7 +331,7 @@ def main(training_config: TrainingConfig) -> None:
         jax.devices(device_kind)[:num_devices],
     )
     mesh = jax.make_mesh((num_devices,), ("X",), devices=devices_for_mesh)
-    _set_nnx_model_mesh(model, mesh)
+    model.config.set_model_mesh(mesh)
 
     training_logger.log_model_info(
         {

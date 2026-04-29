@@ -18,7 +18,7 @@ YAML configs live under **`single_chip/`** (and **`multi_chip/`** when present) 
 | `data_loading.py` | SST-2 data loading, tokenization, batching. |
 | `train_steps.py` | JIT-compiled train/eval steps, CPU f32 loss helpers, evaluation loop, prediction display. |
 | `test_qwen_fine_tuning_easydel.py` | Thin orchestrator: CLI, model load, LoRA, optimizer, training loop. Uses `TrainingLogger` for stdout + W&B. |
-| `../../../tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
+| `blacksmith/tools/workaround_utils_jax.py` | GQA workaround for TT devices (shared). |
 
 ## Prerequisites
 

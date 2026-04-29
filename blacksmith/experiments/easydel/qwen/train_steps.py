@@ -134,7 +134,7 @@ def _clamped_cross_entropy(logits, labels, ignored_index=IGNORED_LABEL):
     return jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
 
 
-def _clamped_cross_entropy_with_inspect(
+def _clamped_cross_entropy_with_predictions(
     logits,
     labels,
     ignored_index=IGNORED_LABEL,
@@ -190,7 +190,7 @@ def create_eval_inspect_step_fn(graphdef: nnx.GraphDef) -> Callable:
     """Eval step returning (loss, predictions, per_token_loss).
 
     Fully on-device; on TT the CE uses clamp+renorm via
-    _clamped_cross_entropy_with_inspect to correct bf16 softmax drift.
+    _clamped_cross_entropy_with_predictions to correct bf16 softmax drift.
     """
 
     @jax.jit
@@ -203,12 +203,12 @@ def create_eval_inspect_step_fn(graphdef: nnx.GraphDef) -> Callable:
     ):
         m = nnx.merge(graphdef, lora_params, frozen_state)
         logits = m(input_ids=input_ids, attention_mask=attention_mask).logits
-        return _clamped_cross_entropy_with_inspect(logits, labels)
+        return _clamped_cross_entropy_with_predictions(logits, labels)
 
     return eval_inspect_step
 
 
-def _show_predictions(collected, tokenizer, num_tokens=20):
+def _show_predictions(collected, tokenizer, num_tokens=20, max_input_chars=200):
     """Print collected prediction examples (CPU-only, no forward pass).
 
     Args:
@@ -216,6 +216,8 @@ def _show_predictions(collected, tokenizer, num_tokens=20):
             predictions, per_token_loss (numpy arrays).
         tokenizer: HuggingFace tokenizer for decoding.
         num_tokens: Leading tokens to show per example.
+        max_input_chars: Truncate the printed prompt to this many chars
+            so a long input does not flood the log.
     """
     for i, ex in enumerate(collected):
         input_ids = ex["input_ids"]
@@ -237,7 +239,7 @@ def _show_predictions(collected, tokenizer, num_tokens=20):
         input_text = tokenizer.decode(
             input_ids.tolist(),
             skip_special_tokens=True,
-        )[:200]
+        )[:max_input_chars]
         target_text = tokenizer.decode(
             valid_targets.tolist(),
             skip_special_tokens=False,
