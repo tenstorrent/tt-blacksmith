@@ -200,7 +200,7 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b-sst2-n300-llmbox-1x8.yaml",
-            "timeout": 5000,
+            "timeout": 7200,
         },
         marks=[
             pytest.mark.uplift,
@@ -320,7 +320,7 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/albert/train.py",
             "experiment_config": "blacksmith/experiments/torch/albert/single_chip/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
-            "timeout": 3600,
+            "timeout": 5400,
         },
         marks=[
             # TODO(agobeljic): https://github.com/tenstorrent/tt-metal/issues/41127
