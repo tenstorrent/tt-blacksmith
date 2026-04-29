@@ -231,7 +231,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.push,
+            pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
             pytest.mark.data_parallel,
@@ -247,7 +247,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.push,
+            pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
             pytest.mark.data_parallel,
