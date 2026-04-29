@@ -188,7 +188,8 @@ def train(
                         p.grad = p.grad.clamp(-GRAD_CLAMP_VALUE, GRAD_CLAMP_VALUE)
 
                 # Clip gradient norms.
-                torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=GRAD_CLIP_MAX_NORM)
+                if config.clip_grad_norm:
+                    torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=GRAD_CLIP_MAX_NORM)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
