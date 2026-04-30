@@ -7,7 +7,7 @@ on:
     workflows: # List workflow that we want to collect data for
       - "On PR"
       - "On push"
-      - "Manual Test"
+      - "Run Test"
       # Future workflows to add:
       # - "On nightly"
       # - "On weekly"
