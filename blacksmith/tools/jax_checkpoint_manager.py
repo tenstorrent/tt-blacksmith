@@ -4,227 +4,306 @@
 
 import json
 import logging
-import pickle
+import os
 from datetime import datetime
-from pathlib import Path
+from functools import partial
 from typing import Optional
 
 import jax
+from flax.serialization import from_bytes, from_state_dict, msgpack_serialize
 
 from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.storage_backends import StorageBackend
 from blacksmith.tools.templates.configs import TrainingConfig
 
 logger = logging.getLogger(__name__)
 
 
 class JaxCheckpointManager:
-    """Manage JAX training checkpoints via pickle with a JSON history file.
+    """JAX/EasyDel counterpart to ``CheckpointManager``.
 
-    Args:
-        config: Training configuration with the standard checkpoint fields.
-        training_logger: Shared TrainingLogger.
+    Mirrors the torch ``CheckpointManager`` API and on-disk layout: each
+    checkpoint is a single file under ``<project_dir>/checkpoints/``, alongside
+    a ``checkpoint_history.json`` that tracks all checkpoints and the current
+    best ones. Pytrees are serialised with ``flax.serialization.msgpack_serialize``
+    after being moved to CPU so checkpoints are device-agnostic.
     """
 
     def __init__(
         self,
         config: TrainingConfig,
-        training_logger: TrainingLogger,
+        logger: TrainingLogger,
     ) -> None:
         self.config = config
-        self.training_logger = training_logger
+        self.logger = logger
 
-        self.checkpoint_dir = Path(self.config.project_dir) / "checkpoints"
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
+        self.storage_backend = self._setup_storage_backend()
 
         self.checkpoint_history = self._load_checkpoint_history()
 
-    def _history_path(self) -> Path:
-        return self.checkpoint_dir / "checkpoint_history.json"
+    def _setup_storage_backend(self) -> Optional[StorageBackend]:
+        """Setup storage backend based on config"""
+        if self.config.storage_backend == "local":
+            return None
+        else:
+            raise ValueError(f"Unknown storage backend: {self.config.storage_backend}")
 
     def _load_checkpoint_history(self) -> dict:
-        hp = self._history_path()
-        if hp.exists():
-            with open(hp) as f:
+        """Load checkpoint history from metadata file"""
+        history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
+        if os.path.exists(history_file):
+            with open(history_file, "r") as f:
                 return json.load(f)
+
         return {"checkpoints": [], "best_checkpoints": []}
 
     def _save_checkpoint_history(self) -> None:
-        with open(self._history_path(), "w") as f:
+        """Save checkpoint history to metadata file"""
+        history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
+        with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
-    def should_save_checkpoint(
-        self,
-        step: int,
-        epoch: Optional[int] = None,
-    ) -> bool:
-        """Decide whether to checkpoint at the given step or epoch."""
+    def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
+        """Determine if checkpoint should be saved at current step/epoch"""
         if epoch is not None:
             if self.config.save_strategy == "epoch":
                 return epoch % self.config.epoch_freq == 0
             return False
+
         if self.config.save_strategy == "step":
             return step % self.config.steps_freq == 0
         return False
 
     def save_checkpoint(
         self,
-        *,
-        step: int,
-        epoch: int,
         params,
+        step: int = 0,
+        epoch: int = 0,
         opt_state=None,
         rng=None,
         metrics: Optional[dict] = None,
         extra: Optional[dict] = None,
         checkpoint_name: Optional[str] = None,
     ) -> str:
-        """Persist a checkpoint to disk as a pickle file.
-
-        All pytrees are moved to CPU before serialisation so checkpoints
-        are device-agnostic.
+        """
+        Save a checkpoint
 
         Args:
-            step: Current global training step.
-            epoch: Current epoch number.
-            params: Model parameters pytree.
-            opt_state: Optimizer state.
-            rng: JAX PRNG key.
-            metrics: Scalar metrics dict.
-            extra: Arbitrary extra payload.
-            checkpoint_name: Custom filename; auto-generated when None.
+            params: Trainable parameter pytree to save (e.g. nnx.LoRAParam state)
+            step: Current training step
+            epoch: Current epoch
+            opt_state: Optimizer state (optional)
+            rng: JAX PRNG key (optional)
+            metrics: Dictionary of metrics (loss, accuracy, etc.)
+            extra: Arbitrary JSON-serialisable extra payload
+            checkpoint_name: Custom checkpoint name (auto-generated if None)
 
         Returns:
-            Absolute path to the saved checkpoint file.
+            Path to saved checkpoint
         """
         metrics = metrics or {}
 
         if checkpoint_name is None:
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checkpoint_name = f"checkpoint_step{step}_epoch{epoch}_{ts}.pkl"
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            checkpoint_name = f"checkpoint_step{step}_epoch{epoch}_{timestamp}.msgpack"
 
-        path = self.checkpoint_dir / checkpoint_name
+        checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
-        cpu = jax.devices("cpu")[0]
+        cpu_put = partial(jax.device_put, device=jax.devices("cpu")[0])
 
-        def cpu_put(t):
-            return jax.tree.map(lambda x: jax.device_put(x, cpu), t)
-
-        data: dict = {
+        checkpoint_data: dict = {
             "step": step,
             "epoch": epoch,
-            "params": cpu_put(params),
+            "params": jax.tree.map(cpu_put, params),
             "metrics": metrics,
             "timestamp": datetime.now().isoformat(),
         }
 
         if self.config.save_optim and opt_state is not None:
-            data["opt_state"] = cpu_put(opt_state)
+            checkpoint_data["opt_state"] = jax.tree.map(cpu_put, opt_state)
 
         if rng is not None:
-            data["rng"] = cpu_put(rng)
+            checkpoint_data["rng"] = jax.tree.map(cpu_put, rng)
 
         if extra is not None:
-            data["extra"] = extra
+            checkpoint_data["extra"] = extra
 
-        with open(path, "wb") as f:
-            pickle.dump(data, f)
+        with open(checkpoint_path, "wb") as f:
+            f.write(msgpack_serialize(checkpoint_data))
 
-        info: dict = {
-            "path": str(path),
+        checkpoint_info = {
+            "path": checkpoint_path,
             "name": checkpoint_name,
             "step": step,
             "epoch": epoch,
             "metrics": metrics,
-            "timestamp": data["timestamp"],
+            "timestamp": checkpoint_data["timestamp"],
         }
-        self.checkpoint_history["checkpoints"].append(info)
+        self.checkpoint_history["checkpoints"].append(checkpoint_info)
 
         if self.config.checkpoint_metric in metrics:
-            self._update_best_checkpoints(info)
+            self._update_best_checkpoints(checkpoint_info)
         self._cleanup_checkpoints()
         self._save_checkpoint_history()
 
-        self.training_logger.info(f"Saved checkpoint: {path}")
-        return str(path)
+        if self.config.sync_to_storage and self.config.remote_path:
+            self.storage_backend.save(checkpoint_path)
 
-    def _update_best_checkpoints(self, info: dict) -> None:
-        metric_value = info["metrics"][self.config.checkpoint_metric]
-        best = self.checkpoint_history.get("best_checkpoints", [])
-        best.append({**info, "metric_value": metric_value})
+        self.logger.info(f"Saved checkpoint: {checkpoint_path}")
+
+        return checkpoint_path
+
+    def _update_best_checkpoints(self, checkpoint_info: dict) -> None:
+        """Update list of best checkpoints based on metric"""
+        metric_value = checkpoint_info["metrics"][self.config.checkpoint_metric]
+
+        best_checkpoints = self.checkpoint_history.get("best_checkpoints", [])
+        best_checkpoints.append({**checkpoint_info, "metric_value": metric_value})
 
         reverse = self.config.checkpoint_metric_mode == "max"
-        best.sort(key=lambda x: x["metric_value"], reverse=reverse)
-        self.checkpoint_history["best_checkpoints"] = best[: self.config.keep_best_n]
+        best_checkpoints.sort(key=lambda x: x["metric_value"], reverse=reverse)
+
+        self.checkpoint_history["best_checkpoints"] = best_checkpoints[: self.config.keep_best_n]
 
     def _cleanup_checkpoints(self) -> None:
-        all_ckpts = self.checkpoint_history["checkpoints"]
-        best_paths = {cp["path"] for cp in self.checkpoint_history.get("best_checkpoints", [])}
+        """Keep only the last N and best N checkpoints"""
+        all_checkpoints = self.checkpoint_history["checkpoints"]
+        best_checkpoint_paths = {cp["path"] for cp in self.checkpoint_history.get("best_checkpoints", [])}
 
-        if len(all_ckpts) <= self.config.keep_last_n:
+        if len(all_checkpoints) <= self.config.keep_last_n:
             return
 
-        to_remove = all_ckpts[: -self.config.keep_last_n]
-        for ckpt in to_remove:
-            p = Path(ckpt["path"])
-            if p.as_posix() not in best_paths and p.exists():
-                p.unlink()
-                self.training_logger.info(f"Removed old checkpoint: {p}")
+        checkpoints_to_remove = all_checkpoints[: -self.config.keep_last_n]
+        for checkpoint_info in checkpoints_to_remove:
+            checkpoint_path = checkpoint_info["path"]
 
-        self.checkpoint_history["checkpoints"] = all_ckpts[-self.config.keep_last_n :]
+            # Don't remove if it's a best checkpoint
+            if checkpoint_path not in best_checkpoint_paths:
+                if os.path.exists(checkpoint_path):
+                    os.remove(checkpoint_path)
+                    self.logger.info(f"Removed old checkpoint: {checkpoint_path}")
 
-    def load_checkpoint(self) -> Optional[dict]:
-        """Load a checkpoint according to config.resume_option.
+        self.checkpoint_history["checkpoints"] = all_checkpoints[-self.config.keep_last_n :]
+
+    def load_checkpoint(
+        self,
+        params_target,
+        opt_state_target=None,
+        rng_target=None,
+    ) -> Optional[dict]:
+        """Load checkpoint based on resume option in config"""
+        if self.config.resume_option == "last":
+            return self.load_latest_checkpoint(params_target, opt_state_target, rng_target)
+        elif self.config.resume_option == "best":
+            return self.load_best_checkpoint(params_target, opt_state_target, rng_target)
+        elif self.config.resume_option == "path":
+            if not self.config.checkpoint_path:
+                raise ValueError("checkpoint_path must be provided when resume_option is 'path'")
+            return self.load_checkpoint_path(self.config.checkpoint_path, params_target, opt_state_target, rng_target)
+        else:
+            raise ValueError(f"Unknown resume_option: {self.config.resume_option}")
+
+    def load_checkpoint_path(
+        self,
+        checkpoint_path: str,
+        params_target,
+        opt_state_target=None,
+        rng_target=None,
+    ) -> dict:
+        """
+        Load a checkpoint
+
+        ``flax.serialization.from_bytes(None, ...)`` returns the raw nested dict
+        and ``from_state_dict(target, raw)`` then merges it into the supplied
+        prototype pytrees so shapes/dtypes are recovered.
+
+        Args:
+            checkpoint_path: Path to checkpoint file
+            params_target: Initialised params pytree used as the deserialisation
+                template
+            opt_state_target: Optional optimizer-state template; pass None to
+                skip loading the optimizer state
+            rng_target: Optional PRNG-key template; pass None to skip loading
 
         Returns:
-            Dict with keys step, epoch, params, opt_state, rng, metrics; or
-            None if no checkpoint is found.
+            Dictionary containing checkpoint metadata and restored pytrees
         """
-        option = self.config.resume_option
-        if option == "last":
-            return self._load_latest()
-        if option == "best":
-            return self._load_best()
-        if option == "path":
-            if not self.config.checkpoint_path:
-                raise ValueError("checkpoint_path must be set when resume_option='path'")
-            return self._load_from_path(self.config.checkpoint_path)
-        raise ValueError(f"Unknown resume_option: {option}")
+        if self.config.load_from_storage:
+            self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-    def _load_from_path(self, path: str) -> dict:
-        with open(path, "rb") as f:
-            data = pickle.load(f)  # noqa: S301
-        self.training_logger.info(f"Loaded checkpoint from {path}")
-        return {
-            "step": data.get("step", 0),
-            "epoch": data.get("epoch", 0),
-            "params": data.get("params"),
-            "opt_state": data.get("opt_state"),
-            "rng": data.get("rng"),
-            "metrics": data.get("metrics", {}),
+        with open(checkpoint_path, "rb") as f:
+            raw = from_bytes(None, f.read())
+
+        checkpoint = {
+            "step": raw.get("step", 0),
+            "epoch": raw.get("epoch", 0),
+            "metrics": raw.get("metrics", {}),
+            "params": from_state_dict(params_target, raw["params"]),
         }
+        if "extra" in raw:
+            checkpoint["extra"] = raw["extra"]
 
-    def _load_latest(self) -> Optional[dict]:
-        ckpts = self.checkpoint_history["checkpoints"]
-        if not ckpts:
-            return None
-        return self._load_from_path(ckpts[-1]["path"])
+        if opt_state_target is not None and "opt_state" in raw:
+            checkpoint["opt_state"] = from_state_dict(opt_state_target, raw["opt_state"])
+            self.logger.info("Loaded optimizer state")
 
-    def _load_best(self) -> Optional[dict]:
-        best = self.checkpoint_history.get("best_checkpoints", [])
-        if not best:
-            self.training_logger.warning("No best checkpoints found")
+        if rng_target is not None and "rng" in raw:
+            checkpoint["rng"] = from_state_dict(rng_target, raw["rng"])
+
+        self.logger.info(f"Loaded checkpoint from {checkpoint_path}")
+
+        return checkpoint
+
+    def load_latest_checkpoint(
+        self,
+        params_target,
+        opt_state_target=None,
+        rng_target=None,
+    ) -> Optional[dict]:
+        """Load the most recent checkpoint
+
+        Args:
+            params_target: Initialised params pytree used as the deserialisation
+                template
+            opt_state_target: Optional optimizer-state template
+            rng_target: Optional PRNG-key template
+        """
+        if not self.checkpoint_history["checkpoints"]:
             return None
-        return self._load_from_path(best[0]["path"])
+
+        latest_checkpoint = self.checkpoint_history["checkpoints"][-1]
+        return self.load_checkpoint_path(latest_checkpoint["path"], params_target, opt_state_target, rng_target)
+
+    def load_best_checkpoint(
+        self,
+        params_target,
+        opt_state_target=None,
+        rng_target=None,
+    ) -> Optional[dict]:
+        """Load the best checkpoint based on tracked metric
+
+        Args:
+            params_target: Initialised params pytree used as the deserialisation
+                template
+            opt_state_target: Optional optimizer-state template
+            rng_target: Optional PRNG-key template
+        """
+        if not self.checkpoint_history.get("best_checkpoints"):
+            self.logger.warning("No best checkpoints found")
+            return None
+
+        best_checkpoint = self.checkpoint_history["best_checkpoints"][0]
+        return self.load_checkpoint_path(best_checkpoint["path"], params_target, opt_state_target, rng_target)
 
     def get_checkpoint_info(self) -> dict:
-        """Return a summary of tracked checkpoints."""
-        ckpts = self.checkpoint_history["checkpoints"]
+        """Get information about all checkpoints"""
         return {
-            "total_checkpoints": len(ckpts),
+            "total_checkpoints": len(self.checkpoint_history["checkpoints"]),
             "best_checkpoints": self.checkpoint_history.get("best_checkpoints", []),
-            "latest_checkpoint": (ckpts[-1] if ckpts else None),
+            "latest_checkpoint": (
+                self.checkpoint_history["checkpoints"][-1] if self.checkpoint_history["checkpoints"] else None
+            ),
         }
-
-    def __repr__(self) -> str:
-        n = len(self.checkpoint_history["checkpoints"])
-        return f"JaxCheckpointManager(dir={self.checkpoint_dir!r}, tracked={n})"

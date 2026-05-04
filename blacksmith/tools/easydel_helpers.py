@@ -71,12 +71,8 @@ def load_easydel_causal_lm(
     load_kwargs["sharding_axis_names"] = (mesh_name,)
     load_kwargs["auto_shard_model"] = auto_shard_model
 
-    cpu = jax.devices("cpu")[0]
     on_tt = device_manager.device_kind == "tt"
-    if on_tt:
-        ctx = jax.default_device(cpu)
-    else:
-        ctx = contextlib.nullcontext()
+    ctx = jax.default_device(jax.devices("cpu")[0]) if on_tt else contextlib.nullcontext()
 
     with ctx:
         model = AutoEasyDeLModelForCausalLM.from_pretrained(
@@ -96,7 +92,7 @@ def apply_lora(
     rank: int,
     pattern: str,
     on_cpu: bool = True,
-    verbose: bool = True,
+    verbose: bool = False,
 ) -> nnx.Module:
     """Apply LoRA adapters to layers matching pattern, optionally under a CPU context.
 
@@ -110,26 +106,13 @@ def apply_lora(
     Returns:
         The model with LoRA layers injected in-place.
     """
-    if on_cpu:
-        cpu = jax.devices("cpu")[0]
-        with jax.default_device(cpu):
-            model = model.apply_lora_to_layers(
-                lora_rank=rank,
-                lora_pattern=pattern,
-                verbose=verbose,
-            )
-    else:
-        model = model.apply_lora_to_layers(
+    ctx = jax.default_device(jax.devices("cpu")[0]) if on_cpu else contextlib.nullcontext()
+    with ctx:
+        return model.apply_lora_to_layers(
             lora_rank=rank,
             lora_pattern=pattern,
             verbose=verbose,
         )
-    return model
-
-
-def split_lora_state(model: nnx.Module):
-    """Split an NNX model into (graphdef, lora_state, frozen_state)."""
-    return nnx.split(model, nnx.LoRAParam, ...)
 
 
 def build_optimizer(
@@ -146,7 +129,7 @@ def build_optimizer(
         total_opt_steps: Total number of optimizer updates after accumulation.
 
     Returns:
-        (tx, schedule) tuple.
+        (optimizer, schedule) tuple.
     """
     schedule = optax.warmup_cosine_decay_schedule(
         init_value=0.0,
@@ -156,12 +139,12 @@ def build_optimizer(
         end_value=getattr(config, "end_learning_rate", 0.0),
     )
 
-    base_tx = optax.adamw(learning_rate=schedule)
+    base_optimizer = optax.adamw(learning_rate=schedule)
 
     accum = config.gradient_accumulation_steps
     if accum > 1:
-        tx = optax.MultiSteps(base_tx, every_k_schedule=accum)
+        optimizer = optax.MultiSteps(base_optimizer, every_k_schedule=accum)
     else:
-        tx = base_tx
+        optimizer = base_optimizer
 
-    return tx, schedule
+    return optimizer, schedule
