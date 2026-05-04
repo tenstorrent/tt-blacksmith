@@ -56,23 +56,6 @@ def build_param_partition_specs(
     return jax.tree_util.tree_unflatten(treedef, specs)
 
 
-def build_named_shardings(
-    specs_tree,
-    mesh: Mesh,
-):
-    """Map a pytree of PartitionSpec into NamedSharding for the given mesh."""
-    return jax.tree.map(lambda s: NamedSharding(mesh, s), specs_tree)
-
-
-def shard_pytree(pytree, shardings_tree):
-    """Place every leaf according to the matching sharding."""
-    return jax.tree.map(
-        lambda x, s: jax.device_put(x, s),
-        pytree,
-        shardings_tree,
-    )
-
-
 def easydel_partition_specs_for_lora(
     model: nnx.Module,
     mesh: Mesh,
@@ -99,8 +82,8 @@ def easydel_partition_specs_for_lora(
         lora_specs = jax.tree.map(lambda _: lora_default, lora_state)
         frozen_specs = jax.tree.map(lambda _: frozen_default, frozen_state)
 
-    lora_shardings = build_named_shardings(lora_specs, mesh)
-    frozen_shardings = build_named_shardings(frozen_specs, mesh)
+    lora_shardings = jax.tree.map(lambda s: NamedSharding(mesh, s), lora_specs)
+    frozen_shardings = jax.tree.map(lambda s: NamedSharding(mesh, s), frozen_specs)
 
     return (
         graphdef,
