@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.gemma11.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model
+from blacksmith.models.torch.huggingface.hf_models import get_model, make_static_causal_mask_4d
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -24,19 +24,30 @@ from blacksmith.tools.torch_helpers import (
 )
 
 
-def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
+def validate(
+    model, val_data_loader, loss_fn, device_manager, config, logger,
+    tokenizer=None, mask_4d=None, position_ids=None,
+):
     logger.info(f"\n=== Starting Validation ===")
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
     max_examples = 10
+    enable_trace = getattr(config, "enable_trace", False)
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
 
             # Forward pass + loss
-            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+            if enable_trace:
+                outputs = model(
+                    input_ids=batch["input_ids"],
+                    attention_mask=mask_4d,
+                    position_ids=position_ids,
+                )
+            else:
+                outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
             logits = outputs.logits
 
             # Shift logits to match pre-shifted labels from collate_fn
@@ -82,6 +93,7 @@ def train(
     checkpoint_manager: CheckpointManager,
 ):
     logger.info("Starting training...")
+    enable_trace = getattr(config, "enable_trace", False)
 
     # Load model
     model = get_model(config, device_manager.device)
@@ -89,6 +101,19 @@ def train(
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    # Pre-build trace-safe static inputs when trace is enabled
+    mask_4d = None
+    position_ids = None
+    if enable_trace:
+        dtype = eval(config.dtype)
+        mask_4d = make_static_causal_mask_4d(
+            config.batch_size, config.max_length, dtype, device_manager.device,
+        )
+        position_ids = torch.arange(config.max_length, device=device_manager.device).unsqueeze(0).expand(
+            config.batch_size, -1
+        )
+        logger.info(f"Trace enabled: static 4D mask {list(mask_4d.shape)}, position_ids {list(position_ids.shape)}")
 
     # Load checkpoint if needed
     if config.resume_from_checkpoint:
@@ -114,7 +139,8 @@ def train(
         # Initial validation
         model.eval()
         avg_val_loss = validate(
-            model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
+            model, eval_dataloader, loss_fn, device_manager, config, logger,
+            train_dataset.tokenizer, mask_4d=mask_4d, position_ids=position_ids,
         )
         logger.log_metrics({"epoch": 0, "val/loss": avg_val_loss}, commit=True, step=global_step)
         model.train()
@@ -127,7 +153,14 @@ def train(
                 batch = device_manager.prepare_batch(batch)
 
                 # Forward pass
-                outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+                if enable_trace:
+                    outputs = model(
+                        input_ids=batch["input_ids"],
+                        attention_mask=mask_4d,
+                        position_ids=position_ids,
+                    )
+                else:
+                    outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
 
                 logits = outputs.logits
 
@@ -139,15 +172,18 @@ def train(
                     shift_logits.view(-1, model.model.config.vocab_size),
                     batch["labels"].view(-1),
                 )
-                running_loss += loss.item()
 
                 # Backward pass
                 loss.backward()
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
-
-                # Update parameters
-                device_manager.optimizer_step(optimizer)
+                if enable_trace:
+                    torch_xla.sync(wait=False)
+                    device_manager.optimizer_step(optimizer)
+                    running_loss += loss.item()
+                else:
+                    running_loss += loss.item()
+                    if config.use_tt:
+                        torch_xla.sync(wait=True)
+                    device_manager.optimizer_step(optimizer)
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
@@ -158,7 +194,8 @@ def train(
                 if global_step % config.val_steps_freq == 0:
                     model.eval()
                     avg_val_loss = validate(
-                        model, eval_dataloader, loss_fn, device_manager, config, logger, train_dataset.tokenizer
+                        model, eval_dataloader, loss_fn, device_manager, config, logger,
+                        train_dataset.tokenizer, mask_4d=mask_4d, position_ids=position_ids,
                     )
                     logger.log_metrics({"epoch": epoch + 1, "val/loss": avg_val_loss}, commit=False, step=global_step)
                     model.train()

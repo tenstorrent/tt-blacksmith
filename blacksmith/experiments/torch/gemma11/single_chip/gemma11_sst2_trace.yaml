@@ -1,0 +1,9 @@
+enable_trace: true
+trace_region_size_mb: 300
+num_epochs: 1
+use_wandb: false
+val_steps_freq: 9999
+steps_freq: 1
+save_strategy: "epoch"
+keep_last_n: 0
+keep_best_n: 0

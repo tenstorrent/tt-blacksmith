@@ -78,6 +78,10 @@ class TrainingConfig(BaseModel):
     lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
     lora_task_type: str = Field(default="CAUSAL_LM")
 
+    # Trace settings
+    enable_trace: bool = Field(default=False)
+    trace_region_size_mb: int = Field(default=200, gt=0)
+
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)

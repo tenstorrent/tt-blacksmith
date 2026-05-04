@@ -9,6 +9,20 @@ from transformers import AutoModelForCausalLM
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
+def make_static_causal_mask_4d(batch_size: int, seq_len: int, dtype: torch.dtype, device: torch.device):
+    """Pre-construct a static 4D causal attention mask.
+
+    When HF's _update_causal_mask() receives a 4D attention_mask it returns it
+    directly, bypassing dynamic mask construction that generates variable-shape
+    tensors and breaks runtime trace.
+
+    Shape: [batch, 1, seq_len, seq_len]. Convention: 0 = attend, large-negative = masked.
+    """
+    mask = torch.full((seq_len, seq_len), torch.finfo(dtype).min, dtype=dtype, device=device)
+    mask = torch.triu(mask, diagonal=1)
+    return mask.unsqueeze(0).unsqueeze(0).expand(batch_size, 1, seq_len, seq_len)
+
+
 def _is_trainable_param(model: torch.nn.Module, param_path: str) -> bool:
     """Look up a parameter by its pre-parametrize dotted path and return whether it's trainable.
 
@@ -70,6 +84,9 @@ def get_model(config: TrainingConfig, device: torch.device):
 
     if config.use_tt:
         compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True}
+        if getattr(config, "enable_trace", False):
+            import torch_xla
+            torch_xla.set_custom_compile_options({"enable_trace": "true"})
         model = torch.compile(model, backend="tt", options=compile_options)
 
     return model

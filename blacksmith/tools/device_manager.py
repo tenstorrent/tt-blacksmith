@@ -44,6 +44,10 @@ class DeviceManager:
         os.environ["PJRT_DEVICE"] = "TT"
         os.environ["XLA_STABLEHLO_COMPILE"] = "1"
 
+        if getattr(self.config, "enable_trace", False):
+            region_mb = getattr(self.config, "trace_region_size_mb", 200)
+            os.environ["TT_RUNTIME_TRACE_REGION_SIZE"] = str(region_mb * 1_000_000)
+
         # Additional setup for multichip (if mesh configuration is provided).
         if hasattr(self.config, "mesh_shape") and self.config.mesh_shape is not None:
             os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
