@@ -12,20 +12,20 @@ import numpy as np
 from blacksmith.datasets.jax.sst2.sst2_dataset import load_sst2_batches
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
-from blacksmith.tools.easydel_helpers import (
+from blacksmith.tools.jax.checkpoint_manager import JaxCheckpointManager
+from blacksmith.tools.jax.device_manager import JaxDeviceManager
+from blacksmith.tools.jax.easydel.helpers import (
     apply_lora,
     build_optimizer,
     load_easydel_causal_lm,
 )
-from blacksmith.tools.easydel_partitioning import easydel_partition_specs_for_lora
-from blacksmith.tools.easydel_train_steps import (
+from blacksmith.tools.jax.easydel.partitioning import easydel_partition_specs_for_lora
+from blacksmith.tools.jax.easydel.train_steps import (
     create_eval_inspect_step_fn,
     create_eval_step_fn,
     create_loss_and_grad_step_fn,
     evaluate,
 )
-from blacksmith.tools.jax_checkpoint_manager import JaxCheckpointManager
-from blacksmith.tools.jax_device_manager import JaxDeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 

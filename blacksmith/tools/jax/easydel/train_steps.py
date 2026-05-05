@@ -10,7 +10,7 @@ import numpy as np
 from flax import nnx
 from transformers import PreTrainedTokenizerBase
 
-from blacksmith.tools.jax_helpers import (
+from blacksmith.tools.jax.helpers import (
     clamped_softmax_cross_entropy_per_token,
     masked_cross_entropy,
     show_predictions,

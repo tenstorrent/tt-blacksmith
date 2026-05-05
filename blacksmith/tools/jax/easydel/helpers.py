@@ -13,7 +13,7 @@ from flax import nnx
 from jax.typing import DTypeLike
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
-from blacksmith.tools.jax_device_manager import JaxDeviceManager
+from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.templates.configs import TrainingConfig
 
 logger = logging.getLogger(__name__)

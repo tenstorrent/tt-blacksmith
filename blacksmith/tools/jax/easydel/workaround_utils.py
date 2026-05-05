@@ -5,6 +5,7 @@
 import logging
 import typing as tp
 
+import easydel.modules
 import jax
 from easydel.layers.attention_operator._attention_impl import AttentionOutput
 from easydel.layers.attention_operator.modules.vanilla import VanillaAttn

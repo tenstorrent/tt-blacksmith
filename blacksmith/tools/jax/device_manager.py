@@ -11,8 +11,8 @@ import jax.numpy as jnp
 import optax
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
+from blacksmith.tools.jax.easydel.workaround_utils import apply_gqa_workaround
 from blacksmith.tools.templates.configs import TrainingConfig
-from blacksmith.tools.workaround_utils_jax import apply_gqa_workaround
 
 logger = logging.getLogger(__name__)
 

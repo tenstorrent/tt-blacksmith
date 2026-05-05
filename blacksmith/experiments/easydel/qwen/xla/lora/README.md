@@ -65,7 +65,7 @@ python3 blacksmith/experiments/easydel/qwen/xla/test_qwen_fine_tuning_easydel.py
 
 ### Mesh and Sharding Configuration
 
-When multi-chip configs are added, mesh configurations will define the parallelism strategy via `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim` fields in the YAML config. The `easydel_partition_specs_for_lora` helper in `blacksmith/tools/easydel_partitioning.py` automatically derives parameter shardings from EasyDel's built-in `partition_rules()`.
+When multi-chip configs are added, mesh configurations will define the parallelism strategy via `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim` fields in the YAML config. The `easydel_partition_specs_for_lora` helper in `blacksmith/tools/jax/easydel/partitioning.py` automatically derives parameter shardings from EasyDel's built-in `partition_rules()`.
 
 ## Data
 
