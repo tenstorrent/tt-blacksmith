@@ -1,0 +1,37 @@
+# Dataset settings
+dataset_id: "sst2"
+
+# Model settings
+model_name: "Qwen/Qwen3-0.6B"
+max_length: 128
+mask_max_position_embeddings: 128
+dtype: "bfloat16"
+
+# Training hyperparameters
+learning_rate: 5e-5
+warmup_steps: 20
+end_learning_rate: 0.0
+batch_size: 4
+gradient_accumulation_steps: 1
+num_epochs: 2
+val_steps_freq: 25
+max_val_batches: 20
+
+# LoRA settings
+lora_rank: 32
+lora_pattern: ".*(q_proj|v_proj).*"
+
+# Reproducibility settings
+seed: 42
+
+# Logging settings
+use_wandb: true
+wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
+wandb_run_name: "qwen3-0.6b-sst2-tt-easydel"
+print_examples: true
+steps_freq: 10
+log_level: "INFO"
+
+# Other settings
+use_tt: true
+num_devices: 1
