@@ -26,10 +26,10 @@ source env/activate --xla
 source env/activate --gpu
 ```
 
-Then install the additional EasyDel-specific dependencies:
+Then install EasyDel pinned to the validated commit (its remaining dependencies — `eformer`, `triton`, etc. — are pulled in transitively):
 
 ```bash
-pip install -r blacksmith/experiments/easydel/requirements.txt
+pip install git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
 ```
 
 For **GPU baseline** runs, also install the JAX CUDA plugin (`--no-deps` avoids a cuDNN version conflict with torch):
