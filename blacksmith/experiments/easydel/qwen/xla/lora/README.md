@@ -6,7 +6,7 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 
 ## Overview
 
-The shared training script (`../test_qwen_fine_tuning_easydel.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support on the SST-2 sentiment classification dataset, formatted as instruction-style causal language modelling.
+The shared training script (`../train.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support on the SST-2 sentiment classification dataset, formatted as instruction-style causal language modelling.
 
 Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens (JSON label).
 
@@ -45,14 +45,14 @@ pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
 **Single Chip Training:**
 
 ```bash
-python3 blacksmith/experiments/easydel/qwen/xla/test_qwen_fine_tuning_easydel.py \
+python3 blacksmith/experiments/easydel/qwen/xla/train.py \
   --config blacksmith/experiments/easydel/qwen/xla/lora/single_chip/test_qwen3_0.6b_lora.yaml
 ```
 
 GPU baseline (override `use_tt`; requires GPU JAX and the CUDA plugin above):
 
 ```bash
-python3 blacksmith/experiments/easydel/qwen/xla/test_qwen_fine_tuning_easydel.py \
+python3 blacksmith/experiments/easydel/qwen/xla/train.py \
   --config blacksmith/experiments/easydel/qwen/xla/lora/single_chip/test_qwen3_0.6b_lora.yaml \
   --test_config '{"use_tt": false}'
 ```
