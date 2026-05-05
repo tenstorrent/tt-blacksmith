@@ -56,11 +56,18 @@ param_sharding_patterns:
 python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experiments/torch/gpt_oss/lora/loudbox/gpt_oss_20b_sst2.yaml
 ```
 
+**WH Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experiments/torch/gpt_oss/lora/galaxy/gpt_oss_20b_alpaca.yaml
+```
+
 #### GPT-OSS 20B Training Configurations
 
 | Architecture | mesh_shape | mesh_axis_names | Dataset | Method |
 | --- | --- | --- | --- | --- |
 | [BH LoudBox](lora/loudbox/gpt_oss_20b_sst2.yaml) | `[1, 8]` | `["batch", "model"]` | SST-2 | LoRA |
+| [WH Galaxy](lora/galaxy/gpt_oss_20b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` | Alpaca | LoRA |
+
 
 ## Data
 

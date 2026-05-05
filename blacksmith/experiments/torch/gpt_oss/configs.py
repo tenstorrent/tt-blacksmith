@@ -27,6 +27,7 @@ class TrainingConfig(BaseModel):
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
     ignored_index: int = Field(default=-100)
+    clip_grad_norm: bool = Field(default=True)
 
     # Logging settings
     log_level: str = Field(default="INFO")
