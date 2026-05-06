@@ -40,6 +40,7 @@ def validate(
     jit_inspect_step=None,
     tokenizer=None,
 ):
+    """Run evaluation on validation batches and log the result."""
     logger.info("Starting validation...")
     validation_loss = evaluate(
         jit_eval_step,
@@ -61,6 +62,7 @@ def train(
 ):
     logger.info("Starting training...")
 
+    # Load model.
     model, tokenizer = load_easydel_causal_lm(
         config.model_name,
         device_manager,
@@ -80,6 +82,7 @@ def train(
         }
     )
 
+    # Load dataset.
     train_input_ids, train_labels, train_attention_masks = load_sst2_batches(config, split="train")
     validation_input_ids, validation_labels, validation_attention_masks = load_sst2_batches(config, split="validation")
 
@@ -102,6 +105,7 @@ def train(
         f"Train batches: {len(train_batches)}, Validation batches: {len(validation_batches)}"
     )
 
+    # Apply LoRA.
     logger.info(f"Applying LoRA (rank={config.lora_rank}, pattern={config.lora_pattern!r})...")
     model = apply_lora(
         model,
@@ -113,6 +117,7 @@ def train(
     graphdef, lora_params, frozen_state, _shardings = easydel_partition_specs_for_lora(model, device_manager.mesh)
     vocab_size = model.config.vocab_size
 
+    # Build optimizer.
     num_train_batches = len(train_batches)
     total_train_batches = num_train_batches * config.num_epochs
     accumulation_steps = config.gradient_accumulation_steps
@@ -131,10 +136,12 @@ def train(
         )
     optimizer_state = optimizer.init(lora_params)
 
+    # Compile JIT steps.
     jit_loss_and_grad = create_loss_and_grad_step_fn(graphdef)
     jit_eval_step = create_eval_step_fn(graphdef)
     jit_inspect_step = create_eval_inspect_step_fn(graphdef) if config.print_examples else None
 
+    # Load checkpoint if needed.
     if config.resume_from_checkpoint:
         checkpoint = checkpoint_manager.load_checkpoint(
             params_target=lora_params,
@@ -162,6 +169,7 @@ def train(
 
     try:
         with device_manager.mesh:
+            # Initial validation.
             validation_loss = validate(
                 jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
             )
@@ -187,6 +195,7 @@ def train(
                         label_mask = valid_mask.astype(jnp.float32)
                         one_hot_labels = jax.nn.one_hot(safe_labels, vocab_size).astype(jnp.float32)
 
+                    # Forward + backward.
                     loss, gradients, gradient_stats = jit_loss_and_grad(
                         lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
                     )
@@ -234,6 +243,7 @@ def train(
                             f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
                         )
 
+                    # Periodic validation.
                     if (
                         config.val_steps_freq is not None
                         and validation_batches
@@ -249,8 +259,10 @@ def train(
                         )
                         logger.log_metrics({"val/loss": validation_loss}, step=global_step, commit=False)
 
+                    # Commit metrics to W&B.
                     logger.log_metrics({}, step=global_step, commit=True)
 
+                    # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
                         checkpoint_manager.save_checkpoint(
                             step=global_step,
@@ -263,6 +275,7 @@ def train(
                 average_epoch_loss = float(np.mean(epoch_losses))
                 logger.info(f"Epoch {epoch + 1} complete - avg loss: {average_epoch_loss:.4f}")
 
+                # End-of-epoch validation.
                 end_of_epoch_metrics: dict = {}
                 if validation_batches:
                     global_step += 1
@@ -272,6 +285,7 @@ def train(
                     logger.log_metrics({"val/loss": validation_loss}, step=global_step)
                     end_of_epoch_metrics = {"val/loss": validation_loss}
 
+                # Save epoch checkpoint.
                 if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                     checkpoint_manager.save_checkpoint(
                         step=global_step,
@@ -298,17 +312,23 @@ def train(
 
 
 if __name__ == "__main__":
+    # Config setup.
     default_config_path = Path(__file__).parent / "single_chip" / "qwen3_0_6b_sst2.yaml"
     args = parse_cli_options(default_config=default_config_path)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
 
+    # Reproducibility setup.
     ReproducibilityManager(config).setup()
 
+    # Logger setup.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
+    # Device setup.
     device_manager = JaxDeviceManager(config)
     logger.info(f"Using device: {device_manager.device_kind}")
 
+    # Checkpoint manager setup.
     checkpoint_manager = JaxCheckpointManager(config, logger)
 
+    # Start training.
     train(config, device_manager, logger, checkpoint_manager)
