@@ -132,7 +132,7 @@ def collate_fn_for_causal_lm(batch):
 def run_decode_example_from_batch(
     model,
     tokenizer,
-    batch,                           # dict with "input_ids" (B, T) and "labels" (B, T-1)
+    batch,  # dict with "input_ids" (B, T) and "labels" (B, T-1)
     ignored_index: int,
     device,
     logger,
@@ -170,7 +170,7 @@ def run_decode_example_from_batch(
 def run_decode_example(
     model,
     tokenizer,
-    prompt_ids,                       # 1D LongTensor
+    prompt_ids,  # 1D LongTensor
     device,
     logger,
     target_ids=None,
@@ -214,11 +214,11 @@ def run_decode_example(
             if step == 0:
                 logger.info("RUNNING PREFILL")
             output = model(**input_args)
-            next_token_id = output.logits[:, -1].argmax(dim=-1).to("cpu")    # shape (1,)
+            next_token_id = output.logits[:, -1].argmax(dim=-1).to("cpu")  # shape (1,)
             output_tokens.append(tokenizer.decode(next_token_id))
             if next_token_id.item() == tokenizer.eos_token_id:
                 break
-            # Advance inputs for next step. 
+            # Advance inputs for next step.
             input_args["input_ids"] = next_token_id.unsqueeze(-1).to(device)
             host_cache_pos = input_args["cache_position"].to("cpu")
             next_pos = host_cache_pos[-1:] + 1
@@ -227,14 +227,14 @@ def run_decode_example(
 
 
 def construct_inputs_for_decode(
-    prompt_ids,                       # 1D LongTensor, len <= max_prompt_length
+    prompt_ids,  # 1D LongTensor, len <= max_prompt_length
     pad_token_id: int,
     model_config,
     max_prompt_length: int,
     max_cache_len: int,
 ):
     """Build StaticCache inputs from a pre-tokenized prompt (batch size 1)."""
-    prompt_ids = prompt_ids[-max_prompt_length:]                   # left-truncate if needed
+    prompt_ids = prompt_ids[-max_prompt_length:]  # left-truncate if needed
     L = prompt_ids.shape[0]
     input_ids = torch.full((1, max_prompt_length), pad_token_id, dtype=torch.long)
     input_ids[0, -L:] = prompt_ids
