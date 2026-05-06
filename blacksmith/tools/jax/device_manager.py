@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ShardingSpecs:
-    """Immutable container for mesh and sharding objects."""
-
     mesh: Mesh
     data_partition: PartitionSpec
     param_partition: PartitionSpec
@@ -46,7 +44,6 @@ class JaxDeviceManager:
         self.sharding = self._build_sharding_specs()
 
     def _setup_env(self) -> None:
-        """Set TT-XLA environment variables."""
         if not self.config.use_tt:
             return
 
@@ -94,7 +91,6 @@ class JaxDeviceManager:
         return jax.make_mesh(shape, names, devices=devices)
 
     def _build_sharding_specs(self) -> ShardingSpecs:
-        """Derive data / param sharding objects from config."""
         dim = getattr(self.config, "input_sharding_dim", "data")
         if dim is not None and getattr(self.config, "num_devices", 1) > 1:
             data_ps = PartitionSpec(dim)
@@ -134,7 +130,6 @@ class JaxDeviceManager:
         )
 
     def replicate(self, pytree):
-        """Replicate a pytree across the mesh (no sharding)."""
         return jax.tree.map(
             lambda x: jax.device_put(x, self.sharding.param_sharding),
             pytree,
@@ -142,12 +137,10 @@ class JaxDeviceManager:
 
     @staticmethod
     def to_cpu(pytree):
-        """Move every leaf of *pytree* to CPU."""
         cpu = jax.devices("cpu")[0]
         return jax.tree.map(lambda x: jax.device_put(x, cpu), pytree)
 
     def to_device(self, pytree):
-        """Move every leaf onto self.device."""
         return jax.tree.map(
             lambda x: jax.device_put(x, self.device),
             pytree,

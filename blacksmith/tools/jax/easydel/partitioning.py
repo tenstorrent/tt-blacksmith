@@ -15,7 +15,6 @@ PartitionRule = tuple[str, PartitionSpec]
 
 
 def _path_to_str(path: tuple) -> str:
-    """Join a JAX tree key-path into a dot-separated string."""
     parts: list[str] = []
     for key in path:
         if hasattr(key, "key"):

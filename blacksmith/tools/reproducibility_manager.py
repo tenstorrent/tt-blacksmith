@@ -23,7 +23,7 @@ class ReproducibilityManager:
 
         if self.config.framework.lower() == "pytorch":
             self._setup_pytorch()
-        elif self.config.framework.lower() == "jax":
+        elif self.config.framework.lower() == "jax" or self.config.framework.lower() == "easydel":
             self._setup_jax()
         else:
             logger.warning(f"Unknown framework: {self.config.framework}")

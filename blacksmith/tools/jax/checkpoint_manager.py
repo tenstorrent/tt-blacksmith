@@ -45,14 +45,12 @@ class JaxCheckpointManager:
         self.checkpoint_history = self._load_checkpoint_history()
 
     def _setup_storage_backend(self) -> Optional[StorageBackend]:
-        """Setup storage backend based on config"""
         if self.config.storage_backend == "local":
             return None
         else:
             raise ValueError(f"Unknown storage backend: {self.config.storage_backend}")
 
     def _load_checkpoint_history(self) -> dict:
-        """Load checkpoint history from metadata file"""
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         if os.path.exists(history_file):
             with open(history_file, "r") as f:
@@ -61,13 +59,11 @@ class JaxCheckpointManager:
         return {"checkpoints": [], "best_checkpoints": []}
 
     def _save_checkpoint_history(self) -> None:
-        """Save checkpoint history to metadata file"""
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
     def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
-        """Determine if checkpoint should be saved at current step/epoch"""
         if epoch is not None:
             if self.config.save_strategy == "epoch":
                 return epoch % self.config.epoch_freq == 0
@@ -157,7 +153,6 @@ class JaxCheckpointManager:
         return checkpoint_path
 
     def _update_best_checkpoints(self, checkpoint_info: dict) -> None:
-        """Update list of best checkpoints based on metric"""
         metric_value = checkpoint_info["metrics"][self.config.checkpoint_metric]
 
         best_checkpoints = self.checkpoint_history.get("best_checkpoints", [])
@@ -194,7 +189,6 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> Optional[dict]:
-        """Load checkpoint based on resume option in config"""
         if self.config.resume_option == "last":
             return self.load_latest_checkpoint(params_target, opt_state_target, rng_target)
         elif self.config.resume_option == "best":
@@ -263,8 +257,7 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> Optional[dict]:
-        """Load the most recent checkpoint
-
+        """
         Args:
             params_target: Initialised params pytree used as the deserialisation
                 template
@@ -283,8 +276,7 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> Optional[dict]:
-        """Load the best checkpoint based on tracked metric
-
+        """
         Args:
             params_target: Initialised params pytree used as the deserialisation
                 template
@@ -299,7 +291,6 @@ class JaxCheckpointManager:
         return self.load_checkpoint_path(best_checkpoint["path"], params_target, opt_state_target, rng_target)
 
     def get_checkpoint_info(self) -> dict:
-        """Get information about all checkpoints"""
         return {
             "total_checkpoints": len(self.checkpoint_history["checkpoints"]),
             "best_checkpoints": self.checkpoint_history.get("best_checkpoints", []),

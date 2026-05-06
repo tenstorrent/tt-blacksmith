@@ -78,8 +78,6 @@ def create_eval_step_fn(graphdef: nnx.GraphDef) -> Callable:
 
 
 def create_eval_inspect_step_fn(graphdef: nnx.GraphDef) -> Callable:
-    """JIT-compiled eval step returning (loss, predictions, per_token_loss)."""
-
     @jax.jit
     def eval_inspect_step(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)

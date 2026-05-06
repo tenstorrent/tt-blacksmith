@@ -68,7 +68,7 @@ class TrainingConfig(BaseModel):
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="none")
-    project_dir: str = Field(default="blacksmith/experiments/easydel/qwen/xla/lora")
+    project_dir: str = Field(default="blacksmith/experiments/easydel/qwen/lora")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
     sync_to_storage: bool = Field(default=False)
@@ -89,4 +89,4 @@ class TrainingConfig(BaseModel):
     optimizer_on_cpu: bool = Field(default=False)
 
     # Framework
-    framework: str = Field(default="jax")
+    framework: str = Field(default="easydel")

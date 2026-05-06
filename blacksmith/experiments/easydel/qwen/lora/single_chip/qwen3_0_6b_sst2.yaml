@@ -43,7 +43,7 @@ keep_last_n: 2
 keep_best_n: 1
 save_strategy: "none"
 epoch_freq: 1
-project_dir: "blacksmith/experiments/easydel/qwen/xla/lora"
+project_dir: "blacksmith/experiments/easydel/qwen/lora"
 save_optim: false
 storage_backend: "local"
 sync_to_storage: false
@@ -57,4 +57,4 @@ apply_gqa_workaround: true
 optimizer_on_cpu: false
 
 # Framework
-framework: "jax"
+framework: "easydel"
