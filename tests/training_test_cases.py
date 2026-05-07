@@ -322,7 +322,7 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/albert/train.py",
             "experiment_config": "blacksmith/experiments/torch/albert/single_chip/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
-            "timeout": 10000,
+            "timeout": 3600,
         },
         marks=[
             # TODO(agobeljic): https://github.com/tenstorrent/tt-metal/issues/41127
