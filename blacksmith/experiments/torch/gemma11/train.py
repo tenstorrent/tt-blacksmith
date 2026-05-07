@@ -20,6 +20,7 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_helpers import (
     collate_fn_for_causal_lm,
     collect_examples,
+    run_decode_example_from_batch,
     show_examples,
 )
 
@@ -69,6 +70,16 @@ def validate(model, val_data_loader, loss_fn, device_manager, config, logger, to
     if config.print_examples and tokenizer is not None:
         logger.info(f"\n=== Validation Examples (Random samples) ===")
         show_examples(collected_examples, tokenizer, config, logger)
+
+    if config.run_decode_example and tokenizer is not None:
+        run_decode_example_from_batch(
+            model=model,
+            tokenizer=tokenizer,
+            batch=next(iter(val_data_loader)),
+            ignored_index=config.ignored_index,
+            device=device_manager.device,
+            logger=logger,
+        )
 
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")

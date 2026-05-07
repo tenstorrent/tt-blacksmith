@@ -27,6 +27,7 @@ model_to_wandb: False
 steps_freq: 10
 epoch_freq: 1
 val_steps_freq: 50
+run_decode_example: True
 
 # Checkpoint settings
 resume_from_checkpoint: False
