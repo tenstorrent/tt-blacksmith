@@ -128,11 +128,10 @@ def collate_fn_for_causal_lm(batch):
     return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": shifted_labels}
 
 
-# ------------Decode Example From Batch------------
 def run_decode_example_from_batch(
     model,
     tokenizer,
-    batch,  # dict with "input_ids" (B, T) and "labels" (B, T-1)
+    batch,
     ignored_index: int,
     device,
     logger,
@@ -170,7 +169,7 @@ def run_decode_example_from_batch(
 def run_decode_example(
     model,
     tokenizer,
-    prompt_ids,  # 1D LongTensor
+    prompt_ids,
     device,
     logger,
     target_ids=None,
@@ -178,7 +177,11 @@ def run_decode_example(
     max_cache_length: int = 128,
     max_new_tokens: int = 64,
 ):
-    """Run one autoregressive decode on a single prompt."""
+    """
+    Run one autoregressive decode on a single prompt.
+    The code is adapted from:
+    https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/llama.py
+    """
     # Clamp generation length to whatever room the static cache has left after
     # the prefill window; otherwise cache_position would index past max_cache_len.
     room_in_cache = max_cache_length - max_prompt_length
@@ -200,14 +203,14 @@ def run_decode_example(
         max_prompt_length=max_prompt_length,
         max_cache_len=max_cache_length,
     )
-    # Transfer inputs to device
+    # Transfer inputs to device.
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
-    # Run generation loop
+    # Run generation loop.
     output_tokens = []
     with torch.no_grad():
         for step in range(max_new_tokens):
@@ -234,7 +237,7 @@ def construct_inputs_for_decode(
     max_cache_len: int,
 ):
     """Build StaticCache inputs from a pre-tokenized prompt (batch size 1)."""
-    prompt_ids = prompt_ids[-max_prompt_length:]  # left-truncate if needed
+    prompt_ids = prompt_ids[-max_prompt_length:]
     L = prompt_ids.shape[0]
     input_ids = torch.full((1, max_prompt_length), pad_token_id, dtype=torch.long)
     input_ids[0, -L:] = prompt_ids
