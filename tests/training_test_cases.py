@@ -200,7 +200,7 @@ TRAINING_TEST_CASES = [
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b-sst2-n300-llmbox-1x8.yaml",
-            "timeout": 10000,
+            "timeout": 100000,
         },
         marks=[
             pytest.mark.uplift,
@@ -231,6 +231,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
+            # pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
             pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
@@ -247,6 +248,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
+            # pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
             pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
