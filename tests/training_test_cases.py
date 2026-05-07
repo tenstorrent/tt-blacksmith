@@ -231,7 +231,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            # pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
+            pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
             pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
@@ -248,7 +248,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            # pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
+            pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
             pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
