@@ -29,9 +29,9 @@ def generate_config(
     with yaml_path.open() as file:
         config_data = yaml.safe_load(file)
 
-    # When running under pytest with no explicit test config, apply defaults to
-    # limit training duration and logging frequency.
-    if "PYTEST_CURRENT_TEST" in os.environ and test_yaml_path is None:
+    # When running under pytest, apply defaults to limit training duration and
+    # logging frequency. An explicit test config (below) can still override.
+    if "PYTEST_CURRENT_TEST" in os.environ:
         config_data |= _TEST_MODE_DEFAULTS
 
     if test_yaml_path is not None:
