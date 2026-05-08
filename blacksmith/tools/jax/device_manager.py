@@ -58,21 +58,16 @@ class JaxDeviceManager:
 
     def _select_device(self) -> tuple[jax.Device, str]:
         """Pick the preferred device: TT > GPU > CPU."""
-        if self.config.use_tt:
-            try:
+        try:
+            if self.config.use_tt:
                 tt_devs = jax.devices("tt")
                 if tt_devs:
                     return tt_devs[0], "tt"
-            except Exception:
-                pass
-
-        try:
             gpu_devs = jax.devices("gpu")
             if gpu_devs:
                 return gpu_devs[0], "gpu"
         except Exception:
             pass
-
         return jax.devices("cpu")[0], "cpu"
 
     def _create_mesh(self) -> Mesh:
@@ -80,13 +75,7 @@ class JaxDeviceManager:
         n = getattr(self.config, "num_devices", 1)
         shape = tuple(getattr(self.config, "mesh_shape", None) or [n])
         names = tuple(getattr(self.config, "mesh_axis_names", None) or ["data"])
-
-        if self.device_kind == "tt":
-            devices = tuple(jax.devices("tt")[:n])
-        elif self.device_kind == "gpu":
-            devices = tuple(jax.devices("gpu")[:n])
-        else:
-            devices = tuple(jax.devices("cpu")[:n])
+        devices = tuple(jax.devices(self.device_kind)[:n])
 
         return jax.make_mesh(shape, names, devices=devices)
 

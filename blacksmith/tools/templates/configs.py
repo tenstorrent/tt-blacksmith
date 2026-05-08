@@ -1,9 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
+
+
+class Framework(Enum):
+    PYTORCH = "pytorch"
+    JAX = "jax"
+    EASYDEL = "easydel"
 
 
 class TrainingConfig(BaseModel):
@@ -66,5 +73,5 @@ class TrainingConfig(BaseModel):
     unfreeze_embeddings: bool = Field(default=False)
 
     # Other settings
-    framework: str = Field(default="pytorch")
+    framework: Framework = Field(default=Framework.PYTORCH)
     use_tt: bool = Field(default=True)

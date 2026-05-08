@@ -9,7 +9,7 @@ import jax
 import numpy as np
 import torch
 
-from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.templates.configs import Framework, TrainingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +21,9 @@ class ReproducibilityManager:
     def setup(self):
         self._setup_python()
 
-        if self.config.framework.lower() == "pytorch":
+        if self.config.framework == Framework.PYTORCH:
             self._setup_pytorch()
-        elif self.config.framework.lower() == "jax" or self.config.framework.lower() == "easydel":
+        elif self.config.framework == Framework.JAX or self.config.framework == Framework.EASYDEL:
             self._setup_jax()
         else:
             logger.warning(f"Unknown framework: {self.config.framework}")

@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 class JaxCheckpointManager:
     """JAX/EasyDel counterpart to CheckpointManager, sharing its API and on-disk layout.
-
     Pytrees are msgpack-serialised on CPU so checkpoints are device-agnostic.
     """
 
@@ -84,8 +83,7 @@ class JaxCheckpointManager:
         extra: Optional[dict] = None,
         checkpoint_name: Optional[str] = None,
     ) -> str:
-        """
-        Save a checkpoint
+        """Serialise a training snapshot to msgpack and update bookkeeping.
 
         Args:
             params: Trainable parameter pytree to save (e.g. nnx.LoRAParam state)
@@ -210,7 +208,6 @@ class JaxCheckpointManager:
         rng_target=None,
     ) -> dict:
         """Load a checkpoint, restoring pytrees into the supplied targets.
-
         Pass None for opt_state_target / rng_target to skip loading them.
         """
         if self.config.load_from_storage:
@@ -264,7 +261,7 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> Optional[dict]:
-        """Load the best checkpoint based on tracked metric
+        """Load the best checkpoint based on tracked metric.
 
         Args:
             params_target: Initialised params pytree used as the deserialisation

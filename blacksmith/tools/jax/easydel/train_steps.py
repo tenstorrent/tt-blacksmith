@@ -10,6 +10,7 @@ import numpy as np
 from flax import nnx
 from transformers import PreTrainedTokenizerBase
 
+from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.jax.helpers import (
     clamped_softmax_cross_entropy_per_token,
     masked_cross_entropy,
@@ -127,11 +128,10 @@ def evaluate(
             loss, predictions, per_token_loss = jit_inspect_step(
                 lora_params, frozen_state, input_ids, labels, attention_mask
             )
-            cpu_device = jax.devices("cpu")[0]
-            batch_input_ids = np.array(jax.device_put(input_ids, cpu_device))
-            batch_labels = np.array(jax.device_put(labels, cpu_device))
-            batch_predictions = np.array(jax.device_put(predictions, cpu_device))
-            batch_per_token_loss = np.array(jax.device_put(per_token_loss, cpu_device))
+            batch_input_ids = JaxDeviceManager.to_cpu(input_ids)
+            batch_labels = JaxDeviceManager.to_cpu(labels)
+            batch_predictions = JaxDeviceManager.to_cpu(predictions)
+            batch_per_token_loss = JaxDeviceManager.to_cpu(per_token_loss)
             batch_size = batch_input_ids.shape[0]
             for example_index in range(min(batch_size, num_examples - len(collected_examples))):
                 collected_examples.append(
