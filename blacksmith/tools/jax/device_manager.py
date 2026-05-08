@@ -37,7 +37,7 @@ class JaxDeviceManager:
         self.device, self.device_kind = self._select_device()
         jax.config.update("jax_default_device", self.device)
 
-        if getattr(config, "apply_gqa_workaround", True) and self.device_kind == "tt":
+        if self.device_kind == "tt":
             apply_gqa_workaround()
 
         self.mesh = self._create_mesh()
@@ -185,15 +185,7 @@ class JaxDeviceManager:
             "mesh_shape": list(self.mesh.shape.values()),
             "mesh_axis_names": list(self.mesh.shape.keys()),
             "data_parallel": self.is_data_parallel(),
-            "optimizer_on_cpu": (getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt"),
-            "gqa_workaround": (
-                getattr(
-                    self.config,
-                    "apply_gqa_workaround",
-                    True,
-                )
-                and self.device_kind == "tt"
-            ),
+            "optimizer_on_cpu": (getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt")
         }
 
     def __repr__(self) -> str:
