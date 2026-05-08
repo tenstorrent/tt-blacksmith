@@ -2,3 +2,4 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
 pjrt-plugin-tt==1.2.0.dev20260508002430
 torchvision
+git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a

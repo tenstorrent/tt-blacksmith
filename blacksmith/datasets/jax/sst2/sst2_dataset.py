@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _create_batches(data: np.ndarray, batch_size: int) -> np.ndarray:
+    # Reshape flat numpy data into batches of shape (num_batches, batch_size, seq_len).
     num_batches = len(data) // batch_size
     return data[: num_batches * batch_size].reshape(num_batches, batch_size, -1)
 

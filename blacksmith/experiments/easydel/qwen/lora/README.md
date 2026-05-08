@@ -26,15 +26,12 @@ source env/activate --xla
 source env/activate --gpu
 ```
 
-Then install EasyDel pinned to the validated commit (its remaining dependencies — `eformer`, `triton`, etc. — are pulled in transitively):
+EasyDel is pulled in automatically by `env/xla_requirements.txt`, pinned to the validated commit.
+
+For **GPU baseline** runs, also install EasyDel manually (the GPU env does not pin it) plus the JAX CUDA plugin (`--no-deps` avoids a cuDNN version conflict with torch):
 
 ```bash
 pip install git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
-```
-
-For **GPU baseline** runs, also install the JAX CUDA plugin (`--no-deps` avoids a cuDNN version conflict with torch):
-
-```bash
 pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
 ```
 

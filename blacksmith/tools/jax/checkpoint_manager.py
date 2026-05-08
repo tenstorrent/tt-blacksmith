@@ -20,13 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 class JaxCheckpointManager:
-    """JAX/EasyDel counterpart to ``CheckpointManager``.
+    """JAX/EasyDel counterpart to CheckpointManager, sharing its API and on-disk layout.
 
-    Mirrors the torch ``CheckpointManager`` API and on-disk layout: each
-    checkpoint is a single file under ``<project_dir>/checkpoints/``, alongside
-    a ``checkpoint_history.json`` that tracks all checkpoints and the current
-    best ones. Pytrees are serialised with ``flax.serialization.msgpack_serialize``
-    after being moved to CPU so checkpoints are device-agnostic.
+    Pytrees are msgpack-serialised on CPU so checkpoints are device-agnostic.
     """
 
     def __init__(
@@ -45,12 +41,14 @@ class JaxCheckpointManager:
         self.checkpoint_history = self._load_checkpoint_history()
 
     def _setup_storage_backend(self) -> Optional[StorageBackend]:
+        """Setup storage backend based on config"""
         if self.config.storage_backend == "local":
             return None
         else:
             raise ValueError(f"Unknown storage backend: {self.config.storage_backend}")
 
     def _load_checkpoint_history(self) -> dict:
+        """Load checkpoint history from metadata file"""
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         if os.path.exists(history_file):
             with open(history_file, "r") as f:
@@ -59,11 +57,13 @@ class JaxCheckpointManager:
         return {"checkpoints": [], "best_checkpoints": []}
 
     def _save_checkpoint_history(self) -> None:
+        """Save checkpoint history to metadata file"""
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
     def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
+        """Determine if checkpoint should be saved at current step/epoch"""
         if epoch is not None:
             if self.config.save_strategy == "epoch":
                 return epoch % self.config.epoch_freq == 0
@@ -153,6 +153,7 @@ class JaxCheckpointManager:
         return checkpoint_path
 
     def _update_best_checkpoints(self, checkpoint_info: dict) -> None:
+        """Update list of best checkpoints based on metric"""
         metric_value = checkpoint_info["metrics"][self.config.checkpoint_metric]
 
         best_checkpoints = self.checkpoint_history.get("best_checkpoints", [])
@@ -189,6 +190,7 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> Optional[dict]:
+        """Load checkpoint based on resume option in config"""
         if self.config.resume_option == "last":
             return self.load_latest_checkpoint(params_target, opt_state_target, rng_target)
         elif self.config.resume_option == "best":
@@ -207,23 +209,9 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> dict:
-        """
-        Load a checkpoint
+        """Load a checkpoint, restoring pytrees into the supplied targets.
 
-        ``flax.serialization.from_bytes(None, ...)`` returns the raw nested dict
-        and ``from_state_dict(target, raw)`` then merges it into the supplied
-        prototype pytrees so shapes/dtypes are recovered.
-
-        Args:
-            checkpoint_path: Path to checkpoint file
-            params_target: Initialised params pytree used as the deserialisation
-                template
-            opt_state_target: Optional optimizer-state template; pass None to
-                skip loading the optimizer state
-            rng_target: Optional PRNG-key template; pass None to skip loading
-
-        Returns:
-            Dictionary containing checkpoint metadata and restored pytrees
+        Pass None for opt_state_target / rng_target to skip loading them.
         """
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
@@ -276,7 +264,8 @@ class JaxCheckpointManager:
         opt_state_target=None,
         rng_target=None,
     ) -> Optional[dict]:
-        """
+        """Load the best checkpoint based on tracked metric
+
         Args:
             params_target: Initialised params pytree used as the deserialisation
                 template
@@ -291,6 +280,7 @@ class JaxCheckpointManager:
         return self.load_checkpoint_path(best_checkpoint["path"], params_target, opt_state_target, rng_target)
 
     def get_checkpoint_info(self) -> dict:
+        """Get information about all checkpoints"""
         return {
             "total_checkpoints": len(self.checkpoint_history["checkpoints"]),
             "best_checkpoints": self.checkpoint_history.get("best_checkpoints", []),
