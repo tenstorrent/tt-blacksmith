@@ -62,7 +62,6 @@ def train(
 ):
     logger.info("Starting training...")
 
-    # Load model.
     model, tokenizer = load_easydel_causal_lm(
         config.model_name,
         device_manager,
@@ -82,7 +81,6 @@ def train(
         }
     )
 
-    # Load dataset.
     train_input_ids, train_labels, train_attention_masks = load_sst2_batches(config, split="train")
     validation_input_ids, validation_labels, validation_attention_masks = load_sst2_batches(config, split="validation")
 
