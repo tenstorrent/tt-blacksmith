@@ -185,7 +185,7 @@ class JaxDeviceManager:
             "mesh_shape": list(self.mesh.shape.values()),
             "mesh_axis_names": list(self.mesh.shape.keys()),
             "data_parallel": self.is_data_parallel(),
-            "optimizer_on_cpu": (getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt")
+            "optimizer_on_cpu": (getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt"),
         }
 
     def __repr__(self) -> str:
