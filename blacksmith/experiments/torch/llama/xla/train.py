@@ -117,7 +117,7 @@ def train(
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
