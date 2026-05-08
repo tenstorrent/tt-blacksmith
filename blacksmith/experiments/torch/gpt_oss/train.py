@@ -144,19 +144,19 @@ def train(
 
     try:
         # Initial validation
-        model.eval()
-        val_loss = validate(
-            model,
-            eval_dataloader,
-            cross_entropy_loss,
-            logger,
-            device_manager.device,
-            config,
-            tokenizer,
-        )
+        # model.eval()
+        # val_loss = validate(
+        #     model,
+        #     eval_dataloader,
+        #     cross_entropy_loss,
+        #     logger,
+        #     device_manager.device,
+        #     config,
+        #     tokenizer,
+        # )
 
-        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
-        model.train()
+        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # model.train()
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0

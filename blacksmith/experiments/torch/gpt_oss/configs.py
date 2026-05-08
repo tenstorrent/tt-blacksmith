@@ -1,11 +1,13 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 from pydantic import BaseModel, Field
 
 from blacksmith.tools.test_config import TestConfig
+
+_AxisSpec = Optional[Union[str, Tuple[str, ...], List[str]]]
 
 
 class TrainingConfig(BaseModel):
@@ -73,10 +75,11 @@ class TrainingConfig(BaseModel):
     mesh_axis_names: Optional[list[str]] = Field(default=None)
 
     input_sharding_dim: Optional[str] = Field(default=None)
-    # Model sharding patterns (regex pattern based - matches module names, shards .weight).
-    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
-    # Parameter sharding patterns (regex pattern based - matches parameter names directly).
-    param_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
+
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[_AxisSpec, ...]]]] = Field(default=None)
+    param_sharding_patterns: Optional[List[Tuple[str, Tuple[_AxisSpec, ...]]]] = Field(default=None)
+
+    enable_sparse_mlp: bool = Field(default=False)
 
     # Other settings
     output_dir: str = Field(default="experiments/results/gpt_oss_20b")

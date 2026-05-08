@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from peft import LoraConfig, get_peft_model
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
+from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from blacksmith.tools.device_manager import DeviceManager
 
@@ -30,7 +31,14 @@ def get_model(config, device_manager: DeviceManager, shard_model=False):
         attn_implementation="eager",
     )
 
-    override_gpt_oss_modules(model)
+    if config.enable_sparse_mlp:
+        enable_sparse_mlp(
+            model,
+            mesh=config.mesh_shape,
+            use_dense_matmul=True,
+        )
+    else:
+        override_gpt_oss_modules(model)
 
     if config.training_type == "lora":
         n = model.config.num_hidden_layers

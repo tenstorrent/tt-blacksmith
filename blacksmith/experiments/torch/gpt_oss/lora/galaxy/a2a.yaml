@@ -1,0 +1,118 @@
+# Dataset settings
+dataset_id: "sst2"
+
+# Model settings
+model_name: "openai/gpt-oss-20b"
+max_length: 128
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+training_type: "lora"
+learning_rate: 1e-4
+gradient_accumulation_steps: 4
+# batch=1: A2aSparseMLP dense-matmul materialises a
+# `[E, BD*S, intermediate_size]` intermediate per layer that scales with batch;
+# at the real gpt-oss-20b dims, batch=1 is what fits on 2x4 DRAM for 24 layers.
+# Input is replicated across the mesh (input_sharding_dim: null), so batch
+# doesn't need to divide the non-cluster axis.
+batch_size: 1
+num_epochs: 1
+ignored_index: -100
+
+# LoRA setup — attention only (A2aSparseMLP replaces the MoE; its experts
+# are full-rank trainable under the dense-matmul path).
+lora_r: 32
+lora_alpha: 64
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# A2aSparseMLP setup
+use_a2a_sparse_mlp: True
+a2a_cluster_axis: 0     # dispatch across axis_0 (2-way rows); reduce-scatter on axis_1
+
+# Device settings — LLMBox 2x4 mesh
+mesh_shape: [4, 8]
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: null
+
+# Attention sharding: column-parallel QKV + row-parallel O, all on batch
+# (the cluster axis). Matches what the tt-xla GPT-OSS decoder-layer 2x4 bwd
+# test set up for math-scat-ca0.
+model_sharding_patterns:
+  - ['\.embed_tokens$',                            [null, null]]
+  - ['model\.norm$',                               [null]]
+  - ['\.self_attn\.q_proj(\.base_layer)?$',        ["batch", null]]
+  - ['\.self_attn\.k_proj(\.base_layer)?$',        ["batch", null]]
+  - ['\.self_attn\.v_proj(\.base_layer)?$',        ["batch", null]]
+  - ['\.self_attn\.o_proj(\.base_layer)?$',        [null, "batch"]]
+  # Attention LoRA (column-parallel B for QKV, row-parallel A for O).
+  - ['\.self_attn\.q_proj\.lora_A\.default$',      [null, null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$',      ["batch", null]]
+  - ['\.self_attn\.k_proj\.lora_A\.default$',      [null, null]]
+  - ['\.self_attn\.k_proj\.lora_B\.default$',      ["batch", null]]
+  - ['\.self_attn\.v_proj\.lora_A\.default$',      [null, null]]
+  - ['\.self_attn\.v_proj\.lora_B\.default$',      ["batch", null]]
+  - ['\.self_attn\.o_proj\.lora_A\.default$',      [null, "batch"]]
+  - ['\.self_attn\.o_proj\.lora_B\.default$',      [null, null]]
+  # Router weight replicated across model (non-cluster axis so Shardy
+  # reduces scores correctly), sharded on batch for token-axis parallelism.
+  - ['\.mlp\.router$',                             [null, "batch"]]
+  # Norms
+  - ['\.input_layernorm$',                         ["batch"]]
+  - ['\.post_attention_layernorm$',                ["batch"]]
+
+param_sharding_patterns:
+  - ['\.self_attn\.sinks$',                          [null]]
+  - ['\.self_attn\.q_proj\.(base_layer\.)?bias$',    ["batch"]]
+  - ['\.self_attn\.k_proj\.(base_layer\.)?bias$',    ["batch"]]
+  - ['\.self_attn\.v_proj\.(base_layer\.)?bias$',    ["batch"]]
+  - ['\.self_attn\.o_proj\.(base_layer\.)?bias$',    [null]]
+  # MoE experts: compound-sharded across both mesh axes on the expert dim.
+  # A2aSparseMLP.build_expert_mapping(mesh_shape=(2,4)) produces a layout
+  # consistent with the ("batch","model") compound.
+  - ['\.mlp\.experts\.gate_proj$',                   [["batch", "model"], null, null]]
+  - ['\.mlp\.experts\.up_proj$',                     [["batch", "model"], null, null]]
+  - ['\.mlp\.experts\.down_proj$',                   [["batch", "model"], null, null]]
+  - ['\.mlp\.experts\.gate_proj_bias$',              [["batch", "model"], null]]
+  - ['\.mlp\.experts\.up_proj_bias$',                [["batch", "model"], null]]
+  - ['\.mlp\.experts\.down_proj_bias$',              [["batch", "model"], null]]
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gpt-oss-20b-a2a"
+wandb_run_name: "tt-gpt-oss-20b-a2a-2x4"
+wandb_tags: ["a2a", "2x4"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 1
+val_steps_freq: 10
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 2
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gpt_oss"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+enable_sparse_mlp: True
+
+# Other settings
+framework: "pytorch"
+print_examples: True
+use_tt: True

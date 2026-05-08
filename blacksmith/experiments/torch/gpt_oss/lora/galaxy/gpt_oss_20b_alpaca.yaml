@@ -101,6 +101,9 @@ sync_to_storage: False
 load_from_storage: False
 remote_path: ""
 
+# All-to-All implementation
+enable_sparse_mlp: True
+
 # Other settings
 framework: "pytorch"
 print_examples: True

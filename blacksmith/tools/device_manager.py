@@ -19,6 +19,10 @@ from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
+def _to_partition_spec(spec):
+    return tuple(tuple(x) if isinstance(x, (list, tuple)) else x for x in spec)
+
+
 class DeviceManager:
     """Manages different parallelization strategies based on mesh configuration."""
 
@@ -78,11 +82,13 @@ class DeviceManager:
             self.config.mesh_axis_names
         ), "Mesh shape and axis names must have the same length."
 
-        return xs.Mesh(
+        mesh = xs.Mesh(
             device_ids=device_ids,
             mesh_shape=tuple(self.config.mesh_shape),
             axis_names=tuple(self.config.mesh_axis_names),
         )
+        xs.set_global_mesh(mesh)
+        return mesh
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
@@ -122,14 +128,14 @@ class DeviceManager:
                 continue
             match = next((ps for ps in sharding_patterns if re.search(ps[0], name)), None)
             if match and torch_xla._XLAC._get_xla_sharding_spec(module.weight) in (None, ""):
-                xs.mark_sharding(module.weight, self.mesh, tuple(match[1]))
+                xs.mark_sharding(module.weight, self.mesh, _to_partition_spec(match[1]))
 
         # Shard parameters by name (for nn.Parameter, biases, etc. not reachable via module.weight).
         param_patterns = getattr(self.config, "param_sharding_patterns", [])
         for name, param in model.named_parameters():
             match = next((ps for ps in param_patterns if re.search(ps[0], name)), None)
             if match and torch_xla._XLAC._get_xla_sharding_spec(param) in (None, ""):
-                xs.mark_sharding(param, self.mesh, tuple(match[1]))
+                xs.mark_sharding(param, self.mesh, _to_partition_spec(match[1]))
 
         torch_xla.sync(wait=True)
         return model
