@@ -187,8 +187,7 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.skip("Llama 8B is not supported on Galaxy yet."),
-            pytest.mark.push,
+            pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
             pytest.mark.data_parallel,
