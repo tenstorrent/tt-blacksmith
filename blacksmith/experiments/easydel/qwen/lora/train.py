@@ -162,136 +162,130 @@ def train(
     global_step = 0
     running_losses: list[float] = []
     step_losses: list[float] = []
-    cpu_device = jax.devices("cpu")[0]
     numpy_random_generator = np.random.default_rng(config.seed)
 
     try:
-        with device_manager.mesh:
-            # Initial validation.
-            validation_loss = validate(
-                jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
-            )
-            logger.log_metrics({"val/loss": validation_loss}, commit=True, step=global_step)
+        # Initial validation.
+        validation_loss = validate(
+            jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
+        )
+        logger.log_metrics({"val/loss": validation_loss}, commit=True, step=global_step)
 
-            for epoch in range(config.num_epochs):
-                num_batches = len(train_batches)
-                shuffled_batch_order = numpy_random_generator.permutation(num_batches)
-                epoch_losses: list[float] = []
-                logger.info(f"Epoch {epoch + 1}: shuffled {num_batches} training batches (seed={config.seed})")
+        for epoch in range(config.num_epochs):
+            num_batches = len(train_batches)
+            shuffled_batch_order = numpy_random_generator.permutation(num_batches)
+            epoch_losses: list[float] = []
+            logger.info(f"Epoch {epoch + 1}: shuffled {num_batches} training batches (seed={config.seed})")
 
-                for batch_index in range(num_batches):
-                    batch = train_batches[shuffled_batch_order[batch_index]]
-                    input_ids = batch["input_ids"]
-                    labels = batch["labels"]
-                    attention_mask = batch["attention_mask"]
+            for batch_index in range(num_batches):
+                batch = train_batches[shuffled_batch_order[batch_index]]
+                input_ids = batch["input_ids"]
+                labels = batch["labels"]
+                attention_mask = batch["attention_mask"]
 
-                    # Prepare one-hot labels on CPU to dodge TT ttnn.eq bug with uint32.
-                    with jax.default_device(cpu_device):
-                        shifted_labels = labels[:, 1:].astype(jnp.int32)
-                        valid_mask = shifted_labels != config.ignored_label_index
-                        safe_labels = jnp.where(valid_mask, shifted_labels, 0)
-                        label_mask = valid_mask.astype(jnp.float32)
-                        one_hot_labels = jax.nn.one_hot(safe_labels, vocab_size).astype(jnp.float32)
+                shifted_labels = labels[:, 1:].astype(jnp.int32)
+                valid_mask = shifted_labels != config.ignored_label_index
+                safe_labels = jnp.where(valid_mask, shifted_labels, 0)
+                label_mask = valid_mask.astype(jnp.float32)
+                one_hot_labels = jax.nn.one_hot(safe_labels, vocab_size).astype(jnp.float32)
 
-                    # Forward + backward.
-                    loss, gradients, gradient_stats = jit_loss_and_grad(
-                        lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
+                # Forward + backward.
+                loss, gradients, gradient_stats = jit_loss_and_grad(
+                    lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
+                )
+
+                # Optimizer step (CPU-offloaded when optimizer_on_cpu=True on TT).
+                lora_params, optimizer_state = device_manager.optimizer_step(
+                    optimizer, optimizer_state, lora_params, gradients
+                )
+
+                current_loss = float(loss)
+                gradient_norm = float(gradient_stats["grad_norm"])
+                gradient_max = float(gradient_stats["grad_max"])
+                epoch_losses.append(current_loss)
+                running_losses.append(current_loss)
+                step_losses.append(current_loss)
+                global_step += 1
+
+                logger.log_metrics(
+                    {
+                        "train/loss": current_loss,
+                        "grad/global_norm": gradient_norm,
+                        "grad/global_max": gradient_max,
+                        "epoch": epoch + 1,
+                        "batch": batch_index + 1,
+                    },
+                    step=global_step,
+                    commit=False,
+                )
+
+                if len(running_losses) == config.steps_freq:
+                    average_window_loss = float(np.mean(running_losses))
+                    logger.log_metrics({"train/avg_window_loss": average_window_loss}, step=global_step, commit=False)
+                    logger.info(
+                        f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
+                        f"Loss = {current_loss:.4f} | Avg {config.steps_freq} = {average_window_loss:.4f} | "
+                        f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
+                    )
+                    running_losses = []
+                else:
+                    logger.info(
+                        f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
+                        f"Loss = {current_loss:.4f} ({len(running_losses)}/{config.steps_freq}) | "
+                        f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
                     )
 
-                    # Optimizer step (CPU-offloaded when optimizer_on_cpu=True on TT).
-                    lora_params, optimizer_state = device_manager.optimizer_step(
-                        optimizer, optimizer_state, lora_params, gradients
-                    )
-
-                    current_loss = float(loss)
-                    gradient_norm = float(gradient_stats["grad_norm"])
-                    gradient_max = float(gradient_stats["grad_max"])
-                    epoch_losses.append(current_loss)
-                    running_losses.append(current_loss)
-                    step_losses.append(current_loss)
-                    global_step += 1
-
-                    logger.log_metrics(
-                        {
-                            "train/loss": current_loss,
-                            "grad/global_norm": gradient_norm,
-                            "grad/global_max": gradient_max,
-                            "epoch": epoch + 1,
-                            "batch": batch_index + 1,
-                        },
-                        step=global_step,
-                        commit=False,
-                    )
-
-                    if len(running_losses) == config.steps_freq:
-                        average_window_loss = float(np.mean(running_losses))
-                        logger.log_metrics(
-                            {"train/avg_window_loss": average_window_loss}, step=global_step, commit=False
-                        )
-                        logger.info(
-                            f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
-                            f"Loss = {current_loss:.4f} | Avg {config.steps_freq} = {average_window_loss:.4f} | "
-                            f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
-                        )
-                        running_losses = []
-                    else:
-                        logger.info(
-                            f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
-                            f"Loss = {current_loss:.4f} ({len(running_losses)}/{config.steps_freq}) | "
-                            f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
-                        )
-
-                    # Periodic validation.
-                    if (
-                        config.val_steps_freq is not None
-                        and validation_batches
-                        and global_step % config.val_steps_freq == 0
-                    ):
-                        validation_loss = validate(
-                            jit_eval_step,
-                            lora_params,
-                            frozen_state,
-                            validation_batches,
-                            logger,
-                            **inspect_kwargs,
-                        )
-                        logger.log_metrics({"val/loss": validation_loss}, step=global_step, commit=False)
-
-                    # Commit metrics to W&B.
-                    logger.log_metrics({}, step=global_step, commit=True)
-
-                    # Save step checkpoint.
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(
-                            step=global_step,
-                            epoch=epoch,
-                            params=lora_params,
-                            opt_state=optimizer_state,
-                            metrics={"train/loss": current_loss},
-                        )
-
-                average_epoch_loss = float(np.mean(epoch_losses))
-                logger.info(f"Epoch {epoch + 1} complete - avg loss: {average_epoch_loss:.4f}")
-
-                # End-of-epoch validation.
-                end_of_epoch_metrics: dict = {}
-                if validation_batches:
-                    global_step += 1
+                # Periodic validation.
+                if (
+                    config.val_steps_freq is not None
+                    and validation_batches
+                    and global_step % config.val_steps_freq == 0
+                ):
                     validation_loss = validate(
-                        jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
+                        jit_eval_step,
+                        lora_params,
+                        frozen_state,
+                        validation_batches,
+                        logger,
+                        **inspect_kwargs,
                     )
-                    logger.log_metrics({"val/loss": validation_loss}, step=global_step)
-                    end_of_epoch_metrics = {"val/loss": validation_loss}
+                    logger.log_metrics({"val/loss": validation_loss}, step=global_step, commit=False)
 
-                # Save epoch checkpoint.
-                if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                # Commit metrics to W&B.
+                logger.log_metrics({}, step=global_step, commit=True)
+
+                # Save step checkpoint.
+                if checkpoint_manager.should_save_checkpoint(global_step):
                     checkpoint_manager.save_checkpoint(
                         step=global_step,
                         epoch=epoch,
                         params=lora_params,
                         opt_state=optimizer_state,
-                        metrics=end_of_epoch_metrics,
+                        metrics={"train/loss": current_loss},
                     )
+
+            average_epoch_loss = float(np.mean(epoch_losses))
+            logger.info(f"Epoch {epoch + 1} complete - avg loss: {average_epoch_loss:.4f}")
+
+            # End-of-epoch validation.
+            end_of_epoch_metrics: dict = {}
+            if validation_batches:
+                global_step += 1
+                validation_loss = validate(
+                    jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
+                )
+                logger.log_metrics({"val/loss": validation_loss}, step=global_step)
+                end_of_epoch_metrics = {"val/loss": validation_loss}
+
+            # Save epoch checkpoint.
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(
+                    step=global_step,
+                    epoch=epoch,
+                    params=lora_params,
+                    opt_state=optimizer_state,
+                    metrics=end_of_epoch_metrics,
+                )
 
         logger.log_summary(
             {
@@ -329,4 +323,5 @@ if __name__ == "__main__":
     checkpoint_manager = JaxCheckpointManager(config, logger)
 
     # Start training.
-    train(config, device_manager, logger, checkpoint_manager)
+    with device_manager.mesh:
+        train(config, device_manager, logger, checkpoint_manager)
