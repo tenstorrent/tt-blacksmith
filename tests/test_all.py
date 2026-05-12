@@ -64,6 +64,10 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
 
 
 def run_cmd(cmd: list[str], test_id: str, setup_dict: dict):
+    subprocess.run(
+        ["pip", "freeze"],
+        text=True
+    )
     try:
         result = subprocess.run(
             cmd,

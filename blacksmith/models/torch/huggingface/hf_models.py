@@ -69,7 +69,7 @@ def get_model(config: TrainingConfig, device: torch.device):
             )
 
     if config.use_tt:
-        compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True}
+        compile_options = {"tt_enable_torch_fx_fusion_pass": False}
         model = torch.compile(model, backend="tt", options=compile_options)
 
     return model
