@@ -141,7 +141,7 @@ case $EXPERIMENT_TYPE in
         return 1
 esac
 
-gh run download "25735475616" --repo "tenstorrent/tt-xla" --dir wheels --name "xla-whl-release"
+gh run download "25742506562" --repo "tenstorrent/tt-xla" --dir wheels --name "xla-whl-release"
 echo "Installing wheel artifact"
 pip install wheels/*.whl --upgrade --force-reinstall
 
