@@ -1,2 +1,3 @@
 [
+    {"runs-on": "qb2-blackhole", "frontend": "xla", "marks": "tensor_parallel and uplift and qb2_blackhole and torch"}
 ]
