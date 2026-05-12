@@ -1,6 +1,6 @@
 # GPT-OSS with LoRA Experiment in TT-XLA
 
-This directory contains the code for the GPT-OSS 20B and 120B LoRA fine-tuning experiments in TT-XLA.
+This directory contains the code for the GPT-OSS LoRA fine-tuning experiments in TT-XLA.
 
 - GPT-OSS 20B model specification can be found [here](https://huggingface.co/openai/gpt-oss-20b).
 - GPT-OSS 120B model specification can be found [here](https://huggingface.co/openai/gpt-oss-120b).
@@ -9,8 +9,8 @@ Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
 
-The GPT-OSS fine-tuning experiments apply the LoRA technique to adapt the pre-trained GPT-OSS 20B
-and 120B models on the SST-2 sentiment analysis and Alpaca instruction-tuning datasets.
+The GPT-OSS fine-tuning experiments apply the LoRA technique to adapt pre-trained GPT-OSS models
+on the SST-2 sentiment analysis and Alpaca instruction-tuning datasets.
 The experiments are designed to run on the Huggingface framework.
 
 The model uses a Mixture-of-Experts (MoE) architecture. Expert weights are de-interleaved from
