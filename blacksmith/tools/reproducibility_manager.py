@@ -46,5 +46,4 @@ class ReproducibilityManager:
             jax.config.update("jax_default_matmul_precision", "highest")
 
     def get_jax_rng(self):
-        """Return a JAX PRNG key seeded from config.seed."""
         return jax.random.PRNGKey(self.config.seed)
