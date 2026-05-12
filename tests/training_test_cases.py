@@ -163,7 +163,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.torch,
             pytest.mark.data_parallel,
         ],
-        id="tt-llama_3_1_8b-sst2-n300-llmbox",
+        id="tt-llama_3_1_8b-sst2-data_parallel-n300-llmbox",
     ),
     pytest.param(
         {
@@ -188,6 +188,7 @@ TRAINING_TEST_CASES = [
             "timeout": 5000,
         },
         marks=[
+            # TODO(agobeljic): Reactivate in uplift-test.json after qb2-blackhole is supported on uplift.
             pytest.mark.uplift,
             pytest.mark.qb2_blackhole,
             pytest.mark.torch,
@@ -199,16 +200,16 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
-            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-n300-llmbox-1x8.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-tensor_parallel-n300-llmbox.yaml",
             "timeout": 14400,
         },
         marks=[
             pytest.mark.uplift,
             pytest.mark.n300_llmbox,
             pytest.mark.torch,
-            pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
         ],
-        id="tt-llama_3_1_8b-sst2-n300-llmbox-1x8",
+        id="tt-llama_3_1_8b-sst2-tensor_parallel-n300-llmbox",
     ),
     pytest.param(
         {
