@@ -64,13 +64,6 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
 
 
 def run_cmd(cmd: list[str], test_id: str, setup_dict: dict, debug: bool):
-    debug_kwargs = {}
-    if debug:
-        debug_kwargs = {
-            "stdout": sys.stdout,
-            "stderr": sys.stderr,
-        }
-
     try:
         result = subprocess.run(
             cmd,
@@ -79,15 +72,16 @@ def run_cmd(cmd: list[str], test_id: str, setup_dict: dict, debug: bool):
             capture_output=not debug,
             text=True,
             check=False,
-            **debug_kwargs,
         )
 
         if result.returncode != 0:
             print(f"\n{'='*60}")
             print(f"FAILED: {test_id}")
             print(f"Exit code: {result.returncode}")
-            print(f"\nSTDOUT:\n{result.stdout}")
-            print(f"\nSTDERR:\n{result.stderr}")
+            if result.stdout:
+                print(f"\nSTDOUT:\n{result.stdout}")
+            if result.stderr:
+                print(f"\nSTDERR:\n{result.stderr}")
             print(f"{'='*60}\n")
             pytest.fail(f"Training script exited with code {result.returncode}")
 

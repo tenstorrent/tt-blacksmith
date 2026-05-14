@@ -6,9 +6,6 @@ def pytest_addoption(parser):
         "--debug-experiment",
         action="store_true",
         default=False,
-        help="For debugging purposes, show stdout and stderr of the tests. Meant to be used with pytest -s.",
+        help="For debugging purposes, show stdout and stderr of the tests.",
     )
-
-
-def pytest_addoption(parser):
     parser.addoption("--generate-golden-files", action="store_true", default=False, help="Generate golden files.")
