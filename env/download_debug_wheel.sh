@@ -4,6 +4,7 @@
 
 # Downloads and installs the debug PJRT plugin wheel from GitHub Actions,
 # replacing the currently installed release version of pjrt-plugin-tt.
+# TODO(ndrakulic): Right now this is workaround, we should have some proper place from where we can pull the debug wheel
 
 set -euo pipefail
 
