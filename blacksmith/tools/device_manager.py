@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -12,6 +12,9 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
+    SpmdFullyShardedDataParallel as FSDP,
+)
 
 from blacksmith.tools.templates.configs import TrainingConfig
 
@@ -53,7 +56,20 @@ class DeviceManager:
         if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
             return None
 
+        # Check if mesh configuration is valid.
         assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
+        assert (self.config.input_sharding_dim is None) or (
+            self.config.input_sharding_dim in self.config.mesh_axis_names
+        ), "`input_sharding_dim` must be None or it should be present in `mesh_axis_names`."
+        if self.config.model_sharding_patterns is not None:
+            for pattern_spec in self.config.model_sharding_patterns:
+                dimensions = pattern_spec[1]
+                for dimension in dimensions:
+                    if dimension is not None:
+                        assert (
+                            dimension in self.config.mesh_axis_names
+                            and self.config.mesh_shape[self.config.mesh_axis_names.index(dimension)] > 1
+                        ), f"Dimension {dimension} is not present in `mesh_axis_names` or it has size 1 for model sharding pattern {pattern_spec}."
 
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
@@ -70,44 +86,69 @@ class DeviceManager:
 
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "data" in self.mesh.axis_names and self.mesh.shape()["data"] > 1
+
+        return (
+            self.config.input_sharding_dim is not None
+            and self.mesh is not None
+            and self.mesh.shape()[self.config.input_sharding_dim] > 1
+        )
 
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.mesh is not None and "model" in self.mesh.axis_names and self.mesh.shape()["model"] > 1
+        return self.config.model_sharding_patterns is not None and self.mesh is not None
+
+    def is_fsdp(self) -> bool:
+        """Check if FSDP is enabled based on mesh axis."""
+        return self.mesh is not None and "fsdp" in self.mesh.axis_names
 
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
         return xs.mark_sharding(tensor, self.mesh, sharding_spec)
 
     def shard_model(self, model: nn.Module) -> nn.Module:
         """Shard model based on mesh configuration."""
+        if self.is_fsdp():
+            model = self._apply_fsdp(model)
         if self.is_tensor_parallel():
-            return self._apply_tensor_parallelism(model)
+            model = self._apply_tensor_parallelism(model)
 
         return model
 
     def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
         """Apply tensor parallelism using regex pattern matching from config."""
-        torch_xla.sync(wait=True)
+        sharding_patterns = self.config.model_sharding_patterns
 
-        # Get sharding patterns from config (list of [pattern, spec] pairs).
-        sharding_patterns = getattr(self.config, "model_sharding_patterns", None)
-        assert sharding_patterns is not None, "model_sharding_patterns must be provided for tensor parallelism"
-
-        # Use regex pattern matching on named_modules.
         for name, module in model.named_modules():
             if not hasattr(module, "weight") or module.weight is None:
                 continue
+            match = next((ps for ps in sharding_patterns if re.search(ps[0], name)), None)
+            if match and torch_xla._XLAC._get_xla_sharding_spec(module.weight) in (None, ""):
+                xs.mark_sharding(module.weight, self.mesh, tuple(match[1]))
 
-            for pattern_spec in sharding_patterns:
-                pattern = pattern_spec[0]
-                shard_spec = tuple(pattern_spec[1])
-
-                if re.search(pattern, name):
-                    xs.mark_sharding(module.weight, self.mesh, shard_spec)
-                    break  # Stop after first match.
+        # Shard parameters by name (for nn.Parameter, biases, etc. not reachable via module.weight).
+        param_patterns = getattr(self.config, "param_sharding_patterns", [])
+        for name, param in model.named_parameters():
+            match = next((ps for ps in param_patterns if re.search(ps[0], name)), None)
+            if match and torch_xla._XLAC._get_xla_sharding_spec(param) in (None, ""):
+                xs.mark_sharding(param, self.mesh, tuple(match[1]))
 
         torch_xla.sync(wait=True)
+        return model
+
+    def _apply_fsdp(self, model: nn.Module) -> nn.Module:
+        # TODO(pglusac): Add support for FSDP granularity configuration.
+        def shard_output(output, mesh):
+            # Extract logits and shard its batch dimension along the fsdp axis.
+            real_output = getattr(output, "logits", None)
+            if real_output is None:
+                real_output = output[0] if isinstance(output, tuple) else output
+            # Skip if the sharding annotation is already set.
+            if torch_xla._XLAC._get_xla_sharding_spec(real_output) not in (None, ""):
+                return
+            partition_spec = ("fsdp",) + (None,) * (real_output.dim() - 1)
+            xs.mark_sharding(real_output, mesh, partition_spec)
+
+        # TODO(pglusac): Investigate if shard_output is necessary.
+        model = FSDP(model, mesh=self.mesh, shard_output=shard_output)
         return model
 
     def shard_optimizer(self, optimizer: torch.optim.Optimizer):
@@ -120,7 +161,7 @@ class DeviceManager:
         if self.is_data_parallel():
             for _, tensor in batch.items():
                 if tensor.dim() > 0:
-                    partition_spec = ("data",) + tuple([None] * (tensor.dim() - 1))
+                    partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
                     xs.mark_sharding(tensor, self.mesh, partition_spec)
 
         return batch

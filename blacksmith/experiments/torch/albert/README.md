@@ -10,7 +10,7 @@ This experiment fine-tunes a classification head on top of a frozen ALBERT-base 
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/albert/test_albert_finetuning.py
+python3 blacksmith/experiments/torch/albert/train.py
 ```
 
 ## Data
@@ -31,9 +31,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_albert_finetuning.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `albert_banking77.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_albert_finetuning.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `albert_banking77.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 
@@ -60,7 +60,8 @@ Current `test_albert_finetuning.yaml` has the recommended and tested hyperparame
 | `wandb_watch_mode`            | Watch mode for model parameter logging.                | "all"                                |
 | `wandb_log_freq`              | Frequency of logging to Weights & Biases (in steps).   | 1000                                 |
 | `model_to_wandb`              | Whether to store model checkpoint in Weights & Biases. | False                                |
-| `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 10                                   |
+| `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 25                                   |
+| `val_steps_freq`              | Frequency (in steps) for performing validation actions.| 25                                   |
 | `epoch_freq`                  | Frequency (in epochs) for performing periodic actions. | 1                                    |
 | `resume_from_checkpoint`      | Whether to resume training from a previous checkpoint. | False                                |
 | `resume_option`               | Resume method (`last`, `best`, or `path`).             | "last"                               |

@@ -35,8 +35,6 @@ class TrainingConfig(BaseModel):
     learning_rate: float = Field(default=0.01, gt=0)
     batch_size: int = Field(default=256, gt=0)
     num_epochs: int = Field(default=16, gt=0)
-    train_log_steps: int = Field(default=100, gt=0)
-    val_log_epochs: int = Field(default=5, gt=0)
 
     # Loss and optimization
     loss_fn: str = Field(default="torch.nn.MSELoss")
@@ -52,6 +50,7 @@ class TrainingConfig(BaseModel):
     wandb_log_freq: int = Field(default=100)
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=100)
+    val_steps_freq: int = Field(default=100)
     epoch_freq: int = Field(default=5)
 
     # Checkpoint settings
@@ -79,8 +78,10 @@ class TrainingConfig(BaseModel):
     mesh_axis_names: Optional[list[str]] = Field(
         default=None
     )  # Use None for single device, ["data", "model"] for 2D mesh.
-
-    # Model sharding patterns (regex pattern based - matches module names).
+    input_sharding_dim: Optional[str] = Field(
+        default=None
+    )  # If defined, we will shard inputs along this mesh axis dimension.
+    # Tensor parallelism sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 

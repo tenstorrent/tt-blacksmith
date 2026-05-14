@@ -17,6 +17,12 @@ class TrainingConfig(BaseModel):
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
 
+    # Mixed precision settings (tt-xla backend only). See tt-xla/docs/src/mixed_precision.md.
+    weight_dtype_overrides: Optional[str] = Field(default=None)  # JSON path (relative to the yaml if not absolute)
+    experimental_weight_dtype: Optional[str] = Field(
+        default=None
+    )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
+
     # Training hyperparameters
     training_type: str = Field(default="lora")  # [lora, adapters]
     learning_rate: float = Field(default=2e-5, gt=0)
@@ -38,6 +44,7 @@ class TrainingConfig(BaseModel):
     wandb_log_freq: int = Field(default=1000)
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=25)
+    val_steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
 
     # Checkpoint settings
@@ -76,6 +83,9 @@ class TrainingConfig(BaseModel):
     mesh_axis_names: Optional[list[str]] = Field(
         default=None
     )  # Use None for single device, ["data", "model"] for 2D mesh.
+    input_sharding_dim: Optional[str] = Field(
+        default=None
+    )  # If defined, we will shard inputs along this mesh axis dimension.
 
     # Model sharding patterns (regex pattern based - matches module names).
     # Format: List of tuples (regex_pattern, sharding_spec_tuple).

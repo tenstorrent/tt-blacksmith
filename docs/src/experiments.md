@@ -9,7 +9,7 @@ The following table provides an overview of different model and dataset combinat
 | Framework | Model | Dataset | Method | Devices | Details |
 | --- | --- | --- | --- | --- | --- |
 | PyTorch | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
-| PyTorch | CNN | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
+| PyTorch | CNN | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist_cnn/README.md) |
 | PyTorch | MLP | MNIST | Full-model, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
 | PyTorch | MLP | MNIST | Full-model, Tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/mnist/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
@@ -17,10 +17,24 @@ The following table provides an overview of different model and dataset combinat
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA, Data + Tensor parallel| WH/BH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | Adapters | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/adapters/README.md) |
 | PyTorch | Llama 3.2 3B | SST-2 | LoRA, Tensor parallel| BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.1 8B | SST-2 | LoRA | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA, Data + Tensor parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA, Data + Tensor parallel| BH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.1 8B Instruct | MetaMathQA | LoRA, Data + Tensor parallel | WH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.1 70B | SST-2 | LoRA, Tensor parallel| BH LoudBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.1 70B | SST-2 | LoRA, Tensor parallel| WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.3 70B Instruct | Alpaca | LoRA, Tensor parallel| BH LoudBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.3 70B Instruct | Alpaca | LoRA, Tensor parallel| WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | GPT-OSS 20B | SST-2 | LoRA, Tensor parallel | BH LoudBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gpt_oss/README.md) |
+| PyTorch | GPT-OSS 20B | Alpaca | LoRA, Tensor parallel | WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gpt_oss/README.md) |
+| PyTorch | GPT-OSS 120B | Alpaca | LoRA, Tensor parallel | WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gpt_oss/README.md) |
 | PyTorch | Qwen 2.5 0.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Qwen 2.5 1.5B | Text-to-SQL | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| Pytorch | Qwen 3 4B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| Pytorch | Qwen 3 4B | SST-2 | LoRA, Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| Pytorch | Qwen 3 8B-Base | SST-2 | LoRA, Data + Tensor parallel | WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| Pytorch | Qwen 3 8B | Alpaca | LoRA, Data + Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
+| PyTorch | Qwen 3 32B | Alpaca | LoRA, Tensor parallel| WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Gemma 3 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
 | PyTorch | Gemma 1.1 2B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/README.md) |
 | PyTorch | Gemma 1.1 2B | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/README.md) |
@@ -33,10 +47,11 @@ The following table provides an overview of different model and dataset combinat
 | JAX | MLP | MNIST | Full-model, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | MLP | MNIST | Full-model, Tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |
-| JAX | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/README.md) |
-| JAX | Llama 3.2 1B | SST-2 | DoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama_dora/README.md) |
+| JAX | Llama 3.2 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/lora/README.md) |
+| JAX | Llama 3.2 1B | SST-2 | DoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/llama/dora/README.md) |
 | JAX | DistilBERT | SST-2 | Distillation | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/distil_bert/README.md) |
 | JAX | DistilBERT | SST-2 | Distillation, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/distil_bert/README.md) |
+| EasyDel | Qwen 3 0.6B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/easydel/qwen/lora/README.md) |
 | Lightning | NeRF | Blender | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
 
 

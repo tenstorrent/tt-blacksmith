@@ -1,0 +1,107 @@
+# Dataset settings
+dataset_id: "sst2"
+
+# Model settings
+model_name: "openai/gpt-oss-20b"
+max_length: 128
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+training_type: "lora"
+learning_rate: 1e-4
+gradient_accumulation_steps: 4
+batch_size: 1
+num_epochs: 1
+ignored_index: -100
+
+# LoRA setup
+lora_r: 32
+lora_alpha: 64
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Device settings
+mesh_shape: [1, 8]
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: null
+
+# Sharding patterns for tensor parallelism (Megatron-style 1D TP, no 2D sharding)
+model_sharding_patterns:
+  # === Embeddings & output ===
+  - ['\.embed_tokens$',                            [null, null]]
+  - ['model\.norm$',                               [null]]
+  # === Attention (column-parallel QKV, row-parallel O) ===
+  - ['\.self_attn\.q_proj(\.base_layer)?$',        ["model", null]]
+  - ['\.self_attn\.k_proj(\.base_layer)?$',        ["model", null]]
+  - ['\.self_attn\.v_proj(\.base_layer)?$',        ["model", null]]
+  - ['\.self_attn\.o_proj(\.base_layer)?$',        [null, "model"]]
+  # === Attention LoRA (column-parallel for QKV, row-parallel for O) ===
+  - ['\.self_attn\.q_proj\.lora_A\.default$',      [null, null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$',      ["model", null]]
+  - ['\.self_attn\.k_proj\.lora_A\.default$',      [null, null]]
+  - ['\.self_attn\.k_proj\.lora_B\.default$',      ["model", null]]
+  - ['\.self_attn\.v_proj\.lora_A\.default$',      [null, null]]
+  - ['\.self_attn\.v_proj\.lora_B\.default$',      ["model", null]]
+  - ['\.self_attn\.o_proj\.lora_A\.default$',      [null, "model"]]
+  - ['\.self_attn\.o_proj\.lora_B\.default$',      [null, null]]
+  # === Router ===
+  - ['\.mlp\.router$',                             [null, null]]
+  # === Layer norms ===
+  - ['\.input_layernorm$',                         [null]]
+  - ['\.post_attention_layernorm$',                [null]]
+
+# Parameter sharding patterns (regex on named_parameters() — for nn.Parameter / biases / sinks)
+param_sharding_patterns:
+  # === Attention sinks ===
+  - ['\.self_attn\.sinks$',                          [null]]
+  # === Attention biases ===
+  - ['\.self_attn\.q_proj\.(base_layer\.)?bias$',    ["model"]]
+  - ['\.self_attn\.k_proj\.(base_layer\.)?bias$',    ["model"]]
+  - ['\.self_attn\.v_proj\.(base_layer\.)?bias$',    ["model"]]
+  - ['\.self_attn\.o_proj\.(base_layer\.)?bias$',    [null]]
+  # === Expert projections (shard only across expert dim) ===
+  - ['\.experts\.gate_proj$',                        ["model", null, null]]
+  - ['\.experts\.up_proj$',                          ["model", null, null]]
+  - ['\.experts\.down_proj$',                        ["model", null, null]]
+  # === Expert biases ===
+  - ['\.experts\.gate_proj_bias$',                   ["model", null]]
+  - ['\.experts\.up_proj_bias$',                     ["model", null]]
+  - ['\.experts\.down_proj_bias$',                   ["model", null]]
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gpt-oss-20b-lora"
+wandb_run_name: "tt-gpt-oss-20b-test"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 1
+val_steps_freq: 10
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 2
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gpt_oss"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other settings
+framework: "pytorch"
+print_examples: True
+use_tt: True

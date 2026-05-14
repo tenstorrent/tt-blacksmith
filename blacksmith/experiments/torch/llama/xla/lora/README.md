@@ -1,9 +1,14 @@
 # Llama with LoRA Experiment in TT-XLA
 
 This directory contains the code for the Llama with LoRA fine-tuning experiment in TT-XLA.
-Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
-Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
-Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
+
+- Llama 3.2 1B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-1B).
+- Llama 3.2 3B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.2-3B).
+- Llama 3.1 8B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B).
+- Llama 3.1 8B Instruct model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct).
+- Llama 3.1 70B model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.1-70B)
+- Llama 3.3 70B Instruct model specification can be found [here](https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct).
+
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
@@ -17,13 +22,13 @@ The experiment supports different hardware configurations with per-model trainin
 
 ### Mesh and Sharding Configuration
 
-Mesh configurations define the parallelism strategy. The `mesh_axis_names` can be either `["data", "model"]` or `["model", "data"]` depending on which dimension corresponds to which type of parallelism.
+Mesh configurations define the parallelism strategy. `input_sharding_dim` defines which mesh dimension to use to shard inputs, while `model_sharding_patterns` define how we shard model weights.
 
 Example mesh configuration in YAML:
 ```yaml
 mesh_shape: [2, 4]  # 2 data parallel, 4 model parallel
-mesh_axis_names: ["data", "model"]
-
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: "batch"
 model_sharding_patterns:
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
@@ -38,56 +43,142 @@ model_sharding_patterns:
 Llama 1B supports training on all hardware configurations:
 
 **Single Chip Training:**
+
+SST2 dataset:
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
+```
+
+Alpaca dataset:
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_alpaca.yaml
 ```
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_1b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml
 ```
-Working mesh shapes for Wormhole QuietBox: `[1, 8]`, `[8, 1]`, `[2, 4]` (both `mesh_axis_names` orderings supported)
-
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml
 ```
-Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
 
-**N300 Training:**
-Working mesh shapes: `[1, 2]`, `[2, 1]` (both `mesh_axis_names` orderings supported)
+#### Llama 3.2 1B Training Configurations
 
-### Llama 3B Training
+| Architecture       | mesh_shape                   | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------------------------- | ---------------------------------------- | ------- | ------ |
+| [Single-Chip](single_chip/llama_3_2_1b_alpaca.yaml) | None                         | None                                     | Alpaca  | LoRA   |
+| [Single-Chip](single_chip/llama_3_2_1b_sst2.yaml) | None                         | None                                     | SST2    | LoRA   |
+| [N300](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 2]`, `[2, 1]`           | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_2_1b_sst2.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
-**Llama 3B requires multi-chip configurations (not supported on single chip).**
+### Llama 3.2 3B Training
+
+**Llama 3.2 3B requires multi-chip configurations (not supported on single chip).**
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_3b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_3b_sst2.yaml
 ```
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
-### Llama 8B Training
+#### Llama 3.2 3B Training Configuration
 
-**Llama 8B requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
+| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
+| ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
+| [Blackhole QuietBox](quietbox/llama_3_2_3b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
+
+### Llama 3.1 8B Training
+
+**Llama 3.1 8B is not supported on N150.**
+
+**P150 Training:**
+
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml
+```
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml
 ```
-Working mesh shapes for Wormhole QuietBox: `[1, 8]` (data, model), `[8, 1]` (model, data), `[2, 4]` (data, model)
-
-Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 *Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama3_1_8b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml
 ```
-Working mesh shape: `[8, 4]` (both `mesh_axis_names` orderings supported)
+
+#### Llama 3.1 8B Training Configurations
+
+| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [P150](single_chip/llama_3_1_8b_sst2.yaml) | None     | None            | SST2  | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_1_8b_sst2.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+
+### Llama 3.1 8B Instruct Training
+
+**QuietBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml
+```
+
+#### Llama 3.3 8B Instruct Training Configurations
+
+| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_instruct_metamathqa.yaml) | `[2, 4]`   | `["data", "model"]`                      | MetaMathQA    | LoRA   |
+
+
+### Llama 3.1 70B Training
+
+**Llama 3.1 70B requires multi-chip configurations (not supported on single chip) and must be sharded across both dimensions.**
+
+**LoudBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_1_70b_sst2.yaml
+```
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml
+```
+
+#### Llama 3.1 70B Training Configurations
+
+| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [Blackhole LoudBox](loudbox/llama_3_1_70b_sst2.yaml) | `[2, 4]`   | `["model", "batch"]`| SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_1_70b_sst2.yaml) | `[4, 8]`   | `["model", "batch"]` | SST2    | LoRA   |
+
+
+### Llama 3.3 70B Instruct Training
+
+**Llama 3.3 70B Instruct requires multi-chip configurations (not supported on single chip) and must be model sharded (model dimension > 1).**
+
+**LoudBox Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_3_70b_instruct_alpaca.yaml
+```
+
+**Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_3_70b_instruct_alpaca.yaml
+```
+
+#### Llama 3.3 70B Instruct Training Configurations
+
+| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
+| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
+| [Blackhole LoudBox](loudbox/llama_3_3_70b_instruct_alpaca.yaml) | `[2, 4]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
+| [Wormhole Galaxy](galaxy/llama_3_3_70b_instruct_alpaca.yaml) | `[4, 8]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
 
 ## Data
 
@@ -110,9 +201,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_llama_fine_tuning_pure_torch.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `llama_fine_tuning_pure_torch_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 
@@ -138,6 +229,7 @@ Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested 
 | `wandb_log_freq`              | Frequency of logging to Weights & Biases (in steps).   | 1000                                |
 | `model_to_wandb`              | Whether to store model checkpoint in Weights & Biases. | False                               |
 | `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 25                                  |
+| `val_steps_freq`              | Frequency (in steps) for performing validation actions.| 25                                  |
 | `epoch_freq`                  | Frequency (in epochs) for performing periodic actions. | 1                                   |
 | `resume_from_checkpoint`      | Whether to resume training from a previous checkpoint. | False                               |
 | `resume_option`               | Resume method (`last`, `best`, or `path`).             | "last"                              |
