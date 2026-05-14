@@ -35,15 +35,13 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
-            input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            expected_output = batch["labels"].to(device)
+            batch = device_manager.prepare_batch(batch)
 
             # Shard model if tensor parallelism is used.
             device_manager.shard_model(model)
 
             # Forward pass.
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
             logits = outputs.logits
 
             # Shift logits for causal LM: predict next token
@@ -65,11 +63,11 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 
             if config.print_examples:
                 collected_examples = collect_examples(
-                    batch_size=expected_output.shape[0],
+                    batch_size=batch["labels"].shape[0],
                     collected_examples=collected_examples,
                     max_examples=10,
-                    input_ids=input_ids,
-                    expected_output=expected_output,
+                    input_ids=batch["input_ids"],
+                    expected_output=batch["labels"],
                     predictions=predictions,
                     num_val_batches=num_val_batches,
                 )
@@ -185,7 +183,8 @@ def train(
                     logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
-                    xr.clear_computation_cache()
+                    if config.use_tt:
+                        xr.clear_computation_cache()
 
                     model.train()
 
