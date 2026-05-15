@@ -1,7 +1,0 @@
-test_config:
-  max_steps_per_epoch: 50
-
-use_wandb: false
-save_strategy: "none"
-val_steps_freq: 15
-steps_freq: 5
