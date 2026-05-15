@@ -1,13 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import math
 import traceback
 from pathlib import Path
 
 import torch
 import torch_xla
-from torch.optim.lr_scheduler import CosineAnnealingLR, LambdaLR
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -83,7 +81,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     if config.print_examples and tokenizer is not None:
         logger.info("Printing validation examples...")
         show_examples(collected_examples, tokenizer, config, logger)
-
+    
     if config.run_decode_example and tokenizer is not None:
         run_decode_example_from_batch(
             model=model,
@@ -115,33 +113,6 @@ def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
     return loss.detach()
 
 
-def create_lr_scheduler(optimizer, config, num_training_steps):
-    warmup_steps = int(config.warmup_ratio * num_training_steps)
-
-    if config.lr_scheduler == "cosine":
-        if warmup_steps > 0:
-
-            def lr_lambda(current_step):
-                if current_step < warmup_steps:
-                    return float(current_step) / float(max(1, warmup_steps))
-                progress = float(current_step - warmup_steps) / float(max(1, num_training_steps - warmup_steps))
-                return max(0.0, 0.5 * (1.0 + math.cos(math.pi * progress)))
-
-            return LambdaLR(optimizer, lr_lambda)
-        return CosineAnnealingLR(optimizer, T_max=num_training_steps)
-
-    if config.lr_scheduler == "linear":
-
-        def lr_lambda(current_step):
-            if current_step < warmup_steps:
-                return float(current_step) / float(max(1, warmup_steps))
-            return max(0.0, float(num_training_steps - current_step) / float(max(1, num_training_steps - warmup_steps)))
-
-        return LambdaLR(optimizer, lr_lambda)
-
-    return None
-
-
 def train(
     config: TrainingConfig,
     device_manager: DeviceManager,
@@ -157,9 +128,7 @@ def train(
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(
-        trainable_params, capturable=True, lr=config.learning_rate, weight_decay=config.weight_decay
-    )
+    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
@@ -175,16 +144,6 @@ def train(
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     tokenizer = train_dataset.tokenizer
-
-    # LR scheduler setup.
-    num_training_steps = len(train_dataloader) * config.num_epochs // config.gradient_accumulation_steps
-    scheduler = create_lr_scheduler(optimizer, config, num_training_steps)
-    if scheduler is not None:
-        logger.info(
-            f"Using {config.lr_scheduler} LR scheduler with {int(config.warmup_ratio * num_training_steps)} warmup steps"
-        )
-    if config.max_grad_norm is not None:
-        logger.info(f"Using gradient clipping with max_norm={config.max_grad_norm}")
 
     global_step = 0
     running_loss = 0.0
@@ -238,11 +197,7 @@ def train(
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
-                    if config.max_grad_norm is not None:
-                        torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=config.max_grad_norm)
                     device_manager.optimizer_step(optimizer)
-                    if scheduler is not None:
-                        scheduler.step()
 
                     accumulation_step = 0
                     global_step += 1

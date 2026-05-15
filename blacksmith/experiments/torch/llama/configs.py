@@ -34,13 +34,6 @@ class TrainingConfig(BaseModel):
     optim: str = Field(default="adamw_torch")
     ignored_index: int = Field(default=-100)
 
-    # LR scheduling
-    lr_scheduler: str = Field(default="none")  # [none, cosine, linear]
-    warmup_ratio: float = Field(default=0.0, ge=0.0, le=1.0)
-
-    # Gradient clipping
-    max_grad_norm: Optional[float] = Field(default=None)
-
     # Logging settings
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=True)
