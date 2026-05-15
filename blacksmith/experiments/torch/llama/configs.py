@@ -11,6 +11,16 @@ from blacksmith.tools.test_config import TestConfig
 class TrainingConfig(BaseModel):
     # Dataset settings
     dataset_id: str = Field(default="sst2")
+    # Prompt formatting (instruction-following datasets like Alpaca / MetaMathQA).
+    # "alpaca": legacy `### Instruction / ### Response` plain-text template.
+    # "chat":   route through `tokenizer.apply_chat_template` so an `-it`
+    #           checkpoint trains on the same boundary tokens it was
+    #           post-trained with (e.g. Gemma-4 `<|turn>...<turn|>`).
+    prompt_format: str = Field(default="alpaca")  # ["alpaca", "chat"]
+    # Optional system message to prepend in chat format. `None` skips the
+    # system turn entirely (saves tokens; an `-it` checkpoint already behaves
+    # as a helpful assistant by default).
+    chat_system_prompt: Optional[str] = Field(default=None)
 
     # Model settings
     model_name: str = Field(default="meta-llama/Llama-3.2-1B")

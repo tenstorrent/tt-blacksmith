@@ -1,0 +1,72 @@
+# Gemma 4 E2B LoRA fine-tuning on WizardLM-Evol-Instruct (70k) — CPU baseline.
+#
+# Mirror of test_gemma4_e2b_wizardlm.yaml with `use_tt: False`. Mesh/sharding
+# fields are dropped because they're inert without TT — DeviceManager skips
+# mesh creation when use_tt is False, so shard_model() / prepare_batch() / etc.
+# already become no-ops, but we keep the YAML clean for clarity.
+
+# Dataset
+dataset_id: "wizardlm_evol"
+prompt_format: "chat"
+chat_system_prompt: null
+
+# Model
+model_name: "google/gemma-4-E2B-it"
+max_length: 1024
+dtype: "torch.bfloat16"
+
+# Training
+training_type: "lora"
+learning_rate: 2e-5
+batch_size: 1
+gradient_accumulation_steps: 8
+num_epochs: 3
+ignored_index: -100
+
+# LoRA
+lora_r: 32
+lora_alpha: 64
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Device — CPU baseline, no mesh / no tensor parallelism.
+input_sharding_dim: null
+model_sharding_patterns: null
+
+# Reproducibility
+seed: 23
+deterministic: False
+
+# Logging
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gemma4-e2b-multichip-lora-quietbox"
+wandb_run_name: "cpu-gemma4-e2b-wizardlm-evol"
+wandb_tags: ["test", "cpu"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 1
+val_steps_freq: 10
+epoch_freq: 1
+
+# Checkpoint
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 1
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gemma4/cpu"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other
+framework: "pytorch"
+print_examples: True
+use_tt: False

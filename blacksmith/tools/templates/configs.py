@@ -65,6 +65,17 @@ class TrainingConfig(BaseModel):
     # Embedding settings
     unfreeze_embeddings: bool = Field(default=False)
 
+    # Prompt formatting (instruction-following datasets like Alpaca / MetaMathQA).
+    # "alpaca": legacy `### Instruction / ### Response` plain-text template.
+    # "chat":   route through `tokenizer.apply_chat_template` so that instruction
+    #           datasets train an `-it` checkpoint on the same boundary tokens
+    #           it was post-trained with (e.g. Gemma-4 `<|turn>...<turn|>`).
+    prompt_format: str = Field(default="alpaca")  # ["alpaca", "chat"]
+    # Optional system message to prepend to the chat template (chat format only).
+    # `None` = no system turn (saves tokens; the `-it` checkpoint already
+    # behaves as a helpful assistant by default).
+    chat_system_prompt: Optional[str] = Field(default=None)
+
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)

@@ -1,0 +1,334 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+"""LoRA fine-tuning for Gemma 4 E2B (text-only) on a 2x4 TT mesh."""
+import traceback
+from pathlib import Path
+
+import torch
+import torch_xla
+import torch_xla.runtime as xr
+from peft import LoraConfig, get_peft_model
+from tqdm import tqdm
+from transformers import Gemma4ForConditionalGeneration
+
+from blacksmith.datasets.torch.dataset_utils import get_dataset
+from blacksmith.experiments.torch.llama.configs import TrainingConfig
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.device_manager import DeviceManager
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.torch_helpers import (
+    collate_fn_for_causal_lm,
+    collect_examples,
+    show_examples,
+)
+from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
+
+
+def _patch_embed_tokens_per_layer_split(model: torch.nn.Module) -> int:
+    """Workaround ttnn.embedding silent-corruption bug at HIDDEN > 256 col-tiles.
+
+    Gemma-4 ``embed_tokens_per_layer`` is (V, 8960) = 280 col-tiles, which falls
+    in the broken kernel path. Split the lookup along the hidden dim into 2
+    halves, concat, then apply ``embed_scale``.
+    """
+    n = 0
+    for mod_name, mod in model.named_modules():
+        if not mod_name.endswith("embed_tokens_per_layer"):
+            continue
+        if not isinstance(mod, torch.nn.Embedding):
+            continue
+
+        embed_scale = getattr(mod, "embed_scale", None)
+
+        def _make_split_forward(embed_mod, scale):
+            def _forward(input_ids):
+                chunks = embed_mod.weight.chunk(2, dim=-1)
+                outs = [
+                    torch.nn.functional.embedding(input_ids, w.contiguous())
+                    for w in chunks
+                ]
+                out = torch.cat(outs, dim=-1)
+                if scale is not None:
+                    out = out * scale
+                return out
+
+            return _forward
+
+        mod.forward = _make_split_forward(mod, embed_scale)
+        n += 1
+    return n
+
+
+def _strip_multimodal_towers(model: Gemma4ForConditionalGeneration) -> None:
+    """Drop vision/audio towers + embedders so PEFT only attaches to text attn."""
+    inner = model.model
+    for attr in ("vision_tower", "audio_tower", "embed_vision", "embed_audio"):
+        if hasattr(inner, attr):
+            delattr(inner, attr)
+
+
+def get_vocab_size(model: torch.nn.Module) -> int:
+    m = model
+    while hasattr(m, "model") and not hasattr(m, "config"):
+        m = m.model
+    cfg = m.config
+    return getattr(cfg, "vocab_size", None) or cfg.text_config.vocab_size
+
+
+def get_model(config: TrainingConfig, device: torch.device) -> torch.nn.Module:
+    dtype = eval(config.dtype)
+
+    base = Gemma4ForConditionalGeneration.from_pretrained(config.model_name, torch_dtype=dtype)
+    _strip_multimodal_towers(base)
+    _patch_embed_tokens_per_layer_split(base)
+
+    if config.training_type == "lora":
+        lora_cfg = LoraConfig(
+            r=config.lora_r,
+            lora_alpha=config.lora_alpha,
+            target_modules=config.lora_target_modules,
+            task_type=config.lora_task_type,
+        )
+        model = get_peft_model(base, lora_cfg)
+    else:
+        raise ValueError(
+            f"Only training_type='lora' is supported for Gemma 4 E2B, got '{config.training_type}'."
+        )
+
+    model.to(dtype)
+    model.to(device)
+
+    if config.use_tt:
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_use_aot_autograd": False,
+        }
+        model = torch.compile(model, backend="tt", options=compile_options)
+
+    return model
+
+
+def validate(model, val_data_loader, loss_fn, logger, device, config, vocab_size, tokenizer=None):
+    logger.info("Starting validation...")
+    total_val_loss = 0.0
+    num_val_batches = 0
+    collected_examples = []
+
+    with torch.no_grad():
+        for batch in tqdm(val_data_loader, desc="Validation"):
+            input_ids = batch["input_ids"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            # See https://github.com/tenstorrent/tt-blacksmith/issues/455.
+            expected_output = batch["labels"]
+
+            device_manager.shard_model(model)
+
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+            logits = outputs.logits
+            shift_logits = logits[:, :-1, :].contiguous()
+
+            expected_output_one_hot, labels_mask = transform_labels(
+                expected_output, config.ignored_index, vocab_size
+            )
+
+            if config.use_tt:
+                loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
+            else:
+                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
+
+            predictions = shift_logits.argmax(dim=-1)
+            if config.use_tt:
+                torch_xla.sync(wait=True)
+
+            total_val_loss += loss.item()
+            num_val_batches += 1
+
+            if config.print_examples:
+                collected_examples = collect_examples(
+                    batch_size=expected_output.shape[0],
+                    collected_examples=collected_examples,
+                    max_examples=10,
+                    input_ids=input_ids,
+                    expected_output=expected_output,
+                    predictions=predictions,
+                    num_val_batches=num_val_batches,
+                )
+
+            if num_val_batches > 20:
+                logger.info(f"Stopping validation early after {num_val_batches} batches.")
+                break
+
+    if config.print_examples and tokenizer is not None:
+        logger.info("Printing validation examples...")
+        show_examples(collected_examples, tokenizer, config, logger)
+
+    avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
+    logger.info(f"Average validation loss: {avg_val_loss}")
+    return avg_val_loss
+
+
+# Keep large vocab-sized tensors scoped locally so they don't propagate beyond
+# the step and trigger expensive CCLs in multi-chip setups.
+def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
+    output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+    logits = output.logits
+    shift_logits = logits[:, :-1, :].contiguous()
+    loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
+    scaled_loss = loss / gradient_accumulation_steps
+    scaled_loss.backward()
+    return loss.detach()
+
+
+def train(
+    config: TrainingConfig,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
+):
+    logger.info("Starting training...")
+
+    model = get_model(config, device_manager.device)
+    vocab_size = get_vocab_size(model)
+    logger.info(f"Loaded {config.model_name} (text-only view). vocab_size={vocab_size}")
+    logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+    logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
+
+    if config.resume_from_checkpoint:
+        checkpoint_manager.load_checkpoint(model, optimizer)
+
+    train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
+    train_dataloader = train_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Train size: {len(train_dataloader)*config.batch_size}")
+
+    eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
+    eval_dataloader = eval_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval size: {len(eval_dataloader)*config.batch_size}")
+
+    tokenizer = train_dataset.tokenizer
+
+    global_step = 0
+    running_loss = 0.0
+
+    try:
+        model.eval()
+        val_loss = validate(
+            model,
+            eval_dataloader,
+            cross_entropy_loss,
+            logger,
+            device_manager.device,
+            config,
+            vocab_size,
+            tokenizer,
+        )
+        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        model.train()
+
+        for epoch in range(config.num_epochs):
+            accumulation_step = 0
+
+            for batch in tqdm(train_dataloader, desc="Training"):
+                if accumulation_step == 0:
+                    optimizer.zero_grad()
+
+                expected_output, labels_mask = transform_labels(
+                    batch["labels"], config.ignored_index, vocab_size
+                )
+                batch = {
+                    "input_ids": batch["input_ids"],
+                    "attention_mask": batch["attention_mask"],
+                    "expected_output": expected_output,
+                    "labels_mask": labels_mask,
+                }
+
+                batch = device_manager.prepare_batch(batch)
+                device_manager.shard_model(model)
+
+                loss_ = training_step_inner(
+                    batch, model, cross_entropy_loss, config.gradient_accumulation_steps
+                )
+
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
+
+                running_loss += loss_.item()
+                accumulation_step += 1
+
+                print(f"Loss at step {global_step} is {loss_.item()}", flush=True)
+
+                if accumulation_step == config.gradient_accumulation_steps:
+                    device_manager.optimizer_step(optimizer)
+
+                    accumulation_step = 0
+                    global_step += 1
+
+                    if global_step % config.steps_freq == 0:
+                        avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
+                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+                        running_loss = 0.0
+
+                    if global_step % config.val_steps_freq == 0:
+                        model.eval()
+                        val_loss = validate(
+                            model,
+                            eval_dataloader,
+                            cross_entropy_loss,
+                            logger,
+                            device_manager.device,
+                            config,
+                            vocab_size,
+                            tokenizer,
+                        )
+                        logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
+                        model.train()
+
+                    logger.log_metrics({}, commit=True, step=global_step)
+
+                    #if config.use_tt:
+                    #    xr.clear_computation_cache()
+
+                    if checkpoint_manager.should_save_checkpoint(global_step):
+                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+        final_model_path = checkpoint_manager.save_checkpoint(
+            model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
+        )
+        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
+
+    except Exception as e:
+        traceback_str = traceback.format_exc()
+        logger.error(f"Training failed with error: {str(e)}", traceback_str)
+        raise
+    finally:
+        logger.finish()
+
+
+if __name__ == "__main__":
+    default_config = Path(__file__).parent / "test_gemma4_e2b_wizardlm.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
+
+    repro_manager = ReproducibilityManager(config)
+    repro_manager.setup()
+
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
+
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
+
+    if config.use_tt:
+        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
+
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
+
+    train(config, device_manager, logger, checkpoint_manager)

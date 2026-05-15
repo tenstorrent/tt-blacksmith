@@ -4,7 +4,7 @@ torchdata
 peft
 tqdm
 datasets
-transformers==4.57.1
+transformers==5.5.4
 flax
 six
 kornia

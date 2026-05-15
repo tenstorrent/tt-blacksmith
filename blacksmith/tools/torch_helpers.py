@@ -69,7 +69,7 @@ def show_examples(examples, tokenizer, config, logger):
         valid_targets = expected[valid_mask]
         valid_preds = predicted[valid_mask]
 
-        show_len = min(10, len(valid_targets))
+        show_len = min(150, len(valid_targets))
         target_tokens = valid_targets[:show_len].tolist()
         pred_tokens = valid_preds[:show_len].tolist()
 

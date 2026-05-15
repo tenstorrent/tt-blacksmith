@@ -1,0 +1,150 @@
+# Gemma 4 E2B LoRA fine-tuning on Open-Platypus over an 8-way TT mesh.
+#
+# Identical sharding/training recipe to test_gemma4_e2b_alpaca.yaml — only the
+# dataset changes. Open-Platypus (`garage-bAInd/Open-Platypus`, ~25k rows) is
+# Stanford-Alpaca-shaped (`instruction` / `input` / `output`), so the same
+# `prompt_format: "chat"` rendering routes the rows through the Gemma-4 chat
+# template, which is what the `-it` checkpoint was post-trained with.
+#
+# Megatron-style 1D tensor parallelism on the "model" axis (size 8). Inputs are
+# replicated (`input_sharding_dim: null`) -- no data parallelism. The "batch"
+# axis has size 1 and is unused for sharding, it just keeps the mesh 2D to
+# match the underlying TT topology.
+#
+# Sharding recipe (classic Megatron 1D TP):
+#   - QKV / gate / up / lm_head / per-layer gates:  column-parallel  ["model", null]
+#   - O / down / per-layer projection:              row-parallel     [null, "model"]
+#   - LoRA A:                                       replicated (or row-parallel on O)
+#   - LoRA B:                                       matches its base layer
+#   - Embeddings:                                   vocab-parallel   ["model", null]
+#   - Norms:                                        replicated       [null]
+#
+# Shapes this assumes (text config of google/gemma-4-E2B-it):
+#   hidden_size            H = 1536
+#   intermediate_size      I = 6144   (x2 in KV-shared layers -> 12288)
+#   num_attention_heads  N_q = 8
+#   num_key_value_heads N_kv = 1
+#   head_dim  (sliding)  D_h = 256,  global_head_dim = 512
+#   num_hidden_layers      L = 35   (28 sliding + 7 full_attention)
+#   vocab_size             V = 262144
+#   hidden_size_per_layer_input P = 256
+#
+# Divisibility check on an 8-way "model" axis:
+#   V = 262144 / 8 = 32768                (embed_tokens / lm_head vocab-parallel)
+#   Q out: 8*256/8 = 256 (sliding), 8*512/8 = 512 (full)
+#   K/V out: 1*256/8 = 32 (sliding),  1*512/8 = 64 (full)
+#   I = 6144 / 8 = 768 (sliding),  12288 / 8 = 1536 (KV-shared)
+#   P = 256 / 8 = 32                      (per-layer input gate out / projection in)
+#   L*P = 35*256 = 8960 / 8 = 1120        (embed_tokens_per_layer / per_layer_model_projection out)
+
+# Dataset
+dataset_id: "open_platypus"
+# Render Open-Platypus rows through the Gemma-4 chat template so the prompt
+# boundary tokens (`<start_of_turn>user`, `<start_of_turn>model`,
+# `<end_of_turn>`) match what the `-it` checkpoint was post-trained with.
+# Open-Platypus shares Alpaca's schema, so this routes through the same
+# `instruction (+ input)` -> user-turn rendering. `chat_system_prompt: null`
+# skips the system turn entirely (saves ~13 tokens/sample; the `-it` model
+# already behaves as a helpful assistant by default — set a string here to
+# add a system turn).
+prompt_format: "chat"
+chat_system_prompt: null
+
+# Model
+model_name: "google/gemma-4-E2B-it"
+max_length: 1024
+dtype: "torch.bfloat16"
+
+# Training
+training_type: "lora"
+learning_rate: 2e-5
+batch_size: 1
+gradient_accumulation_steps: 8
+num_epochs: 3
+ignored_index: -100
+
+# LoRA. Only target the text attention projections; there's nothing else left
+# after the vision/audio towers are dropped at load time.
+lora_r: 16
+lora_alpha: 32
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Device settings -- 1x8 mesh, Megatron-style 1D TP on the "model" axis, no DP.
+# The "batch" axis (size 1) is unused — kept only to keep the mesh 2D so it
+# matches the underlying TT topology, mirroring `llama_3_2_3b_sst2.yaml`.
+mesh_shape: [1, 8]
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: null
+# Sharding patterns (module-name regex -> partition spec). Megatron-style 1D TP:
+# column-parallel on the input side (QKV / gate / up), row-parallel on the
+# output side (O / down / per_layer_projection). Anything not listed here
+# stays replicated by default (see `device_manager._apply_tensor_parallelism`),
+# so we omit `lora_A.*` (replicated) and the per-layer norms (replicated) —
+# matching the discipline of `llama/xla/lora/quietbox/llama_3_2_3b_sst2.yaml`.
+#
+# Module-name patterns match `named_modules()` (no `.weight` suffix) — the
+# device manager shards `module.weight`. Patterns anchor on the module itself
+# rather than requiring `.model.` because under `Gemma4ForConditionalGeneration`
+# the text backbone lives at `...language_model.*` instead of `...model.*`.
+model_sharding_patterns:
+  # === Vocab-parallel embeddings + lm_head (kept because V=262144) ===
+  - ['\.embed_tokens$',                             [null, "model"]]
+  - ['\.lm_head$',                                  ["model", null]]
+  # === E-series per-layer table + projection (vocab-parallel, same reasoning) ===
+  - ['\.embed_tokens_per_layer$',                   [null, "model"]]
+  - ['\.per_layer_model_projection$',               ["model", null]]
+  # === Attention: QKV column-parallel, O row-parallel ===
+  - ['\.self_attn\.q_proj\.base_layer$',            ["model", null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$',       ["model", null]]
+  - ['\.self_attn\.k_proj\.base_layer$',            ["model", null]]
+  - ['\.self_attn\.k_proj\.lora_B\.default$',       ["model", null]]
+  - ['\.self_attn\.v_proj\.base_layer$',            ["model", null]]
+  - ['\.self_attn\.v_proj\.lora_B\.default$',       ["model", null]]
+  - ['\.self_attn\.o_proj\.base_layer$',            [null, "model"]]
+  - ['\.self_attn\.o_proj\.lora_B\.default$',       [null, "model"]]
+  # === MLP: gate/up column-parallel, down row-parallel ===
+  - ['\.mlp\.gate_proj$',                           ["model", null]]
+  - ['\.mlp\.up_proj$',                             ["model", null]]
+  - ['\.mlp\.down_proj$',                           [null, "model"]]
+  # === Per-layer input gate/projection (unique to the E-series) ===
+  - ['\.per_layer_input_gate$',                     ["model", null]]
+  - ['\.per_layer_projection$',                     [null, "model"]]
+
+# Reproducibility
+seed: 23
+deterministic: False
+
+# Logging
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gemma4-e2b-multichip-lora-quietbox"
+wandb_run_name: "tt-gemma4-e2b-open-platypus"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+val_steps_freq: 10
+epoch_freq: 1
+
+# Checkpoint
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 1
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gemma4/xla"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other
+framework: "pytorch"
+print_examples: True
+use_tt: True
