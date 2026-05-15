@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _create_batches(data: np.ndarray, batch_size: int) -> np.ndarray:
-    # Reshape flat numpy data into batches of shape (num_batches, batch_size, seq_len).
+    """Reshape flat numpy data into batches of shape (num_batches, batch_size, seq_len)."""
     num_batches = len(data) // batch_size
     return data[: num_batches * batch_size].reshape(num_batches, batch_size, -1)
 
@@ -23,6 +23,10 @@ def load_sst2_batches(
     split: str = "train",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Load SST-2 instruction-CLM batches via the torch SSTDataset.
+
+    Uses the same prompt/response templates as the Torch SST experiments.
+    Labels contain -100 at prompt positions so only response tokens
+    contribute to the loss.
 
     Returns:
         (input_ids, labels, attention_masks), each a numpy array of shape

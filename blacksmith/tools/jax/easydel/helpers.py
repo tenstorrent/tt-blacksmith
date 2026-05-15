@@ -64,11 +64,9 @@ def load_easydel_causal_lm(
     if config_overrides:
         load_kwargs["config_kwargs"] = config_overrides
 
-    axis_size = device_manager.easydel_load_axis_size()
-    mesh_name = list(device_manager.mesh.shape.keys())[0]
+    load_kwargs["sharding_axis_dims"] = tuple(device_manager.mesh.shape.values())
+    load_kwargs["sharding_axis_names"] = tuple(device_manager.mesh.shape.keys())
 
-    load_kwargs["sharding_axis_dims"] = (axis_size,)
-    load_kwargs["sharding_axis_names"] = (mesh_name,)
     load_kwargs["auto_shard_model"] = auto_shard_model
 
     on_tt = device_manager.device_kind == "tt"

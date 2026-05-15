@@ -85,7 +85,15 @@ class TrainingConfig(BaseModel):
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     input_sharding_dim: Optional[str] = Field(default=None)
+    apply_gqa_workaround: bool = Field(default=True)
     optimizer_on_cpu: bool = Field(default=False)
+    # Tensor parallelism: list of [regex, [axis_or_null, ...]] entries.
+    # When None, params are replicated (pure DP).
+    model_sharding_patterns: Optional[list[list]] = Field(default=None)
+    # Multi-device partitioner: True = Shardy (default), False = GSPMD fallback.
+    use_shardy_partitioner: bool = Field(default=True)
+    # Extra kwargs forwarded to the EasyDel model config.
+    extra_config_kwargs: Optional[dict] = Field(default=None)
 
     # Framework
-    framework: str = Field(default="easydel")
+    framework: str = Field(default="jax")

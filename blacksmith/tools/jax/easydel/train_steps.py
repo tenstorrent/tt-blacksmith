@@ -7,6 +7,7 @@ from typing import Callable, Optional
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optax
 from flax import nnx
 from transformers import PreTrainedTokenizerBase
 
@@ -57,6 +58,47 @@ def create_loss_and_grad_step_fn(graphdef: nnx.GraphDef) -> Callable:
     return loss_and_grad_step
 
 
+def create_fused_train_step_fn(
+    graphdef: nnx.GraphDef,
+    tx: optax.GradientTransformation,
+) -> Callable:
+    """JIT-compiled forward + backward + optimizer step.
+
+    Returns a function with signature::
+
+        fused_train_step(lora_params, frozen_state, opt_state,
+                         input_ids, one_hot_labels, label_mask,
+                         attention_mask)
+            -> (new_params, new_opt_state, loss, grad_stats)
+    """
+
+    def loss_fn(lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask):
+        model = nnx.merge(graphdef, lora_params, frozen_state)
+        output = model(input_ids=input_ids, attention_mask=attention_mask)
+        shift_logits = output.logits[:, :-1, :].astype(jnp.float32)
+        per_token = clamped_softmax_cross_entropy_per_token(shift_logits, one_hot_labels)
+        masked = per_token * label_mask
+        return jnp.sum(masked) / jnp.maximum(jnp.sum(label_mask), 1.0)
+
+    @jax.jit
+    def fused_train_step(
+        lora_params, frozen_state, opt_state,
+        input_ids, one_hot_labels, label_mask, attention_mask,
+    ):
+        loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
+            lora_params, frozen_state,
+            input_ids, one_hot_labels, label_mask, attention_mask,
+        )
+        updates, new_opt = tx.update(grads, opt_state, lora_params)
+        new_params = optax.apply_updates(lora_params, updates)
+        leaves = jax.tree.leaves(grads)
+        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
+        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]))
+        return new_params, new_opt, loss, {"grad_norm": grad_norm, "grad_max": grad_max}
+
+    return fused_train_step
+
+
 def create_eval_step_fn(graphdef: nnx.GraphDef) -> Callable:
     """JIT-compiled evaluation step returning scalar loss.
 
@@ -79,6 +121,8 @@ def create_eval_step_fn(graphdef: nnx.GraphDef) -> Callable:
 
 
 def create_eval_inspect_step_fn(graphdef: nnx.GraphDef) -> Callable:
+    """JIT-compiled eval step returning (loss, predictions, per_token_loss)."""
+
     @jax.jit
     def eval_inspect_step(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
