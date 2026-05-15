@@ -8,11 +8,15 @@ dtype: "torch.bfloat16"
 
 # Training hyperparameters
 training_type: "full"
-learning_rate: 5e-6
+learning_rate: 2e-5
 batch_size: 8
 gradient_accumulation_steps: 1
 num_epochs: 1
 ignored_index: -100
+lr_scheduler: "cosine"
+warmup_ratio: 0.03
+max_grad_norm: 1.0
+weight_decay: 0.01
 
 # Reproducibility settings
 seed: 23
