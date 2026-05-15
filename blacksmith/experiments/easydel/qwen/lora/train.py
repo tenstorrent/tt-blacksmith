@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from blacksmith.datasets.jax.sst2.sst2_dataset import load_sst2_batches
+from blacksmith.datasets.jax.dataset_utils import load_batches
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.jax.checkpoint_manager import JaxCheckpointManager
@@ -82,8 +82,8 @@ def train(
         }
     )
 
-    train_input_ids, train_labels, train_attention_masks = load_sst2_batches(config, split="train")
-    validation_input_ids, validation_labels, validation_attention_masks = load_sst2_batches(config, split="validation")
+    train_input_ids, train_labels, train_attention_masks = load_batches(config, split="train")
+    validation_input_ids, validation_labels, validation_attention_masks = load_batches(config, split="validation")
 
     def _make_batch(input_ids, labels, attention_mask):
         return {

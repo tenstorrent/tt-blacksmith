@@ -1,10 +1,10 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "alpaca"
 
 # Model settings
 model_name: "Qwen/Qwen3-4B"
-max_length: 64
-mask_max_position_embeddings: 64
+max_length: 128
+mask_max_position_embeddings: 128
 dtype: "bfloat16"
 
 # Training hyperparameters
@@ -28,7 +28,7 @@ deterministic: true
 # Logging settings
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
-wandb_run_name: "qwen3-4b-sst2-tt-quietbox-easydel"
+wandb_run_name: "qwen3-4b-alpaca-tt-quietbox-easydel"
 print_examples: true
 steps_freq: 10
 log_level: "INFO"
@@ -54,9 +54,9 @@ remote_path: ""
 # Wormhole QuietBox: 8 chips, 2x4 mesh (data x model).
 use_tt: true
 num_devices: 8
-mesh_shape: [8]
-mesh_axis_names: ["model"]
-input_sharding_dim: null
+mesh_shape: [2,4]
+mesh_axis_names: ["data", "model"]
+input_sharding_dim: "data"
 apply_gqa_workaround: true
 optimizer_on_cpu: false
 use_shardy_partitioner: true
