@@ -14,7 +14,7 @@ gradient_accumulation_steps: 1
 num_epochs: 1
 ignored_index: -100
 lr_scheduler: "cosine"
-warmup_ratio: 0.1
+warmup_ratio: 0.03
 max_grad_norm: 1.0
 weight_decay: 0.01
 
