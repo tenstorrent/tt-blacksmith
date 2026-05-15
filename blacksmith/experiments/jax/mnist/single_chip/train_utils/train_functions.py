@@ -13,7 +13,7 @@ def cross_entropy(logits, labels):
 
 
 def forward_pass(params, x):
-    logits, _ = MLP().apply({"params": params}, x, mutable=["params"])
+    logits = MLP().apply({"params": params}, x)
     return logits
 
 
