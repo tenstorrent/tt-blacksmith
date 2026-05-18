@@ -150,17 +150,17 @@ def train(
 
     try:
         # Initial validation
-        # model.eval()
-        # val_loss = validate(
-        #     model,
-        #     eval_dataloader,
-        #     cross_entropy_loss,
-        #     logger,
-        #     device_manager.device,
-        #     config,
-        #     tokenizer,
-        # )
-        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        model.eval()
+        val_loss = validate(
+            model,
+            eval_dataloader,
+            cross_entropy_loss,
+            logger,
+            device_manager.device,
+            config,
+            tokenizer,
+        )
+        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
         for epoch in range(config.num_epochs):
@@ -197,6 +197,8 @@ def train(
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
+                    grad_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=config.max_grad_norm)
+
                     device_manager.optimizer_step(optimizer)
 
                     accumulation_step = 0
@@ -204,7 +206,11 @@ def train(
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
-                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+                        logger.log_metrics(
+                            {"train/loss": avg_loss, "train/grad_norm": grad_norm.item()},
+                            commit=False,
+                            step=global_step,
+                        )
                         running_loss = 0.0
 
                     # Validation

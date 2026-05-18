@@ -74,12 +74,14 @@ class MetaMathQADataset(BaseDataset):
     def _prepare_dataset(self):
         if MetaMathQADataset._cached_full_dataset is None:
             raw_dataset = load_dataset(DATASET_PATH, split="train")
+            raw_dataset = raw_dataset.shuffle(seed=self.config.seed)
+            subset_size = int(0.1 * len(raw_dataset))
+            raw_dataset = raw_dataset.select(range(subset_size))
             tokenized_dataset = raw_dataset.map(self._tokenize_function)
             filtered_dataset = tokenized_dataset.filter(lambda example: example["len"] <= self.config.max_length)
             filtered_dataset = filtered_dataset.remove_columns(
                 [col for col in filtered_dataset.column_names if col not in self.required_columns]
             )
-            filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
             MetaMathQADataset._cached_full_dataset = filtered_dataset
 
         full_dataset = MetaMathQADataset._cached_full_dataset

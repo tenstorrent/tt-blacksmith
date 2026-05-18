@@ -32,6 +32,7 @@ class TrainingConfig(BaseModel):
     weight_decay: float = Field(default=0.0, ge=0)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
+    max_grad_norm: float = Field(default=float('inf'))
     ignored_index: int = Field(default=-100)
 
     # Logging settings
