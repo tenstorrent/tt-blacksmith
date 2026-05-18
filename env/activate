@@ -99,12 +99,18 @@ if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
     # Activate environment
     source $TT_BLACKSMITH_ENV_DIR/bin/activate
 
-    # Check and upgrade packages if needed based on experiment type
-    case $EXPERIMENT_TYPE in
-        1) check_package_version "pjrt-plugin-tt" "env/xla_requirements.txt" ;;
-    esac
+    # Only check tt-xla packages; return early for other experiment types
+    if [ "$EXPERIMENT_TYPE" -ne 1 ]; then
+        return
+    fi
 
-    return
+    # If a debug pjrt-plugin-tt wheel is installed, just tag the prompt
+    if get_installed_version "pjrt-plugin-tt" | grep -q '+dev'; then
+        return
+    fi
+
+    # Otherwise check and upgrade package if needed
+    check_package_version "pjrt-plugin-tt" "env/xla_requirements.txt"
 fi
 
 # Otherwise create it

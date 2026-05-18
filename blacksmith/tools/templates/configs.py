@@ -1,7 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from enum import Enum
+from typing import Optional
+
 from pydantic import BaseModel, Field
+
+
+class Framework(Enum):
+    PYTORCH = "pytorch"
+    JAX = "jax"
+    EASYDEL = "easydel"
 
 
 class TrainingConfig(BaseModel):
@@ -12,6 +21,12 @@ class TrainingConfig(BaseModel):
     model_name: str = Field(default="path/to/model")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
+
+    # Mixed precision settings (tt-xla backend only). See tt-xla/docs/src/mixed_precision.md.
+    weight_dtype_overrides: Optional[str] = Field(default=None)  # JSON path (relative to the yaml if not absolute)
+    experimental_weight_dtype: Optional[str] = Field(
+        default=None
+    )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
 
     # Training hyperparameters
     learning_rate: float = Field(default=2e-5, gt=0)
@@ -58,5 +73,5 @@ class TrainingConfig(BaseModel):
     unfreeze_embeddings: bool = Field(default=False)
 
     # Other settings
-    framework: str = Field(default="pytorch")
+    framework: Framework = Field(default=Framework.PYTORCH)
     use_tt: bool = Field(default=True)

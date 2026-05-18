@@ -15,6 +15,7 @@ tests/test_logs/
 # Python env
 env/*
 !env/activate
+!env/download_debug_wheel.sh
 !env/ffe_requirements.txt
 !env/xla_requirements.txt
 !env/requirements.txt

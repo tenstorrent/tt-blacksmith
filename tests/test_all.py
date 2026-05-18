@@ -14,7 +14,7 @@ from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
 DEFAULT_SETUP_DICT = {
     "test_script": None,
     "experiment_config": None,
-    "test_config": "tests/configs/test_training_fast.yaml",
+    "test_config": None,
     "tolerance": 0.5,
     "timeout": 800.0,
     "skip_loss_checks": False,
@@ -44,12 +44,15 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
     assert setup_dict["test_script"] is not None, "`test_script` is required."
     assert setup_dict["experiment_config"] is not None, "`experiment_config` is required."
     assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
-    assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
+    if setup_dict["test_config"] is not None:
+        assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
 
     TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
     GOLDEN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-    cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
+    cmd = [sys.executable, str(setup_dict["test_script"])]
+    if setup_dict["test_config"] is not None:
+        cmd.extend(["--test-config", str(setup_dict["test_config"])])
     cmd.append("--config")
     cmd.append(str(setup_dict["experiment_config"]))
     cmd.append("--test-log-filename-prefix")

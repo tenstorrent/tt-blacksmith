@@ -9,6 +9,26 @@ from transformers import AutoModelForCausalLM
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
+def _is_trainable_param(model: torch.nn.Module, param_path: str) -> bool:
+    """Look up a parameter by its pre-parametrize dotted path and return whether it's trainable.
+
+    After register_parametrization the original lives at
+    `<path-without-.weight>.parametrizations.<weight-name>.original`, so we try
+    that location first and fall back to the original path.
+    """
+    module_path, param_name = param_path.rsplit(".", 1)
+    try:
+        module = model.get_submodule(module_path)
+    except AttributeError:
+        return False
+    param = None
+    if hasattr(module, "parametrizations") and param_name in getattr(module.parametrizations, "_modules", {}):
+        param = getattr(module.parametrizations[param_name], "original", None)
+    if param is None:
+        param = getattr(module, param_name, None)
+    return isinstance(param, torch.nn.Parameter) and param.requires_grad
+
+
 def get_model(config: TrainingConfig, device: torch.device):
     # This will be replaced with forge models loader, we should add adapter functions to modify the model as needed
 
@@ -26,6 +46,27 @@ def get_model(config: TrainingConfig, device: torch.device):
 
     model.to(eval(config.dtype))
     model.to(device)
+
+    # Per-tensor weight dtype overrides must be registered before torch.compile
+    # so the custom_call appears in the traced graph.
+    overrides = getattr(config, "weight_dtype_overrides", None)
+    if config.use_tt and overrides:
+        from tt_torch import apply_weight_dtype_overrides
+
+        applied = apply_weight_dtype_overrides(model, overrides)
+
+        # register_parametrization does `set_(original, original)` internally,
+        # which freezes XLA storage. If the target is trainable, the optimizer
+        # later fails with "cannot mutate tensors with frozen storage" on the
+        # first in-place update. Fail loudly here with an actionable message.
+        trainable_hits = [name for name, _ in applied if _is_trainable_param(model, name)]
+        if trainable_hits:
+            raise RuntimeError(
+                "weight_dtype_overrides matched trainable parameters, which is "
+                "unsupported during training on XLA (torch parametrize freezes "
+                "their storage and optimizer.step() will fail). Restrict the "
+                "config to frozen weights only.\nOffending parameters:\n  - " + "\n  - ".join(trainable_hits)
+            )
 
     if config.use_tt:
         compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True}

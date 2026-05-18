@@ -23,9 +23,11 @@ jobs:
       test-matrix: ${{ steps.generate-test-matrix.outputs.test-matrix }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: 3.12
       - name: Generate test matrix
         id: generate-test-matrix
         shell: bash
