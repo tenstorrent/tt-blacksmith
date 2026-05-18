@@ -20,7 +20,7 @@ from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 from blacksmith.models.jax.distil_bert.model import init_model
 from blacksmith.models.jax.distil_bert.model_utils import combine_params, split_params
 from blacksmith.tools.cli import generate_config, parse_cli_options
-from blacksmith.tools.jax_helpers import (
+from blacksmith.tools.jax.helpers import (
     build_schedule,
     ce_with_labels,
     cosine_embedding_loss,

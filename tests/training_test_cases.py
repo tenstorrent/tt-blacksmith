@@ -148,6 +148,7 @@ TRAINING_TEST_CASES = [
             pytest.mark.n300_llmbox,
             pytest.mark.torch,
             pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
         ],
         id="tt-llama_3_2_1b-sst2-n300-llmbox",
     ),
@@ -162,8 +163,9 @@ TRAINING_TEST_CASES = [
             pytest.mark.n300_llmbox,
             pytest.mark.torch,
             pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
         ],
-        id="tt-llama_3_1_8b-sst2-n300-llmbox",
+        id="tt-llama_3_1_8b-sst2-data_tensor_parallel-n300-llmbox",
     ),
     pytest.param(
         {
@@ -177,8 +179,54 @@ TRAINING_TEST_CASES = [
             pytest.mark.n300_llmbox,
             pytest.mark.torch,
             pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
         ],
         id="tt-llama_3_1_8b_instruct-metamathqa-n300-llmbox",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-qb2-blackhole.yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            # TODO(agobeljic): Reactivate in uplift-test.json after qb2-blackhole is supported on uplift.
+            pytest.mark.uplift,
+            pytest.mark.qb2_blackhole,
+            pytest.mark.torch,
+            pytest.mark.tensor_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-qb2-blackhole",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-tensor_parallel-n300-llmbox.yaml",
+            "timeout": 14400,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.n300_llmbox,
+            pytest.mark.torch,
+            pytest.mark.tensor_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-tensor_parallel-n300-llmbox",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml",
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.p150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-llama_3_1_8b-sst2-p150",
     ),
     pytest.param(
         {
@@ -187,14 +235,31 @@ TRAINING_TEST_CASES = [
             "timeout": 20000,
         },
         marks=[
-            pytest.mark.skip("Llama 8B is not supported on Galaxy yet."),
-            pytest.mark.push,
+            pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
+            pytest.mark.uplift,
             pytest.mark.galaxy,
             pytest.mark.torch,
             pytest.mark.data_parallel,
             pytest.mark.tensor_parallel,
         ],
         id="tt-llama_3_1_8b-sst2-n300-galaxy",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-galaxy-batch-model.yaml",
+            "timeout": 20000,
+        },
+        marks=[
+            pytest.mark.skip(reason="OOM on Galaxy llama 8B"),
+            pytest.mark.uplift,
+            pytest.mark.galaxy,
+            pytest.mark.torch,
+            pytest.mark.data_parallel,
+            pytest.mark.tensor_parallel,
+        ],
+        id="tt-llama_3_1_8b-sst2-n300-galaxy-batch-model",
     ),
     pytest.param(
         {

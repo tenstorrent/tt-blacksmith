@@ -111,7 +111,7 @@ def setup_training(config, device_manager, logger, checkpoint_manager):
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     return (

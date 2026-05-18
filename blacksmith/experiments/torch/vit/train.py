@@ -104,7 +104,7 @@ def train(
 
     # Initialize the optimizer.
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
     loss_fn = eval(config.loss_fn)(ignore_index=config.ignored_index)
 
     # Load the checkpoint if needed.

@@ -1,6 +1,0 @@
-git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
-eformer==0.0.62
-jax==0.7.1
-jaxlib==0.7.1
-# EasyDeL (git pin above) requires triton~=3.2.x; do not bump to 3.3+ without checking upstream.
-triton==3.2.0

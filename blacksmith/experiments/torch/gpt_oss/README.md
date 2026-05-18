@@ -1,16 +1,17 @@
 # GPT-OSS with LoRA Experiment in TT-XLA
 
-This directory contains the code for the GPT-OSS 20B LoRA fine-tuning experiment in TT-XLA.
+This directory contains the code for the GPT-OSS LoRA fine-tuning experiments in TT-XLA.
 
 - GPT-OSS 20B model specification can be found [here](https://huggingface.co/openai/gpt-oss-20b).
+- GPT-OSS 120B model specification can be found [here](https://huggingface.co/openai/gpt-oss-120b).
 
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
 
-The GPT-OSS fine-tuning experiment applies the LoRA technique to adapt a pre-trained GPT-OSS 20B
-model on the SST-2 sentiment analysis dataset.
-The experiment is designed to run on the Huggingface framework.
+The GPT-OSS fine-tuning experiments apply the LoRA technique to adapt pre-trained GPT-OSS models
+on the SST-2 sentiment analysis and Alpaca instruction-tuning datasets.
+The experiments are designed to run on the Huggingface framework.
 
 The model uses a Mixture-of-Experts (MoE) architecture. Expert weights are de-interleaved from
 the original `gate_up_proj` layout at load time to enable BMM-based forward passes compatible with
@@ -68,6 +69,19 @@ python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experi
 | [BH LoudBox](lora/loudbox/gpt_oss_20b_sst2.yaml) | `[1, 8]` | `["batch", "model"]` | SST-2 | LoRA |
 | [WH Galaxy](lora/galaxy/gpt_oss_20b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` | Alpaca | LoRA |
 
+
+### GPT-OSS 120B Training
+
+**WH Galaxy Training:**
+```bash
+python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experiments/torch/gpt_oss/lora/galaxy/gpt_oss_120b_alpaca.yaml
+```
+
+#### GPT-OSS 20B Training Configurations
+
+| Architecture | mesh_shape | mesh_axis_names | Dataset | Method |
+| --- | --- | --- | --- | --- |
+| [WH Galaxy](lora/galaxy/gpt_oss_120b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` | Alpaca | LoRA |
 
 ## Data
 

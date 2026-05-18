@@ -3,8 +3,3 @@ test_config:
 
 steps_freq: 1
 val_steps_freq: 1
-
-save_strategy: "none"
-
-use_tt: true
-log_on_wandb: false

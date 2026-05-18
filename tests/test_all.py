@@ -14,7 +14,7 @@ from blacksmith.tools.logging_manager import GOLDEN_LOGS_DIR, TEST_LOGS_DIR
 DEFAULT_SETUP_DICT = {
     "test_script": None,
     "experiment_config": None,
-    "test_config": "tests/configs/test_training_fast.yaml",
+    "test_config": None,
     "tolerance": 0.5,
     "timeout": 800.0,
     "skip_loss_checks": False,
@@ -44,12 +44,15 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
     assert setup_dict["test_script"] is not None, "`test_script` is required."
     assert setup_dict["experiment_config"] is not None, "`experiment_config` is required."
     assert Path(setup_dict["test_script"]).exists(), f"Script not found: {setup_dict['test_script']}"
-    assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
+    if setup_dict["test_config"] is not None:
+        assert Path(setup_dict["test_config"]).exists(), f"Config not found: {setup_dict['test_config']}"
 
     TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
     GOLDEN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-    cmd = [sys.executable, str(setup_dict["test_script"]), "--test-config", str(setup_dict["test_config"])]
+    cmd = [sys.executable, str(setup_dict["test_script"])]
+    if setup_dict["test_config"] is not None:
+        cmd.extend(["--test-config", str(setup_dict["test_config"])])
     cmd.append("--config")
     cmd.append(str(setup_dict["experiment_config"]))
     cmd.append("--test-log-filename-prefix")
@@ -60,13 +63,13 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
     return cmd
 
 
-def run_cmd(cmd: list[str], test_id: str, setup_dict: dict):
+def run_cmd(cmd: list[str], test_id: str, setup_dict: dict, debug: bool):
     try:
         result = subprocess.run(
             cmd,
             cwd=str(Path.cwd()),
             timeout=setup_dict["timeout"],
-            capture_output=True,
+            capture_output=not debug,
             text=True,
             check=False,
         )
@@ -75,8 +78,10 @@ def run_cmd(cmd: list[str], test_id: str, setup_dict: dict):
             print(f"\n{'='*60}")
             print(f"FAILED: {test_id}")
             print(f"Exit code: {result.returncode}")
-            print(f"\nSTDOUT:\n{result.stdout}")
-            print(f"\nSTDERR:\n{result.stderr}")
+            if result.stdout:
+                print(f"\nSTDOUT:\n{result.stdout}")
+            if result.stderr:
+                print(f"\nSTDERR:\n{result.stderr}")
             print(f"{'='*60}\n")
             pytest.fail(f"Training script exited with code {result.returncode}")
 
@@ -135,7 +140,8 @@ def test_training_script(
         fetch_checkpoint(setup_dict["test_checkpoint_path"])
 
     cmd = get_cmd(test_id, setup_dict)
-    run_cmd(cmd, test_id, setup_dict)
+    debug = request.config.getoption("--debug-experiment", default=False)
+    run_cmd(cmd, test_id, setup_dict, debug)
 
     if setup_dict["skip_loss_checks"]:
         return  # If a test does not support golden files yet.

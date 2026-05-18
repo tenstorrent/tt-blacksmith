@@ -107,7 +107,7 @@ def train(
 
     # Init training components (optimizer, lr scheduler, etc.)
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
     loss_fn = torch.nn.CrossEntropyLoss(ignore_index=config.ignored_index)
 
     global_step = 0

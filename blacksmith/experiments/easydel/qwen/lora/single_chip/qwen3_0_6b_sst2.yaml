@@ -23,6 +23,7 @@ lora_pattern: ".*(q_proj|v_proj).*"
 
 # Reproducibility settings
 seed: 42
+deterministic: false
 
 # Logging settings
 use_wandb: true
@@ -32,6 +33,27 @@ print_examples: true
 steps_freq: 10
 log_level: "INFO"
 
-# Other settings
+# Checkpoint settings
+resume_from_checkpoint: false
+resume_option: "last"  # [last, best, path]
+checkpoint_path: ""
+checkpoint_metric: "val/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 2
+keep_best_n: 1
+save_strategy: "none"
+epoch_freq: 1
+project_dir: "blacksmith/experiments/easydel/qwen/lora"
+save_optim: false
+storage_backend: "local"
+sync_to_storage: false
+load_from_storage: false
+remote_path: ""
+
+# Device settings
 use_tt: true
 num_devices: 1
+optimizer_on_cpu: false
+
+# Framework
+framework: "easydel"
