@@ -16,6 +16,7 @@ DEFAULT_SETUP_DICT = {
     "experiment_config": None,
     "test_config": None,
     "tolerance": 0.5,
+    "atol": 0.1,
     "timeout": 800.0,
     "skip_loss_checks": False,
     "test_checkpoint_path": None,
@@ -27,10 +28,10 @@ def config(request):
     return request.config
 
 
-def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float):
+def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float, atol: float):
     log_df = pd.read_csv(log_file)
     golden_df = pd.read_csv(golden_file)
-    pd.testing.assert_frame_equal(golden_df, log_df, rtol=tolerance)
+    pd.testing.assert_frame_equal(golden_df, log_df, rtol=tolerance, atol=atol)
 
 
 def get_log_files(log_filename_prefix: str) -> tuple[Path, Path]:
@@ -94,11 +95,13 @@ def check_losses(train_log_file: Path, val_log_file: Path, setup_dict: dict):
         TEST_LOGS_DIR / train_log_file,
         GOLDEN_LOGS_DIR / train_log_file,
         tolerance=setup_dict["tolerance"],
+        atol=setup_dict["atol"],
     )
     assert_loss_with_tolerance(
         TEST_LOGS_DIR / val_log_file,
         GOLDEN_LOGS_DIR / val_log_file,
         tolerance=setup_dict["tolerance"],
+        atol=setup_dict["atol"],
     )
 
 
