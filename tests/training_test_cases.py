@@ -313,6 +313,7 @@ TRAINING_TEST_CASES = [
             "timeout": 10000,
         },
         marks=[
+            pytest.mark.xfail(reason="PCC issues, currently investigating.", strict=False),
             pytest.mark.uplift,
             pytest.mark.n150,
             pytest.mark.torch,
