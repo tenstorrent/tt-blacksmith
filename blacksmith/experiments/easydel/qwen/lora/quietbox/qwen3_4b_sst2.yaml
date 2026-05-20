@@ -51,7 +51,6 @@ load_from_storage: false
 remote_path: ""
 
 # Device settings
-# Wormhole QuietBox: 8 chips, 2x4 mesh (data x model).
 use_tt: true
 num_devices: 8
 mesh_shape: [8]

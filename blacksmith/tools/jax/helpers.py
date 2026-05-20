@@ -123,7 +123,7 @@ def show_predictions(
     keys: predictions, per_token_loss, loss.  On TT multi-chip only
     input_ids, labels and the scalar loss are populated because
     additional JIT outputs trigger MeshDevice migration crashes
-    (tt-xla#1993, tt-mlir#3963).
+    (tt-xla#1993, tt-xla#4809, tt-mlir#3963).
     """
     log = training_logger.info if training_logger is not None else logging.getLogger(__name__).info
 

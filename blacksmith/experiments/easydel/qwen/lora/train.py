@@ -192,7 +192,7 @@ def train(
                 attention_mask = batch["attention_mask"]
 
                 # Raw labels are passed through; the fused JIT runs the
-                # shift/mask/one-hot/clamped CE internally (tt-xla#1993).
+                # shift/mask/one-hot/clamped CE internally (tt-xla#1993, tt-xla#4809).
                 sharded_batch = device_manager.prepare_batch(
                     {
                         "input_ids": input_ids,

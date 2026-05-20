@@ -27,7 +27,7 @@ def create_fused_train_step_fn(
 
     Label shift, masking, one-hot, and clamped CE run inside the JIT via
     masked_cross_entropy so no per-step micro-ops escape to TT and
-    trigger fabric / MeshDevice re-init (tt-xla#1993).
+    trigger fabric / MeshDevice re-init (tt-xla#1993, tt-xla#4809).
 
     Returns fused_train_step(lora_params, frozen_state, opt_state,
     input_ids, labels, attention_mask) -> (new_params, new_opt, loss,
@@ -93,7 +93,7 @@ def evaluate(
     transfer input_ids/labels to CPU and display them via
     show_predictions.  Only the scalar-loss jit_eval_step runs on-device;
     introducing a second JIT with a different output signature would
-    trigger MeshDevice migration crashes on TT (tt-xla#1993).
+    trigger MeshDevice migration crashes on TT (tt-xla#1993, tt-xla#4809).
     """
     total_loss = 0.0
     collected_examples: list[dict[str, np.ndarray]] = []
