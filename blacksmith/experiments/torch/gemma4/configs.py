@@ -21,12 +21,6 @@ class TrainingConfig(BaseModel):
     max_length: int = Field(default=1024, gt=0)
     dtype: str = Field(default="torch.bfloat16")
 
-    # Mixed precision settings (tt-xla backend only). See tt-xla/docs/src/mixed_precision.md.
-    weight_dtype_overrides: Optional[str] = Field(default=None)  # JSON path (relative to the yaml if not absolute)
-    experimental_weight_dtype: Optional[str] = Field(
-        default=None
-    )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
-
     # Training hyperparameters
     training_type: str = Field(default="lora")  # [lora, adapters]
     learning_rate: float = Field(default=2e-5, gt=0)
@@ -76,11 +70,6 @@ class TrainingConfig(BaseModel):
     lora_alpha: int = Field(default=64, gt=0)
     lora_target_modules: list[str] = Field(default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj"])
     lora_task_type: str = Field(default="CAUSAL_LM")
-
-    # Adapter setup
-    adapter_bottleneck_dim: int = Field(default=24, ge=0)
-    adapter_non_linearity: str = Field(default="torch.nn.GELU")  # [torch.nn.ReLU, torch.nn.GELU, torch.nn.SiLU]
-    adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
     # Device settings
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.

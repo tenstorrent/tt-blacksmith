@@ -70,10 +70,6 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, vocab_size
                     num_val_batches=num_val_batches,
                 )
 
-            if num_val_batches > 20:
-                logger.info(f"Stopping validation early after {num_val_batches} batches.")
-                break
-
     if config.print_examples and tokenizer is not None:
         logger.info("Printing validation examples...")
         show_examples(collected_examples, tokenizer, config, logger)
@@ -172,8 +168,6 @@ def train(
 
                 running_loss += loss_.item()
                 accumulation_step += 1
-
-                print(f"Loss at step {global_step} is {loss_.item()}", flush=True)
 
                 if accumulation_step == config.gradient_accumulation_steps:
                     device_manager.optimizer_step(optimizer)

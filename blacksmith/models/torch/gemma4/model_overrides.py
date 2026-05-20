@@ -8,7 +8,6 @@ from transformers import Gemma4ForConditionalGeneration
 from blacksmith.tools.device_manager import DeviceManager
 
 
-# TODO(umales): Align get_model signatures between hf_models.py and this function.
 def get_model(config, device_manager: DeviceManager, shard_model=False):
     """
     Load Gemma 4 E2B (text-only view) with multimodal towers stripped,
@@ -67,9 +66,7 @@ def _strip_multimodal_towers(model: Gemma4ForConditionalGeneration) -> None:
 
 
 def _patch_embed_tokens_per_layer_split(model: torch.nn.Module) -> int:
-    # Workaround ttnn.embedding silent-corruption at HIDDEN > 256 col-tiles:
-    # Gemma-4 `embed_tokens_per_layer` is (V, 8960). Split lookup along hidden
-    # dim into 2 halves, concat, then apply `embed_scale`.
+    # TODO(umales): Remove this workaround once https://github.com/tenstorrent/tt-metal/issues/44500 is fixed.
     n = 0
     for mod_name, mod in model.named_modules():
         if not mod_name.endswith("embed_tokens_per_layer"):

@@ -1,6 +1,3 @@
-# Gemma 4 E2B LoRA fine-tuning on WizardLM-Evol-Instruct (70k) over an 8-way TT mesh.
-# Megatron-style 1D tensor parallelism on the "model" axis; inputs replicated.
-
 # Dataset settings
 dataset_id: "wizardlm_evol"
 # Route rows through the Gemma-4 chat template so the prompt boundary tokens
@@ -31,9 +28,7 @@ lora_task_type: "CAUSAL_LM"
 mesh_shape: [1, 8]
 mesh_axis_names: ["batch", "model"]
 input_sharding_dim: null
-# Sharding patterns for tensor parallelism (regex pattern -> partition spec).
-# Patterns anchor on the module itself (no `.weight` suffix); under
-# `Gemma4ForConditionalGeneration` the text backbone lives at `...language_model.*`.
+# Megatron-style 1D tensor parallelism.
 model_sharding_patterns:
   # === Attention ===
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
@@ -52,14 +47,14 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "gemma4-e2b-multichip-lora-quietbox"
+wandb_project: "gemma4-e2b-multichip-lora-loudbox"
 wandb_run_name: "tt-gemma4-e2b-wizardlm-evol"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
 steps_freq: 1
-val_steps_freq: 10
+val_steps_freq: 30
 epoch_freq: 1
 
 # Checkpoint settings
