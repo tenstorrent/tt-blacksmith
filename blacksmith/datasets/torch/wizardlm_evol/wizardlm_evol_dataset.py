@@ -90,6 +90,8 @@ class WizardLMEvolDataset(BaseDataset):
 
         return example
 
+    # Plain-text Stanford-Alpaca template (`### Instruction / ### Input / ### Response`).
+    # Use for base (non `-it`) checkpoints.
     def _render_alpaca(self, instruction: str, input_text: str, output: str):
         if input_text.strip():
             prompt = PROMPT_TEMPLATE.substitute(instruction=instruction, input=input_text)
@@ -98,6 +100,9 @@ class WizardLMEvolDataset(BaseDataset):
         full_text = prompt + output
         return prompt, full_text
 
+    # Route through the tokenizer's chat template (model-specific turn-boundary
+    # tokens, e.g. Gemma-4 `<start_of_turn>...<end_of_turn>`). Use for `-it`
+    # checkpoints so training matches the post-training token sequence.
     def _render_chat(self, instruction: str, input_text: str, output: str):
         user_content = f"{instruction}\n\n{input_text}".strip() if input_text.strip() else instruction
 
@@ -106,9 +111,6 @@ class WizardLMEvolDataset(BaseDataset):
             messages.append({"role": "system", "content": self.config.chat_system_prompt})
         messages.append({"role": "user", "content": user_content})
 
-        # `enable_thinking=False` is required for Gemma-4 -it: otherwise the
-        # template inserts a `<think>` opener into `prompt` but not `full_text`,
-        # shifting the `labels[:prompt_len] = -100` boundary.
         prompt = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
         )
