@@ -86,7 +86,6 @@ class TrainingConfig(BaseModel):
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     input_sharding_dim: Optional[str] = Field(default=None)
     apply_gqa_workaround: bool = Field(default=True)
-    optimizer_on_cpu: bool = Field(default=False)
     # Tensor parallelism: list of [regex, [axis_or_null, ...]] entries.
     # When None, params are replicated (pure DP).
     model_sharding_patterns: Optional[list[list]] = Field(default=None)

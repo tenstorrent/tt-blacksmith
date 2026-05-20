@@ -9,7 +9,6 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 import numpy as np
-import optax
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from blacksmith.tools.jax.easydel.partitioning import build_param_partition_specs
@@ -213,59 +212,6 @@ class JaxDeviceManager:
             pytree,
         )
 
-    def optimizer_step(
-        self,
-        tx,
-        opt_state,
-        params,
-        grads,
-    ):
-        """Apply an optax update.
-
-        When optimizer_on_cpu is True and the device is TT, params/grads are
-        moved to CPU for the update; opt_state stays on CPU permanently.
-
-        On the on-device path the update is wrapped in jax.jit so that
-        arithmetic across mixed NamedShardings is traced rather than executed
-        eagerly.
-        """
-        on_cpu = getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt"
-
-        if on_cpu:
-            cpu = jax.devices("cpu")[0]
-            with jax.default_device(cpu):
-                params_c = self.to_cpu(params)
-                grads_c = self.to_cpu(grads)
-                opt_c = self.to_cpu(opt_state)
-                updates, new_opt = tx.update(grads_c, opt_c, params_c)
-                new_params = optax.apply_updates(params_c, updates)
-            new_params = self.replicate(new_params)
-            # opt_state stays on CPU permanently
-            jax.block_until_ready((new_params, new_opt))
-            return new_params, new_opt
-
-        logger.warning(
-            "JaxDeviceManager.optimizer_step on-device path is deprecated; "
-            "prefer create_fused_train_step_fn for on-device optimizer execution."
-        )
-
-        # Re-shard grads to match param sharding to avoid ttnn shape mismatches.
-        if self.device_kind == "tt":
-            param_shardings = jax.tree.map(lambda p: p.sharding, params)
-            grads = jax.tree.map(
-                lambda g, s: jax.device_put(g, s),
-                grads,
-                param_shardings,
-            )
-
-        @jax.jit
-        def _do_step(params_, opt_state_, grads_):
-            updates_, new_opt_ = tx.update(grads_, opt_state_, params_)
-            new_params_ = optax.apply_updates(params_, updates_)
-            return new_params_, new_opt_
-
-        return _do_step(params, opt_state, grads)
-
     def easydel_load_axis_size(self) -> int:
         """Return the axis size EasyDel should use for sharding_axis_dims at load time."""
         return getattr(self.config, "num_devices", 1)
@@ -278,7 +224,6 @@ class JaxDeviceManager:
             "mesh_shape": list(self.mesh.shape.values()),
             "mesh_axis_names": list(self.mesh.shape.keys()),
             "data_parallel": self.is_data_parallel(),
-            "optimizer_on_cpu": (getattr(self.config, "optimizer_on_cpu", True) and self.device_kind == "tt"),
             "gqa_workaround": (
                 getattr(self.config, "apply_gqa_workaround", True)
                 and self.device_kind == "tt"

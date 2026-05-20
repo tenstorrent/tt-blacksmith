@@ -132,7 +132,6 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 | `mesh_shape` | Mesh shape for distributed training (None = single device). | None |
 | `mesh_axis_names` | Axis names for the mesh (None = single device). | None |
 | `input_sharding_dim` | Mesh axis for data-parallel sharding (None = no DP). | None |
-| `optimizer_on_cpu` | Run optimizer on CPU instead of device (TT only). | False |
 
 ### Logging
 

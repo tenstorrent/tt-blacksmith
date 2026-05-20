@@ -119,57 +119,61 @@ def show_predictions(
 ) -> None:
     """Print collected prediction examples (CPU-only, no forward pass).
 
-    Args:
-        collected: List of dicts with keys input_ids, labels, predictions,
-            per_token_loss (numpy arrays).
-        tokenizer: HuggingFace tokenizer for decoding.
-        num_tokens: Number of leading tokens to show per example.
-        ignored_index: Label value treated as "don't care".
-        training_logger: Optional TrainingLogger; falls back to the
-            module-level logger when None.
+    Each dict in collected must have input_ids and labels.  Optional
+    keys: predictions, per_token_loss, loss.  On TT multi-chip only
+    input_ids, labels and the scalar loss are populated because
+    additional JIT outputs trigger MeshDevice migration crashes
+    (tt-xla#1993, tt-mlir#3963).
     """
     log = training_logger.info if training_logger is not None else logging.getLogger(__name__).info
 
     for i, ex in enumerate(collected):
         input_ids = ex["input_ids"]
         labels = ex["labels"]
-        predictions = ex["predictions"]
-        per_token_loss = ex["per_token_loss"]
+        predictions = ex.get("predictions")
+        per_token_loss = ex.get("per_token_loss")
+        batch_loss = ex.get("loss")
 
         shift_labels = labels[1:].astype(np.int32)
-        target_ids = shift_labels[:num_tokens]
-        pred_ids = predictions[:num_tokens]
-        token_losses = per_token_loss[:num_tokens]
-
-        tok_valid = target_ids != ignored_index
-        valid_targets = target_ids[tok_valid]
-        valid_preds = pred_ids[tok_valid]
-
-        input_text = tokenizer.decode(
-            input_ids.tolist(),
-            skip_special_tokens=True,
-        )[:200]
-        target_text = tokenizer.decode(
-            valid_targets.tolist(),
-            skip_special_tokens=False,
-        )
-        pred_text = tokenizer.decode(
-            valid_preds.tolist(),
-            skip_special_tokens=False,
-        )
-
-        valid = shift_labels != ignored_index
-        correct = int((predictions[valid] == shift_labels[valid]).sum())
-        total = int(valid.sum())
+        valid_mask = shift_labels != ignored_index
 
         log(f"\n--- Example {i + 1} ---")
+
+        if not valid_mask.any():
+            log(f"  (no unmasked target tokens; all labels == {ignored_index})")
+            if batch_loss is not None:
+                log(f"  Batch loss:   {batch_loss:.4f}")
+            continue
+
+        prompt_end = int(np.argmax(valid_mask)) + 1
+        prompt_ids = input_ids[:prompt_end]
+
+        valid_targets = shift_labels[valid_mask]
+        target_ids = valid_targets[:num_tokens]
+
+        input_text = tokenizer.decode(prompt_ids.tolist(), skip_special_tokens=True)
+        target_text = tokenizer.decode(target_ids.tolist(), skip_special_tokens=False)
+
         log(f"  Input:        {input_text!r}")
         log(f"  Target IDs:   {target_ids.tolist()}")
-        log(f"  Pred IDs:     {pred_ids.tolist()}")
         log(f"  Target text:  {target_text!r}")
-        log(f"  Pred text:    {pred_text!r}")
-        log(f"  Token losses: {np.round(token_losses, 4).tolist()}")
-        mean_loss = float(per_token_loss.mean())
-        log(f"  Mean loss:    {mean_loss:.4f}")
-        acc = correct / max(total, 1)
-        log(f"  Accuracy:     {correct}/{total} = {acc:.3f}")
+
+        if predictions is not None:
+            valid_preds_all = predictions[valid_mask]
+            pred_ids = valid_preds_all[:num_tokens]
+            pred_text = tokenizer.decode(pred_ids.tolist(), skip_special_tokens=False)
+            log(f"  Pred IDs:     {pred_ids.tolist()}")
+            log(f"  Pred text:    {pred_text!r}")
+
+            correct = int((valid_preds_all == valid_targets).sum())
+            total = int(valid_targets.size)
+            acc = correct / max(total, 1)
+            log(f"  Accuracy:     {correct}/{total} = {acc:.3f}")
+
+        if per_token_loss is not None:
+            valid_token_losses = per_token_loss[valid_mask][:num_tokens]
+            log(f"  Token losses: {np.round(valid_token_losses, 4).tolist()}")
+            mean_loss = float(per_token_loss[valid_mask].mean())
+            log(f"  Mean loss:    {mean_loss:.4f}")
+        elif batch_loss is not None:
+            log(f"  Batch loss:   {batch_loss:.4f}")
