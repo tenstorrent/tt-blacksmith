@@ -29,6 +29,7 @@ mesh_shape: [1, 8]
 mesh_axis_names: ["batch", "model"]
 input_sharding_dim: null
 # Megatron-style 1D tensor parallelism.
+# Attention is MQA, so k_proj and v_proj are replicated.
 model_sharding_patterns:
   # === Attention ===
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
