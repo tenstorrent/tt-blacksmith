@@ -132,9 +132,7 @@ class JaxDeviceManager:
         """
         if self.is_data_parallel():
             sharding = self.sharding.data_sharding
-            out = jax.tree.map(
-                lambda x: self._place_sharded(x, sharding), batch
-            )
+            out = jax.tree.map(lambda x: self._place_sharded(x, sharding), batch)
         elif getattr(self.config, "num_devices", 1) > 1:
             target = NamedSharding(self.mesh, PartitionSpec())
             out = jax.tree.map(lambda x: jax.device_put(x, target), batch)
@@ -152,9 +150,7 @@ class JaxDeviceManager:
         for device in sharding.mesh.devices.flatten():
             shard_np = np.ascontiguousarray(host_np[indices_map[device]])
             shard_arrays.append(jax.device_put(shard_np, device))
-        return jax.make_array_from_single_device_arrays(
-            host_np.shape, sharding, shard_arrays
-        )
+        return jax.make_array_from_single_device_arrays(host_np.shape, sharding, shard_arrays)
 
     def replicate(self, pytree):
         """Replicate a pytree across the mesh (no sharding)."""
@@ -191,9 +187,7 @@ class JaxDeviceManager:
             for device in sharding.mesh.devices.flatten():
                 shard_np = np.ascontiguousarray(host_np[indices_map[device]])
                 shard_arrays.append(jax.device_put(shard_np, device))
-            return jax.make_array_from_single_device_arrays(
-                leaf.shape, sharding, shard_arrays
-            )
+            return jax.make_array_from_single_device_arrays(leaf.shape, sharding, shard_arrays)
 
         placed = jax.tree.map(_place, pytree, specs)
         jax.block_until_ready(placed)
@@ -224,10 +218,7 @@ class JaxDeviceManager:
             "mesh_shape": list(self.mesh.shape.values()),
             "mesh_axis_names": list(self.mesh.shape.keys()),
             "data_parallel": self.is_data_parallel(),
-            "gqa_workaround": (
-                getattr(self.config, "apply_gqa_workaround", True)
-                and self.device_kind == "tt"
-            ),
+            "gqa_workaround": (getattr(self.config, "apply_gqa_workaround", True) and self.device_kind == "tt"),
         }
 
     def __repr__(self) -> str:

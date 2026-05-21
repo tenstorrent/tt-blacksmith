@@ -233,9 +233,7 @@ def train(
 
                 if len(running_losses) == config.steps_freq:
                     average_window_loss = float(np.mean(running_losses))
-                    logger.log_metrics(
-                        {"train/avg_window_loss": average_window_loss}, step=global_step, commit=False
-                    )
+                    logger.log_metrics({"train/avg_window_loss": average_window_loss}, step=global_step, commit=False)
                     logger.info(
                         f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
                         f"Loss = {current_loss:.4f} | Avg {config.steps_freq} = {average_window_loss:.4f} | "

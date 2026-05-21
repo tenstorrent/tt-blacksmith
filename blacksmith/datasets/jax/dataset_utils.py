@@ -26,8 +26,5 @@ def load_batches(
     """
     loader = AVAILABLE_DATASETS.get(config.dataset_id.lower())
     if loader is None:
-        raise ValueError(
-            f"Unknown JAX dataset: {config.dataset_id!r}. "
-            f"Available: {sorted(AVAILABLE_DATASETS)}"
-        )
+        raise ValueError(f"Unknown JAX dataset: {config.dataset_id!r}. " f"Available: {sorted(AVAILABLE_DATASETS)}")
     return loader(config, split)
