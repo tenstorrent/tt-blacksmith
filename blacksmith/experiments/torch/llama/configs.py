@@ -35,6 +35,7 @@ class TrainingConfig(BaseModel):
     max_grad_norm: float = Field(default=float('inf'))
     warmup_steps: int = Field(default=0, ge=0)  # 0 = auto (3% of total steps)
     total_steps: int = Field(default=0, ge=0)  # 0 = auto-compute from dataloader
+    use_scheduler: bool = Field(default=False)
     ignored_index: int = Field(default=-100)
 
     # Logging settings

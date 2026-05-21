@@ -149,10 +149,13 @@ def train(
     # Cosine annealing with linear warmup.
     total_steps = config.total_steps or (len(train_dataloader) // config.gradient_accumulation_steps) * config.num_epochs
     warmup_steps = config.warmup_steps or max(1, int(total_steps * 0.03))
-    scheduler = SequentialLR(optimizer, schedulers=[
-        LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
-        CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=config.learning_rate * 0.1),
-    ], milestones=[warmup_steps])
+    if config.use_scheduler:
+        scheduler = SequentialLR(optimizer, schedulers=[
+            LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
+            CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=config.learning_rate * 0.1),
+        ], milestones=[warmup_steps])
+    else:
+        scheduler = None
 
     global_step = 0
     running_loss = 0.0
@@ -209,15 +212,17 @@ def train(
                     grad_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=config.max_grad_norm)
 
                     device_manager.optimizer_step(optimizer)
-                    scheduler.step()
+                    if scheduler is not None:
+                        scheduler.step()
 
                     accumulation_step = 0
                     global_step += 1
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
+                        current_lr = scheduler.get_last_lr()[0] if scheduler is not None else config.learning_rate
                         logger.log_metrics(
-                            {"train/loss": avg_loss, "train/grad_norm": grad_norm.item(), "train/lr": scheduler.get_last_lr()[0]},
+                            {"train/loss": avg_loss, "train/grad_norm": grad_norm.item(), "train/lr": current_lr},
                             commit=False,
                             step=global_step,
                         )
