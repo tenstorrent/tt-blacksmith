@@ -120,10 +120,12 @@ def show_predictions(
     """Print collected prediction examples (CPU-only, no forward pass).
 
     Each dict in collected must have input_ids and labels.  Optional
-    keys: predictions, per_token_loss, loss.  On TT multi-chip only
-    input_ids, labels and the scalar loss are populated because
-    additional JIT outputs trigger MeshDevice migration crashes
-    (tt-xla#1993, tt-xla#4809, tt-mlir#3963).
+    keys: predictions, per_token_loss, loss.  The EasyDel JAX eval JIT
+    emits (loss, predictions) from a single fixed-signature program, so
+    predictions are typically populated; per_token_loss is omitted on TT
+    multi-chip because expanding the eval JIT output further has not
+    been validated under the mesh-reopen workaround (tt-xla#1993,
+    tt-xla#4809, tt-mlir#3963).
     """
     log = training_logger.info if training_logger is not None else logging.getLogger(__name__).info
 

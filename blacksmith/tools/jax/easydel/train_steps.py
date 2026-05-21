@@ -59,19 +59,27 @@ def create_fused_train_step_fn(
 
 
 def create_eval_step_fn(graphdef: nnx.GraphDef) -> Callable:
-    """JIT-compiled evaluation step returning scalar loss.
+    """JIT-compiled evaluation step returning (loss, predictions).
 
     Uses the TT-safe clamped CE via masked_cross_entropy(clamped=True).
+    predictions = argmax over shift_logits along the vocab axis; emitting
+    them from the single eval JIT (instead of a second inspect JIT) keeps
+    the program signature fixed and avoids alternating between distinct
+    JIT shapes, which previously triggered MeshDevice migration crashes
+    on TT (tt-xla#1993, tt-xla#4809).
 
     Returns eval_step(lora_params, frozen_state, input_ids, labels,
-    attention_mask) -> loss.
+    attention_mask) -> (loss, predictions) where predictions has shape
+    (batch, seq_len - 1).
     """
 
     @jax.jit
     def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
-        return masked_cross_entropy(logits, labels, clamped=True)
+        loss = masked_cross_entropy(logits, labels, clamped=True)
+        predictions = jnp.argmax(logits[:, :-1, :], axis=-1)
+        return loss, predictions
 
     return eval_step
 
@@ -89,11 +97,12 @@ def evaluate(
 ) -> float:
     """Run evaluation on validation batches and return average loss.
 
-    When a tokenizer is provided, the first num_examples batches also
-    transfer input_ids/labels to CPU and display them via
-    show_predictions.  Only the scalar-loss jit_eval_step runs on-device;
-    introducing a second JIT with a different output signature would
-    trigger MeshDevice migration crashes on TT (tt-xla#1993, tt-xla#4809).
+    jit_eval_step returns (loss, predictions) from a single fixed-signature
+    JIT.  When a tokenizer is provided, the first num_examples batches
+    also transfer input_ids/labels/predictions to CPU and display them
+    via show_predictions.  We never alternate between distinct eval JITs,
+    which is what previously triggered MeshDevice migration crashes on TT
+    (tt-xla#1993, tt-xla#4809).
     """
     total_loss = 0.0
     collected_examples: list[dict[str, np.ndarray]] = []
@@ -103,17 +112,19 @@ def evaluate(
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
 
-        loss = jit_eval_step(lora_params, frozen_state, input_ids, labels, attention_mask)
+        loss, predictions = jit_eval_step(lora_params, frozen_state, input_ids, labels, attention_mask)
 
         if tokenizer is not None and len(collected_examples) < num_examples:
             batch_input_ids = np.asarray(JaxDeviceManager.to_cpu(input_ids))
             batch_labels = np.asarray(JaxDeviceManager.to_cpu(labels))
+            batch_predictions = np.asarray(JaxDeviceManager.to_cpu(predictions))
             batch_size = batch_input_ids.shape[0]
             for i in range(min(batch_size, num_examples - len(collected_examples))):
                 collected_examples.append(
                     {
                         "input_ids": batch_input_ids[i],
                         "labels": batch_labels[i],
+                        "predictions": batch_predictions[i],
                         "loss": float(loss),
                     }
                 )
