@@ -29,7 +29,7 @@ deterministic: true
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
 wandb_run_name: "qwen3-4b-alpaca-tt-quietbox-easydel"
-print_examples: true
+print_examples: false
 steps_freq: 10
 log_level: "INFO"
 
