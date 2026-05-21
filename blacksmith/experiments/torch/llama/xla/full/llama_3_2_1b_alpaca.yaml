@@ -52,4 +52,4 @@ remote_path: ""
 # Other settings
 framework: "pytorch"
 print_examples: True
-use_tt: Trues
+use_tt: True
