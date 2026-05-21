@@ -12,10 +12,7 @@ from flax import nnx
 from transformers import PreTrainedTokenizerBase
 
 from blacksmith.tools.jax.device_manager import JaxDeviceManager
-from blacksmith.tools.jax.helpers import (
-    masked_cross_entropy,
-    show_predictions,
-)
+from blacksmith.tools.jax.helpers import masked_cross_entropy, show_predictions
 from blacksmith.tools.logging_manager import TrainingLogger
 
 
@@ -41,12 +38,19 @@ def create_fused_train_step_fn(
 
     @jax.jit
     def fused_train_step(
-        lora_params, frozen_state, opt_state,
-        input_ids, labels, attention_mask,
+        lora_params,
+        frozen_state,
+        opt_state,
+        input_ids,
+        labels,
+        attention_mask,
     ):
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
-            lora_params, frozen_state,
-            input_ids, labels, attention_mask,
+            lora_params,
+            frozen_state,
+            input_ids,
+            labels,
+            attention_mask,
         )
         updates, new_opt = tx.update(grads, opt_state, lora_params)
         new_params = optax.apply_updates(lora_params, updates)
