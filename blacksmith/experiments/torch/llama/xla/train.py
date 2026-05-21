@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 import torch_xla
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -145,6 +146,14 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
+    # Cosine annealing with linear warmup.
+    total_steps = config.total_steps or (len(train_dataloader) // config.gradient_accumulation_steps) * config.num_epochs
+    warmup_steps = config.warmup_steps or max(1, int(total_steps * 0.03))
+    scheduler = SequentialLR(optimizer, schedulers=[
+        LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
+        CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=config.learning_rate * 0.1),
+    ], milestones=[warmup_steps])
+
     global_step = 0
     running_loss = 0.0
 
@@ -200,6 +209,7 @@ def train(
                     grad_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=config.max_grad_norm)
 
                     device_manager.optimizer_step(optimizer)
+                    scheduler.step()
 
                     accumulation_step = 0
                     global_step += 1
@@ -207,7 +217,7 @@ def train(
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         logger.log_metrics(
-                            {"train/loss": avg_loss, "train/grad_norm": grad_norm.item()},
+                            {"train/loss": avg_loss, "train/grad_norm": grad_norm.item(), "train/lr": scheduler.get_last_lr()[0]},
                             commit=False,
                             step=global_step,
                         )

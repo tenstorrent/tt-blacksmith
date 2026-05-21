@@ -33,6 +33,8 @@ class TrainingConfig(BaseModel):
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
     max_grad_norm: float = Field(default=float('inf'))
+    warmup_steps: int = Field(default=0, ge=0)  # 0 = auto (3% of total steps)
+    total_steps: int = Field(default=0, ge=0)  # 0 = auto-compute from dataloader
     ignored_index: int = Field(default=-100)
 
     # Logging settings
