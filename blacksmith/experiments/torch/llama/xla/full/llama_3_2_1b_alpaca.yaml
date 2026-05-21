@@ -9,9 +9,10 @@ dtype: "torch.bfloat16"
 # Training hyperparameters
 training_type: "full"
 learning_rate: 1e-5
-batch_size: 1
-gradient_accumulation_steps: 16
+batch_size: 2
+gradient_accumulation_steps: 8
 num_epochs: 1
+use_scheduler: False
 ignored_index: -100
 
 # Reproducibility settings
@@ -51,4 +52,4 @@ remote_path: ""
 # Other settings
 framework: "pytorch"
 print_examples: True
-use_tt: True
+use_tt: Trues
