@@ -3,14 +3,21 @@
 This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning experiments for Qwen models on Tenstorrent hardware using JAX and [EasyDel](https://github.com/erfanzar/EasyDeL).
 
 - Qwen 3 0.6B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-0.6B).
+- Qwen 3 4B model specification can be found [here](https://huggingface.co/Qwen/Qwen3-4B).
 
 ## Overview
 
-The training script (`train.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support on the SST-2 sentiment classification dataset, formatted as instruction-style causal language modelling.
+The training script (`train.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support, formatted as instruction-style causal language modelling. Two datasets are wired up via `dataset_id`: **SST-2** (single-label sentiment, JSON response) and **Alpaca** (general instruction following). Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens.
 
-Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens (JSON label).
+To keep the program signature constant on TT (necessary to avoid `MeshDevice` re-open crashes — see `tt-xla#1993` / `tt-xla#4809`), the train step fuses label shift / masking / one-hot / clamped cross-entropy into a single `@jax.jit`, and the eval step emits `(loss, predictions)` from a single fixed-signature JIT (no per-step micro-ops escape to TT).
 
-YAML configs live under **`single_chip/`** (and future multi-chip directories such as **`quietbox/`**, **`loudbox/`**, **`galaxy/`** when present) for different device counts. Use **`use_tt`** in the config to select Tenstorrent (`true`) or GPU/CPU (`false`). The default config is TT-oriented with **`use_tt: true`**.
+YAML configs live under per-device directories:
+
+- **`single_chip/`** — single-device runs (Qwen3-0.6B).
+- **`quietbox/`** — 8-chip multi-device runs (Qwen3-4B), tensor-parallel `[8]/model` or hybrid data+tensor-parallel `[2, 4]/data,model`.
+- **`loudbox/`**, **`galaxy/`** — reserved for future larger meshes.
+
+Use **`use_tt`** in the config to select Tenstorrent (`true`) or GPU/CPU (`false`). All shipped configs are TT-oriented with **`use_tt: true`**.
 
 ## Prerequisites
 
@@ -37,9 +44,9 @@ pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
 
 ## Training
 
-### Qwen 3 0.6B Training
+### Qwen 3 0.6B (Single Chip)
 
-**Single Chip Training:**
+**SST-2:**
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/lora/train.py \
@@ -54,19 +61,46 @@ python3 blacksmith/experiments/easydel/qwen/lora/train.py \
   --test_config '{"use_tt": false}'
 ```
 
-#### Qwen 3 0.6B Training Configurations
+### Qwen 3 4B (Quietbox, 8 chips)
 
-| Architecture | mesh_shape | mesh_axis_names | dataset | Method |
-| ------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](single_chip/qwen3_0_6b_sst2.yaml) | None | None | SST2 | LoRA |
+**Alpaca** (hybrid DP+TP, `mesh [2, 4]`, `seq_len 128`):
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/lora/train.py \
+  --config blacksmith/experiments/easydel/qwen/lora/quietbox/qwen3_4b_alpaca.yaml
+```
+
+**SST-2** (pure TP, `mesh [8]`, `seq_len 64`):
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/lora/train.py \
+  --config blacksmith/experiments/easydel/qwen/lora/quietbox/qwen3_4b_sst2.yaml
+```
+
+### Training Configurations
+
+| Architecture | mesh_shape | mesh_axis_names | input_sharding_dim | dataset | Method |
+| ------------ | ---------- | --------------- | ------------------ | ------- | ------ |
+| [Single-Chip](single_chip/qwen3_0_6b_sst2.yaml) | None | None | None | SST-2 | LoRA |
+| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml) | `[8]` | `["model"]` | None | SST-2 | LoRA (TP) |
+| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[2, 4]` | `["data", "model"]` | `"data"` | Alpaca | LoRA (DP+TP) |
 
 ### Mesh and Sharding Configuration
 
-When multi-chip configs are added, mesh configurations will define the parallelism strategy via `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim` fields in the YAML config. The `easydel_partition_specs_for_lora` helper in `blacksmith/tools/jax/easydel/partitioning.py` automatically derives parameter shardings from EasyDel's built-in `partition_rules()`.
+Multi-chip configs declare the parallelism strategy via `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim` fields in the YAML. Parameter shardings come from two sources stitched together:
+
+- `easydel_partition_specs_for_lora` in `blacksmith/tools/jax/easydel/partitioning.py` derives the default shardings from EasyDel's built-in `partition_rules()`.
+- `model_sharding_patterns` (a list of `[regex, [axis_or_null, ...]]` entries) lets the YAML override specific parameters; the shipped Qwen3-4B configs use Megatron-style column-/row-parallel patterns on `q/k/v/o_proj`, `gate/up/down_proj`, and `lm_head` along the `model` axis.
+
+Multi-device runs use the Shardy partitioner by default (`use_shardy_partitioner: true`) and enable the GQA workaround (`apply_gqa_workaround: true`).
 
 ## Data
 
 **SST-2** (GLUE): instruction-style prompt/response pairs padded to `max_length`, with masked labels. The Hugging Face load uses `glue` / `sst2`; `dataset_id` in the config is the logical dataset tag. The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`. Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
+
+**Alpaca** (`tatsu-lab/alpaca`): general instruction-following pairs (`instruction`, optional `input`, `output`) padded to `max_length`, with masked labels. The JAX loader (`blacksmith/datasets/jax/alpaca/alpaca_dataset.py`) wraps the Torch `AlpacaDataset` from `blacksmith/datasets/torch/alpaca/` and produces `(input_ids, labels, attention_masks)` shaped `(num_batches, batch_size, seq_len)`. Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
+
+`dataset_id` in the YAML selects between them via the `AVAILABLE_DATASETS` registry in `blacksmith/datasets/jax/dataset_utils.py` (currently `"sst2"` and `"alpaca"`).
 
 ## Configuration
 
@@ -76,7 +110,7 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 
 | Parameter | Description | Default Value |
 |-----------|-------------|---------------|
-| `dataset_id` | Dataset identifier (SST-2 tag). | `"sst2"` |
+| `dataset_id` | Dataset identifier; one of `"sst2"`, `"alpaca"`. | `"sst2"` |
 
 ### Model
 
@@ -132,6 +166,10 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 | `mesh_shape` | Mesh shape for distributed training (None = single device). | None |
 | `mesh_axis_names` | Axis names for the mesh (None = single device). | None |
 | `input_sharding_dim` | Mesh axis for data-parallel sharding (None = no DP). | None |
+| `apply_gqa_workaround` | Apply EasyDel GQA workaround required on TT multi-chip. | True |
+| `use_shardy_partitioner` | Use the Shardy partitioner (False falls back to GSPMD). | True |
+| `model_sharding_patterns` | List of `[regex, [axis_or_null, ...]]` overrides on top of EasyDel's `partition_rules()`. None = replicated (pure DP). | None |
+| `extra_config_kwargs` | Extra kwargs forwarded to the EasyDel model config. | None |
 
 ### Logging
 
