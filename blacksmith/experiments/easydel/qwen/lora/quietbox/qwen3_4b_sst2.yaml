@@ -16,6 +16,7 @@ gradient_accumulation_steps: 4
 num_epochs: 1
 val_steps_freq: 25
 max_val_batches: 10
+max_grad_norm: 1.0
 
 # LoRA settings
 lora_rank: 32

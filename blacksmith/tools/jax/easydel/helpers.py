@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 
 import jax
+import jax.numpy as jnp
 import optax
 from easydel import AutoEasyDeLModelForCausalLM
 from flax import nnx
@@ -120,10 +121,17 @@ def build_optimizer(
 ) -> tuple[optax.GradientTransformation, optax.Schedule]:
     """Build an AdamW optimizer with a warmup-cosine-decay schedule.
 
-    Wraps in optax.MultiSteps when config.gradient_accumulation_steps > 1.
+    When config.max_grad_norm is a positive float, prepends
+    optax.clip_by_global_norm so the accumulated gradient is clipped
+    right before the AdamW update (same semantics as torch's
+    clip_grad_norm_; matches the gpt_oss / distil_bert / nanogpt
+    convention in this repo).
+
+    Wraps in optax.MultiSteps when config.gradient_accumulation_steps > 1
+    so clipping fires on accumulation-completion steps.
 
     Args:
-        config: Training config with LR, warmup, and accumulation fields.
+        config: Training config with LR, warmup, accumulation, and clipping fields.
         total_opt_steps: Total number of optimizer updates after accumulation.
 
     Returns:
@@ -137,7 +145,12 @@ def build_optimizer(
         end_value=getattr(config, "end_learning_rate", 0.0),
     )
 
-    base_optimizer = optax.adamw(learning_rate=schedule)
+    transforms: list[optax.GradientTransformation] = []
+    max_grad_norm = getattr(config, "max_grad_norm", None)
+    if max_grad_norm is not None and max_grad_norm > 0:
+        transforms.append(optax.clip_by_global_norm(max_grad_norm))
+    transforms.append(optax.adamw(learning_rate=schedule, mu_dtype=jnp.float32, eps=1e-5))
+    base_optimizer = optax.chain(*transforms)
 
     accum = config.gradient_accumulation_steps
     if accum > 1:

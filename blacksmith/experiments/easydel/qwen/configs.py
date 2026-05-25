@@ -41,6 +41,7 @@ class TrainingConfig(BaseModel):
     val_steps_freq: Optional[int] = Field(default=None, ge=1)
     max_val_batches: Optional[int] = Field(default=None, ge=1)
     ignored_label_index: int = Field(default=-100)
+    max_grad_norm: Optional[float] = Field(default=None, ge=0)
 
     # LoRA settings
     lora_rank: int = Field(default=16, ge=1)
