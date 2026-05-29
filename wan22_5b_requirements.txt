@@ -1,0 +1,37 @@
+# Requirements for wan22_5b.py (Wan 2.2 TI2V-5B LoRA fine-tune recipe).
+# Layers on top of the tt-xla env (torch + torch-xla already installed).
+#
+# Install (after `source /home/tt-admin/umales/tt-xla/env/activate`):
+#   pip install -r wan22_5b_requirements.txt
+
+# Versions pinned to match the tt-xla venv (Wed 2026-05-27 snapshot),
+# except `transformers` which is bumped to 5.5.1.
+#
+# Core training stack.
+numpy==2.1.2
+pandas==3.0.0            # also pinned by tt-xla python_package/requirements.txt
+pyarrow==24.0.0          # pandas.read_parquet backend
+transformers==5.5.1      # bumped above tt-xla venv default (4.57.1)
+peft==0.19.1
+safetensors==0.7.0
+huggingface_hub==1.17.0   # bumped: transformers 5.5.1 requires hf_hub>=1.5,<2
+wandb==0.27.0
+
+# Wan 2.2 TI2V-5B classes (AutoencoderKLWan, WanPipeline, WanTransformer3DModel).
+diffusers==0.37.1
+accelerate==1.13.0       # diffusers internal dispatch helpers
+Pillow==10.4.0
+
+# export_to_video(...) needs an mp4 encoder backend.
+imageio==2.37.3
+imageio-ffmpeg==0.6.0
+
+# wandb.Video(raw_ndarray, format="mp4") needs moviepy to encode frames.
+# Without it, val/sample_video logging raises and the try/except swallows
+# it as a misleading "baseline generation failed" message.
+moviepy==2.2.1
+
+# datasets is only needed if you swap back to load_dataset(); the script
+# bypasses it via direct hub_download, so it's optional. Uncomment if you
+# want to re-enable the loader-script path.
+# datasets>=2.20
