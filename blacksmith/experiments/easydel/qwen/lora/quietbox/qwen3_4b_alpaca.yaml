@@ -3,8 +3,8 @@ dataset_id: "alpaca"
 
 # Model settings
 model_name: "Qwen/Qwen3-4B"
-max_length: 128
-mask_max_position_embeddings: 128
+max_length: 256
+mask_max_position_embeddings: 256
 dtype: "bfloat16"
 
 # Training hyperparameters
@@ -16,7 +16,7 @@ gradient_accumulation_steps: 4
 num_epochs: 1
 val_steps_freq: 25
 max_val_batches: 10
-max_grad_norm: 0.5
+max_grad_norm: null
 
 # LoRA settings
 lora_rank: 32
@@ -57,22 +57,26 @@ num_devices: 8
 mesh_shape: [2, 4]
 mesh_axis_names: ["data", "model"]
 input_sharding_dim: "data"
-apply_gqa_workaround: true
+apply_gqa_workaround: false
 use_shardy_partitioner: true
 
 # Tensor-parallel sharding patterns.
 model_sharding_patterns:
-  # Attention kernels (Megatron-style):
-  - ['self_attn\.q_proj\.kernel\.value$', [null, "model"]]
-  - ['self_attn\.k_proj\.kernel\.value$', [null, "model"]]
-  - ['self_attn\.v_proj\.kernel\.value$', [null, "model"]]
-  - ['self_attn\.o_proj\.kernel\.value$', ["model", null]]
+  # Attention kernels. LoRA wraps q/v under .base_module.
+  - ['self_attn\.q_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
+  - ['self_attn\.k_proj\.kernel\.value$',                   [null, "model"]]
+  - ['self_attn\.v_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
+  - ['self_attn\.o_proj\.kernel\.value$',                   ["model", null]]
+  # LoRA adapters on q_proj / v_proj: A replicated, B column-parallel.
+  - ['self_attn\.(q_proj|v_proj)\.lora_a\.value$',          [null, null]]
+  - ['self_attn\.(q_proj|v_proj)\.lora_b\.value$',          [null, null]]
   # MLP: column-parallel gate/up, row-parallel down.
-  - ['mlp\.gate_proj\.kernel\.value$',    [null, "model"]]
-  - ['mlp\.up_proj\.kernel\.value$',      [null, "model"]]
-  - ['mlp\.down_proj\.kernel\.value$',    ["model", null]]
+  - ['mlp\.gate_proj\.kernel\.value$',                      [null, "model"]]
+  - ['mlp\.up_proj\.kernel\.value$',                        [null, "model"]]
+  - ['mlp\.down_proj\.kernel\.value$',                      ["model", null]]
   # lm_head column-parallel.
-  - ['lm_head\.kernel\.value$',           [null, "model"]]
+  #- ['lm_head\.kernel\.value$',                             [null, "model"]]
+  - ['embed_tokens\.embedding\.value$', ["model", null]]
 
 # Framework
 framework: "easydel"

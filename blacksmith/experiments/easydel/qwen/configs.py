@@ -32,7 +32,7 @@ class TrainingConfig(BaseModel):
         return _DTYPE_MAP[key]
 
     # Training hyperparameters
-    learning_rate: float = Field(default=2e-4, gt=0)
+    learning_rate: float = Field(default=2e-4, ge=0)
     warmup_steps: int = Field(default=0, ge=0)
     end_learning_rate: float = Field(default=0.0, ge=0)
     batch_size: int = Field(default=4, gt=0)

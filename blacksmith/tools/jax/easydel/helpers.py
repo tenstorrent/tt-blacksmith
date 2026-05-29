@@ -61,7 +61,7 @@ def load_easydel_causal_lm(
     if extra_config_kwargs:
         config_overrides.update(extra_config_kwargs)
 
-    load_kwargs: dict = {"dtype": dtype}
+    load_kwargs: dict = {"dtype": dtype, "param_dtype": dtype}
     if config_overrides:
         load_kwargs["config_kwargs"] = config_overrides
 

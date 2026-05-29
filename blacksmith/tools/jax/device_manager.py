@@ -86,12 +86,7 @@ class JaxDeviceManager:
         shape = tuple(getattr(self.config, "mesh_shape", None) or [n])
         names = tuple(getattr(self.config, "mesh_axis_names", None) or ["data"])
 
-        if self.device_kind == "tt":
-            devices = tuple(jax.devices("tt")[:n])
-        elif self.device_kind == "gpu":
-            devices = tuple(jax.devices("gpu")[:n])
-        else:
-            devices = tuple(jax.devices("cpu")[:n])
+        devices = tuple(jax.devices(self.device_kind)[:n])
 
         return jax.make_mesh(shape, names, devices=devices)
 

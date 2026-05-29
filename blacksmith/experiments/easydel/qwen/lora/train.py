@@ -63,7 +63,8 @@ def train(
         config.model_name,
         device_manager,
         dtype=config.jax_dtype,
-        mask_max_position_embeddings=config.mask_max_position_embeddings,
+        mask_max_position_embeddings=config.mask_max_position_embeddings
+        #extra_config_kwargs={"num_hidden_layers": 1}
     )
     logger.info(f"Loaded {config.model_name} model.")
     logger.log_model_info(
@@ -111,9 +112,14 @@ def train(
 
     graphdef, lora_params, frozen_state, _shardings = easydel_partition_specs_for_lora(model, device_manager.mesh)
 
+    # Frozen base weights stay bf16 (param_dtype) to save DRAM, but keep the
+    # trainable LoRA params in f32 so small Adam updates don't underflow.
+    lora_params = jax.tree.map(lambda x: x.astype(jax.numpy.float32), lora_params)
+
     # Place state across the mesh.
     sharding_patterns = getattr(config, "model_sharding_patterns", None)
     lora_params = device_manager.apply_sharding_patterns(lora_params, sharding_patterns)
+    lora_shardings = jax.tree.map(lambda x: x.sharding, lora_params)
     frozen_state = device_manager.apply_sharding_patterns(frozen_state, sharding_patterns)
 
     # Build optimizer.
@@ -141,8 +147,8 @@ def train(
         optimizer_state = optimizer.init(lora_params_cpu)
     optimizer_state = device_manager.apply_sharding_patterns(optimizer_state, sharding_patterns)
 
-    jit_fused_train_step = create_fused_train_step_fn(graphdef, optimizer)
-    jit_eval_step = create_eval_step_fn(graphdef)
+    jit_fused_train_step = create_fused_train_step_fn(graphdef, optimizer, lora_shardings, mesh=device_manager.mesh)
+    jit_eval_step = create_eval_step_fn(graphdef, mesh=device_manager.mesh)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
