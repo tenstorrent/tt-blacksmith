@@ -12,7 +12,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/gemma/test_gemma_finetuning.py
+python3 blacksmith/experiments/torch/gemma/train.py
 ```
 
 ## Data
@@ -36,9 +36,9 @@ Example:
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_gemma_finetuning.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `gemma_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_gemma_finetuning.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `gemma_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Parameters
 

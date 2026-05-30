@@ -14,9 +14,10 @@ from blacksmith.tools.storage_backends import StorageBackend
 
 
 class CheckpointManager:
-    def __init__(self, config: TrainingConfig, logger: TrainingLogger):
+    def __init__(self, config: TrainingConfig, logger: TrainingLogger, device: Optional[torch.device] = None):
         self.config = config
         self.logger = logger
+        self.device = device
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -46,6 +47,47 @@ class CheckpointManager:
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
+
+    @staticmethod
+    def align_state_dict_parameter_names(loaded_state_dict, model_state_dict):
+        """
+        Adjusts loaded_state_dict parameter names to match model_state_dict by adding
+        or removing a prefix.
+
+        This is necessary because "torch.compile" adds an "_orig_mod." prefix to
+        the parameter names and depending on the case, this function either adds
+        or removes the prefix.
+
+        Logic:
+        - Both have prefix or both don't: No change.
+        - Model has it, Loaded doesn't: Prepend prefix to Loaded.
+        - Loaded has it, Model doesn't: Strip prefix from Loaded.
+        """
+        prefix = "_orig_mod."
+
+        loaded_keys = list(loaded_state_dict.keys())
+        model_keys = list(model_state_dict.keys())
+
+        if not loaded_keys or not model_keys:
+            return loaded_state_dict
+
+        loaded_has_prefix = loaded_keys[0].startswith(prefix)
+        model_has_prefix = model_keys[0].startswith(prefix)
+
+        if loaded_has_prefix == model_has_prefix:
+            return loaded_state_dict
+
+        new_state_dict = dict()
+
+        if model_has_prefix and not loaded_has_prefix:
+            for k, v in loaded_state_dict.items():
+                new_state_dict[prefix + k] = v
+
+        elif loaded_has_prefix and not model_has_prefix:
+            for k, v in loaded_state_dict.items():
+                new_state_dict[k.replace(prefix, "")] = v
+
+        return new_state_dict
 
     def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
         """Determine if checkpoint should be saved at current step/epoch"""
@@ -89,10 +131,13 @@ class CheckpointManager:
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
+        trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
+        state_dict = {name: v for name, v in model.state_dict().items() if name in trainable_names}
+
         checkpoint_data = {
             "step": step,
             "epoch": epoch,
-            "model_state_dict": model.state_dict(),
+            "model_state_dict": state_dict,
             "metrics": metrics,
             "timestamp": datetime.now().isoformat(),
         }
@@ -189,9 +234,12 @@ class CheckpointManager:
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
-        model.load_state_dict(checkpoint["model_state_dict"])
+        checkpoint["model_state_dict"] = CheckpointManager.align_state_dict_parameter_names(
+            checkpoint["model_state_dict"], model.state_dict()
+        )
+        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

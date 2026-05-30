@@ -24,7 +24,6 @@ def validate(
     model: torch.nn.Module, val_data_loader: DataLoader, logger: TrainingLogger, device: torch.device
 ) -> float:
     logger.info("Starting validation...")
-    model.eval()
 
     total_val_loss = 0.0
     num_val_batches = 0
@@ -72,14 +71,21 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
     logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
 
     # Init training components (optimizer, lr scheduler, etc.)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    trainable_params = [p for p in model.parameters() if p.requires_grad]
+    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
 
     global_step = 0
     running_loss = 0.0
-    model.train()
     try:
+        # Initial validation
+        model.eval()
+        valid_loss = validate(model, eval_dataloader, logger, device)
+        logger.log_metrics({"val/loss": valid_loss}, commit=True, step=global_step)
+        model.train()
+
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
+                global_step += 1
                 optimizer.zero_grad()
 
                 input_ids = batch["input_ids"].to(device)
@@ -103,20 +109,24 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                global_step += 1
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                    # Do validation
+                # Validation
+                if global_step % config.val_steps_freq == 0:
+                    model.eval()
                     valid_loss = validate(model, eval_dataloader, logger, device)
-                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
+                    logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
                     model.train()
 
-                    # Save checkpoint
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                # Commit metrics to W&B.
+                logger.log_metrics({}, commit=True, step=global_step)
+
+                # Save checkpoint
+                if checkpoint_manager.should_save_checkpoint(global_step):
+                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
@@ -144,10 +154,7 @@ if __name__ == "__main__":
     repro_manager.setup()
 
     # Logger setup
-    logger = TrainingLogger(config)
-
-    # Checkpoint manager setup
-    checkpoint_manager = CheckpointManager(config, logger)
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
 
     # Device setup
     if config.use_tt:
@@ -156,6 +163,9 @@ if __name__ == "__main__":
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
+
+    # Checkpoint manager setup
+    checkpoint_manager = CheckpointManager(config, logger, device)
 
     # Start training
     train(config, device, logger, checkpoint_manager)
