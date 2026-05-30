@@ -91,14 +91,12 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
 # the step via the computation graph, avoiding unnecessary and expensive
 # CCLs in multi-chip setups.
 # Issue itself should be investigated further.
-def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
+def training_step_inner(batch, model, loss_fn):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale loss by number of accumulation steps to get correct effective batch size.
-    scaled_loss = loss / gradient_accumulation_steps
-    scaled_loss.backward()
+    loss.backward()
     return loss.detach()
 
 
@@ -141,14 +139,12 @@ def train(
 
     global_step = 0
     running_loss = 0.0
-
     try:
+        model.train()
         for epoch in range(config.num_epochs):
-            accumulation_step = 0
             for batch in tqdm(train_dataloader, desc="Training"):
-                # Zero out gradients at the start of accumulation cycle
-                if accumulation_step == 0:
-                    optimizer.zero_grad()
+                # Zero out gradients.
+                optimizer.zero_grad()
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
@@ -166,30 +162,32 @@ def train(
                 device_manager.shard_model(model)
 
                 # Training step.
-                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+                loss_ = training_step_inner(batch, model, cross_entropy_loss)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
+                # Optimizer step.
+                device_manager.optimizer_step(optimizer)
                 running_loss += loss_.item()
 
-                # Only step the optimizer after accumulating gradients.
-                if accumulation_step == config.gradient_accumulation_steps:
-                    device_manager.optimizer_step(optimizer)
+                global_step += 1
+                if global_step % config.steps_freq == 0:
+                    avg_loss = running_loss / config.steps_freq
+                    logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+                    running_loss = 0.0
 
-                    accumulation_step = 0
-                    global_step += 1
-
-                    if global_step % config.steps_freq == 0:
-                        avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
-                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
-                        running_loss = 0.0
-
-                        # Do validation.
-                        val_loss = validate(
-                            model, eval_dataloader, cross_entropy_loss, logger, device_manager.device, config, tokenizer
-                        )
-                        logger.log_metrics({"val/loss": val_loss}, step=global_step)
+                    # Do validation.
+                    valid_loss = validate(
+                        model,
+                        eval_dataloader,
+                        cross_entropy_loss,
+                        logger,
+                        device_manager.device,
+                        config,
+                        tokenizer,
+                    )
+                    logger.log_metrics({"val/loss": valid_loss}, step=global_step)
 
                     # Clear XLA computation cache to avoid memory issues.
                     if config.use_tt:
@@ -238,12 +236,6 @@ if __name__ == "__main__":
     # Device setup
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
-
-    # Use highest numerical precision for stable fine-tuning convergence.
-    # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
-    # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
-    if config.use_tt:
-        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)
