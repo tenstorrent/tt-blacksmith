@@ -134,8 +134,6 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
-    model.train()
-
     global_step = 0
     running_loss = 0.0
 
