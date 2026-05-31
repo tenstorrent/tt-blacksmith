@@ -17,8 +17,18 @@ from blacksmith.tools.jax.helpers import (
     masked_cross_entropy,
     show_predictions,
     vocab_parallel_cross_entropy,
+    vocab_parallel_embedding_lookup,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
+
+
+def _is_vocab_parallel(mesh, model_axis: str) -> bool:
+    """True when the vocab dim is sharded across model_axis (size > 1).
+
+    In that case the tied embedding table is row-sharded, so both the input
+    lookup and the output softmax need explicit cross-shard collectives.
+    """
+    return mesh is not None and model_axis in getattr(mesh, "axis_names", ()) and mesh.shape[model_axis] > 1
 
 
 def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
@@ -28,7 +38,7 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
     softmax normaliser must be reduced across shards explicitly, so we use the
     vocab-parallel CE. Otherwise the plain clamped CE is sufficient.
     """
-    vocab_parallel = mesh is not None and model_axis in getattr(mesh, "axis_names", ()) and mesh.shape[model_axis] > 1
+    vocab_parallel = _is_vocab_parallel(mesh, model_axis)
 
     def cross_entropy(logits, labels):
         if vocab_parallel:
@@ -36,6 +46,30 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
         return masked_cross_entropy(logits, labels, clamped=True)
 
     return cross_entropy
+
+
+def _make_forward_fn(mesh, model_axis: str = "model") -> Callable:
+    """Return forward(model, input_ids, attention_mask) -> logits.
+
+    When the vocab dim is sharded across ``model_axis`` the tied embedding
+    table is row-sharded, so EasyDel's input ``jnp.take`` gather is not
+    legalizable on TT. In that case we precompute ``inputs_embeds`` with a
+    vocab-parallel lookup (one-hot matmul + psum) and feed those to the model
+    instead of ``input_ids``; the model then never runs the row-sharded gather.
+    Otherwise we use the normal ``input_ids`` path.
+    """
+    vocab_parallel = _is_vocab_parallel(mesh, model_axis)
+
+    def forward(model, input_ids, attention_mask):
+        if vocab_parallel:
+            embedding = model.get_embedding().embedding.value  # [vocab, hidden], rows on model
+            inputs_embeds = vocab_parallel_embedding_lookup(
+                embedding, input_ids, mesh, model_axis=model_axis
+            )
+            return model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
+        return model(input_ids=input_ids, attention_mask=attention_mask).logits
+
+    return forward
 
 
 def create_fused_train_step_fn(
@@ -57,6 +91,7 @@ def create_fused_train_step_fn(
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
+    forward = _make_forward_fn(mesh, model_axis)
 
     # Replicated 0-D sharding for the scalar outputs (loss / grad stats). On TT
     # the partitioner otherwise infers a rank-2 sharding for these scalars
@@ -72,7 +107,7 @@ def create_fused_train_step_fn(
 
     def loss_fn(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
+        logits = forward(model, input_ids, attention_mask)
         return cross_entropy(logits, labels)
 
     @jax.jit
@@ -128,10 +163,11 @@ def create_eval_step_fn(graphdef: nnx.GraphDef, mesh=None, model_axis: str = "mo
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
+    forward = _make_forward_fn(mesh, model_axis)
 
     def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
+        logits = forward(model, input_ids, attention_mask)
         # Loss-only single output. We intentionally do NOT also return argmax
         # predictions here: with vocab-parallel logits the loss is produced by a
         # shard_map (manual sharding) while an argmax over the sharded vocab axis
