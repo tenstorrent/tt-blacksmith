@@ -135,7 +135,6 @@ def train(
     tokenizer = train_dataset.tokenizer
 
     global_step = 0
-    running_loss = 0.0
 
     try:
         # Initial validation
@@ -154,6 +153,7 @@ def train(
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
+            running_loss = 0.0
 
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients at the start of accumulation cycle
