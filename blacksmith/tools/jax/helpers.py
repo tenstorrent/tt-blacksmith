@@ -130,9 +130,11 @@ def _vocab_parallel_per_token_ce(
         local_labels: The full (replicated) labels, shape ``[b, s]``. Same on
             every shard since the label dim is not sharded.
         local_vocab_ids: The *global* vocabulary ids this shard owns, shape
-            ``[v_local]``. This replaces ``axis_index``-based offset maths:
-            position ``j`` in this shard corresponds to global token id
-            ``local_vocab_ids[j]``.
+            ``[v_local]``. Position ``j`` in this shard corresponds to global
+            token id ``local_vocab_ids[j]``. The one-hot match is built here,
+            INSIDE the manual region, on local tensors -- never outside, where
+            GSPMD would have to partition the broadcast and would try to shard a
+            size-1 broadcast dim across the data axis.
         model_axis: Name of the mesh axis the vocab dim is sharded over.
 
     Returns:
@@ -158,10 +160,10 @@ def _vocab_parallel_per_token_ce(
     log_sum_exp = jnp.log(global_sum_exp) + global_max  # [b, s-1, 1] (undo the shift)
 
     # --- Logit of the target token ------------------------------------------
-    # Compare each label to the global ids this shard owns. The owning shard
-    # has exactly one True per token; all other shards are all-False and
-    # contribute 0, so the psum picks out the correct target logit. A plain
-    # equality compare avoids both a gather and any offset arithmetic.
+    # Compare each label to the global ids this shard owns. The owning shard has
+    # exactly one True per token; all other shards are all-False and contribute
+    # 0, so the psum picks out the correct target logit. Built locally here, so
+    # there is no GSPMD-partitioned broadcast and no size-1 sharding problem.
     match = shift_labels[..., None] == local_vocab_ids[None, None, :]  # [b, s-1, v_local]
     local_target = jnp.sum(jnp.where(match, shift_logits, 0.0), axis=-1)  # [b, s-1]
     target_logit = jax.lax.psum(local_target, model_axis)  # [b, s-1]
@@ -208,7 +210,25 @@ def vocab_parallel_cross_entropy(
 ) -> jax.Array:
     data_spec = data_axis if data_axis in mesh.axis_names else None
     vocab_size = logits.shape[-1]
+
+    # Per-shard global vocab ids: each model shard receives its contiguous slice
+    # of arange (its slice's first element is the shard's vocab start offset),
+    # which the body uses to match labels -- a TT-legal stand-in for axis_index.
+    # The match one-hot is built INSIDE the shard_map (see _vocab_parallel_per_token_ce)
+    # on local tensors; building it outside makes GSPMD partition the broadcast
+    # and illegally shard a size-1 broadcast dim across data.
+    #
+    # Defeat constant-folding of this arange. A const-folded model-sharded arange
+    # is materialized in a const-eval program as a mesh-distributed host buffer,
+    # and distribute_tensor then fails at runtime ("Can't get a single buffer from
+    # host storage distributed over mesh"). optimization_barrier did NOT stop the
+    # const-eval, so instead we tie vocab_ids to a runtime value: a float *0.0.
+    # XLA does not simplify float x*0 (NaN/Inf semantics), so the dependence
+    # survives the const-folder; labels are finite so the added value is exactly
+    # 0 and vocab_ids is unchanged. The result is a runtime device tensor, sharded
+    # on model via the shard_map in_spec (a normal slice), not host distribution.
     vocab_ids = jnp.arange(vocab_size, dtype=jnp.int32)
+    vocab_ids = vocab_ids + (jnp.sum(labels).astype(jnp.float32) * 0.0).astype(jnp.int32)
 
     return shard_map(
         lambda lg, lb, vids: _vocab_parallel_loss_scalar(
@@ -319,6 +339,38 @@ def vocab_parallel_embedding_lookup(
     )(embedding, input_ids, vocab_ids)
 
 
+def embedding_lookup_one_hot_replicated(embedding: jax.Array, input_ids: jax.Array) -> jax.Array:
+    """Replicated input embedding lookup via gather.
+
+    A gather maps [batch, seq] indices directly to [batch, seq, hidden] and is the
+    only embedding formulation that needs no tile-illegal reshape on TT: every
+    one-hot/matmul variant must flatten [b, s] -> [b*s, ...] or add a trailing
+    vocab dim, and with batch < 32 those reshapes change the tile-padded volume
+    (the size-2 batch or the new size-1 dim pads to a 32 tile), which TT rejects.
+
+    The embedding is replicated, so this is a plain (non-sharded) gather: no
+    cross-shard masking / all-reduce, which is what made the vocab-sharded lookup
+    reshape-heavy. lm_head stays vocab-sharded independently, so the output logits
+    and the vocab-parallel cross-entropy are unaffected.
+
+    The lookup must be a *clean* gather so tt-xla pattern-matches it to native
+    ttnn.embedding (which consumes [b, s] indices directly, with no reshape). By
+    default jnp.take wraps the gather in out-of-bounds clamping (a where/select),
+    which breaks that match and forces a generic gather that emits the illegal
+    [b, s] -> [b, s, 1] index reshape. mode="promise_in_bounds" drops the clamp
+    (token ids are always valid), restoring the ttnn.embedding match. The repro
+    only passed because its constant zero indices let XLA fold the clamp away.
+
+    Args:
+        embedding: Embedding table, shape [vocab, hidden], replicated.
+        input_ids: Token ids, shape [batch, seq].
+
+    Returns:
+        inputs_embeds, shape [batch, seq, hidden].
+    """
+    return embedding.at[input_ids.astype(jnp.int32)].get(mode="promise_in_bounds")
+
+
 def vocab_parallel_embedding_lookup_gspmd(
     embedding: jax.Array,
     input_ids: jax.Array,
@@ -353,31 +405,29 @@ def vocab_parallel_embedding_lookup_gspmd(
     Returns:
         inputs_embeds, shape [batch, seq, hidden].
     """
+    
     vocab_size = embedding.shape[0]
     data_spec = data_axis if data_axis in mesh.axis_names else None
-    vocab_ids = jnp.arange(vocab_size, dtype=jnp.int32)  # [vocab]
+    vocab_ids = jnp.arange(vocab_size, dtype=jnp.int32)  # [vocab], replicated
 
-    # Pin the vocab axis onto model_axis so the one-hot is built per-shard rather
-    # than replicated; each device then holds only its vocab/n columns.
-    vocab_ids = jax.lax.with_sharding_constraint(vocab_ids, NamedSharding(mesh, PartitionSpec(model_axis)))
-
-    # [batch, seq, vocab] with the vocab axis sharded on model_axis. Exactly one
-    # column is set per token, and only on the shard that owns that vocab id.
+    # Build one-hot in GLOBAL vocab, then reshard the vocab axis onto model.
     one_hot = (input_ids.astype(jnp.int32)[..., None] == vocab_ids[None, None, :]).astype(embedding.dtype)
-
-    # Pin the one-hot vocab axis onto model_axis too. Without this the partitioner
-    # leaves the result vocab dim replicated (global vocab) while vocab_ids is
-    # sharded (vocab/n), producing an illegal broadcast_in_dim (operand vocab/n
-    # into result global vocab). Constraining it keeps operand and result dims
-    # consistent and keeps the matmul contraction sharded.
     one_hot = jax.lax.with_sharding_constraint(
         one_hot, NamedSharding(mesh, PartitionSpec(data_spec, None, model_axis))
     )
 
-    # Contract the sharded vocab dim. Both operands carry vocab on model_axis, so
-    # GSPMD keeps the embedding sharded (no gather) and inserts a single
-    # all-reduce of the [batch, seq, hidden] result across model_axis.
-    return jnp.einsum("bsv,vh->bsh", one_hot, embedding)
+    out = jnp.einsum("bsv,vh->bsh", one_hot, embedding)
+
+    # Pin the result exactly like the standalone repro that compiles cleanly:
+    # batch on data, hidden REPLICATED. Without this, Shardy infers inputs_embeds
+    # from the downstream model-parallel layers + CE manual region and
+    # back-propagates a conflicting layout into this contracting-sharded dot,
+    # yielding "contracting dimension sizes must match". The block input wants
+    # hidden replicated anyway (q/k/v shard the OUTPUT, not the input).
+    out = jax.lax.with_sharding_constraint(
+        out, NamedSharding(mesh, PartitionSpec(data_spec, None, None))
+    )
+    return out
 
 
 def show_predictions(

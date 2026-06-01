@@ -14,6 +14,7 @@ from transformers import PreTrainedTokenizerBase
 
 from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.jax.helpers import (
+    embedding_lookup_one_hot_replicated,
     masked_cross_entropy,
     show_predictions,
     vocab_parallel_cross_entropy,
@@ -55,31 +56,36 @@ def _make_forward_fn(mesh, model_axis: str = "model", embedding_row_sharded: boo
     """Return forward(model, input_ids, attention_mask) -> logits.
 
     The embedding layout drives which input path we take, independently of how
-    the output logits are sharded:
+    the output logits are sharded. Either way we precompute inputs_embeds with a
+    one-hot matmul and feed those to the model, never model(input_ids=...),
+    because EasyDel's jnp.take row gather is not legalizable on TT's tile layout:
 
-    - Replicated embedding (embedding_row_sharded is False): use the normal
-      EasyDel path, model(input_ids=...), which gathers rows with jnp.take.
-    - Row (vocab) sharded embedding (embedding_row_sharded is True): EasyDel's
-      jnp.take row gather is not legalizable on TT, so we precompute
-      inputs_embeds with a GSPMD one-hot matmul lookup and feed those to the
-      model instead of input_ids.
+    - Replicated embedding (embedding_row_sharded is False): replicated one-hot
+      matmul (embedding_lookup_one_hot_replicated). Fully replicated, so no
+      collectives and no sharded contraction.
+    - Row (vocab) sharded embedding (embedding_row_sharded is True): GSPMD one-hot
+      matmul lookup (vocab_parallel_embedding_lookup_gspmd) with a contracting-
+      dim-sharded matmul.
 
-    The row-sharded lookup uses GSPMD collectives (a sharding constraint plus a
-    contracting-dim-sharded matmul), not a shard_map, so it emits no manual
-    computation region. TT accepts at most one such region per module and the
-    vocab-parallel cross-entropy already uses one, so the input lookup must not
-    add a second.
+    Both lookups use GSPMD (no shard_map), so they emit no manual computation
+    region. TT accepts at most one such region per module and the vocab-parallel
+    cross-entropy already uses one, so the input lookup must not add a second.
     """
 
     def forward(model, input_ids, attention_mask):
+        # [vocab, hidden] embedding table.
+        embedding = model.get_embedding().embedding.value
         if embedding_row_sharded:
-            # [vocab, hidden] table with its vocab rows sharded across model_axis.
-            embedding = model.get_embedding().embedding.value
+            # Rows sharded across model_axis: GSPMD one-hot matmul lookup.
             inputs_embeds = vocab_parallel_embedding_lookup_gspmd(
                 embedding, input_ids, mesh, model_axis=model_axis
             )
-            return model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
-        return model(input_ids=input_ids, attention_mask=attention_mask).logits
+        else:
+            # Replicated table: replicated one-hot matmul. We still avoid
+            # model(input_ids=...) because EasyDel's jnp.take row gather is not
+            # legalizable on TT's tile layout. Feeding inputs_embeds sidesteps it.
+            inputs_embeds = embedding_lookup_one_hot_replicated(embedding, input_ids)
+        return model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
 
     return forward
 
