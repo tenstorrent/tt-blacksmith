@@ -11,7 +11,7 @@ import numpy as np
 import optax
 from flax import linen as nn
 from jax.experimental.shard_map import shard_map
-from jax.sharding import Mesh, PartitionSpec
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from blacksmith.tools.logging_manager import TrainingLogger
 
@@ -317,6 +317,67 @@ def vocab_parallel_embedding_lookup(
         out_specs=PartitionSpec(data_spec, None, None),
         check_rep=False,
     )(embedding, input_ids, vocab_ids)
+
+
+def vocab_parallel_embedding_lookup_gspmd(
+    embedding: jax.Array,
+    input_ids: jax.Array,
+    mesh: Mesh,
+    *,
+    model_axis: str = "model",
+    data_axis: str = "data",
+) -> jax.Array:
+    """Row(vocab)-sharded input embedding lookup using GSPMD collectives.
+
+    Same one-hot matmul idea as vocab_parallel_embedding_lookup, but expressed
+    with a sharding constraint plus a contracting-dim-sharded matmul instead of
+    a shard_map, so it emits no manual computation region. TT accepts at most
+    one manual computation region per module and the vocab-parallel
+    cross-entropy already uses one (a shard_map), so the input lookup must not
+    add a second. EasyDel's jnp.take row gather is not legalizable on TT, hence
+    the one-hot matmul.
+
+    The embedding is sharded [model, None], i.e. its vocab rows live on
+    model_axis. We pin the one-hot vocab axis onto model_axis so each device
+    only builds a [batch, seq, vocab/n] slice; the matmul contracts that sharded
+    vocab dim, so GSPMD lowers it to a single all-reduce of the
+    [batch, seq, hidden] partial sums. No gather, no large replicated one-hot.
+
+    Args:
+        embedding: Embedding table, shape [vocab, hidden], sharded [model, None].
+        input_ids: Token ids, shape [batch, seq].
+        mesh: Device mesh; must contain model_axis.
+        model_axis: Mesh axis the vocab dim is sharded over.
+        data_axis: Mesh axis the batch dim is sharded over (None-spec if absent).
+
+    Returns:
+        inputs_embeds, shape [batch, seq, hidden].
+    """
+    vocab_size = embedding.shape[0]
+    data_spec = data_axis if data_axis in mesh.axis_names else None
+    vocab_ids = jnp.arange(vocab_size, dtype=jnp.int32)  # [vocab]
+
+    # Pin the vocab axis onto model_axis so the one-hot is built per-shard rather
+    # than replicated; each device then holds only its vocab/n columns.
+    vocab_ids = jax.lax.with_sharding_constraint(vocab_ids, NamedSharding(mesh, PartitionSpec(model_axis)))
+
+    # [batch, seq, vocab] with the vocab axis sharded on model_axis. Exactly one
+    # column is set per token, and only on the shard that owns that vocab id.
+    one_hot = (input_ids.astype(jnp.int32)[..., None] == vocab_ids[None, None, :]).astype(embedding.dtype)
+
+    # Pin the one-hot vocab axis onto model_axis too. Without this the partitioner
+    # leaves the result vocab dim replicated (global vocab) while vocab_ids is
+    # sharded (vocab/n), producing an illegal broadcast_in_dim (operand vocab/n
+    # into result global vocab). Constraining it keeps operand and result dims
+    # consistent and keeps the matmul contraction sharded.
+    one_hot = jax.lax.with_sharding_constraint(
+        one_hot, NamedSharding(mesh, PartitionSpec(data_spec, None, model_axis))
+    )
+
+    # Contract the sharded vocab dim. Both operands carry vocab on model_axis, so
+    # GSPMD keeps the embedding sharded (no gather) and inserts a single
+    # all-reduce of the [batch, seq, hidden] result across model_axis.
+    return jnp.einsum("bsv,vh->bsh", one_hot, embedding)
 
 
 def show_predictions(

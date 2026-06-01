@@ -74,9 +74,12 @@ model_sharding_patterns:
   - ['mlp\.gate_proj\.kernel\.value$',                      [null, "model"]]
   - ['mlp\.up_proj\.kernel\.value$',                        [null, "model"]]
   - ['mlp\.down_proj\.kernel\.value$',                      ["model", null]]
-  # lm_head column-parallel.
-  #- ['lm_head\.kernel\.value$',                             [null, "model"]]
-  - ['embed_tokens\.embedding\.value$', ["model", null]]
+  # lm_head column-parallel (output logits vocab-sharded on model).
+  - ['lm_head\.kernel\.value$',                             [null, "model"]]
+  # Token embedding row(vocab)-parallel on model; the input lookup goes through
+  # the GSPMD one-hot matmul path (see _make_forward_fn) since jnp.take is not
+  # legalizable on TT for a row-sharded table.
+  - ['embed_tokens\.embedding\.value$',                     [null, null]]
 
 # Framework
 framework: "easydel"

@@ -17,16 +17,19 @@ from blacksmith.tools.jax.helpers import (
     masked_cross_entropy,
     show_predictions,
     vocab_parallel_cross_entropy,
-    vocab_parallel_embedding_lookup,
+    vocab_parallel_embedding_lookup_gspmd,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
 
 
 def _is_vocab_parallel(mesh, model_axis: str) -> bool:
-    """True when the vocab dim is sharded across model_axis (size > 1).
+    """True when the model axis exists and has size greater than one.
 
-    In that case the tied embedding table is row-sharded, so both the input
-    lookup and the output softmax need explicit cross-shard collectives.
+    With a vocab-sharded output projection the logits are split across
+    model_axis, so the softmax normaliser must be reduced across shards with an
+    explicit collective, i.e. the vocab-parallel cross-entropy. This is a
+    separate decision from how the input embedding is laid out; see
+    _make_forward_fn for the embedding side.
     """
     return mesh is not None and model_axis in getattr(mesh, "axis_names", ()) and mesh.shape[model_axis] > 1
 
@@ -48,22 +51,31 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
     return cross_entropy
 
 
-def _make_forward_fn(mesh, model_axis: str = "model") -> Callable:
+def _make_forward_fn(mesh, model_axis: str = "model", embedding_row_sharded: bool = False) -> Callable:
     """Return forward(model, input_ids, attention_mask) -> logits.
 
-    When the vocab dim is sharded across ``model_axis`` the tied embedding
-    table is row-sharded, so EasyDel's input ``jnp.take`` gather is not
-    legalizable on TT. In that case we precompute ``inputs_embeds`` with a
-    vocab-parallel lookup (one-hot matmul + psum) and feed those to the model
-    instead of ``input_ids``; the model then never runs the row-sharded gather.
-    Otherwise we use the normal ``input_ids`` path.
+    The embedding layout drives which input path we take, independently of how
+    the output logits are sharded:
+
+    - Replicated embedding (embedding_row_sharded is False): use the normal
+      EasyDel path, model(input_ids=...), which gathers rows with jnp.take.
+    - Row (vocab) sharded embedding (embedding_row_sharded is True): EasyDel's
+      jnp.take row gather is not legalizable on TT, so we precompute
+      inputs_embeds with a GSPMD one-hot matmul lookup and feed those to the
+      model instead of input_ids.
+
+    The row-sharded lookup uses GSPMD collectives (a sharding constraint plus a
+    contracting-dim-sharded matmul), not a shard_map, so it emits no manual
+    computation region. TT accepts at most one such region per module and the
+    vocab-parallel cross-entropy already uses one, so the input lookup must not
+    add a second.
     """
-    vocab_parallel = _is_vocab_parallel(mesh, model_axis)
 
     def forward(model, input_ids, attention_mask):
-        if vocab_parallel:
-            embedding = model.get_embedding().embedding.value  # [vocab, hidden], rows on model
-            inputs_embeds = vocab_parallel_embedding_lookup(
+        if embedding_row_sharded:
+            # [vocab, hidden] table with its vocab rows sharded across model_axis.
+            embedding = model.get_embedding().embedding.value
+            inputs_embeds = vocab_parallel_embedding_lookup_gspmd(
                 embedding, input_ids, mesh, model_axis=model_axis
             )
             return model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
@@ -78,6 +90,7 @@ def create_fused_train_step_fn(
     lora_shardings,
     mesh=None,
     model_axis: str = "model",
+    embedding_row_sharded: bool = False,
 ) -> Callable:
     """JIT-compiled forward + backward + optimizer step.
 
@@ -85,13 +98,17 @@ def create_fused_train_step_fn(
     masked_cross_entropy so no per-step micro-ops escape to TT and
     trigger fabric / MeshDevice re-init (tt-xla#1993, tt-xla#4809).
 
+    embedding_row_sharded selects the input embedding path: pass True only when
+    the token embedding is sharded along its vocab (row) axis, otherwise the
+    plain replicated lookup is used. See _make_forward_fn.
+
     Returns fused_train_step(lora_params, frozen_state, opt_state,
     input_ids, labels, attention_mask) -> (new_params, new_opt, loss,
     grad_stats).
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
-    forward = _make_forward_fn(mesh, model_axis)
+    forward = _make_forward_fn(mesh, model_axis, embedding_row_sharded)
 
     # Replicated 0-D sharding for the scalar outputs (loss / grad stats). On TT
     # the partitioner otherwise infers a rank-2 sharding for these scalars
@@ -148,7 +165,12 @@ def create_fused_train_step_fn(
     return fused_train_step
 
 
-def create_eval_step_fn(graphdef: nnx.GraphDef, mesh=None, model_axis: str = "model") -> Callable:
+def create_eval_step_fn(
+    graphdef: nnx.GraphDef,
+    mesh=None,
+    model_axis: str = "model",
+    embedding_row_sharded: bool = False,
+) -> Callable:
     """JIT-compiled evaluation step returning a scalar loss.
 
     Uses the vocab-parallel CE when the vocab dim is sharded across
@@ -157,13 +179,16 @@ def create_eval_step_fn(graphdef: nnx.GraphDef, mesh=None, model_axis: str = "mo
     distinct JITs, which previously triggered MeshDevice migration crashes
     on TT (tt-xla#1993, tt-xla#4809).
 
+    embedding_row_sharded selects the input embedding path and must match the
+    value passed to create_fused_train_step_fn. See _make_forward_fn.
+
     Returns eval_step(lora_params, frozen_state, input_ids, labels,
     attention_mask) -> loss (scalar). Predictions are deliberately not
     emitted; see the note inside eval_step.
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
-    forward = _make_forward_fn(mesh, model_axis)
+    forward = _make_forward_fn(mesh, model_axis, embedding_row_sharded)
 
     def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)

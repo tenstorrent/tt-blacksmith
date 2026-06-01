@@ -15,9 +15,27 @@ from jax.typing import DTypeLike
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from blacksmith.tools.jax.device_manager import JaxDeviceManager
+from blacksmith.tools.jax.easydel.partitioning import _path_to_str
 from blacksmith.tools.templates.configs import TrainingConfig
 
 logger = logging.getLogger(__name__)
+
+
+def embedding_is_row_sharded(frozen_state, model_axis: str = "model") -> bool:
+    """Return True if the token embedding is sharded along its vocab (row) axis.
+
+    We read the actual placed sharding of the embed_tokens embedding leaf, so
+    the result reflects whatever the yaml sharding patterns produced rather than
+    any assumption. When the leading (vocab) axis lands on model_axis the input
+    lookup must use the vocab-parallel path; otherwise the plain replicated
+    lookup is correct and avoids emitting an extra manual computation region.
+    """
+    flat, _ = jax.tree_util.tree_flatten_with_path(frozen_state)
+    for path, leaf in flat:
+        if _path_to_str(path).endswith("embed_tokens.embedding.value"):
+            spec = getattr(getattr(leaf, "sharding", None), "spec", None)
+            return spec is not None and len(spec) >= 1 and spec[0] == model_axis
+    return False
 
 
 def load_tokenizer(

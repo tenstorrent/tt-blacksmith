@@ -16,6 +16,7 @@ from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.jax.easydel.helpers import (
     apply_lora,
     build_optimizer,
+    embedding_is_row_sharded,
     load_easydel_causal_lm,
 )
 from blacksmith.tools.jax.easydel.partitioning import easydel_partition_specs_for_lora
@@ -64,7 +65,7 @@ def train(
         device_manager,
         dtype=config.jax_dtype,
         mask_max_position_embeddings=config.mask_max_position_embeddings,
-        extra_config_kwargs={"num_hidden_layers": 1}
+        extra_config_kwargs={"num_hidden_layers": 1, "tie_word_embeddings": False}
     )
     logger.info(f"Loaded {config.model_name} model.")
     logger.log_model_info(
@@ -122,6 +123,14 @@ def train(
     lora_shardings = jax.tree.map(lambda x: x.sharding, lora_params)
     frozen_state = device_manager.apply_sharding_patterns(frozen_state, sharding_patterns)
 
+    # Decide the input embedding path from the embedding's actual layout. With a
+    # replicated embedding (input) plus a vocab-sharded lm_head (output) only the
+    # cross-entropy needs a shard_map, so we must not also wrap the embedding
+    # lookup in one; the TT compiler accepts at most one manual computation
+    # region per module.
+    embedding_row_sharded = embedding_is_row_sharded(frozen_state, model_axis="model")
+    logger.info(f"Embedding row-sharded on model axis: {embedding_row_sharded}")
+
     # Build optimizer.
     num_train_batches = len(train_batches)
     total_train_batches = num_train_batches * config.num_epochs
@@ -147,8 +156,18 @@ def train(
         optimizer_state = optimizer.init(lora_params_cpu)
     optimizer_state = device_manager.apply_sharding_patterns(optimizer_state, sharding_patterns)
 
-    jit_fused_train_step = create_fused_train_step_fn(graphdef, optimizer, lora_shardings, mesh=device_manager.mesh)
-    jit_eval_step = create_eval_step_fn(graphdef, mesh=device_manager.mesh)
+    jit_fused_train_step = create_fused_train_step_fn(
+        graphdef,
+        optimizer,
+        lora_shardings,
+        mesh=device_manager.mesh,
+        embedding_row_sharded=embedding_row_sharded,
+    )
+    jit_eval_step = create_eval_step_fn(
+        graphdef,
+        mesh=device_manager.mesh,
+        embedding_row_sharded=embedding_row_sharded,
+    )
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
