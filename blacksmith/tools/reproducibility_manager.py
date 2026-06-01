@@ -21,9 +21,9 @@ class ReproducibilityManager:
     def setup(self):
         self._setup_python()
 
-        if self.config.framework == Framework.PYTORCH:
+        if self.config.framework == Framework.PYTORCH.value:
             self._setup_pytorch()
-        elif self.config.framework == Framework.JAX or self.config.framework == Framework.EASYDEL:
+        elif self.config.framework == Framework.JAX.value or self.config.framework == Framework.EASYDEL.value:
             self._setup_jax()
         else:
             logger.warning(f"Unknown framework: {self.config.framework}")
