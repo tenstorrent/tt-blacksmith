@@ -82,6 +82,9 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 def make_env(idx: int, config: TrainingConfig):
     def thunk():
+        # The original Atari hardware cannot render all the sprites at once, so we let the
+        # environment render every frame (frameskip=1) and have AtariPreprocessing skip
+        # config.frame_skip frames, max-pooling over the last 2 to see all sprites on screen.
         env = gym.make(config.env_id, frameskip=1)
         env = gym.wrappers.RecordEpisodeStatistics(env)  # Track episode return and length for logging
         env = gym.wrappers.AtariPreprocessing(

@@ -10,6 +10,15 @@ The experiment trains a PPO agent on `ALE/Breakout-v5` using standard Atari prep
 
 > **Note:** This experiment currently supports CPU only. TT-XLA support is not yet available.
 
+## Network Architecture
+
+The agent uses the convolutional architecture introduced for Atari by Mnih et al. [1] — three
+convolutional layers (32, 64, 64 channels) followed by a 512-unit fully-connected layer — with
+separate actor and critic heads on top. Layers are orthogonally initialized: hidden layers use
+a gain of √2, the policy (actor) head uses a gain of 0.01, and the value (critic) head uses a gain
+of 1.0, following the PPO implementation details documented by Huang et al. [2]. The PPO objective
+itself, along with the use of GAE for advantage estimation, is from Schulman et al. [3].
+
 ## Training
 
 ```bash
@@ -76,3 +85,11 @@ The experiment is configured using the configuration file `test_breakout_ppo_tra
 | **Other Settings** |
 | `framework` | Training framework. | "pytorch" |
 | `use_tt` | Whether to run on TT device (or CPU otherwise). | False |
+
+## References
+
+[1] V. Mnih et al., "Human-level control through deep reinforcement learning," *Nature*, vol. 518, no. 7540, pp. 529–533, 2015.
+
+[2] S. Huang, R. F. J. Dossa, A. Raffin, A. Kanervisto, and W. Wang, "The 37 Implementation Details of Proximal Policy Optimization," *ICLR Blog Track*, 2022.
+
+[3] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, "Proximal Policy Optimization Algorithms," *arXiv:1707.06347*, 2017.
