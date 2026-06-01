@@ -19,11 +19,11 @@ Training is implemented in **Flax (JAX)** and designed to run on **TT devices** 
 
 For single chip training, run command:
 ```bash
-python3 blacksmith/experiments/jax/distil_bert/single_chip/test_distil_bert_flax.py
+python3 blacksmith/experiments/jax/distil_bert/single_chip/train.py
 ```
 For multi chip training (only data parallel is supported for now), run command:
 ```bash
-python3 blacksmith/experiments/jax/distil_bert/multi_chip/data_parallel/test_distil_bert_flax.py
+python3 blacksmith/experiments/jax/distil_bert/multi_chip/data_parallel/train.py
 ```
 
 ---
@@ -49,7 +49,7 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/glue/viewer/s
 
 ## Configuration
 
-The experiment parameters are defined in `test_distil_bert_flax.yaml`.
+The experiment parameters are defined in `distil_bert_sst2.yaml`.
 This configuration specifies dataset, model settings, training hyperparameters, and loss weighting used during distillation.
 
 The current configuration reflects tested and recommended defaults for the SST-2 experiment.

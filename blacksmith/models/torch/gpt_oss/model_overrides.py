@@ -8,9 +8,14 @@ from peft import LoraConfig, get_peft_model
 from transformers import AutoConfig, AutoModelForCausalLM
 from transformers.utils.quantization_config import Mxfp4Config
 
+from blacksmith.tools.device_manager import DeviceManager
 
-def get_model(config, device):
-    """Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation."""
+
+# TODO(pglusac): Align get_model signatures between hf_models.py and this function.
+def get_model(config, device_manager: DeviceManager, shard_model=False):
+    """
+    Load GPT-OSS model with deinterleaving overrides, LoRA, and compilation.
+    """
     quantization_config = Mxfp4Config(dequantize=True)
 
     model_config = AutoConfig.from_pretrained(config.model_name, trust_remote_code=True)
@@ -38,7 +43,10 @@ def get_model(config, device):
         )
         model = get_peft_model(model, lora_config)
 
-    model.to(device)
+    model.to(device_manager.device)
+
+    if shard_model:
+        model = device_manager.shard_model(model)
 
     if config.use_tt:
         compile_options = {
@@ -62,6 +70,8 @@ def override_gpt_oss_modules(model):
             _deinterleave_expert_weights(module)
         if isinstance(module, gpt_oss_mod.GptOssTopKRouter):
             module.forward = _expert_router_forward.__get__(module, type(module))
+        if isinstance(module, gpt_oss_mod.GptOssMLP):
+            module.forward = _mlp_forward.__get__(module, type(module))
 
 
 def _deinterleave_expert_weights(experts):
@@ -115,3 +125,9 @@ def _expert_router_forward(self, hidden_states):
     router_scores = torch.zeros_like(router_logits).scatter_(1, router_indices, router_top_value)
 
     return router_scores.to(hidden_states.dtype), router_indices
+
+
+def _mlp_forward(self, hidden_states):
+    router_scores, router_indices = self.router(hidden_states)
+    routed_out = self.experts(hidden_states, router_indices=router_indices, routing_weights=router_scores)
+    return routed_out, router_scores

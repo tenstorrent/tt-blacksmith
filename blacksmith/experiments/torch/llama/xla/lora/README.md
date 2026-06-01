@@ -46,34 +46,34 @@ Llama 1B supports training on all hardware configurations:
 
 SST2 dataset:
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
 ```
 
 Alpaca dataset:
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_2_1b_alpaca.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_alpaca.yaml
 ```
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_1b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml
 ```
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_2_1b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml
 ```
 
 #### Llama 3.2 1B Training Configurations
 
 | Architecture       | mesh_shape                   | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------------------------- | ---------------------------------------- | ------- | ------ |
-| [Single-Chip](single_chip/test_llama_3_2_1b_alpaca.yaml) | None                         | None                                     | Alpaca  | LoRA   |
-| [Single-Chip](single_chip/test_llama_3_2_1b_sst2.yaml) | None                         | None                                     | SST2    | LoRA   |
-| [N300](quietbox/test_llama_3_2_1b.yaml) | `[1, 2]`, `[2, 1]`           | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
-| [Wormhole QuietBox](quietbox/test_llama_3_2_1b.yaml) | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
-| [Blackhole QuietBox](quietbox/test_llama_3_2_1b.yaml) | `[1, 4]`                     | `["data", "model"]`                      | SST2    | LoRA   |
-| [Galaxy](galaxy/test_llama_3_2_1b.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Single-Chip](single_chip/llama_3_2_1b_alpaca.yaml) | None                         | None                                     | Alpaca  | LoRA   |
+| [Single-Chip](single_chip/llama_3_2_1b_sst2.yaml) | None                         | None                                     | SST2    | LoRA   |
+| [N300](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 2]`, `[2, 1]`           | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_2_1b_sst2.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
 ### Llama 3.2 3B Training
 
@@ -81,14 +81,14 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_2_3b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_3b_sst2.yaml
 ```
 
 #### Llama 3.2 3B Training Configuration
 
 | Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
 | ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
-| [Blackhole QuietBox](quietbox/test_llama_3_2_3b.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
+| [Blackhole QuietBox](quietbox/llama_3_2_3b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
 
 ### Llama 3.1 8B Training
 
@@ -97,44 +97,44 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 **P150 Training:**
 
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/test_llama_3_1_8b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml
 ```
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml
 ```
 
 *Note: For meshes with 1 dimension, the 1 must be the data dimension (model dimension must be > 1)*
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_8b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml
 ```
 
 #### Llama 3.1 8B Training Configurations
 
 | Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [P150](single_chip/test_llama_3_1_8b_sst2.yaml) | None     | None            | SST2  | LoRA   |
-| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
-| [Wormhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Blackhole QuietBox](quietbox/test_llama_3_1_8b.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Galaxy](galaxy/test_llama_3_1_8b.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| [P150](single_chip/llama_3_1_8b_sst2.yaml) | None     | None            | SST2  | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_1_8b_sst2.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
 
 ### Llama 3.1 8B Instruct Training
 
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml
 ```
 
 #### Llama 3.3 8B Instruct Training Configurations
 
 | Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [Wormhole QuietBox](quietbox/test_llama_3_1_8b_instruct_metamathqa.yaml) | `[2, 4]`   | `["data", "model"]`                      | MetaMathQA    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_instruct_metamathqa.yaml) | `[2, 4]`   | `["data", "model"]`                      | MetaMathQA    | LoRA   |
 
 
 ### Llama 3.1 70B Training
@@ -143,20 +143,20 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 **LoudBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/test_llama_3_1_70b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_1_70b_sst2.yaml
 ```
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_1_70b.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml
 ```
 
 #### Llama 3.1 70B Training Configurations
 
 | Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [Blackhole LoudBox](loudbox/test_llama_3_1_70b.yaml) | `[2, 4]`   | `["model", "batch"]`| SST2    | LoRA   |
-| [Galaxy](galaxy/test_llama_3_1_70b.yaml) | `[4, 8]`   | `["model", "batch"]` | SST2    | LoRA   |
+| [Blackhole LoudBox](loudbox/llama_3_1_70b_sst2.yaml) | `[2, 4]`   | `["model", "batch"]`| SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_1_70b_sst2.yaml) | `[4, 8]`   | `["model", "batch"]` | SST2    | LoRA   |
 
 
 ### Llama 3.3 70B Instruct Training
@@ -165,20 +165,20 @@ python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch
 
 **LoudBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/test_llama_3_3_70b_instruct.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/loudbox/llama_3_3_70b_instruct_alpaca.yaml
 ```
 
 **Galaxy Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/test_llama_fine_tuning_pure_torch.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/test_llama_3_3_70b_instruct.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_3_70b_instruct_alpaca.yaml
 ```
 
 #### Llama 3.3 70B Instruct Training Configurations
 
 | Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
 | ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [Blackhole LoudBox](loudbox/test_llama_3_3_70b_instruct.yaml) | `[2, 4]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
-| [Wormhole Galaxy](galaxy/test_llama_3_3_70b_instruct.yaml) | `[4, 8]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
+| [Blackhole LoudBox](loudbox/llama_3_3_70b_instruct_alpaca.yaml) | `[2, 4]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
+| [Wormhole Galaxy](galaxy/llama_3_3_70b_instruct_alpaca.yaml) | `[4, 8]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
 
 ## Data
 
@@ -201,9 +201,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_llama_fine_tuning_pure_torch.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `llama_fine_tuning_pure_torch_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_llama_fine_tuning_pure_torch.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 

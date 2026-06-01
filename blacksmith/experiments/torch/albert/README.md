@@ -10,7 +10,7 @@ This experiment fine-tunes a classification head on top of a frozen ALBERT-base 
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/albert/test_albert_finetuning.py
+python3 blacksmith/experiments/torch/albert/train.py
 ```
 
 ## Data
@@ -31,9 +31,9 @@ Example
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_albert_finetuning.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
+The experiment is configured using the configuration file `albert_banking77.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
-Current `test_albert_finetuning.yaml` has the recommended and tested hyperparameters for the experiment.
+Current `albert_banking77.yaml` has the recommended and tested hyperparameters for the experiment.
 
 ### Configuration Paramaters
 

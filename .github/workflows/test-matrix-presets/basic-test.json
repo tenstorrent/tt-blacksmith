@@ -1,6 +1,6 @@
 [
     {"runs-on": "n150", "frontend": "xla", "marks": "single_chip and push and n150 and torch"},
     {"runs-on": "n300", "frontend": "xla", "marks": "single_chip and push and n300 and torch"},
-    {"runs-on": "n300", "frontend": "xla", "marks": "tensor_parallel and push and n300 and torch"},
-    {"runs-on": "n300", "frontend": "xla", "marks": "data_parallel and push and n300 and torch"}
+    {"runs-on": "n300", "frontend": "xla", "marks": "tensor_parallel and not data_parallel and push and n300 and torch"},
+    {"runs-on": "n300", "frontend": "xla", "marks": "data_parallel and not tensor_parallel and push and n300 and torch"}
 ]

@@ -1,0 +1,82 @@
+# Dataset settings
+dataset_id: "alpaca"
+
+# Model settings
+model_name: "Qwen/Qwen3-8B"
+max_length: 256
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+training_type: "lora"
+learning_rate: 2e-5
+batch_size: 1
+gradient_accumulation_steps: 4
+gradient_checkpointing: True
+num_epochs: 1
+optim: "adamw_torch"
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "qwen3-8B-lora-multichip-quietbox"
+wandb_run_name: "tt-qwen3-8B-test"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+val_steps_freq: 20
+epoch_freq: 1
+print_examples: True
+ignored_index: -100
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: "" # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/qwen"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Device settings
+mesh_shape: [1, 8]
+mesh_axis_names: ["batch", "model"]
+
+# Sharding patterns for tensor parallelism (regex pattern -> partition spec)
+model_sharding_patterns:
+  - ['\.model\.embed_tokens\.weight$', [null, "batch"]]
+  - ['\.lm_head\.weight$', ["model", "batch"]]
+  - ['\.model\.norm\.weight$', ["batch"]]
+  # === Attention ===
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.k_proj$',                  ["model", null]]
+  - ['\.self_attn\.v_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.v_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.o_proj$',                  [null, "model"]]
+  # === MLP ===
+  - ['\.mlp\.gate_proj$', ["model", null]]
+  - ['\.mlp\.up_proj$',   ["model", null]]
+  - ['\.mlp\.down_proj$', [null, "model"]]
+
+# LoRA setup
+lora_r: 8
+lora_alpha: 16
+lora_target_modules: ["q_proj", "v_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Other settings
+framework: "pytorch"
+use_tt: True

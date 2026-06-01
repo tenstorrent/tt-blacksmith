@@ -10,7 +10,7 @@ Currently it runs model forward and backward as well as loss forward and backwar
 ## Training
 
 ```bash
-python3 blacksmith/experiments/lightning/mnist/test_mnist_lightning_ffe.py
+python3 blacksmith/experiments/lightning/mnist/train.py
 ```
 
 ## Data
@@ -19,7 +19,7 @@ The [dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset) consists of
 
 ## Configuration
 
-In `blacksmith/experiments/lightning/mnist/test_mnist_lightning_ffe.yaml` you can for example change loss to be on cpu or pick some other loss that forge-fe have to offer.
+In `blacksmith/experiments/lightning/mnist/mnist.yaml` you can for example change loss to be on cpu or pick some other loss that forge-fe have to offer.
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |

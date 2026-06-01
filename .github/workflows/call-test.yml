@@ -37,7 +37,7 @@ jobs:
       matrix:
           build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || matrix.build.runs-on }}
+    runs-on: ${{ (inputs.use-shared-runners || matrix.build.use-shared-runners) && format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) || fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) }}
 
     name: "test '${{ matrix.build.marks }}' (frontend: ${{ matrix.build.frontend }}, runs-on: ${{ matrix.build.runs-on }})"
 
@@ -54,7 +54,7 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Mark repo as safe for git
       run: |
@@ -74,4 +74,4 @@ jobs:
         export HF_HOME=/mnt/dockercache/huggingface
         export HF_TOKEN=${{ secrets.HF_TOKEN }}
         source env/activate --${{ matrix.build.frontend }}
-        pytest -m '${{ matrix.build.marks }}' tests/
+        pytest -svv -m '${{ matrix.build.marks }}' tests/
