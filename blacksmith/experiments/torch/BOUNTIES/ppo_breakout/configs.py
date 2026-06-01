@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from blacksmith.tools.test_config import TestConfig
 
@@ -19,9 +19,6 @@ class TrainingConfig(BaseModel):
     total_timesteps: int = Field(default=10_000_000, gt=0)
     learning_rate: float = Field(default=2.5e-4, gt=0)
     anneal_lr: bool = Field(default=True)
-    batch_size: int = Field(default=0)  # Derived at runtime
-    minibatch_size: int = Field(default=0)  # Derived at runtime
-    num_updates: int = Field(default=0)  # Derived at runtime
 
     # PPO hyperparameters
     num_steps: int = Field(default=128, gt=0)
@@ -77,7 +74,17 @@ class TrainingConfig(BaseModel):
     use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)
 
-    def compute_derived(self):
-        self.batch_size = self.num_envs * self.num_steps
-        self.minibatch_size = self.batch_size // self.num_minibatches
-        self.num_updates = self.total_timesteps // self.batch_size
+    @computed_field
+    @property
+    def batch_size(self) -> int:
+        return self.num_envs * self.num_steps
+
+    @computed_field
+    @property
+    def minibatch_size(self) -> int:
+        return self.batch_size // self.num_minibatches
+
+    @computed_field
+    @property
+    def num_updates(self) -> int:
+        return self.total_timesteps // self.batch_size
