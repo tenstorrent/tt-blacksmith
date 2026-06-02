@@ -65,7 +65,7 @@ def train(
         device_manager,
         dtype=config.jax_dtype,
         mask_max_position_embeddings=config.mask_max_position_embeddings,
-        extra_config_kwargs={"num_hidden_layers": 1, "tie_word_embeddings": False}
+        extra_config_kwargs={"tie_word_embeddings": False}
     )
     logger.info(f"Loaded {config.model_name} model.")
     logger.log_model_info(

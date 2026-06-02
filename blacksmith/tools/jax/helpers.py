@@ -111,94 +111,6 @@ def masked_cross_entropy(
     return jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
 
 
-def _vocab_parallel_per_token_ce(
-    local_logits: jax.Array,
-    local_labels: jax.Array,
-    local_vocab_ids: jax.Array,
-    model_axis: str,
-) -> jax.Array:
-    """Per-token cross-entropy for one vocab shard, run inside a ``shard_map``.
-
-    Each device only owns a contiguous slice of the vocabulary, so this body
-    runs once per ``model_axis`` shard on *local* tensors and combines the
-    shards with explicit collectives. We only ever use ``psum`` (sum
-    all-reduce) and ``all_gather``, because the TT backend cannot legalize a
-    max all-reduce (``pmax``) nor ``partition_id`` (``jax.lax.axis_index``).
-
-    Args:
-        local_logits: This shard's logits slice, shape ``[b, s, v_local]``.
-        local_labels: The full (replicated) labels, shape ``[b, s]``. Same on
-            every shard since the label dim is not sharded.
-        local_vocab_ids: The *global* vocabulary ids this shard owns, shape
-            ``[v_local]``. Position ``j`` in this shard corresponds to global
-            token id ``local_vocab_ids[j]``. The one-hot match is built here,
-            INSIDE the manual region, on local tensors -- never outside, where
-            GSPMD would have to partition the broadcast and would try to shard a
-            size-1 broadcast dim across the data axis.
-        model_axis: Name of the mesh axis the vocab dim is sharded over.
-
-    Returns:
-        Per-token loss, shape ``[b, s-1]`` (causal shift drops the last pos),
-        identical on every ``model_axis`` shard.
-    """
-    # Causal shift: predict token t+1 from the logits at position t.
-    shift_logits = local_logits[:, :-1, :].astype(jnp.float32)  # [b, s-1, v_local]
-    shift_labels = local_labels[:, 1:].astype(jnp.int32)  # [b, s-1]
-
-    # --- Stable global log-sum-exp over the full (sharded) vocabulary --------
-    # CE = log(sum_v exp(logit_v)) - logit_target. We subtract the global max
-    # before exp so no shard overflows. The global max is obtained by
-    # all-gathering each shard's (tiny [b, s-1, 1]) local max and reducing
-    # locally, since a max all-reduce is unsupported on TT.
-    local_max = jnp.max(shift_logits, axis=-1, keepdims=True)  # [b, s-1, 1]
-    gathered_max = jax.lax.all_gather(local_max, model_axis, axis=-1, tiled=True)  # [b, s-1, n_model]
-    global_max = jnp.max(gathered_max, axis=-1, keepdims=True)  # [b, s-1, 1]
-
-    shifted = shift_logits - global_max  # all <= 0, so exp() can't overflow
-    local_sum_exp = jnp.sum(jnp.exp(shifted), axis=-1, keepdims=True)  # [b, s-1, 1]
-    global_sum_exp = jax.lax.psum(local_sum_exp, model_axis)  # sum exps across shards
-    log_sum_exp = jnp.log(global_sum_exp) + global_max  # [b, s-1, 1] (undo the shift)
-
-    # --- Logit of the target token ------------------------------------------
-    # Compare each label to the global ids this shard owns. The owning shard has
-    # exactly one True per token; all other shards are all-False and contribute
-    # 0, so the psum picks out the correct target logit. Built locally here, so
-    # there is no GSPMD-partitioned broadcast and no size-1 sharding problem.
-    match = shift_labels[..., None] == local_vocab_ids[None, None, :]  # [b, s-1, v_local]
-    local_target = jnp.sum(jnp.where(match, shift_logits, 0.0), axis=-1)  # [b, s-1]
-    target_logit = jax.lax.psum(local_target, model_axis)  # [b, s-1]
-
-    return log_sum_exp[..., 0] - target_logit  # [b, s-1]
-
-
-def _vocab_parallel_loss_scalar(
-    local_logits: jax.Array,
-    local_labels: jax.Array,
-    local_vocab_ids: jax.Array,
-    model_axis: str,
-    data_axis: str | None,
-    ignored_index: int,
-) -> jax.Array:
-    per_token = _vocab_parallel_per_token_ce(
-        local_logits, local_labels, local_vocab_ids, model_axis
-    )  # [b, s-1]
-
-    shift_labels = local_labels[:, 1:].astype(jnp.int32)
-    valid = shift_labels != ignored_index
-
-    local_loss_sum = jnp.sum(per_token * valid.astype(per_token.dtype))
-    local_valid_count = jnp.sum(valid.astype(jnp.int32))
-
-    # IMPORTANT: reduce across data axis only.
-    # Do NOT psum across model axis here, because per_token is already identical
-    # on all model shards; psum over model would overcount.
-    if data_axis is not None:
-        local_loss_sum = jax.lax.psum(local_loss_sum, data_axis)
-        local_valid_count = jax.lax.psum(local_valid_count, data_axis)
-
-    return local_loss_sum / jnp.maximum(local_valid_count.astype(local_loss_sum.dtype), 1.0)
-
-
 def vocab_parallel_cross_entropy(
     logits: jax.Array,
     labels: jax.Array,
@@ -208,41 +120,38 @@ def vocab_parallel_cross_entropy(
     data_axis: str = "data",
     ignored_index: int = IGNORED_LABEL,
 ) -> jax.Array:
+    """Causal cross-entropy for a vocab(model)-sharded logits tensor.
+
+    The lm_head is column(vocab)-parallel, so ``logits`` arrives sharded
+    ``[data, None, model]``. The softmax normaliser is a reduction over the
+    sharded vocab axis; computing it in place would force GSPMD to emit a max
+    all-reduce over ``model_axis`` (TT cannot legalize ``pmax``), which is why
+    this used to drop into a ``shard_map`` with hand-rolled ``psum`` /
+    ``all_gather`` collectives.
+
+    But a ``shard_map`` lowers to an ``sdy.manual_computation`` region, and the
+    TT compiler accepts at most one such region per module -- a second one (here
+    plus anywhere else in the step) fails to legalize. So instead of a manual
+    region we replicate the vocab axis with a sharding constraint
+    (``[data, None, None]``), which GSPMD lowers to an ordinary all-gather over
+    ``model_axis`` (fully supported on TT). With the full vocabulary local on
+    every shard the softmax normaliser becomes a plain local reduction, so we
+    can reuse the standard clamped CE -- no manual-computation region, no
+    ``pmax``, and no ``axis_index``.
+
+    The gathered logits are ``[b, s, vocab]`` in f32 inside ``masked_cross_entropy``;
+    for the small sequence/batch used here this is a modest transient and keeps
+    the lm_head matmul itself vocab-sharded.
+    """
     data_spec = data_axis if data_axis in mesh.axis_names else None
-    vocab_size = logits.shape[-1]
 
-    # Per-shard global vocab ids: each model shard receives its contiguous slice
-    # of arange (its slice's first element is the shard's vocab start offset),
-    # which the body uses to match labels -- a TT-legal stand-in for axis_index.
-    # The match one-hot is built INSIDE the shard_map (see _vocab_parallel_per_token_ce)
-    # on local tensors; building it outside makes GSPMD partition the broadcast
-    # and illegally shard a size-1 broadcast dim across data.
-    #
-    # Defeat constant-folding of this arange. A const-folded model-sharded arange
-    # is materialized in a const-eval program as a mesh-distributed host buffer,
-    # and distribute_tensor then fails at runtime ("Can't get a single buffer from
-    # host storage distributed over mesh"). optimization_barrier did NOT stop the
-    # const-eval, so instead we tie vocab_ids to a runtime value: a float *0.0.
-    # XLA does not simplify float x*0 (NaN/Inf semantics), so the dependence
-    # survives the const-folder; labels are finite so the added value is exactly
-    # 0 and vocab_ids is unchanged. The result is a runtime device tensor, sharded
-    # on model via the shard_map in_spec (a normal slice), not host distribution.
-    vocab_ids = jnp.arange(vocab_size, dtype=jnp.int32)
-    vocab_ids = vocab_ids + (jnp.sum(labels).astype(jnp.float32) * 0.0).astype(jnp.int32)
+    # Replicate the model-sharded vocab axis (all-gather over model_axis) so the
+    # cross-entropy reductions are entirely local; no shard_map / manual region.
+    logits = jax.lax.with_sharding_constraint(
+        logits, NamedSharding(mesh, PartitionSpec(data_spec, None, None))
+    )
 
-    return shard_map(
-        lambda lg, lb, vids: _vocab_parallel_loss_scalar(
-            lg, lb, vids, model_axis, data_spec, ignored_index
-        ),
-        mesh=mesh,
-        in_specs=(
-            PartitionSpec(data_spec, None, model_axis),
-            PartitionSpec(data_spec, None),
-            PartitionSpec(model_axis),
-        ),
-        out_specs=PartitionSpec(),  # scalar
-        check_rep=False,
-    )(logits, labels, vocab_ids)
+    return masked_cross_entropy(logits, labels, clamped=True, ignored_index=ignored_index)
 
 
 def _vocab_parallel_embedding_lookup_local(

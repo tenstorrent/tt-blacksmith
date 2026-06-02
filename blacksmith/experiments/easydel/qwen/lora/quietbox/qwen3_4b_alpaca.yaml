@@ -3,15 +3,15 @@ dataset_id: "alpaca"
 
 # Model settings
 model_name: "Qwen/Qwen3-4B"
-max_length: 64
-mask_max_position_embeddings: 64
+max_length: 512
+mask_max_position_embeddings: 512
 dtype: "bfloat16"
 
 # Training hyperparameters
 learning_rate: 1e-4
 warmup_steps: 0
 end_learning_rate: 0.0
-batch_size: 2
+batch_size: 1
 gradient_accumulation_steps: 4
 num_epochs: 1
 val_steps_freq: 25
@@ -54,32 +54,32 @@ remote_path: ""
 # Device settings
 use_tt: true
 num_devices: 8
-mesh_shape: [2, 4]
+mesh_shape: [1, 8]
 mesh_axis_names: ["data", "model"]
-input_sharding_dim: "data"
+input_sharding_dim: null
 apply_gqa_workaround: false
 use_shardy_partitioner: true
 
 # Tensor-parallel sharding patterns.
-# model_sharding_patterns:
-#   # Attention kernels. LoRA wraps q/v under .base_module.
-#   - ['self_attn\.q_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
-#   - ['self_attn\.k_proj\.kernel\.value$',                   [null, "model"]]
-#   - ['self_attn\.v_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
-#   - ['self_attn\.o_proj\.kernel\.value$',                   ["model", null]]
-#   # LoRA adapters on q_proj / v_proj: A replicated, B column-parallel.
-#   - ['self_attn\.(q_proj|v_proj)\.lora_a\.value$',          [null, null]]
-#   - ['self_attn\.(q_proj|v_proj)\.lora_b\.value$',          [null, null]]
-#   # MLP: column-parallel gate/up, row-parallel down.
-#   - ['mlp\.gate_proj\.kernel\.value$',                      [null, "model"]]
-#   - ['mlp\.up_proj\.kernel\.value$',                        [null, "model"]]
-#   - ['mlp\.down_proj\.kernel\.value$',                      ["model", null]]
-#   # lm_head column-parallel (output logits vocab-sharded on model).
-#   - ['lm_head\.kernel\.value$',                             [null, "model"]]
-#   # Token embedding row(vocab)-parallel on model; the input lookup goes through
-#   # the GSPMD one-hot matmul path (see _make_forward_fn) since jnp.take is not
-#   # legalizable on TT for a row-sharded table.
-#   #- ['embed_tokens\.embedding\.value$',                     [null, null]]
+model_sharding_patterns:
+  # Attention kernels. LoRA wraps q/v under .base_module.
+  - ['self_attn\.q_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
+  - ['self_attn\.k_proj\.kernel\.value$',                   [null, "model"]]
+  - ['self_attn\.v_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
+  - ['self_attn\.o_proj\.kernel\.value$',                   ["model", null]]
+  # LoRA adapters on q_proj / v_proj: A replicated, B column-parallel.
+  - ['self_attn\.(q_proj|v_proj)\.lora_a\.value$',          [null, null]]
+  - ['self_attn\.(q_proj|v_proj)\.lora_b\.value$',          [null, null]]
+  # MLP: column-parallel gate/up, row-parallel down.
+  - ['mlp\.gate_proj\.kernel\.value$',                      [null, "model"]]
+  - ['mlp\.up_proj\.kernel\.value$',                        [null, "model"]]
+  - ['mlp\.down_proj\.kernel\.value$',                      ["model", null]]
+  # lm_head column-parallel (output logits vocab-sharded on model).
+  - ['lm_head\.kernel\.value$',                             [null, "model"]]
+  # Token embedding row(vocab)-parallel on model; the input lookup goes through
+  # the GSPMD one-hot matmul path (see _make_forward_fn) since jnp.take is not
+  # legalizable on TT for a row-sharded table.
+  #- ['embed_tokens\.embedding\.value$',                     [null, null]]
 
 # Framework
 framework: "easydel"

@@ -41,6 +41,7 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
     vocab-parallel CE. Otherwise the plain clamped CE is sufficient.
     """
     vocab_parallel = _is_vocab_parallel(mesh, model_axis)
+    vocab_parallel = False
 
     def cross_entropy(logits, labels):
         if vocab_parallel:

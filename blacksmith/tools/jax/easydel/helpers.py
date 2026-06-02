@@ -173,7 +173,7 @@ def apply_lora(
     if _FlaxLoRA.__call__ is not _lora_call_with_barrier:
         _FlaxLoRA.__call__ = _lora_call_with_barrier
     """
-
+    
     ctx = jax.default_device(jax.devices("cpu")[0]) if on_cpu else contextlib.nullcontext()
     with ctx:
         return model.apply_lora_to_layers(
