@@ -111,6 +111,19 @@ def train(
         on_cpu=(device_manager.device_kind == "tt"),
     )
 
+    # Host copy of the frozen embedding table. The input embedding lookup is done
+    # on the host (see _attach_embeds) so the graph never contains a device-side
+    # gather: under any mesh with a model axis, GSPMD partitions an on-device
+    # gather into a tile-illegal [b, s] -> [b*s] reshape on TT. The table is
+    # frozen under LoRA, so inputs_embeds is constant w.r.t. the trainable params
+    # and computing it off-device is exact (no gradient flows through it).
+    embed_host = np.asarray(model.get_embedding().embedding.value)  # [vocab, hidden]
+
+    def _attach_embeds(batch):
+        out = dict(batch)
+        out["inputs_embeds"] = embed_host[np.asarray(batch["input_ids"]).astype(np.int64)]
+        return out
+
     graphdef, lora_params, frozen_state, _shardings = easydel_partition_specs_for_lora(model, device_manager.mesh)
 
     # Frozen base weights stay bf16 (param_dtype) to save DRAM, but keep the
@@ -185,8 +198,8 @@ def train(
         validation_batches = validation_batches[: config.max_val_batches]
         logger.info(f"  Using {len(validation_batches)} of {original_validation_batch_count} validation batches")
 
-    # Pre-shard validation batches.
-    validation_batches = [device_manager.prepare_batch(batch) for batch in validation_batches]
+    # Pre-shard validation batches (with host-gathered inputs_embeds attached).
+    validation_batches = [device_manager.prepare_batch(_attach_embeds(batch)) for batch in validation_batches]
 
     inspect_kwargs: dict = {}
     if config.print_examples and tokenizer is not None:
@@ -212,25 +225,18 @@ def train(
 
             for batch_index in range(num_batches):
                 batch = train_batches[shuffled_batch_order[batch_index]]
-                input_ids = batch["input_ids"]
-                labels = batch["labels"]
-                attention_mask = batch["attention_mask"]
 
                 # Raw labels are passed through; the fused JIT runs the
                 # shift/mask/one-hot/clamped CE internally (tt-xla#1993, tt-xla#4809).
-                sharded_batch = device_manager.prepare_batch(
-                    {
-                        "input_ids": input_ids,
-                        "labels": labels,
-                        "attention_mask": attention_mask,
-                    }
-                )
+                # inputs_embeds is gathered on host (frozen table) to avoid the
+                # device-side embedding gather; see _attach_embeds.
+                sharded_batch = device_manager.prepare_batch(_attach_embeds(batch))
 
                 lora_params, optimizer_state, loss, gradient_stats = jit_fused_train_step(
                     lora_params,
                     frozen_state,
                     optimizer_state,
-                    sharded_batch["input_ids"],
+                    sharded_batch["inputs_embeds"],
                     sharded_batch["labels"],
                     sharded_batch["attention_mask"],
                 )

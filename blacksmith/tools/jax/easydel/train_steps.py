@@ -14,11 +14,9 @@ from transformers import PreTrainedTokenizerBase
 
 from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.jax.helpers import (
-    embedding_lookup_one_hot_replicated,
     masked_cross_entropy,
     show_predictions,
     vocab_parallel_cross_entropy,
-    vocab_parallel_embedding_lookup_gspmd,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
 
@@ -53,38 +51,22 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
 
 
 def _make_forward_fn(mesh, model_axis: str = "model", embedding_row_sharded: bool = False) -> Callable:
-    """Return forward(model, input_ids, attention_mask) -> logits.
+    """Return forward(model, inputs_embeds, attention_mask) -> logits.
 
-    The embedding layout drives which input path we take, independently of how
-    the output logits are sharded. Either way we precompute inputs_embeds with a
-    one-hot matmul and feed those to the model, never model(input_ids=...),
-    because EasyDel's jnp.take row gather is not legalizable on TT's tile layout:
+    inputs_embeds is precomputed on the host (see train.py): the frozen embedding
+    table is gathered off-device, so the graph never contains a device-side
+    embedding gather. Under any mesh with a model axis, GSPMD partitions an
+    on-device gather into a tile-illegal [b, s] -> [b*s] reshape (TT lowers it to
+    clamp + flatten + 1-D gather instead of ttnn.embedding). Doing the lookup on
+    the host sidesteps that and, unlike a shard_map lookup, does not spend the
+    single manual-computation region TT allows per module -- the vocab-parallel
+    cross-entropy already uses it.
 
-    - Replicated embedding (embedding_row_sharded is False): replicated one-hot
-      matmul (embedding_lookup_one_hot_replicated). Fully replicated, so no
-      collectives and no sharded contraction.
-    - Row (vocab) sharded embedding (embedding_row_sharded is True): GSPMD one-hot
-      matmul lookup (vocab_parallel_embedding_lookup_gspmd) with a contracting-
-      dim-sharded matmul.
-
-    Both lookups use GSPMD (no shard_map), so they emit no manual computation
-    region. TT accepts at most one such region per module and the vocab-parallel
-    cross-entropy already uses one, so the input lookup must not add a second.
+    embedding_row_sharded is accepted for signature compatibility but no longer
+    selects an embedding path; the lookup is always host-side now.
     """
 
-    def forward(model, input_ids, attention_mask):
-        # [vocab, hidden] embedding table.
-        embedding = model.get_embedding().embedding.value
-        if embedding_row_sharded:
-            # Rows sharded across model_axis: GSPMD one-hot matmul lookup.
-            inputs_embeds = vocab_parallel_embedding_lookup_gspmd(
-                embedding, input_ids, mesh, model_axis=model_axis
-            )
-        else:
-            # Replicated table: replicated one-hot matmul. We still avoid
-            # model(input_ids=...) because EasyDel's jnp.take row gather is not
-            # legalizable on TT's tile layout. Feeding inputs_embeds sidesteps it.
-            inputs_embeds = embedding_lookup_one_hot_replicated(embedding, input_ids)
+    def forward(model, inputs_embeds, attention_mask):
         return model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
 
     return forward
@@ -128,9 +110,9 @@ def create_fused_train_step_fn(
             return x
         return jax.lax.with_sharding_constraint(x, scalar_sharding)
 
-    def loss_fn(lora_params, frozen_state, input_ids, labels, attention_mask):
+    def loss_fn(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = forward(model, input_ids, attention_mask)
+        logits = forward(model, inputs_embeds, attention_mask)
         return cross_entropy(logits, labels)
 
     @jax.jit
@@ -138,14 +120,14 @@ def create_fused_train_step_fn(
         lora_params,
         frozen_state,
         opt_state,
-        input_ids,
+        inputs_embeds,
         labels,
         attention_mask,
     ):
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
             lora_params,
             frozen_state,
-            input_ids,
+            inputs_embeds,
             labels,
             attention_mask,
         )
@@ -196,9 +178,9 @@ def create_eval_step_fn(
     cross_entropy = _make_loss_fn(mesh, model_axis)
     forward = _make_forward_fn(mesh, model_axis, embedding_row_sharded)
 
-    def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
+    def eval_step(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = forward(model, input_ids, attention_mask)
+        logits = forward(model, inputs_embeds, attention_mask)
         # Loss-only single output. We intentionally do NOT also return argmax
         # predictions here: with vocab-parallel logits the loss is produced by a
         # shard_map (manual sharding) while an argmax over the sharded vocab axis
@@ -247,7 +229,9 @@ def evaluate(
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
 
-        loss = jit_eval_step(lora_params, frozen_state, input_ids, labels, attention_mask)
+        # inputs_embeds is gathered on host (see train.py); input_ids is retained
+        # only for the host-side prediction display below.
+        loss = jit_eval_step(lora_params, frozen_state, batch["inputs_embeds"], labels, attention_mask)
 
         if tokenizer is not None and len(collected_examples) < num_examples:
             batch_input_ids = np.asarray(JaxDeviceManager.to_cpu(input_ids))

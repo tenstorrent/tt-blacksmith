@@ -11,6 +11,8 @@ import jax.numpy as jnp
 import optax
 from easydel import AutoEasyDeLModelForCausalLM
 from flax import nnx
+from flax.nnx.nn.dtypes import promote_dtype
+from flax.nnx.nn.lora import LoRA as _FlaxLoRA
 from jax.typing import DTypeLike
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
@@ -103,6 +105,45 @@ def load_easydel_causal_lm(
     return model, tokenizer
 
 
+def _lora_call_with_barrier(self, x: jax.Array) -> jax.Array:
+    """LoRA forward that isolates the adapter matmul from the base projection.
+
+    Mathematically identical to flax's ``LoRA.__call__``
+    (``out = x @ lora_a @ lora_b + base_module(x)``), but inserts a
+    ``jax.lax.optimization_barrier`` on the base module's input so XLA cannot
+    fuse the small, replicated ``x @ lora_a`` matmul into the same dot as the
+    model-sharded base projection.
+
+    Why this is needed on TT under tensor parallelism:
+    The base q/v kernels are column-parallel (``[null, "model"]``) while the LoRA
+    adapters stay replicated (``[null, null]``). All of q_proj/k_proj/v_proj and
+    the LoRA ``lora_a`` projections consume the same input ``x``, so XLA folds
+    them into a single fused matmul whose output columns are
+    ``[q_lora_a(32) | q_base(4096) | k(1024) | v(1024) | v_lora_a(32)] = 6208``.
+    That fused output dim is then PART replicated (the 64 lora_a columns) and
+    PART sharded (the 6144 base columns), so with ``model=8`` the local width is
+    ``6144/8 + 64 = 832``. The downstream ``slice_static`` that peels q_base back
+    out still uses GLOBAL offsets (``ends=4128``), which overruns the local
+    ``832`` and crashes with
+    ``TT_FATAL: Ends 4128 must be less than or equal to the shape ... 832``.
+
+    Splitting the base input with an optimization barrier forces two independent
+    dots: a uniformly model-sharded base projection (whose slices rescale
+    correctly) and a separate, uniformly replicated ``lora_a`` matmul. The
+    mixed-sharding concat that broke the slice partitioner never forms.
+    """
+    x, lora_a, lora_b = promote_dtype((x, self.lora_a[...], self.lora_b[...]), dtype=self.dtype)
+    out = x @ lora_a @ lora_b
+    if self.base_module is not None:
+        if not callable(self.base_module):
+            raise ValueError("`self.base_module` must be callable.")
+        # Break the x-sharing that lets XLA concat replicated lora_a columns with
+        # the model-sharded base kernel into one fused (and un-sliceable) matmul.
+        x_base = jax.lax.optimization_barrier(x)
+        out += self.base_module(x_base)
+    return out
+
+
 def apply_lora(
     model: nnx.Module,
     *,
@@ -112,6 +153,10 @@ def apply_lora(
     verbose: bool = False,
 ) -> nnx.Module:
     """Apply LoRA adapters to layers matching pattern, optionally under a CPU context.
+
+    Also patches flax's ``LoRA.__call__`` with _lora_call_with_barrier so the
+    adapter matmul is not fused into the model-sharded base projection (required
+    for column-parallel q/v under tensor parallelism on TT; see that function).
 
     Args:
         model: An EasyDel NNX model.
@@ -123,6 +168,12 @@ def apply_lora(
     Returns:
         The model with LoRA layers injected in-place.
     """
+    # Idempotent class patch: isolates the LoRA adapter dot from the base dot.
+    """
+    if _FlaxLoRA.__call__ is not _lora_call_with_barrier:
+        _FlaxLoRA.__call__ = _lora_call_with_barrier
+    """
+
     ctx = jax.default_device(jax.devices("cpu")[0]) if on_cpu else contextlib.nullcontext()
     with ctx:
         return model.apply_lora_to_layers(
