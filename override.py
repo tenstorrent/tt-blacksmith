@@ -131,15 +131,40 @@ def _dit_linear_bias(layer: nn.Module) -> torch.Tensor:
     return getattr(layer, "base_layer", layer).bias
 
 
+def _lora_ab_weights(layer: nn.Module):
+    """`(lora_A.weight, lora_B.weight)` for a PEFT-wrapped linear, else `(None, None)`.
+
+    PEFT stores adapters in `lora_A` / `lora_B` ModuleDicts keyed by adapter
+    name. `lora_A.weight` is `(r, in_features)`; `lora_B.weight` is
+    `(out_features, r)`. Layers that were not LoRA-adapted (no `lora_A`)
+    return `(None, None)`.
+    """
+    a = getattr(layer, "lora_A", None)
+    b = getattr(layer, "lora_B", None)
+    if a is None or b is None:
+        return None, None
+    a_mod = a["default"] if "default" in a else next(iter(a.values()))
+    b_mod = b["default"] if "default" in b else next(iter(b.values()))
+    return a_mod.weight, b_mod.weight
+
+
 def shard_dit_specs(dit) -> dict:
     """WanTransformer3DModel shard specs.
 
-    Intended to run after LoRA adapters are applied. Only frozen base weights
-    are sharded; LoRA A/B parameters are not included.
+    Intended to run after LoRA adapters are applied. Frozen base weights AND
+    the trainable LoRA A/B weights are sharded.
 
     Mesh axes: ("batch", "model")
     Column-parallel (QKV, FFN up):  ("model", "batch")
     Row-parallel   (O, FFN down):   ("batch", "model")
+
+    LoRA A/B are sharded to match the layout their gradients already receive
+    from the sharded base matmuls, so the fused AdamW step stays element-wise
+    (no replicated-param pull -> no resharding -> no `sdy.collective_permute`,
+    which tt-mlir cannot lower; see tt-mlir#3370). The rank dim is always
+    replicated:
+        col W=("model","batch") -> lora_A=(None,"batch"), lora_B=("model",None)
+        row W=("batch","model") -> lora_A=(None,"model"), lora_B=("batch",None)
     """
     specs = {
         dit.patch_embedding.weight: ("batch", None, None, None, None),
@@ -161,6 +186,19 @@ def shard_dit_specs(dit) -> dict:
     specs[ce.text_embedder.linear_2.weight] = ("batch", "model")
     specs[ce.text_embedder.linear_2.bias] = ("batch",)
 
+    # parallel: "col" (QKV / FFN-up) or "row" (O / FFN-down). No-op if the
+    # layer wasn't LoRA-adapted.
+    def _add_lora(layer: nn.Module, parallel: str) -> None:
+        a_w, b_w = _lora_ab_weights(layer)
+        if a_w is None:
+            return
+        if parallel == "col":
+            specs[a_w] = (None, "batch")
+            specs[b_w] = ("model", None)
+        else:
+            specs[a_w] = (None, "model")
+            specs[b_w] = ("batch", None)
+
     for block in dit.blocks:
         specs[block.scale_shift_table] = (None, None, "batch")
         specs[block.norm2.weight] = ("batch",)
@@ -178,12 +216,20 @@ def shard_dit_specs(dit) -> dict:
             specs[attn.norm_q.weight] = ("model",)
             specs[attn.norm_k.weight] = ("model",)
 
+            _add_lora(attn.to_q, "col")
+            _add_lora(attn.to_k, "col")
+            _add_lora(attn.to_v, "col")
+            _add_lora(attn.to_out[0], "row")
+
         ffn_up = block.ffn.net[0].proj
         ffn_down = block.ffn.net[2]
         specs[_dit_linear_weight(ffn_up)] = ("model", "batch")
         specs[_dit_linear_bias(ffn_up)] = ("model",)
         specs[_dit_linear_weight(ffn_down)] = ("batch", "model")
         specs[_dit_linear_bias(ffn_down)] = ("batch",)
+
+        _add_lora(ffn_up, "col")
+        _add_lora(ffn_down, "row")
 
     return specs
 
@@ -208,10 +254,177 @@ def _patch_wan_resample_rep_sentinel() -> None:
 
     Note: subsumed by `_patch_wan_resample_avoid_4d_fold` (which bakes the
     same fix in). Either alone is sufficient; applying both is harmless.
-
-    Body: to be filled in.
     """
-    pass
+    try:
+        from diffusers.models.autoencoders import autoencoder_kl_wan as akw
+    except ImportError:
+        return
+
+    cache_t = akw.CACHE_T
+    rep = object()
+
+    def forward(self, x, feat_cache=None, feat_idx=[0]):
+        b, c, t, h, w = x.size()
+        if self.mode == "upsample3d":
+            if feat_cache is not None:
+                idx = feat_idx[0]
+                if feat_cache[idx] is None:
+                    feat_cache[idx] = rep
+                    feat_idx[0] += 1
+                else:
+                    cache_x = x[:, :, -cache_t:, :, :].clone()
+                    if (
+                        cache_x.shape[2] < 2
+                        and feat_cache[idx] is not None
+                        and feat_cache[idx] is not rep
+                    ):
+                        cache_x = torch.cat(
+                            [
+                                feat_cache[idx][:, :, -1, :, :]
+                                .unsqueeze(2)
+                                .to(cache_x.device),
+                                cache_x,
+                            ],
+                            dim=2,
+                        )
+                    if (
+                        cache_x.shape[2] < 2
+                        and feat_cache[idx] is not None
+                        and feat_cache[idx] is rep
+                    ):
+                        cache_x = torch.cat(
+                            [torch.zeros_like(cache_x).to(cache_x.device), cache_x],
+                            dim=2,
+                        )
+                    if feat_cache[idx] is rep:
+                        x = self.time_conv(x)
+                    else:
+                        x = self.time_conv(x, feat_cache[idx])
+                    feat_cache[idx] = cache_x
+                    feat_idx[0] += 1
+
+                    x = x.reshape(b, 2, c, t, h, w)
+                    x = torch.stack((x[:, 0, :, :, :, :], x[:, 1, :, :, :, :]), 3)
+                    x = x.reshape(b, c, t * 2, h, w)
+        t = x.shape[2]
+        x = x.permute(0, 2, 1, 3, 4).reshape(b * t, c, h, w)
+        x = self.resample(x)
+        x = x.view(b, t, x.size(1), x.size(2), x.size(3)).permute(0, 2, 1, 3, 4)
+
+        if self.mode == "downsample3d":
+            if feat_cache is not None:
+                idx = feat_idx[0]
+                if feat_cache[idx] is None:
+                    feat_cache[idx] = x.clone()
+                    feat_idx[0] += 1
+                else:
+                    cache_x = x[:, :, -1:, :, :].clone()
+                    x = self.time_conv(
+                        torch.cat([feat_cache[idx][:, :, -1:, :, :], x], 2)
+                    )
+                    feat_cache[idx] = cache_x
+                    feat_idx[0] += 1
+        return x
+
+    akw.WanResample.forward = forward
+
+
+_ORIG_GETITEM = torch.Tensor.__getitem__
+
+
+def _clamp_slice(s: slice, size: int) -> slice:
+    """Canonicalize a slice into ``[0, size]`` (positive step) or ``[-1, size-1]``
+    (negative step), like ``slice.indices(size)`` would.
+
+    Hand-written instead of ``slice(...).indices(size)`` because the latter is
+    a CPython slot wrapper and dynamo cannot symbolically execute it — it
+    graph-breaks at trace time. Plain ``max``/``min``/comparisons on concrete
+    ints are fully traceable.
+    """
+    start, stop, step = s.start, s.stop, s.step
+    step = 1 if step is None else step
+
+    if step > 0:
+        if start is None:
+            start = 0
+        elif start < 0:
+            start = max(0, start + size)
+        else:
+            start = min(start, size)
+        if stop is None:
+            stop = size
+        elif stop < 0:
+            stop = max(0, stop + size)
+        else:
+            stop = min(stop, size)
+    else:
+        if start is None:
+            start = size - 1
+        elif start < 0:
+            start = max(-1, start + size)
+        else:
+            start = min(start, size - 1)
+        if stop is None:
+            stop = -1
+        elif stop < 0:
+            stop = max(-1, stop + size)
+        else:
+            stop = min(stop, size - 1)
+
+    return slice(start, stop, step)
+
+
+def _normalize_index(idx, shape):
+    if not isinstance(idx, tuple):
+        idx = (idx,)
+
+    out = []
+    dim = 0
+
+    for item in idx:
+        if item is Ellipsis:
+            remaining_explicit = sum(
+                x is not Ellipsis and x is not None for x in idx[idx.index(item) + 1 :]
+            )
+            fill = len(shape) - dim - remaining_explicit
+            out.extend([slice(None)] * fill)
+            dim += fill
+            continue
+
+        if item is None:
+            out.append(item)
+            continue
+
+        if isinstance(item, slice):
+            out.append(_clamp_slice(item, shape[dim]))
+            dim += 1
+            continue
+
+        # Leave tensor / bool / advanced indices untouched.
+        out.append(item)
+        dim += 1
+
+    return tuple(out)
+
+
+class _SafeSlicingMode(torch.overrides.TorchFunctionMode):
+    """Intercept ``Tensor.__getitem__`` via a stack-managed function mode.
+
+    A slot-reassignment approach (``torch.Tensor.__getitem__ = ...``) looks
+    reversible but permanently flips a CPython "this type has Python
+    overrides" flag, which disables PyTorch's fast path inside
+    ``torch.tensor(list_of_tensors)`` — the fallback then calls ``__len__`` on
+    each 0-d element and raises. The diffusers UniPC scheduler hits exactly
+    that (``b = torch.tensor(b, device=device)``) after the first VAE decode.
+    A ``TorchFunctionMode`` is the supported, properly-reversible mechanism.
+    """
+
+    def __torch_function__(self, func, types, args=(), kwargs=None):
+        kwargs = kwargs or {}
+        if func is torch.Tensor.__getitem__:
+            self_, idx = args
+            return _ORIG_GETITEM(self_, _normalize_index(idx, self_.shape))
+        return func(*args, **kwargs)
 
 
 @contextmanager
@@ -224,14 +437,9 @@ def safe_xla_slicing():
     CPU behavior (e.g. `x[:, :, -2:, :, :]` on a size-1 temporal dim).
 
     Must wrap the entire run (CPU golden + dynamo trace + TT execute).
-    Implementation must use a `TorchFunctionMode`, **not** slot-reassignment
-    on `torch.Tensor.__getitem__` — the latter flips a CPython flag that is
-    not reversible and breaks `torch.tensor(list_of_0d_tensors)` downstream
-    (UniPC scheduler hits this).
-
-    Body: to be filled in.
     """
-    yield
+    with _SafeSlicingMode():
+        yield
 
 
 # ----- Perf patches (graph-break removals; no correctness impact) ---------
@@ -357,9 +565,94 @@ def _patch_wan_resample_avoid_4d_fold() -> None:
     Also bakes in the rep-sentinel fix from
     `_patch_wan_resample_rep_sentinel` (so it supersedes that patch).
 
-    Body: to be filled in.
+    Critically, the per-slice unbind/stack also removes the dynamo graph
+    breaks the original `nn.Upsample` + `== "Rep"` path triggers, so the
+    whole per-frame `_decode` loop traces into a single compiled graph
+    instead of one graph per frame threading `feat_cache` in/out.
     """
-    pass
+    try:
+        from diffusers.models.autoencoders import autoencoder_kl_wan as akw
+    except ImportError:
+        return
+
+    cache_t = akw.CACHE_T
+    rep = object()
+
+    def forward(self, x, feat_cache=None, feat_idx=[0]):
+        b, c, t, h, w = x.size()
+        if self.mode == "upsample3d":
+            if feat_cache is not None:
+                idx = feat_idx[0]
+                if feat_cache[idx] is None:
+                    feat_cache[idx] = rep
+                    feat_idx[0] += 1
+                else:
+                    cache_x = x[:, :, -cache_t:, :, :].clone()
+                    if (
+                        cache_x.shape[2] < 2
+                        and feat_cache[idx] is not None
+                        and feat_cache[idx] is not rep
+                    ):
+                        cache_x = torch.cat(
+                            [
+                                feat_cache[idx][:, :, -1, :, :]
+                                .unsqueeze(2)
+                                .to(cache_x.device),
+                                cache_x,
+                            ],
+                            dim=2,
+                        )
+                    if (
+                        cache_x.shape[2] < 2
+                        and feat_cache[idx] is not None
+                        and feat_cache[idx] is rep
+                    ):
+                        cache_x = torch.cat(
+                            [torch.zeros_like(cache_x).to(cache_x.device), cache_x],
+                            dim=2,
+                        )
+                    if feat_cache[idx] is rep:
+                        x = self.time_conv(x)
+                    else:
+                        x = self.time_conv(x, feat_cache[idx])
+                    feat_cache[idx] = cache_x
+                    feat_idx[0] += 1
+
+                    x = x.reshape(b, 2, c, t, h, w)
+                    x = torch.stack((x[:, 0, :, :, :, :], x[:, 1, :, :, :, :]), 3)
+                    x = x.reshape(b, c, t * 2, h, w)
+
+        # Spatial resample. Per-slice unbind T -> manual 2x upsample ->
+        # Conv2d -> stack T. SPMD-clean for any T and break-free for dynamo.
+        if self.mode in ("upsample2d", "upsample3d"):
+            conv2d = self.resample[1]
+            out_slices = []
+            for s in torch.unbind(x, dim=2):
+                s = s.repeat_interleave(2, dim=2).repeat_interleave(2, dim=3)
+                out_slices.append(conv2d(s))
+            x = torch.stack(out_slices, dim=2)
+        elif self.mode in ("downsample2d", "downsample3d"):
+            t_now = x.shape[2]
+            x = x.permute(0, 2, 1, 3, 4).reshape(b * t_now, c, h, w)
+            x = self.resample(x)
+            x = x.view(b, t_now, x.size(1), x.size(2), x.size(3)).permute(0, 2, 1, 3, 4)
+
+        if self.mode == "downsample3d":
+            if feat_cache is not None:
+                idx = feat_idx[0]
+                if feat_cache[idx] is None:
+                    feat_cache[idx] = x.clone()
+                    feat_idx[0] += 1
+                else:
+                    cache_x = x[:, :, -1:, :, :].clone()
+                    x = self.time_conv(
+                        torch.cat([feat_cache[idx][:, :, -1:, :, :], x], 2)
+                    )
+                    feat_cache[idx] = cache_x
+                    feat_idx[0] += 1
+        return x
+
+    akw.WanResample.forward = forward
 
 
 # ----- Public entry points -------------------------------------------------
@@ -463,7 +756,7 @@ class WanDeviceManager:
         not coerce Python `bool` / `int`.
         """
         return {
-            #"optimization_level": "1",
+            "optimization_level": "0",
             "fp32_dest_acc_en": "true",
             "math_fidelity": "hifi4",
             # Match ppadjin/wan5b_tests CompilerConfig (shared.run_component).

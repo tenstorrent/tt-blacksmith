@@ -25,6 +25,8 @@ TT-specific changes:
 
 from __future__ import annotations
 
+import chisel
+
 import argparse
 import dataclasses
 import gc
@@ -35,6 +37,7 @@ import os
 import random
 import time
 import zipfile
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,6 +60,8 @@ from override import (
     apply_perf_overrides,
     safe_xla_slicing,
 )
+
+import torch_xla.core.xla_model as xm
 
 apply_generality_overrides()
 apply_perf_overrides()
@@ -98,6 +103,13 @@ class Config:
     # work around per-GPU bf16 mode() NaNs; not relevant here.
     VAE_PRECOMPUTE_DTYPE: Any = torch.bfloat16
     GRADIENT_CHECKPOINTING: bool = False       # off on TT (interacts badly with XLA tracing)
+
+    # Debug / bring-up: keep only the first N UMT5 layers / DiT blocks to
+    # shrink compile time. 0 = full model. Set e.g. 8 for a partial run.
+    # NOTE: embeds.pt is precomputed with UMT5 at DEBUG_UMT5_LAYERS, so keep
+    # this consistent between `precompute` and `train`/`infer`.
+    DEBUG_UMT5_LAYERS: int = 2
+    DEBUG_DIT_BLOCKS: int = 2
 
     # Dataset / cache
     DATASET_ID: str = "jainr3/diffusiondb-pixelart"
@@ -222,7 +234,7 @@ DEVMGR: WanDeviceManager | None = None
 def _devmgr() -> WanDeviceManager:
     global DEVMGR
     if DEVMGR is None:
-        DEVMGR = WanDeviceManager(use_tt=True, sharded=True)
+        DEVMGR = WanDeviceManager(use_tt=True, sharded=False)  # DEBUG: sharding off
     return DEVMGR
 
 
@@ -249,6 +261,46 @@ class _VAEEncoderWrapper(nn.Module):
 
     def forward(self, x):
         return self.vae.encode(x).latent_dist.mode()
+
+
+class _WanDiTWrapper(nn.Module):
+    """Plain tensor out — matches dev_wan / tt-xla wan2_2 component tests."""
+
+    def __init__(self, dit: WanTransformer3DModel):
+        super().__init__()
+        self.dit = dit
+
+    def forward(
+        self,
+        hidden_states: torch.Tensor,
+        timestep: torch.Tensor,
+        encoder_hidden_states: torch.Tensor,
+    ) -> torch.Tensor:
+        return self.dit(
+            hidden_states=hidden_states,
+            timestep=timestep,
+            encoder_hidden_states=encoder_hidden_states,
+            return_dict=False,
+        )[0]
+
+
+class _VAEDecoderWrapper(nn.Module):
+    """Run the decoder and return the reconstructed sample tensor.
+
+    Compiling this (vs calling `vae.decode` eagerly under lazy tensors) is
+    essential: `AutoencoderKLWan._decode` loops frame-by-frame over the
+    latent temporal axis with a `feat_cache`. Eager LTC traces+compiles
+    *each* frame/chunk iteration separately -> dozens of recompiles. Under
+    `torch.compile` dynamo unrolls the whole loop into a single graph that
+    compiles once (this is what ppadjin/wan5b_tests and mstojkovic/dev_wan do).
+    """
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, z):
+        return self.vae.decode(z, return_dict=False)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -484,7 +536,7 @@ def precompute_latents_and_embeds(cfg: Config, samples: list[tuple[Image.Image, 
     text_encoder = UMT5EncoderModel.from_pretrained(
         cfg.MODEL_ID, subfolder="text_encoder", torch_dtype=cfg.DTYPE, low_cpu_mem_usage=True,
     ).eval()
-    _truncate_umt5_to_one_layer(text_encoder)
+    _truncate_umt5_layers(text_encoder, cfg.DEBUG_UMT5_LAYERS)
     # The checkpoint stores only `shared.weight` and relies on weight-tying for
     # `encoder.embed_tokens.weight`. Our pinned transformers version does not
     # auto-tie on this subfolder load, so without this every forward returns 0.
@@ -579,12 +631,18 @@ def make_collate_fn(embeds: dict[str, torch.Tensor], p_drop: float, seed: int = 
 # ---------------------------------------------------------------------------
 
 
-def _truncate_umt5_to_one_layer(encoder: UMT5EncoderModel) -> None:
-    encoder.encoder.block = nn.ModuleList(list(encoder.encoder.block[:1]))
+def _truncate_umt5_layers(encoder: UMT5EncoderModel, n: int) -> None:
+    """Keep only the first `n` UMT5 encoder layers. `n<=0` -> full model."""
+    if n and n > 0:
+        encoder.encoder.block = nn.ModuleList(list(encoder.encoder.block[:n]))
+        print(f"[debug] truncated UMT5 to {n} layer(s)")
 
 
-def _truncate_dit_to_one_block(transformer: WanTransformer3DModel) -> None:
-    transformer.blocks = nn.ModuleList(list(transformer.blocks[:1]))
+def _truncate_dit_blocks(transformer: WanTransformer3DModel, n: int) -> None:
+    """Keep only the first `n` DiT blocks. `n<=0` -> full model."""
+    if n and n > 0:
+        transformer.blocks = nn.ModuleList(list(transformer.blocks[:n]))
+        print(f"[debug] truncated DiT to {n} block(s)")
 
 
 def build_lora_transformer(cfg: Config) -> WanTransformer3DModel:
@@ -592,7 +650,7 @@ def build_lora_transformer(cfg: Config) -> WanTransformer3DModel:
     transformer = WanTransformer3DModel.from_pretrained(
         cfg.MODEL_ID, subfolder="transformer", torch_dtype=cfg.DTYPE, low_cpu_mem_usage=True,
     )
-    _truncate_dit_to_one_block(transformer)
+    _truncate_dit_blocks(transformer, cfg.DEBUG_DIT_BLOCKS)
     dev = _devmgr()
     transformer = dev.to_device(transformer)
     for p in transformer.parameters():
@@ -684,6 +742,131 @@ def flow_matching_step(
     return loss, t.detach().to("cpu")
 
 
+def _pcc(a: torch.Tensor, b: torch.Tensor) -> float:
+    a = a.detach().to("cpu", torch.float32).flatten()
+    b = b.detach().to("cpu", torch.float32).flatten()
+    va, vb = a - a.mean(), b - b.mean()
+    denom = va.norm() * vb.norm()
+    return float("nan") if denom == 0 else float((va @ vb) / denom)
+
+
+def _lora_grad_vec(model: nn.Module) -> dict[str, torch.Tensor]:
+    """Flattened LoRA grads keyed by param name (CPU float32)."""
+    out = {}
+    for name, p in model.named_parameters():
+        if p.requires_grad and p.grad is not None and "lora_" in name:
+            out[name] = p.grad.detach().to("cpu", torch.float32).flatten()
+    return out
+
+
+def _build_cpu_replica(cfg: Config, tt_transformer: WanTransformer3DModel) -> WanTransformer3DModel:
+    """Same arch + same (already-LoRA'd) weights as the TT transformer, on CPU."""
+    m = WanTransformer3DModel.from_pretrained(
+        cfg.MODEL_ID, subfolder="transformer", torch_dtype=cfg.DTYPE, low_cpu_mem_usage=True,
+    )
+    _truncate_dit_blocks(m, cfg.DEBUG_DIT_BLOCKS)
+    for p in m.parameters():
+        p.requires_grad_(False)
+    lora_cfg = LoraConfig(
+        r=cfg.LORA_RANK, lora_alpha=cfg.LORA_ALPHA,
+        target_modules=list(cfg.LORA_TARGETS), lora_dropout=0.0,
+        init_lora_weights="gaussian",
+    )
+    m.add_adapter(lora_cfg)
+    sd = {k: v.detach().to("cpu", cfg.DTYPE) for k, v in tt_transformer.state_dict().items()}
+    m.load_state_dict(sd, strict=True)
+    return m.to("cpu").eval()
+
+
+def _load_debug_dit(cfg: Config) -> WanTransformer3DModel:
+    """Fresh truncated DiT for debug probes — no LoRA, eval, frozen."""
+    m = WanTransformer3DModel.from_pretrained(
+        cfg.MODEL_ID,
+        subfolder="transformer",
+        torch_dtype=cfg.DTYPE,
+        low_cpu_mem_usage=True,
+    )
+    _truncate_dit_blocks(m, cfg.DEBUG_DIT_BLOCKS)
+    for p in m.parameters():
+        p.requires_grad_(False)
+    return m.eval()
+
+
+def _debug_first_step_tt_vs_cpu(cfg, transformer, compiled_transformer, batch):
+    """Compare dev_wan-style TT compile vs CPU on one forward (debug only)."""
+    import torch_xla
+
+    def _dit_per_patch_timestep(
+        t: torch.Tensor,
+        latent: torch.Tensor,
+        patch_size: tuple[int, int, int] = (1, 2, 2),
+    ) -> torch.Tensor:
+        """dev_wan / expand_timesteps: (B, num_patches) float32 (debug only)."""
+        B = latent.shape[0]
+        _, _, fl, hl, wl = latent.shape
+        pt, ph, pw = patch_size
+        seq = (fl // pt) * (hl // ph) * (wl // pw)
+        return (t.to(torch.float32) * 1000.0).view(B, 1).expand(B, seq).contiguous()
+
+    dev = _devmgr()
+    B = batch["latent"].shape[0]
+    x0 = batch["latent"].to(cfg.DTYPE)
+    text = batch["text_embed"].to(cfg.DTYPE)
+    t = _sample_timesteps(B, cfg).to(cfg.DTYPE)
+    noise = torch.randn(x0.shape, dtype=x0.dtype)
+    sigma = t.view(B, 1, 1, 1, 1)
+    x_t = (1.0 - sigma) * x0 + sigma * noise
+    pt, ph, pw = (1, 2, 2)
+    timestep = _dit_per_patch_timestep(t, x0, patch_size=(pt, ph, pw))
+    target = (noise - x0).float()
+
+    print(
+        f"[debug] dev_wan-style probe  blocks={cfg.DEBUG_DIT_BLOCKS}  "
+        f"fresh compile after .to(device), enable_trace=True, no LoRA  "
+        f"x_t={tuple(x_t.shape)}  timestep={tuple(timestep.shape)} {timestep.dtype}  "
+        f"target={tuple(target.shape)}",
+        flush=True,
+    )
+
+    cpu_wrapper = _WanDiTWrapper(_load_debug_dit(cfg)).to(cfg.DTYPE)
+
+    tt_wrapper = _WanDiTWrapper(_load_debug_dit(cfg)).to(cfg.DTYPE)
+    tt_wrapper = tt_wrapper.to(dev.device)
+
+    debug_xla_opts = {
+        "optimization_level": "0",
+        "experimental-enable-dram-space-saving-optimization": "true",
+        #"enable_trace": "true",
+    }
+    torch_xla.set_custom_compile_options(debug_xla_opts)
+    print(f"[debug] xla compile opts (probe only): {debug_xla_opts}", flush=True)
+
+    compiled_tt = torch.compile(tt_wrapper, backend="tt")
+    with torch.no_grad():
+        pred_cpu = cpu_wrapper(
+            x_t, timestep, text,
+        ).float()
+        loss_cpu = F.mse_loss(pred_cpu, target)
+
+        pred_tt = compiled_tt(
+            dev.to_device(x_t),
+            dev.to_device(timestep),
+            dev.to_device(text),
+        )
+        #dev.sync()
+        torch_xla.sync(wait=True)
+        pred_tt = pred_tt.detach().to("cpu").float()
+        loss_tt = F.mse_loss(pred_tt, target)
+
+        print(
+            f"[debug] FORWARD  loss_tt={loss_tt.item():.4f}  loss_cpu={loss_cpu.item():.4f}  "
+            f"PCC(pred_tt,pred_cpu)={_pcc(pred_tt, pred_cpu):.4f}  "
+            f"PCC(pred_tt,target)={_pcc(pred_tt, target):.4f}  "
+            f"PCC(pred_cpu,target)={_pcc(pred_cpu, target):.4f}",
+            flush=True,
+        )
+
+
 # ---------------------------------------------------------------------------
 # 8 + 9. Validation
 # ---------------------------------------------------------------------------
@@ -734,7 +917,7 @@ def _build_pipeline_for_validation(transformer: WanTransformer3DModel, cfg: Conf
     # and sharded (build_lora_transformer did that). VAE encoder shard specs
     # also seed the decoder path because both share `vae.{quant,post_quant}_conv`.
     if getattr(pipe, "text_encoder", None) is not None:
-        _truncate_umt5_to_one_layer(pipe.text_encoder)
+        _truncate_umt5_layers(pipe.text_encoder, cfg.DEBUG_UMT5_LAYERS)
         pipe.text_encoder.encoder.embed_tokens.weight = pipe.text_encoder.shared.weight
         pipe.text_encoder = dev.to_device(pipe.text_encoder)
         dev.shard_module(pipe.text_encoder, "umt5")
@@ -743,6 +926,187 @@ def _build_pipeline_for_validation(transformer: WanTransformer3DModel, cfg: Conf
     # transformer is already on TT — pipe.transformer is the same object.
 
     return pipe
+
+
+def _cache_ctx(model: nn.Module, name: str):
+    """`model.cache_context(name)` if the module exposes it (CacheMixin),
+    else a no-op. Used to mirror diffusers' per-pass cache bucketing."""
+    cc = getattr(model, "cache_context", None)
+    if callable(cc):
+        try:
+            return cc(name)
+        except Exception:
+            return nullcontext()
+    return nullcontext()
+
+
+@torch.no_grad()
+def _generate_wan_video(
+    pipe: WanPipeline,
+    compiled_transformer,
+    cfg: Config,
+    *,
+    prompt: str,
+    negative_prompt: str | None,
+    height: int,
+    width: int,
+    num_frames: int,
+    num_inference_steps: int,
+    guidance_scale: float,
+    generator: torch.Generator,
+    output_type: str = "pil",
+    max_sequence_length: int = 512,
+):
+    """ppadjin-style manual denoise loop (mirror of `WanT2VPipeline.generate`
+    in tt-xla:ppadjin/wan5b_tests).
+
+    Why not `pipe(...)`: diffusers' `WanPipeline.__call__` runs the
+    *uncompiled* DiT eagerly under lazy tensors and only calls
+    `xm.mark_step()` at the end of each loop iteration, so every per-step
+    graph fuses the DiT forward **with** the UniPC `scheduler.step`. UniPC's
+    per-step sigma ratios + multistep-order branching differ each step, so
+    the HLO hash changes every iteration -> PJRT cache miss -> a full
+    recompile per step (x2 with CFG).
+
+    Here the *compiled* DiT is the only thing on TT inside the loop, and it
+    sees plain device tensors (latent + per-step timestep) that change in
+    value but never in shape/dtype. The scheduler step, CFG blend, and all
+    per-step scalar math stay on CPU. The DiT HLO is then byte-identical
+    across steps: compiled once, every later step is a cache hit.
+    """
+    dev = _devmgr()
+    device = dev.device
+    transformer_dtype = cfg.DTYPE
+    do_cfg = guidance_scale > 1.0
+
+    vae_t = pipe.vae.config.scale_factor_temporal
+    vae_s = pipe.vae.config.scale_factor_spatial
+    patch_size = pipe.transformer.config.patch_size
+
+    # --- shape alignment (mirror WanPipeline.__call__) ---
+    if num_frames % vae_t != 1:
+        num_frames = num_frames // vae_t * vae_t + 1
+    num_frames = max(num_frames, 1)
+    height = height // (vae_s * patch_size[1]) * (vae_s * patch_size[1])
+    width = width // (vae_s * patch_size[2]) * (vae_s * patch_size[2])
+
+    tt_cast = lambda x: x.to(dtype=transformer_dtype, device=device)
+    cpu_cast = lambda x: x.to(device="cpu", dtype=torch.float32)
+
+    # --- text encode (UMT5 on TT; torch.compile'd as its own graph, like
+    # dev_wan/ppadjin, and identical to the `precompute` path). Compiling the
+    # encoder (vs the eager `pipe.encode_prompt`) keeps UMT5 a *separate*
+    # cached graph instead of fusing its forward (incl. the 256384x4096 vocab
+    # gather) into the first DiT graph. The wrapper is stashed on `pipe` so its
+    # id() stays stable across calls (the compile cache is id-keyed).
+    umt5 = getattr(pipe, "_compiled_umt5", None)
+    if umt5 is None:
+        pipe._umt5_wrapper = _UMT5Wrapper(pipe.text_encoder)
+        umt5 = dev.compile(pipe._umt5_wrapper)
+        pipe._compiled_umt5 = umt5
+
+    def _encode(text: str) -> torch.Tensor:
+        tok = pipe.tokenizer(
+            text,
+            padding="max_length",
+            truncation=True,
+            max_length=max_sequence_length,
+            return_tensors="pt",
+        )
+        input_ids = dev.to_device(tok.input_ids)
+        attn_mask = dev.to_device(tok.attention_mask)
+        out = umt5(input_ids, attn_mask)
+        # Match WanPipeline.encode_prompt / precompute: zero padding, keep full length.
+        out = out * attn_mask.unsqueeze(-1).to(out.dtype)
+        return out.to(transformer_dtype)
+
+    prompt_embeds = _encode(prompt)
+    negative_prompt_embeds = _encode(negative_prompt or "") if do_cfg else None
+    # Cut the graph here so the realized text embeds enter the DiT loop as plain
+    # device-buffer inputs (UMT5 stays its own compiled/cached graph).
+    xm.mark_step()
+
+    # --- timesteps + latents (CPU) ---
+    pipe.scheduler.set_timesteps(num_inference_steps, device="cpu")
+    timesteps = pipe.scheduler.timesteps
+
+    num_latent_frames = (num_frames - 1) // vae_t + 1
+    latent_shape = (
+        1,
+        pipe.transformer.config.in_channels,
+        num_latent_frames,
+        height // vae_s,
+        width // vae_s,
+    )
+    latents = torch.randn(latent_shape, generator=generator, dtype=torch.float32, device="cpu")
+    mask = torch.ones_like(latents)
+    expand_ts = bool(getattr(pipe.config, "expand_timesteps", False))
+
+    for t in timesteps:
+        latent_model_input = latents.to(transformer_dtype)        # CPU
+        if expand_ts:
+            # per-patch timestep: num_latent_frames * (H//2) * (W//2)
+            temp_ts = (mask[0][0][:, ::2, ::2] * t).flatten()
+            timestep = temp_ts.unsqueeze(0).expand(1, -1)
+        else:
+            timestep = t.expand(1)
+
+        # CPU -> TT: only the DiT inputs cross to the device. timestep keeps
+        # its dtype (int64/float) so the compiled graph's input sig is stable.
+        lat_dev = tt_cast(latent_model_input)
+        ts_dev = timestep.to(device)
+
+        with _cache_ctx(pipe.transformer, "cond"):
+            noise_pred = compiled_transformer(
+                hidden_states=lat_dev,
+                timestep=ts_dev,
+                encoder_hidden_states=prompt_embeds,
+                return_dict=False,
+            )[0]
+        noise_pred = cpu_cast(noise_pred)        # sync -> per-step graph boundary
+
+        if do_cfg:
+            with _cache_ctx(pipe.transformer, "uncond"):
+                noise_uncond = compiled_transformer(
+                    hidden_states=lat_dev,
+                    timestep=ts_dev,
+                    encoder_hidden_states=negative_prompt_embeds,
+                    return_dict=False,
+                )[0]
+            noise_uncond = cpu_cast(noise_uncond)
+            noise_pred = noise_uncond + guidance_scale * (noise_pred - noise_uncond)
+
+        # scheduler step on CPU keeps UniPC's per-step scalars out of the DiT graph.
+        latents = pipe.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
+
+    if output_type == "latent":
+        return latents
+
+    # --- VAE decode (TT, one shot; needs the slice clamp) ---
+    latents_vae = latents.to(torch.float32)
+    latents_mean = (
+        torch.tensor(pipe.vae.config.latents_mean)
+        .view(1, pipe.vae.config.z_dim, 1, 1, 1)
+        .to(latents_vae.device, latents_vae.dtype)
+    )
+    latents_std = 1.0 / torch.tensor(pipe.vae.config.latents_std).view(
+        1, pipe.vae.config.z_dim, 1, 1, 1
+    ).to(latents_vae.device, latents_vae.dtype)
+    latents_vae = (latents_vae / latents_std + latents_mean).to(dtype=pipe.vae.dtype, device=device)
+
+    # Compile the whole decode (frame loop + feat_cache) into one graph. The
+    # wrapper is stashed on `pipe` so its id() stays stable across calls (the
+    # compile cache is id-keyed; a GC'd-then-recreated wrapper could alias).
+    vae_decode = getattr(pipe, "_compiled_vae_decode", None)
+    if vae_decode is None:
+        pipe._vae_dec_wrapper = _VAEDecoderWrapper(pipe.vae)
+        vae_decode = dev.compile(pipe._vae_dec_wrapper)
+        pipe._compiled_vae_decode = vae_decode
+
+    with safe_xla_slicing():
+        video = vae_decode(latents_vae)
+    video = video.to("cpu").to(torch.float32)
+    return pipe.video_processor.postprocess_video(video, output_type=output_type)
 
 
 @torch.no_grad()
@@ -765,23 +1129,28 @@ def generate_validation_sample(
           f"({cfg.INFER_H}x{cfg.INFER_W}, {cfg.VAL_IMG_STEPS} steps) ...")
     transformer.eval()
     pipe = _build_pipeline_for_validation(transformer, cfg)
+    # Reuse the cached compiled DiT (id-keyed in WanDeviceManager.compile) so
+    # the denoise loop hits one compiled graph instead of recompiling per step.
+    compiled_transformer = _devmgr().compile(transformer)
     gen = torch.Generator(device="cpu").manual_seed(cfg.SEED)
     t0 = time.time()
-    # `safe_xla_slicing` is required around any pipeline call that touches
-    # the VAE decoder (e.g. `x[:, :, -2:, :, :]` on a size-1 temporal dim).
-    with safe_xla_slicing():
-        out = pipe(
-            prompt=cfg.TRIGGER + cfg.VAL_PROMPT,
-            negative_prompt=cfg.NEG_PROMPT or None,
-            height=cfg.INFER_H,
-            width=cfg.INFER_W,
-            num_frames=cfg.VAL_IMG_FRAMES,
-            num_inference_steps=cfg.VAL_IMG_STEPS,
-            guidance_scale=cfg.INFER_GUIDANCE,
-            generator=gen,
-            output_type="pil",
-        )
-    frames = out.frames[0]  # list of PIL.Image
+    # Manual ppadjin-style loop: compiled DiT on TT, scheduler/CFG/decode-prep
+    # on CPU. `safe_xla_slicing` wraps the VAE decode inside the helper.
+    video = _generate_wan_video(
+        pipe,
+        compiled_transformer,
+        cfg,
+        prompt=cfg.TRIGGER + cfg.VAL_PROMPT,
+        negative_prompt=cfg.NEG_PROMPT or None,
+        height=cfg.INFER_H,
+        width=cfg.INFER_W,
+        num_frames=cfg.VAL_IMG_FRAMES,
+        num_inference_steps=cfg.VAL_IMG_STEPS,
+        guidance_scale=cfg.INFER_GUIDANCE,
+        generator=gen,
+        output_type="pil",
+    )
+    frames = video[0]  # list of PIL.Image
     img = frames[0]
     video_np = None
     if len(frames) > 1:
@@ -845,7 +1214,7 @@ def train(cfg: Config):
     trainable = [p for p in transformer.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(
         trainable, lr=cfg.LR, weight_decay=cfg.WEIGHT_DECAY, betas=(0.9, 0.999),
-        capturable=True,
+        capturable=False,
     )
     # LR scheduler disabled — using constant LR for now. Re-enable by uncommenting:
     # warmup_steps = max(1, int(cfg.MAX_STEPS * cfg.LR_WARMUP_FRAC))
@@ -864,6 +1233,7 @@ def train(cfg: Config):
     # ----- Pre-training baseline (step=0): skipped — fused eager pipe(UMT5+DiT)
     # blows up TTNN IR (~200k ops from RoPE consteval). Training uses compiled
     # DiT + precomputed embeds only; periodic val videogen still runs later.
+    # ----- DEBUG: initial e2e videogen commented out for the first-step PCC probe.
     # print(f"[train] generating step=0 baseline (LoRA disabled) ...")
     # transformer.disable_adapters()
     # try:
@@ -877,7 +1247,8 @@ def train(cfg: Config):
     # except Exception as e:
     #     print(f"[train] baseline generation failed ({e!r}); skipping")
     # transformer.enable_adapters()
-    print("[train] skipping step=0 baseline videogen (fused UMT5+DiT compile); starting training loop")
+    # print("[train] skipping step=0 baseline videogen (fused UMT5+DiT compile); starting training loop")
+    #exit(0)
 
     global_step = 0
     ema_loss: float | None = None
@@ -892,6 +1263,13 @@ def train(cfg: Config):
     print(f"[train] starting loop: max_steps={cfg.MAX_STEPS}, accum={cfg.GRAD_ACCUM}, "
           f"batch={cfg.BATCH}, lr={cfg.LR}, wd={cfg.WEIGHT_DECAY}")
     optimizer.zero_grad(set_to_none=True)
+
+    # ----- DEBUG: run ONE training step on TT and on a CPU replica with the
+    # exact same (x_t, timestep, text_embed, target), compare the DiT output
+    # PCC, print both losses, then exit.
+    _debug_first_step_tt_vs_cpu(cfg, transformer, compiled_transformer, next(data_iter))
+    #_debug_first_step_tt_vs_cpu(cfg, transformer, compiled_transformer, next(data_iter))
+    exit(0)
 
     while global_step < cfg.MAX_STEPS:
         try:
@@ -911,9 +1289,11 @@ def train(cfg: Config):
         micro_step += 1
 
         if micro_step % cfg.GRAD_ACCUM == 0:
-            optimizer.step()
+            #optimizer.step()
+            xm.optimizer_step(optimizer, barrier=True)
             # lr_scheduler.step()
-            optimizer.zero_grad(set_to_none=True)
+            #optimizer.zero_grad(set_to_none=True)
+            optimizer.zero_grad()
             _devmgr().sync()
             global_step += 1
             avg_loss = accum_loss / accum_count
@@ -1032,13 +1412,13 @@ def infer(
             pipe.scheduler.config, flow_shift=cfg.INFER_FLOW_SHIFT
         )
         if getattr(pipe, "text_encoder", None) is not None:
-            _truncate_umt5_to_one_layer(pipe.text_encoder)
+            _truncate_umt5_layers(pipe.text_encoder, cfg.DEBUG_UMT5_LAYERS)
             pipe.text_encoder.encoder.embed_tokens.weight = pipe.text_encoder.shared.weight
             pipe.text_encoder = dev.to_device(pipe.text_encoder)
             dev.shard_module(pipe.text_encoder, "umt5")
         pipe.vae = dev.to_device(pipe.vae)
         dev.shard_module(pipe.vae, "vae_decoder")
-        _truncate_dit_to_one_block(pipe.transformer)
+        _truncate_dit_blocks(pipe.transformer, cfg.DEBUG_DIT_BLOCKS)
         pipe.transformer = dev.to_device(pipe.transformer)
         _load_lora_compat(pipe, lora_path)
         dev.shard_module(pipe.transformer, "dit")
@@ -1054,7 +1434,7 @@ def infer(
             pipe.scheduler.config, flow_shift=cfg.INFER_FLOW_SHIFT
         )
         if getattr(pipe, "text_encoder", None) is not None:
-            _truncate_umt5_to_one_layer(pipe.text_encoder)
+            _truncate_umt5_layers(pipe.text_encoder, cfg.DEBUG_UMT5_LAYERS)
             pipe.text_encoder.encoder.embed_tokens.weight = pipe.text_encoder.shared.weight
             pipe.text_encoder = dev.to_device(pipe.text_encoder)
             dev.shard_module(pipe.text_encoder, "umt5")
@@ -1072,19 +1452,26 @@ def infer(
           f"in {cfg.INFER_STEPS} steps (cfg={cfg.INFER_GUIDANCE}, flow_shift={cfg.INFER_FLOW_SHIFT})")
     t0 = time.time()
     gen = torch.Generator(device="cpu").manual_seed(cfg.SEED)
-    with safe_xla_slicing():
-        result = pipe(
-            prompt=cfg.TRIGGER + prompt,
-            negative_prompt=negative_prompt,
-            height=cfg.INFER_H,
-            width=cfg.INFER_W,
-            num_frames=cfg.INFER_FRAMES,
-            num_inference_steps=cfg.INFER_STEPS,
-            guidance_scale=cfg.INFER_GUIDANCE,
-            generator=gen,
-            output_type="pil",
-        )
-    frames = result.frames[0]  # list of PIL.Image
+    pipe.transformer.eval()
+    # Compiled DiT (id-keyed cache) so the denoise loop reuses one graph.
+    compiled_transformer = dev.compile(pipe.transformer)
+    # Manual ppadjin-style loop: compiled DiT on TT, scheduler/CFG/decode-prep
+    # on CPU. `safe_xla_slicing` wraps the VAE decode inside the helper.
+    video = _generate_wan_video(
+        pipe,
+        compiled_transformer,
+        cfg,
+        prompt=cfg.TRIGGER + prompt,
+        negative_prompt=negative_prompt,
+        height=cfg.INFER_H,
+        width=cfg.INFER_W,
+        num_frames=cfg.INFER_FRAMES,
+        num_inference_steps=cfg.INFER_STEPS,
+        guidance_scale=cfg.INFER_GUIDANCE,
+        generator=gen,
+        output_type="pil",
+    )
+    frames = video[0]  # list of PIL.Image
     print(f"[infer] generated in {(time.time() - t0) / 60.0:.1f} min; frames={len(frames)}")
 
     out_path = output_path or cfg.INFER_OUTPUT
@@ -1159,7 +1546,12 @@ def main():
     if args.cmd == "precompute":
         precompute_latents_and_embeds(cfg)
     elif args.cmd == "train":
-        train(cfg)
+        checks_config = chisel.ChiselChecksConfig(
+            isolation=True,
+            accumulation=False,
+        )
+        with chisel.session(results_path="output_report.jsonl", checks_config=checks_config) as report:
+            train(cfg)
     elif args.cmd == "infer":
         lora_path = args.lora or cfg.LORA_PATH
         prompt = args.prompt or cfg.VAL_PROMPT
@@ -1168,7 +1560,12 @@ def main():
               negative_prompt=args.negative_prompt)
     elif args.cmd == "all":
         precompute_latents_and_embeds(cfg)
-        train(cfg)
+        checks_config = chisel.ChiselChecksConfig(
+            isolation=True,
+            accumulation=False,
+        )
+        with chisel.session(results_path="output_report.jsonl", checks_config=checks_config) as report:
+            train(cfg)
         # train() already calls infer() at the end.
 
 
