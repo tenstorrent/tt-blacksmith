@@ -12,7 +12,6 @@ import optax
 from easydel import AutoEasyDeLModelForCausalLM
 from flax import nnx
 from flax.nnx.nn.dtypes import promote_dtype
-from flax.nnx.nn.lora import LoRA as _FlaxLoRA
 from jax.typing import DTypeLike
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
@@ -152,12 +151,7 @@ def apply_lora(
     Returns:
         The model with LoRA layers injected in-place.
     """
-    # Idempotent class patch: isolates the LoRA adapter dot from the base dot.
-    """
-    if _FlaxLoRA.__call__ is not _lora_call_with_barrier:
-        _FlaxLoRA.__call__ = _lora_call_with_barrier
-    """
-    
+
     ctx = jax.default_device(jax.devices("cpu")[0]) if on_cpu else contextlib.nullcontext()
     with ctx:
         return model.apply_lora_to_layers(

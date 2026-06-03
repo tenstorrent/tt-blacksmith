@@ -10,7 +10,6 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import linen as nn
-from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -121,9 +120,7 @@ def vocab_parallel_cross_entropy(
 
     # Replicate the model-sharded vocab axis (all-gather over model_axis) so the
     # cross-entropy reductions are entirely local; no shard_map / manual region.
-    logits = jax.lax.with_sharding_constraint(
-        logits, NamedSharding(mesh, PartitionSpec(data_spec, None, None))
-    )
+    logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(data_spec, None, None)))
 
     return masked_cross_entropy(logits, labels, clamped=True, ignored_index=ignored_index)
 

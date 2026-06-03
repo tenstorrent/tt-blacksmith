@@ -27,11 +27,7 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
     Vocab-parallel CE when the vocab axis is sharded (model_axis size > 1) so
     the softmax normaliser is reduced across shards; otherwise the clamped CE.
     """
-    vocab_parallel = (
-        mesh is not None
-        and model_axis in getattr(mesh, "axis_names", ())
-        and mesh.shape[model_axis] > 1
-    )
+    vocab_parallel = mesh is not None and model_axis in getattr(mesh, "axis_names", ()) and mesh.shape[model_axis] > 1
 
     def cross_entropy(logits, labels):
         if vocab_parallel:
@@ -112,7 +108,7 @@ def create_fused_train_step_fn(
             attention_mask,
         )
 
-        #Workaround for the gradient barrier issue (possible)
+        # Workaround for the gradient barrier issue (possible)
         grads = jax.tree.map(
             lambda grad, sharding: jax.lax.with_sharding_constraint(grad, sharding),
             grads,
@@ -155,7 +151,7 @@ def create_eval_step_fn(
     def eval_step(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = forward(model, inputs_embeds, attention_mask)
-        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*[None]*logits.ndim)))
+        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*[None] * logits.ndim)))
         # Loss only: also returning argmax predictions would leave the TT
         # flatbuffer with more outputs than output shardings and break the
         # single fixed-signature eval JIT that avoids MeshDevice re-init crashes.
