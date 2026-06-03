@@ -221,10 +221,10 @@ def build_optimizer(
     transforms.append(optax.adamw(learning_rate=schedule, mu_dtype=jnp.float32, eps=1e-5))
     base_optimizer = optax.chain(*transforms)
 
-    accum = config.gradient_accumulation_steps
-    if accum > 1:
-        optimizer = optax.MultiSteps(base_optimizer, every_k_schedule=accum)
-    else:
-        optimizer = base_optimizer
+    # accum = config.gradient_accumulation_steps
+    # if accum > 1:
+    #     optimizer = optax.MultiSteps(base_optimizer, every_k_schedule=accum)
+    # else:
+    optimizer = base_optimizer
 
     return optimizer, schedule

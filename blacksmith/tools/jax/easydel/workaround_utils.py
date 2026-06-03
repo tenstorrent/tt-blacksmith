@@ -147,3 +147,39 @@ def apply_gqa_workaround() -> None:
     """
     VanillaAttn.forward_native = _vanilla_attn_forward_4d_repeat_kv
     logger.info("Applied GQA 4D workaround: VanillaAttn.forward_native patched to avoid 5D tensors")
+
+
+def _lora_call_no_reduce_precision(self, x: Array) -> Array:
+    lora_a = self.lora_a[...]
+    lora_b = self.lora_b[...]
+
+    target = self.dtype
+    if target is None:
+        target = jnp.promote_types(jnp.promote_types(x.dtype, lora_a.dtype), lora_b.dtype)
+
+    def _cast(arr):
+        if arr.dtype == target:
+            return arr
+        return jax.lax.convert_element_type(arr, target)
+
+    x_cast = _cast(x)
+    lora_a_cast = _cast(lora_a)
+    lora_b_cast = _cast(lora_b)
+
+    out = x_cast @ lora_a_cast @ lora_b_cast
+    if self.base_module is not None:
+        if not callable(self.base_module):
+            raise ValueError("`self.base_module` must be callable.")
+        out = out + self.base_module(x)
+    return out
+
+
+def apply_lora_workaround() -> None:
+    """Patch flax.nnx.nn.lora.LoRA.__call__ to avoid stablehlo.reduce_precision.
+
+    See _lora_call_no_reduce_precision for rationale.
+    """
+    from flax.nnx.nn.lora import LoRA
+
+    LoRA.__call__ = _lora_call_no_reduce_precision
+    logger.info("Applied LoRA workaround: __call__ patched to avoid stablehlo.reduce_precision")

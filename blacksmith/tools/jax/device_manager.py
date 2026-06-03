@@ -12,7 +12,7 @@ import numpy as np
 from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from blacksmith.tools.jax.easydel.partitioning import build_param_partition_specs
-from blacksmith.tools.jax.easydel.workaround_utils import apply_gqa_workaround
+from blacksmith.tools.jax.easydel.workaround_utils import apply_gqa_workaround, apply_lora_workaround
 from blacksmith.tools.templates.configs import TrainingConfig
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,9 @@ class JaxDeviceManager:
 
         if getattr(config, "apply_gqa_workaround", True) and self.device_kind == "tt":
             apply_gqa_workaround()
+
+        if getattr(config, "apply_lora_workaround", True) and self.device_kind == "tt":
+            apply_lora_workaround()
 
         self.mesh = self._create_mesh()
         self.sharding = self._build_sharding_specs()

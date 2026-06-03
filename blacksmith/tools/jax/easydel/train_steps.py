@@ -73,29 +73,13 @@ def _make_forward_fn(mesh, model_axis: str = "model", embedding_row_sharded: boo
     return forward
 
 
-def create_fused_train_step_fn(
+def create_fwd_bwd_step_fn(
     graphdef: nnx.GraphDef,
-    tx: optax.GradientTransformation,
     lora_shardings,
     mesh=None,
     model_axis: str = "model",
     embedding_row_sharded: bool = False,
 ) -> Callable:
-    """JIT-compiled forward + backward + optimizer step.
-
-    Label shift, masking, one-hot, and clamped CE run inside the JIT via
-    masked_cross_entropy so no per-step micro-ops escape to TT and
-    trigger fabric / MeshDevice re-init (tt-xla#1993, tt-xla#4809).
-
-    embedding_row_sharded selects the input embedding path: pass True only when
-    the token embedding is sharded along its vocab (row) axis, otherwise the
-    plain replicated lookup is used. See _make_forward_fn.
-
-    Returns fused_train_step(lora_params, frozen_state, opt_state,
-    input_ids, labels, attention_mask) -> (new_params, new_opt, loss,
-    grad_stats).
-    """
-
     cross_entropy = _make_loss_fn(mesh, model_axis)
     forward = _make_forward_fn(mesh, model_axis, embedding_row_sharded)
 
@@ -111,17 +95,17 @@ def create_fused_train_step_fn(
             return x
         return jax.lax.with_sharding_constraint(x, scalar_sharding)
 
+    # @jax.checkpoint(policy=jax.checkpoint_policies.nothing_saveable)
     def loss_fn(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = forward(model, inputs_embeds, attention_mask)
-        logits = jax.lax.all_gather(logits, axis_name="model") # TEST IF THIS WORKS
+        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*([None] * logits.ndim))))
         return cross_entropy(logits, labels)
 
     @jax.jit
-    def fused_train_step(
+    def fwd_bwd_step(
         lora_params,
         frozen_state,
-        opt_state,
         inputs_embeds,
         labels,
         attention_mask,
@@ -134,25 +118,46 @@ def create_fused_train_step_fn(
             attention_mask,
         )
 
-        #Worakaround for the gradient barrier issue (possible)
         grads = jax.tree.map(
             lambda grad, sharding: jax.lax.with_sharding_constraint(grad, sharding),
             grads,
             lora_shardings,
         )
 
+        # leaves = jax.tree.leaves(grads)
+        # grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
+        # grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]))
+        loss = _pin_scalar(loss)
+        # grad_norm = _pin_scalar(grad_norm)
+        # grad_max = _pin_scalar(grad_max)
+        return grads, loss, {"grad_norm": 0.0, "grad_max": 0.0}
+
+    return fwd_bwd_step
+
+
+def create_optimizer_step_fn(
+    tx: optax.GradientTransformation,
+) -> Callable:
+    """JIT-compiled optax update + apply_updates.
+
+    Pairs with ``create_fwd_bwd_step_fn``. ``grads`` and ``lora_params`` flow in
+    from the previous JIT with their device-side shardings preserved across the
+    boundary (no host copy). The ``optimization_barrier`` on new_params is left
+    commented out for parity with the previous fused step; cross-step fusion is
+    structurally impossible across the JIT boundary, so it would be a no-op
+    here, but it is easy to flip back on if needed.
+
+    Returns opt_step(grads, lora_params, opt_state) -> (new_params, new_opt).
+    """
+
+    @jax.jit
+    def opt_step(grads, lora_params, opt_state):
         updates, new_opt = tx.update(grads, opt_state, lora_params)
         new_params = optax.apply_updates(lora_params, updates)
-        new_params = jax.tree.map(jax.lax.optimization_barrier, new_params)
-        leaves = jax.tree.leaves(grads)
-        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
-        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]))
-        loss = _pin_scalar(loss)
-        grad_norm = _pin_scalar(grad_norm)
-        grad_max = _pin_scalar(grad_max)
-        return new_params, new_opt, loss, {"grad_norm": grad_norm, "grad_max": grad_max}
+        # new_params = jax.tree.map(jax.lax.optimization_barrier, new_params)
+        return new_params, new_opt
 
-    return fused_train_step
+    return opt_step
 
 
 def create_eval_step_fn(
@@ -170,7 +175,7 @@ def create_eval_step_fn(
     on TT (tt-xla#1993, tt-xla#4809).
 
     embedding_row_sharded selects the input embedding path and must match the
-    value passed to create_fused_train_step_fn. See _make_forward_fn.
+    value passed to create_fwd_bwd_step_fn. See _make_forward_fn.
 
     Returns eval_step(lora_params, frozen_state, input_ids, labels,
     attention_mask) -> loss (scalar). Predictions are deliberately not

@@ -22,7 +22,8 @@ from blacksmith.tools.jax.easydel.helpers import (
 from blacksmith.tools.jax.easydel.partitioning import easydel_partition_specs_for_lora
 from blacksmith.tools.jax.easydel.train_steps import (
     create_eval_step_fn,
-    create_fused_train_step_fn,
+    create_fwd_bwd_step_fn,
+    create_optimizer_step_fn,
     evaluate,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -65,7 +66,9 @@ def train(
         device_manager,
         dtype=config.jax_dtype,
         mask_max_position_embeddings=config.mask_max_position_embeddings,
-        extra_config_kwargs={"num_hidden_layers": 1, "tie_word_embeddings": False}
+        extra_config_kwargs={
+            "tie_word_embeddings": False,
+        }
     )
     logger.info(f"Loaded {config.model_name} model.")
     logger.log_model_info(
@@ -169,13 +172,13 @@ def train(
         optimizer_state = optimizer.init(lora_params_cpu)
     optimizer_state = device_manager.apply_sharding_patterns(optimizer_state, sharding_patterns)
 
-    jit_fused_train_step = create_fused_train_step_fn(
+    jit_fwd_bwd_step = create_fwd_bwd_step_fn(
         graphdef,
-        optimizer,
         lora_shardings,
         mesh=device_manager.mesh,
         embedding_row_sharded=embedding_row_sharded,
     )
+    jit_opt_step = create_optimizer_step_fn(optimizer)
     jit_eval_step = create_eval_step_fn(
         graphdef,
         mesh=device_manager.mesh,
@@ -212,10 +215,10 @@ def train(
 
     try:
         # Initial validation.
-        validation_loss = validate(
-            jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
-        )
-        logger.log_metrics({"val/loss": validation_loss}, commit=True, step=global_step)
+        # validation_loss = validate(
+        #     jit_eval_step, lora_params, frozen_state, validation_batches, logger, **inspect_kwargs
+        # )
+        # logger.log_metrics({"val/loss": validation_loss}, commit=True, step=global_step)
 
         for epoch in range(config.num_epochs):
             num_batches = len(train_batches)
@@ -226,20 +229,22 @@ def train(
             for batch_index in range(num_batches):
                 batch = train_batches[shuffled_batch_order[batch_index]]
 
-                # Raw labels are passed through; the fused JIT runs the
-                # shift/mask/one-hot/clamped CE internally (tt-xla#1993, tt-xla#4809).
-                # inputs_embeds is gathered on host (frozen table) to avoid the
-                # device-side embedding gather; see _attach_embeds.
+                # Raw labels are passed through; fwd_bwd JIT runs the
+                # shift/mask/one-hot/CE internally. inputs_embeds is gathered on
+                # host (frozen table) to avoid the device-side embedding gather;
+                # see _attach_embeds. fwd/bwd and the optimizer compile as two
+                # separate JITs (faster per-graph compile); they alternate every
+                # step, which is the pattern flagged by tt-xla#1993, tt-xla#4809.
                 sharded_batch = device_manager.prepare_batch(_attach_embeds(batch))
 
-                lora_params, optimizer_state, loss, gradient_stats = jit_fused_train_step(
+                grads, loss, gradient_stats = jit_fwd_bwd_step(
                     lora_params,
                     frozen_state,
-                    optimizer_state,
                     sharded_batch["inputs_embeds"],
                     sharded_batch["labels"],
                     sharded_batch["attention_mask"],
                 )
+                lora_params, optimizer_state = jit_opt_step(grads, lora_params, optimizer_state)
                 jax.block_until_ready((lora_params, optimizer_state))
 
                 current_loss = float(loss)
