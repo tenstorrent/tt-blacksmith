@@ -21,27 +21,17 @@ from blacksmith.tools.jax.helpers import (
 from blacksmith.tools.logging_manager import TrainingLogger
 
 
-def _is_vocab_parallel(mesh, model_axis: str) -> bool:
-    """True when the model axis exists and has size greater than one.
-
-    With a vocab-sharded output projection the logits are split across
-    model_axis, so the softmax normaliser must be reduced across shards with an
-    explicit collective, i.e. the vocab-parallel cross-entropy. This is a
-    separate decision from how the input embedding is laid out; see
-    _make_forward_fn for the embedding side.
-    """
-    return mesh is not None and model_axis in getattr(mesh, "axis_names", ()) and mesh.shape[model_axis] > 1
-
-
 def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
-    """Pick the right cross-entropy for the active sharding.
+    """Pick the cross-entropy matching the active sharding.
 
-    When the vocab dimension is sharded across ``model_axis`` (size > 1), the
-    softmax normaliser must be reduced across shards explicitly, so we use the
-    vocab-parallel CE. Otherwise the plain clamped CE is sufficient.
+    Vocab-parallel CE when the vocab axis is sharded (model_axis size > 1) so
+    the softmax normaliser is reduced across shards; otherwise the clamped CE.
     """
-    vocab_parallel = _is_vocab_parallel(mesh, model_axis)
-    vocab_parallel = False
+    vocab_parallel = (
+        mesh is not None
+        and model_axis in getattr(mesh, "axis_names", ())
+        and mesh.shape[model_axis] > 1
+    )
 
     def cross_entropy(logits, labels):
         if vocab_parallel:
@@ -54,17 +44,10 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
 def _make_forward_fn(mesh, model_axis: str = "model", embedding_row_sharded: bool = False) -> Callable:
     """Return forward(model, inputs_embeds, attention_mask) -> logits.
 
-    inputs_embeds is precomputed on the host (see train.py): the frozen embedding
-    table is gathered off-device, so the graph never contains a device-side
-    embedding gather. Under any mesh with a model axis, GSPMD partitions an
-    on-device gather into a tile-illegal [b, s] -> [b*s] reshape (TT lowers it to
-    clamp + flatten + 1-D gather instead of ttnn.embedding). Doing the lookup on
-    the host sidesteps that and, unlike a shard_map lookup, does not spend the
-    single manual-computation region TT allows per module -- the vocab-parallel
-    cross-entropy already uses it.
-
-    embedding_row_sharded is accepted for signature compatibility but no longer
-    selects an embedding path; the lookup is always host-side now.
+    inputs_embeds is precomputed on the host (see train.py) so the graph holds
+    no device-side embedding gather, which GSPMD would lower to a tile-illegal
+    reshape on TT. embedding_row_sharded is kept for signature compatibility
+    only; the lookup is always host-side now.
     """
 
     def forward(model, inputs_embeds, attention_mask):
@@ -83,16 +66,11 @@ def create_fused_train_step_fn(
 ) -> Callable:
     """JIT-compiled forward + backward + optimizer step.
 
-    Label shift, masking, one-hot, and clamped CE run inside the JIT via
-    masked_cross_entropy so no per-step micro-ops escape to TT and
-    trigger fabric / MeshDevice re-init (tt-xla#1993, tt-xla#4809).
-
-    embedding_row_sharded selects the input embedding path: pass True only when
-    the token embedding is sharded along its vocab (row) axis, otherwise the
-    plain replicated lookup is used. See _make_forward_fn.
+    Shift/mask/one-hot/clamped CE all run inside the JIT so no per-step
+    micro-ops escape to TT and trigger fabric/MeshDevice re-init.
 
     Returns fused_train_step(lora_params, frozen_state, opt_state,
-    input_ids, labels, attention_mask) -> (new_params, new_opt, loss,
+    inputs_embeds, labels, attention_mask) -> (new_params, new_opt, loss,
     grad_stats).
     """
 
@@ -114,7 +92,7 @@ def create_fused_train_step_fn(
     def loss_fn(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = forward(model, inputs_embeds, attention_mask)
-        logits = jax.lax.all_gather(logits, axis_name="model") # TEST IF THIS WORKS
+        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*([None] * logits.ndim))))
         return cross_entropy(logits, labels)
 
     @jax.jit
@@ -134,7 +112,7 @@ def create_fused_train_step_fn(
             attention_mask,
         )
 
-        #Worakaround for the gradient barrier issue (possible)
+        #Workaround for the gradient barrier issue (possible)
         grads = jax.tree.map(
             lambda grad, sharding: jax.lax.with_sharding_constraint(grad, sharding),
             grads,
@@ -163,18 +141,12 @@ def create_eval_step_fn(
 ) -> Callable:
     """JIT-compiled evaluation step returning a scalar loss.
 
-    Uses the vocab-parallel CE when the vocab dim is sharded across
-    model_axis, else the TT-safe clamped CE. A single fixed-signature JIT
-    (one output, no per-step shape changes) avoids alternating between
-    distinct JITs, which previously triggered MeshDevice migration crashes
-    on TT (tt-xla#1993, tt-xla#4809).
+    Uses the vocab-parallel CE when the vocab dim is sharded, else the clamped
+    CE. A single fixed-signature JIT avoids the MeshDevice re-init crashes that
+    alternating JITs caused on TT. Predictions are not emitted; see eval_step.
 
-    embedding_row_sharded selects the input embedding path and must match the
-    value passed to create_fused_train_step_fn. See _make_forward_fn.
-
-    Returns eval_step(lora_params, frozen_state, input_ids, labels,
-    attention_mask) -> loss (scalar). Predictions are deliberately not
-    emitted; see the note inside eval_step.
+    Returns eval_step(lora_params, frozen_state, inputs_embeds, labels,
+    attention_mask) -> scalar loss.
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
@@ -183,14 +155,10 @@ def create_eval_step_fn(
     def eval_step(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = forward(model, inputs_embeds, attention_mask)
-        # Loss-only single output. We intentionally do NOT also return argmax
-        # predictions here: with vocab-parallel logits the loss is produced by a
-        # shard_map (manual sharding) while an argmax over the sharded vocab axis
-        # is GSPMD auto-sharded, and emitting both leaves the TT flatbuffer with
-        # more outputs than collected output shardings ("2 outputs vs 1
-        # m_output_shardings"). Keeping a single output also preserves the
-        # single fixed-signature eval JIT that avoids MeshDevice re-init crashes
-        # (tt-xla#1993, tt-xla#4809).
+        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*[None]*logits.ndim)))
+        # Loss only: also returning argmax predictions would leave the TT
+        # flatbuffer with more outputs than output shardings and break the
+        # single fixed-signature eval JIT that avoids MeshDevice re-init crashes.
         return cross_entropy(logits, labels)
 
     # Pin the scalar loss to a replicated 0-D sharding. Without this TT infers a
@@ -213,15 +181,10 @@ def evaluate(
     num_tokens: int = 20,
     training_logger: Optional[TrainingLogger] = None,
 ) -> float:
-    """Run evaluation on validation batches and return average loss.
+    """Run evaluation over validation batches and return the average loss.
 
-    jit_eval_step returns a single scalar loss from a fixed-signature JIT.
-    When a tokenizer is provided, the first num_examples batches also
-    transfer input_ids/labels to CPU and display them via show_predictions
-    (input / target / loss; predicted-token text and accuracy are omitted
-    since the eval JIT no longer emits argmax predictions). We never
-    alternate between distinct eval JITs, which is what previously triggered
-    MeshDevice migration crashes on TT (tt-xla#1993, tt-xla#4809).
+    When a tokenizer is provided, the first num_examples batches are also moved
+    to CPU and shown via show_predictions (input/target/loss only).
     """
     total_loss = 0.0
     collected_examples: list[dict[str, np.ndarray]] = []

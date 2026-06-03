@@ -16,7 +16,6 @@ from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.jax.easydel.helpers import (
     apply_lora,
     build_optimizer,
-    embedding_is_row_sharded,
     load_easydel_causal_lm,
 )
 from blacksmith.tools.jax.easydel.partitioning import easydel_partition_specs_for_lora
@@ -65,7 +64,7 @@ def train(
         device_manager,
         dtype=config.jax_dtype,
         mask_max_position_embeddings=config.mask_max_position_embeddings,
-        extra_config_kwargs={"num_hidden_layers": 1, "tie_word_embeddings": False}
+        extra_config_kwargs={"tie_word_embeddings": False}
     )
     logger.info(f"Loaded {config.model_name} model.")
     logger.log_model_info(
@@ -111,12 +110,9 @@ def train(
         on_cpu=(device_manager.device_kind == "tt"),
     )
 
-    # Host copy of the frozen embedding table. The input embedding lookup is done
-    # on the host (see _attach_embeds) so the graph never contains a device-side
-    # gather: under any mesh with a model axis, GSPMD partitions an on-device
-    # gather into a tile-illegal [b, s] -> [b*s] reshape on TT. The table is
-    # frozen under LoRA, so inputs_embeds is constant w.r.t. the trainable params
-    # and computing it off-device is exact (no gradient flows through it).
+    # Host copy of the frozen embedding table: the lookup runs on the host (see
+    # _attach_embeds) to avoid a device-side gather, which GSPMD lowers to a
+    # tile-illegal reshape on TT. Frozen under LoRA, so this is exact (no grad).
     embed_host = np.asarray(model.get_embedding().embedding.value)  # [vocab, hidden]
 
     def _attach_embeds(batch):
@@ -135,14 +131,6 @@ def train(
     lora_params = device_manager.apply_sharding_patterns(lora_params, sharding_patterns)
     lora_shardings = jax.tree.map(lambda x: x.sharding, lora_params)
     frozen_state = device_manager.apply_sharding_patterns(frozen_state, sharding_patterns)
-
-    # Decide the input embedding path from the embedding's actual layout. With a
-    # replicated embedding (input) plus a vocab-sharded lm_head (output) only the
-    # cross-entropy needs a shard_map, so we must not also wrap the embedding
-    # lookup in one; the TT compiler accepts at most one manual computation
-    # region per module.
-    embedding_row_sharded = embedding_is_row_sharded(frozen_state, model_axis="model")
-    logger.info(f"Embedding row-sharded on model axis: {embedding_row_sharded}")
 
     # Build optimizer.
     num_train_batches = len(train_batches)
@@ -174,12 +162,10 @@ def train(
         optimizer,
         lora_shardings,
         mesh=device_manager.mesh,
-        embedding_row_sharded=embedding_row_sharded,
     )
     jit_eval_step = create_eval_step_fn(
         graphdef,
         mesh=device_manager.mesh,
-        embedding_row_sharded=embedding_row_sharded,
     )
 
     # Load checkpoint if needed.
@@ -226,10 +212,8 @@ def train(
             for batch_index in range(num_batches):
                 batch = train_batches[shuffled_batch_order[batch_index]]
 
-                # Raw labels are passed through; the fused JIT runs the
-                # shift/mask/one-hot/clamped CE internally (tt-xla#1993, tt-xla#4809).
-                # inputs_embeds is gathered on host (frozen table) to avoid the
-                # device-side embedding gather; see _attach_embeds.
+                # Raw labels pass through; the fused JIT runs shift/mask/CE
+                # internally. inputs_embeds is host-gathered; see _attach_embeds.
                 sharded_batch = device_manager.prepare_batch(_attach_embeds(batch))
 
                 lora_params, optimizer_state, loss, gradient_stats = jit_fused_train_step(
@@ -293,7 +277,7 @@ def train(
                         **inspect_kwargs,
                     )
                     logger.log_metrics({"val/loss": validation_loss}, step=global_step, commit=False)
-
+            
                 # Commit metrics to W&B.
                 logger.log_metrics({}, step=global_step, commit=True)
 
