@@ -73,5 +73,5 @@ class TrainingConfig(BaseModel):
     unfreeze_embeddings: bool = Field(default=False)
 
     # Other settings
-    framework: Framework = Field(default=Framework.PYTORCH)
+    framework: Framework = Field(default=Framework.PYTORCH.value)
     use_tt: bool = Field(default=True)
