@@ -114,6 +114,7 @@ def create_fused_train_step_fn(
     def loss_fn(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = forward(model, inputs_embeds, attention_mask)
+        logits = jax.lax.all_gather(logits, axis_name="model") # TEST IF THIS WORKS
         return cross_entropy(logits, labels)
 
     @jax.jit
