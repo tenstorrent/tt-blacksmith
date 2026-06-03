@@ -188,6 +188,10 @@ def create_eval_step_fn(
     def eval_step(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
         logits = forward(model, inputs_embeds, attention_mask)
+        if mesh is not None:
+            logits = jax.lax.with_sharding_constraint(
+                logits, NamedSharding(mesh, PartitionSpec(*([None] * logits.ndim)))
+            )
         # Loss-only single output. We intentionally do NOT also return argmax
         # predictions here: with vocab-parallel logits the loss is produced by a
         # shard_map (manual sharding) while an argmax over the sharded vocab axis
