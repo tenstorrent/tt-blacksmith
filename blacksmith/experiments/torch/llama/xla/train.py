@@ -209,7 +209,6 @@ def train(
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(trainable_params, max_norm=config.max_grad_norm)
 
                     device_manager.optimizer_step(optimizer)
                     if scheduler is not None:
@@ -222,7 +221,7 @@ def train(
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         current_lr = scheduler.get_last_lr()[0] if scheduler is not None else config.learning_rate
                         logger.log_metrics(
-                            {"train/loss": avg_loss, "train/grad_norm": grad_norm.item(), "train/lr": current_lr},
+                            {"train/loss": avg_loss, "train/lr": current_lr},
                             commit=False,
                             step=global_step,
                         )

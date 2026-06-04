@@ -32,7 +32,6 @@ class TrainingConfig(BaseModel):
     weight_decay: float = Field(default=0.0, ge=0)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
-    max_grad_norm: float = Field(default=float('inf'))
     warmup_steps: int = Field(default=0, ge=0)  # 0 = auto (3% of total steps)
     total_steps: int = Field(default=0, ge=0)  # 0 = auto-compute from dataloader
     use_scheduler: bool = Field(default=False)
