@@ -82,7 +82,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     if config.print_examples and tokenizer is not None:
         logger.info("Printing validation examples...")
         show_examples(collected_examples, tokenizer, config, logger)
-    
+
     if config.run_decode_example and tokenizer is not None:
         run_decode_example_from_batch(
             model=model,
@@ -138,22 +138,28 @@ def train(
     # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader) * config.batch_size}")
 
     eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader) * config.batch_size}")
 
     tokenizer = train_dataset.tokenizer
 
     # Cosine annealing with linear warmup.
-    total_steps = config.total_steps or (len(train_dataloader) // config.gradient_accumulation_steps) * config.num_epochs
+    total_steps = (
+        config.total_steps or (len(train_dataloader) // config.gradient_accumulation_steps) * config.num_epochs
+    )
     warmup_steps = config.warmup_steps or max(1, int(total_steps * 0.03))
     if config.use_scheduler:
-        scheduler = SequentialLR(optimizer, schedulers=[
-            LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
-            CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=config.learning_rate * 0.1),
-        ], milestones=[warmup_steps])
+        scheduler = SequentialLR(
+            optimizer,
+            schedulers=[
+                LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
+                CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=config.learning_rate * 0.1),
+            ],
+            milestones=[warmup_steps],
+        )
     else:
         scheduler = None
 
