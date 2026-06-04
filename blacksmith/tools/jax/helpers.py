@@ -77,7 +77,7 @@ def masked_cross_entropy(
 
     Positions where labels == ignored_index are excluded from the mean.
     When clamped is True the TT-safe integer-label CE variant is used (no
-    one-hot, no softmax tensor); otherwise plain optax integer-label CE.
+    one-hot, no softmax tensor), otherwise plain optax integer-label CE.
 
     Args:
         logits: (batch, seq_len, vocab) model output.
@@ -123,39 +123,6 @@ def vocab_parallel_cross_entropy(
     logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(data_spec, None, None)))
 
     return masked_cross_entropy(logits, labels, clamped=True, ignored_index=ignored_index)
-
-
-def _vocab_parallel_embedding_lookup_local(
-    local_embedding: jax.Array,
-    local_input_ids: jax.Array,
-    local_vocab_ids: jax.Array,
-    model_axis: str,
-) -> jax.Array:
-    """Embed one vocab shard's tokens, run inside a shard_map.
-
-    Each shard one-hots the vocab ids it owns and matmuls with its rows; only
-    the owning shard contributes a non-zero row, so a psum over model_axis
-    reconstructs the full embedding. Uses only matmul + psum (no row gather),
-    since the row-sharded jnp.take is not legalizable on TT.
-
-    Args:
-        local_embedding: This shard's embedding rows, shape [v_local, hidden].
-        local_input_ids: Token ids, shape [b, s] (replicated over model).
-        local_vocab_ids: Global vocab ids this shard owns, shape [v_local].
-        model_axis: Mesh axis the vocab dim is sharded over.
-
-    Returns:
-        Embedded tokens, shape [b, s, hidden], identical on every shard.
-    """
-    # [b, s, v_local]: True only where a token id belongs to this shard's slice.
-    match = local_input_ids[..., None] == local_vocab_ids[None, None, :]
-    one_hot = match.astype(local_embedding.dtype)
-
-    # [b, s, v_local] @ [v_local, hidden] -> [b, s, hidden]. Shards that do not
-    # own a token contribute all-zero rows, so the cross-shard sum selects the
-    # correct embedding row. A one-hot matmul avoids the row gather (jnp.take).
-    local_embeds = jnp.matmul(one_hot, local_embedding)
-    return jax.lax.psum(local_embeds, model_axis)
 
 
 def show_predictions(

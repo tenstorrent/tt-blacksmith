@@ -11,32 +11,13 @@ import jax.numpy as jnp
 import optax
 from easydel import AutoEasyDeLModelForCausalLM
 from flax import nnx
-from flax.nnx.nn.dtypes import promote_dtype
 from jax.typing import DTypeLike
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from blacksmith.tools.jax.device_manager import JaxDeviceManager
-from blacksmith.tools.jax.easydel.partitioning import _path_to_str
 from blacksmith.tools.templates.configs import TrainingConfig
 
 logger = logging.getLogger(__name__)
-
-
-def embedding_is_row_sharded(frozen_state, model_axis: str = "model") -> bool:
-    """Return True if the token embedding is sharded along its vocab (row) axis.
-
-    We read the actual placed sharding of the embed_tokens embedding leaf, so
-    the result reflects whatever the yaml sharding patterns produced rather than
-    any assumption. When the leading (vocab) axis lands on model_axis the input
-    lookup must use the vocab-parallel path; otherwise the plain replicated
-    lookup is correct and avoids emitting an extra manual computation region.
-    """
-    flat, _ = jax.tree_util.tree_flatten_with_path(frozen_state)
-    for path, leaf in flat:
-        if _path_to_str(path).endswith("embed_tokens.embedding.value"):
-            spec = getattr(getattr(leaf, "sharding", None), "spec", None)
-            return spec is not None and len(spec) >= 1 and spec[0] == model_axis
-    return False
 
 
 def load_tokenizer(
@@ -104,29 +85,6 @@ def load_easydel_causal_lm(
     return model, tokenizer
 
 
-def _lora_call_with_barrier(self, x: jax.Array) -> jax.Array:
-    """LoRA forward that isolates the adapter matmul from the base projection.
-
-    Identical to flax's LoRA.__call__ (out = x @ lora_a @ lora_b +
-    base_module(x)) but inserts an optimization barrier on the base input so XLA
-    cannot fuse the replicated x @ lora_a matmul into the model-sharded base
-    projection. Under tensor parallelism that fusion concats replicated lora_a
-    columns with the column-parallel base kernel, after which the downstream
-    slice_static uses global offsets that overrun the local shard width and
-    crash with a TT_FATAL. The barrier forces two independent dots instead.
-    """
-    x, lora_a, lora_b = promote_dtype((x, self.lora_a[...], self.lora_b[...]), dtype=self.dtype)
-    out = x @ lora_a @ lora_b
-    if self.base_module is not None:
-        if not callable(self.base_module):
-            raise ValueError("self.base_module must be callable.")
-        # Break the x-sharing that lets XLA concat replicated lora_a columns with
-        # the model-sharded base kernel into one fused (and un-sliceable) matmul.
-        x_base = jax.lax.optimization_barrier(x)
-        out += self.base_module(x_base)
-    return out
-
-
 def apply_lora(
     model: nnx.Module,
     *,
@@ -136,10 +94,6 @@ def apply_lora(
     verbose: bool = False,
 ) -> nnx.Module:
     """Apply LoRA adapters to layers matching pattern, optionally under a CPU context.
-
-    Also patches flax's LoRA.__call__ with _lora_call_with_barrier so the
-    adapter matmul is not fused into the model-sharded base projection (required
-    for column-parallel q/v under tensor parallelism on TT; see that function).
 
     Args:
         model: An EasyDel NNX model.
@@ -170,9 +124,7 @@ def build_optimizer(
 
     When config.max_grad_norm is a positive float, prepends
     optax.clip_by_global_norm so the accumulated gradient is clipped
-    right before the AdamW update (same semantics as torch's
-    clip_grad_norm_; matches the gpt_oss / distil_bert / nanogpt
-    convention in this repo).
+    right before the AdamW update.
 
     Wraps in optax.MultiSteps when config.gradient_accumulation_steps > 1
     so clipping fires on accumulation-completion steps.
