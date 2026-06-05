@@ -9,15 +9,13 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 
 The training script (`train.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support, formatted as instruction-style causal language modelling. Two datasets are wired up via `dataset_id`: **SST-2** (single-label sentiment, JSON response) and **Alpaca** (general instruction following). Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens.
 
-To keep every device-side program shape fixed across steps on TT — which avoids the `MeshDevice` re-open crashes tracked in [tt-xla#1993](https://github.com/tenstorrent/tt-xla/issues/1993) and [tt-xla#4809](https://github.com/tenstorrent/tt-xla/issues/4809) — the train step fuses the label shift, masking, and clamped cross-entropy into a single `@jax.jit`, and the eval step returns a single scalar loss from a fixed-signature JIT. This prevents per-step micro-ops from escaping to TT.
-
 YAML configs live under per-device directories:
 
-- **`single_chip/`** — single-device runs (Qwen3-0.6B).
-- **`quietbox/`** — 8-chip multi-device runs (Qwen3-4B), tensor-parallel `[8]/model` or hybrid data+tensor-parallel `[2, 4]/data,model`.
-- **`loudbox/`**, **`galaxy/`** — reserved for future larger meshes.
+- `**single_chip/`** — single-device runs (Qwen3-0.6B).
+- `**quietbox/**` — 8-chip multi-device runs (Qwen3-4B), tensor-parallel `[8]/model` or hybrid data+tensor-parallel `[2, 4]/data,model`.
+- `**loudbox/**`, `**galaxy/**` — reserved for future larger meshes.
 
-Use **`use_tt`** in the config to select Tenstorrent (`true`) or GPU/CPU (`false`). All shipped configs are TT-oriented with **`use_tt: true`**.
+Use `**use_tt**` in the config to select Tenstorrent (`true`) or GPU/CPU (`false`). All shipped configs are TT-oriented with `**use_tt: true**`.
 
 ## Prerequisites
 
@@ -79,13 +77,15 @@ python3 blacksmith/experiments/easydel/qwen/lora/train.py \
 
 ### Training Configurations
 
-| Architecture | mesh_shape | mesh_axis_names | input_sharding_dim | dataset | Method |
-| ------------ | ---------- | --------------- | ------------------ | ------- | ------ |
-| [Single-Chip](single_chip/qwen3_0_6b_sst2.yaml) | None | None | None | SST-2 | LoRA |
-| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml) | `[8]` | `["model"]` | None | SST-2 | LoRA (TP, shipped default) |
-| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml) | `[2, 4]` | `["data", "model"]` | `"data"` | SST-2 | LoRA (DP+TP, via mesh override) |
-| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[8]` | `["model"]` | None | Alpaca | LoRA (TP, via mesh override) |
-| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[2, 4]` | `["data", "model"]` | `"data"` | Alpaca | LoRA (DP+TP, shipped default) |
+
+| Architecture                                     | mesh_shape | mesh_axis_names     | input_sharding_dim | dataset | Method                          |
+| ------------------------------------------------ | ---------- | ------------------- | ------------------ | ------- | ------------------------------- |
+| [Single-Chip](single_chip/qwen3_0_6b_sst2.yaml)  | None       | None                | None               | SST-2   | LoRA                            |
+| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml)   | `[8]`      | `["model"]`         | None               | SST-2   | LoRA (TP, shipped default)      |
+| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml)   | `[2, 4]`   | `["data", "model"]` | `"data"`           | SST-2   | LoRA (DP+TP, via mesh override) |
+| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[8]`      | `["model"]`         | None               | Alpaca  | LoRA (TP, via mesh override)    |
+| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[2, 4]`   | `["data", "model"]` | `"data"`           | Alpaca  | LoRA (DP+TP, shipped default)   |
+
 
 Each Quietbox YAML ships one parallelism setup, but either dataset can run in either
 setup by changing only the `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim`
@@ -108,6 +108,12 @@ Multi-chip configs declare the parallelism strategy via `mesh_shape`, `mesh_axis
 
 Multi-device runs use the Shardy partitioner and enable the GQA workaround (`apply_gqa_workaround: true`).
 
+### Step Functions on TT
+
+To keep every device-side program shape fixed across steps on TT — which avoids the `MeshDevice` re-open crashes tracked in [https://github.com/tenstorrent/tt-xla/issues/1993](https://github.com/tenstorrent/tt-xla/issues/1993) and [https://github.com/tenstorrent/tt-xla/issues/4809](https://github.com/tenstorrent/tt-xla/issues/4809) — the train step fuses the label shift, masking, and clamped cross-entropy into a single `@jax.jit`, and the eval step returns a single scalar loss from a fixed-signature JIT. This keeps per-step micro-ops from escaping to TT.
+
+> **TODO:** emit per-token predictions / accuracy from the eval step once multi-output flatbuffers are validated under the mesh-reopen workaround ([https://github.com/tenstorrent/tt-xla/issues/1993](https://github.com/tenstorrent/tt-xla/issues/1993), [https://github.com/tenstorrent/tt-xla/issues/4809](https://github.com/tenstorrent/tt-xla/issues/4809)).
+
 ## Data
 
 **SST-2** (GLUE): instruction-style prompt/response pairs padded to `max_length`, with masked labels. The Hugging Face load uses `glue` / `sst2`; `dataset_id` in the config is the logical dataset tag. The SST-2 pipeline uses the Torch `SSTDataset` loader from `blacksmith/datasets/torch/sst2/` and formats each example as `Review: <sentence>\nOutput: {"label": "positive|negative"}`. Prompt tokens are masked with `-100` so only the response tokens contribute to the loss.
@@ -122,83 +128,100 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 
 ### Dataset
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `dataset_id` | Dataset identifier; one of `"sst2"`, `"alpaca"`. | `"sst2"` |
+
+| Parameter    | Description                                      | Default Value |
+| ------------ | ------------------------------------------------ | ------------- |
+| `dataset_id` | Dataset identifier; one of `"sst2"`, `"alpaca"`. | `"sst2"`      |
+
 
 ### Model
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `model_name` | HuggingFace model identifier. | `"Qwen/Qwen3-0.6B"` |
-| `max_length` | Maximum sequence length for tokenization. | 128 |
-| `dtype` | Data type used for model parameters. | `"bfloat16"` |
-| `mask_max_position_embeddings` | Cap for pre-allocated causal mask size (None = model default). | None |
+
+| Parameter                      | Description                                                    | Default Value       |
+| ------------------------------ | -------------------------------------------------------------- | ------------------- |
+| `model_name`                   | HuggingFace model identifier.                                  | `"Qwen/Qwen3-0.6B"` |
+| `max_length`                   | Maximum sequence length for tokenization.                      | 128                 |
+| `dtype`                        | Data type used for model parameters.                           | `"bfloat16"`        |
+| `mask_max_position_embeddings` | Cap for pre-allocated causal mask size (None = model default). | None                |
+
 
 ### Training
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `learning_rate` | Peak learning rate for the AdamW optimizer. | 2e-4 |
-| `warmup_steps` | Linear warm-up steps before the cosine decay begins. | 0 |
-| `end_learning_rate` | Final learning rate after the cosine decay. | 0.0 |
-| `batch_size` | Number of samples per training batch. | 4 |
-| `gradient_accumulation_steps` | Number of mini-batches to accumulate before an optimizer step. | 1 |
-| `num_epochs` | Total number of training epochs. | 1 |
-| `val_steps_freq` | Run validation every N steps (null = disabled). | null |
-| `max_val_batches` | Limit number of validation batches per eval pass (null = use all). | null |
-| `ignored_label_index` | Sentinel value for masked label positions. | `-100` |
+
+| Parameter                     | Description                                                        | Default Value |
+| ----------------------------- | ------------------------------------------------------------------ | ------------- |
+| `learning_rate`               | Peak learning rate for the AdamW optimizer.                        | 2e-4          |
+| `warmup_steps`                | Linear warm-up steps before the cosine decay begins.               | 0             |
+| `end_learning_rate`           | Final learning rate after the cosine decay.                        | 0.0           |
+| `batch_size`                  | Number of samples per training batch.                              | 4             |
+| `gradient_accumulation_steps` | Number of mini-batches to accumulate before an optimizer step.     | 1             |
+| `num_epochs`                  | Total number of training epochs.                                   | 1             |
+| `val_steps_freq`              | Run validation every N steps (null = disabled).                    | null          |
+| `max_val_batches`             | Limit number of validation batches per eval pass (null = use all). | null          |
+| `ignored_label_index`         | Sentinel value for masked label positions.                         | `-100`        |
+
 
 ### LoRA
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `lora_rank` | Rank of the LoRA adaptation matrices. | 16 |
-| `lora_pattern` | Regex pattern matching layers to apply LoRA to. | `".*(q_proj\|v_proj).*"` |
+
+| Parameter      | Description                                     | Default Value           |
+| -------------- | ----------------------------------------------- | ----------------------- |
+| `lora_rank`    | Rank of the LoRA adaptation matrices.           | 16                      |
+| `lora_pattern` | Regex pattern matching layers to apply LoRA to. | `".*(q_proj|v_proj).*"` |
+
 
 ### Checkpoint
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `resume_from_checkpoint` | Whether to resume training from a previous checkpoint. | False |
-| `resume_option` | Resume method (`last`, `best`, or `path`). | `"last"` |
-| `checkpoint_path` | Path to a checkpoint if `resume_option="path"`. | `""` |
-| `checkpoint_metric` | Metric used to determine best checkpoint. | `"val/loss"` |
-| `checkpoint_metric_mode` | Whether to minimize or maximize checkpoint metric. | `"min"` |
-| `keep_last_n` | Number of most recent checkpoints to keep. | 3 |
-| `keep_best_n` | Number of best checkpoints to keep. | 3 |
-| `save_strategy` | Strategy for saving checkpoints (`none`, `epoch`, or `step`). | `"none"` |
-| `project_dir` | Directory for experiment outputs. | `"blacksmith/experiments/easydel/qwen/lora"` |
-| `save_optim` | Whether to save optimizer state. | False |
+
+| Parameter                | Description                                                   | Default Value                                |
+| ------------------------ | ------------------------------------------------------------- | -------------------------------------------- |
+| `resume_from_checkpoint` | Whether to resume training from a previous checkpoint.        | False                                        |
+| `resume_option`          | Resume method (`last`, `best`, or `path`).                    | `"last"`                                     |
+| `checkpoint_path`        | Path to a checkpoint if `resume_option="path"`.               | `""`                                         |
+| `checkpoint_metric`      | Metric used to determine best checkpoint.                     | `"val/loss"`                                 |
+| `checkpoint_metric_mode` | Whether to minimize or maximize checkpoint metric.            | `"min"`                                      |
+| `keep_last_n`            | Number of most recent checkpoints to keep.                    | 3                                            |
+| `keep_best_n`            | Number of best checkpoints to keep.                           | 3                                            |
+| `save_strategy`          | Strategy for saving checkpoints (`none`, `epoch`, or `step`). | `"none"`                                     |
+| `project_dir`            | Directory for experiment outputs.                             | `"blacksmith/experiments/easydel/qwen/lora"` |
+| `save_optim`             | Whether to save optimizer state.                              | False                                        |
+
 
 ### Device
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `use_tt` | Whether to run on Tenstorrent device. | True |
-| `num_devices` | Number of TT (or GPU) devices in the JAX mesh. | 1 |
-| `mesh_shape` | Mesh shape for distributed training (None = single device). | None |
-| `mesh_axis_names` | Axis names for the mesh (None = single device). | None |
-| `input_sharding_dim` | Mesh axis for data-parallel sharding (None = no DP). | None |
-| `apply_gqa_workaround` | Apply EasyDel GQA workaround required on TT multi-chip. | True |
-| `model_sharding_patterns` | List of `[regex, [axis_or_null, ...]]` overrides on top of EasyDel's `partition_rules()`. None = replicated (pure DP). | None |
-| `extra_config_kwargs` | Extra kwargs forwarded to the EasyDel model config. | None |
+
+| Parameter                 | Description                                                                                                            | Default Value |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `use_tt`                  | Whether to run on Tenstorrent device.                                                                                  | True          |
+| `num_devices`             | Number of TT (or GPU) devices in the JAX mesh.                                                                         | 1             |
+| `mesh_shape`              | Mesh shape for distributed training (None = single device).                                                            | None          |
+| `mesh_axis_names`         | Axis names for the mesh (None = single device).                                                                        | None          |
+| `input_sharding_dim`      | Mesh axis for data-parallel sharding (None = no DP).                                                                   | None          |
+| `apply_gqa_workaround`    | Apply EasyDel GQA workaround required on TT multi-chip.                                                                | True          |
+| `model_sharding_patterns` | List of `[regex, [axis_or_null, ...]]` overrides on top of EasyDel's `partition_rules()`. None = replicated (pure DP). | None          |
+| `extra_config_kwargs`     | Extra kwargs forwarded to the EasyDel model config.                                                                    | None          |
+
 
 ### Logging
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `steps_freq` | Log average loss every N steps. | 10 |
-| `log_level` | Logging verbosity level. | `"INFO"` |
-| `use_wandb` | Whether to log metrics to Weights & Biases. | True |
-| `wandb_project` | Weights & Biases project name. | `"Qwen-TT-EasyDel-LoRA-Training"` |
-| `wandb_run_name` | Weights & Biases run name. | `"qwen3-0.6b-sst2-tt-easydel"` |
-| `print_examples` | Print decoded prediction examples during evaluation. | False |
+
+| Parameter        | Description                                          | Default Value                     |
+| ---------------- | ---------------------------------------------------- | --------------------------------- |
+| `steps_freq`     | Log average loss every N steps.                      | 10                                |
+| `log_level`      | Logging verbosity level.                             | `"INFO"`                          |
+| `use_wandb`      | Whether to log metrics to Weights & Biases.          | True                              |
+| `wandb_project`  | Weights & Biases project name.                       | `"Qwen-TT-EasyDel-LoRA-Training"` |
+| `wandb_run_name` | Weights & Biases run name.                           | `"qwen3-0.6b-sst2-tt-easydel"`    |
+| `print_examples` | Print decoded prediction examples during evaluation. | False                             |
+
 
 ### Reproducibility
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `seed` | Random seed for reproducibility. | 42 |
-| `deterministic` | Whether to enforce deterministic behavior. | False |
-| `framework` | Training framework. | `"easydel"` |
+
+| Parameter       | Description                                | Default Value |
+| --------------- | ------------------------------------------ | ------------- |
+| `seed`          | Random seed for reproducibility.           | 42            |
+| `deterministic` | Whether to enforce deterministic behavior. | False         |
+| `framework`     | Training framework.                        | `"easydel"`   |
+
+
