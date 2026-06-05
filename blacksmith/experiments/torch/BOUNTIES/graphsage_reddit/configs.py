@@ -41,3 +41,6 @@ class GraphSAGEConfig(TrainingConfig):
 
     # Device
     use_tt: bool = Field(default=False)
+
+    # Feasibility / debugging — limit training to N steps (-1 = unlimited)
+    max_steps: int = Field(default=-1)

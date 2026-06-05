@@ -101,7 +101,6 @@ def train(
             )
             for batch in pbar:
                 optimizer.zero_grad()
-
                 # Slice to seed nodes only (see evaluate comment above).
                 out = model(
                     batch.x.to(device_manager.device),
@@ -128,6 +127,13 @@ def train(
                         {"train/loss": step_loss}, step=global_step, commit=False
                     )
                     running_loss = running_nodes = 0
+
+            if running_nodes > 0:
+                logger.log_metrics(
+                    {"train/loss": running_loss / running_nodes},
+                    step=global_step,
+                    commit=False,
+                )
 
             avg_epoch_loss = epoch_loss / epoch_nodes
             val_loss, val_acc = evaluate(model, loaders.val_loader, device_manager)
