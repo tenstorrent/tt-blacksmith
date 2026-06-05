@@ -223,5 +223,3 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 | `seed`          | Random seed for reproducibility.           | 42            |
 | `deterministic` | Whether to enforce deterministic behavior. | False         |
 | `framework`     | Training framework.                        | `"easydel"`   |
-
-
