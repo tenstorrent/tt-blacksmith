@@ -37,13 +37,12 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
     return cross_entropy
 
 
-def _make_forward_fn(mesh, model_axis: str = "model", embedding_row_sharded: bool = False) -> Callable:
+def _make_forward_fn(mesh, model_axis: str = "model") -> Callable:
     """Return forward(model, inputs_embeds, attention_mask) -> logits.
 
     inputs_embeds is precomputed on the host (see train.py) so the graph holds
     no device-side embedding gather, which GSPMD would lower to a tile-illegal
-    reshape on TT. embedding_row_sharded is kept for signature compatibility
-    only; the lookup is always host-side now.
+    reshape on TT.
     """
 
     def forward(model, inputs_embeds, attention_mask):
@@ -58,7 +57,6 @@ def create_fused_train_step_fn(
     lora_shardings,
     mesh=None,
     model_axis: str = "model",
-    embedding_row_sharded: bool = False,
 ) -> Callable:
     """JIT-compiled forward + backward + optimizer step.
 
@@ -71,7 +69,7 @@ def create_fused_train_step_fn(
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
-    forward = _make_forward_fn(mesh, model_axis, embedding_row_sharded)
+    forward = _make_forward_fn(mesh, model_axis)
 
     # Replicated 0-D sharding for the scalar outputs (loss / grad stats). On TT
     # the partitioner otherwise infers a rank-2 sharding for these scalars
@@ -133,7 +131,6 @@ def create_eval_step_fn(
     graphdef: nnx.GraphDef,
     mesh=None,
     model_axis: str = "model",
-    embedding_row_sharded: bool = False,
 ) -> Callable:
     """JIT-compiled evaluation step returning a scalar loss.
 
@@ -146,7 +143,7 @@ def create_eval_step_fn(
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
-    forward = _make_forward_fn(mesh, model_axis, embedding_row_sharded)
+    forward = _make_forward_fn(mesh, model_axis)
 
     def eval_step(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)

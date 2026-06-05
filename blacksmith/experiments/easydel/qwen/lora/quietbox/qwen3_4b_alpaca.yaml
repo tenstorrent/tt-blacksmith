@@ -58,7 +58,6 @@ mesh_shape: [2,4]
 mesh_axis_names: ["data", "model"]
 input_sharding_dim: "data"
 apply_gqa_workaround: true
-use_shardy_partitioner: true
 
 # Tensor-parallel sharding patterns.
 model_sharding_patterns:

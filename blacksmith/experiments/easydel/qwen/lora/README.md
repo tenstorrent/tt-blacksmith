@@ -9,7 +9,7 @@ This directory contains [LoRA](https://arxiv.org/abs/2106.09685) fine-tuning exp
 
 The training script (`train.py`) implements LoRA fine-tuning with EasyDel's native NNX LoRA support, formatted as instruction-style causal language modelling. Two datasets are wired up via `dataset_id`: **SST-2** (single-label sentiment, JSON response) and **Alpaca** (general instruction following). Prompt tokens are masked (`-100`) so the loss is computed only on the response tokens.
 
-To keep the program signature constant on TT (necessary to avoid `MeshDevice` re-open crashes — see `tt-xla#1993` / `tt-xla#4809`), the train step fuses label shift / masking / one-hot / clamped cross-entropy into a single `@jax.jit`, and the eval step emits `(loss, predictions)` from a single fixed-signature JIT (no per-step micro-ops escape to TT).
+To keep every device-side program shape fixed across steps on TT — which avoids the `MeshDevice` re-open crashes tracked in [tt-xla#1993](https://github.com/tenstorrent/tt-xla/issues/1993) and [tt-xla#4809](https://github.com/tenstorrent/tt-xla/issues/4809) — the train step fuses the label shift, masking, and clamped cross-entropy into a single `@jax.jit`, and the eval step returns a single scalar loss from a fixed-signature JIT. This prevents per-step micro-ops from escaping to TT.
 
 YAML configs live under per-device directories:
 
@@ -82,8 +82,22 @@ python3 blacksmith/experiments/easydel/qwen/lora/train.py \
 | Architecture | mesh_shape | mesh_axis_names | input_sharding_dim | dataset | Method |
 | ------------ | ---------- | --------------- | ------------------ | ------- | ------ |
 | [Single-Chip](single_chip/qwen3_0_6b_sst2.yaml) | None | None | None | SST-2 | LoRA |
-| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml) | `[8]` | `["model"]` | None | SST-2 | LoRA (TP) |
-| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[2, 4]` | `["data", "model"]` | `"data"` | Alpaca | LoRA (DP+TP) |
+| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml) | `[8]` | `["model"]` | None | SST-2 | LoRA (TP, shipped default) |
+| [Quietbox 8-chip](quietbox/qwen3_4b_sst2.yaml) | `[2, 4]` | `["data", "model"]` | `"data"` | SST-2 | LoRA (DP+TP, via mesh override) |
+| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[8]` | `["model"]` | None | Alpaca | LoRA (TP, via mesh override) |
+| [Quietbox 8-chip](quietbox/qwen3_4b_alpaca.yaml) | `[2, 4]` | `["data", "model"]` | `"data"` | Alpaca | LoRA (DP+TP, shipped default) |
+
+Each Quietbox YAML ships one parallelism setup, but either dataset can run in either
+setup by changing only the `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim`
+fields (the `model_sharding_patterns` reference only the `model`/`null` axes, so they
+are valid for both meshes). Switch without editing the file via `--test_config`, e.g.
+run SST-2 as DP+TP:
+
+```bash
+python3 blacksmith/experiments/easydel/qwen/lora/train.py \
+  --config blacksmith/experiments/easydel/qwen/lora/quietbox/qwen3_4b_sst2.yaml \
+  --test_config '{"mesh_shape": [2, 4], "mesh_axis_names": ["data", "model"], "input_sharding_dim": "data"}'
+```
 
 ### Mesh and Sharding Configuration
 
@@ -92,7 +106,7 @@ Multi-chip configs declare the parallelism strategy via `mesh_shape`, `mesh_axis
 - `easydel_partition_specs_for_lora` in `blacksmith/tools/jax/easydel/partitioning.py` derives the default shardings from EasyDel's built-in `partition_rules()`.
 - `model_sharding_patterns` (a list of `[regex, [axis_or_null, ...]]` entries) lets the YAML override specific parameters; the shipped Qwen3-4B configs use Megatron-style column-/row-parallel patterns on `q/k/v/o_proj`, `gate/up/down_proj`, and `lm_head` along the `model` axis.
 
-Multi-device runs use the Shardy partitioner by default (`use_shardy_partitioner: true`) and enable the GQA workaround (`apply_gqa_workaround: true`).
+Multi-device runs use the Shardy partitioner and enable the GQA workaround (`apply_gqa_workaround: true`).
 
 ## Data
 
@@ -167,7 +181,6 @@ Each YAML specifies training parameters. Override fields via `--test_config` JSO
 | `mesh_axis_names` | Axis names for the mesh (None = single device). | None |
 | `input_sharding_dim` | Mesh axis for data-parallel sharding (None = no DP). | None |
 | `apply_gqa_workaround` | Apply EasyDel GQA workaround required on TT multi-chip. | True |
-| `use_shardy_partitioner` | Use the Shardy partitioner (False falls back to GSPMD). | True |
 | `model_sharding_patterns` | List of `[regex, [axis_or_null, ...]]` overrides on top of EasyDel's `partition_rules()`. None = replicated (pure DP). | None |
 | `extra_config_kwargs` | Extra kwargs forwarded to the EasyDel model config. | None |
 

@@ -57,9 +57,8 @@ class JaxDeviceManager:
         if getattr(self.config, "num_devices", 1) > 1:
             os.environ.setdefault("XLA_ALWAYS_ALLREDUCE", "1")
             os.environ.setdefault("DISABLE_NUMERIC_CC_TOKEN", "1")
-            use_shardy = getattr(self.config, "use_shardy_partitioner", True)
-            os.environ.setdefault("CONVERT_SHLO_TO_SHARDY", "1" if use_shardy else "0")
-            jax.config.update("jax_use_shardy_partitioner", use_shardy)
+            os.environ.setdefault("CONVERT_SHLO_TO_SHARDY", "1")
+            jax.config.update("jax_use_shardy_partitioner", True)
 
     def _select_device(self) -> tuple[jax.Device, str]:
         """Pick the preferred device: TT > GPU > CPU."""

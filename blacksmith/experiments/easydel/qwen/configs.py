@@ -90,8 +90,6 @@ class TrainingConfig(BaseModel):
     # Tensor parallelism: list of [regex, [axis_or_null, ...]] entries.
     # When None, params are replicated (pure DP).
     model_sharding_patterns: Optional[list[list]] = Field(default=None)
-    # Multi-device partitioner: True = Shardy (default), False = GSPMD fallback.
-    use_shardy_partitioner: bool = Field(default=True)
     # Extra kwargs forwarded to the EasyDel model config.
     extra_config_kwargs: Optional[dict] = Field(default=None)
 
