@@ -12,7 +12,10 @@ anneal_lr: True
 num_steps: 128
 gamma: 0.99
 gae_lambda: 0.95
-num_minibatches: 4
+# 16 (not 4): batch_size is num_envs * num_steps = 1024, so 16 minibatches gives a
+# minibatch of 64. A larger minibatch (e.g. 4 -> 256) makes the CNN's conv activations
+# overflow TT L1, raising "circular buffers clash with L1 buffers" during compilation.
+num_minibatches: 16
 update_epochs: 4
 clip_coef: 0.1
 norm_adv: True
@@ -55,4 +58,4 @@ deterministic: True
 
 # Other settings
 framework: "pytorch"
-use_tt: False
+use_tt: True

@@ -2,8 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torch_xla
 
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.configs import TrainingConfig
+
+_GAE_SYNC_INTERVAL = 512
 
 
 class RolloutBuffer:
@@ -41,6 +44,10 @@ class RolloutBuffer:
                 next_val = self.values[t + 1]
             delta = self.rewards[t] + self.config.gamma * next_val * next_non_terminal - self.values[t]
             advantages[t] = last_gae = delta + self.config.gamma * self.config.gae_lambda * next_non_terminal * last_gae
+            # Sync periodically to flush the graph; otherwise the whole unrolled GAE loop
+            # accumulates into one graph and trips the "Profiler message limit exceeded" error.
+            if t % _GAE_SYNC_INTERVAL == 0:
+                torch_xla.sync()
         returns = advantages + self.values
         return advantages, returns
 

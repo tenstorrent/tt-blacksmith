@@ -8,7 +8,7 @@ The agent uses a CNN architecture from `blacksmith/models/torch/BOUNTIES/ppo_bre
 
 The experiment trains a PPO agent on `ALE/Breakout-v5` using standard Atari preprocessing (frame skipping, grayscale, 84x84 resize, frame stacking) and environment wrappers (episodic life, fire reset, reward clipping). GAE (Generalized Advantage Estimation) is used for advantage computation.
 
-> **Note:** This experiment currently supports CPU only. TT-XLA support is not yet available.
+The experiment is designed to run on TT hardware using the TT-XLA framework. For CPU baseline testing, set `use_tt: False` in the config file.
 
 ## Network Architecture
 
@@ -29,6 +29,8 @@ python blacksmith/experiments/torch/BOUNTIES/ppo_breakout/test_breakout_ppo_trai
 
 The experiment is configured using the configuration file `test_breakout_ppo_training.yaml`. Current defaults are the recommended and tested hyperparameters.
 
+> **Note:** On TT, `num_minibatches` is set to 16 so the CNN's conv activations fit in L1; if you run on CPU (`use_tt: False`) you can use the standard value of 4.
+
 ### Configuration Parameters
 
 | Parameter | Description | Default Value |
@@ -45,7 +47,7 @@ The experiment is configured using the configuration file `test_breakout_ppo_tra
 | `num_steps` | Number of rollout steps per environment per update. | 128 |
 | `gamma` | Discount factor. | 0.99 |
 | `gae_lambda` | Lambda for GAE advantage estimation. | 0.95 |
-| `num_minibatches` | Number of minibatches per update. | 4 |
+| `num_minibatches` | Number of minibatches per update. | 16 |
 | `update_epochs` | Number of epochs per PPO update. | 4 |
 | `clip_coef` | PPO clipping coefficient. | 0.1 |
 | `norm_adv` | Whether to normalize advantages. | True |
@@ -84,7 +86,7 @@ The experiment is configured using the configuration file `test_breakout_ppo_tra
 | `deterministic` | Whether to enforce deterministic behavior. | True |
 | **Other Settings** |
 | `framework` | Training framework. | "pytorch" |
-| `use_tt` | Whether to run on TT device (or CPU otherwise). | False |
+| `use_tt` | Whether to run on TT device (or CPU otherwise). | True |
 
 ## References
 

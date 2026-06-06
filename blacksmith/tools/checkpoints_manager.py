@@ -234,7 +234,7 @@ class CheckpointManager:
         if self.config.load_from_storage:
             self.storage_backend.load(checkpoint_path, checkpoint_path)
 
-        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
 
         checkpoint["model_state_dict"] = CheckpointManager.align_state_dict_parameter_names(
             checkpoint["model_state_dict"], model.state_dict()
