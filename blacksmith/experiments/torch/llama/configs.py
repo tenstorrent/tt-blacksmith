@@ -24,7 +24,7 @@ class TrainingConfig(BaseModel):
     )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
 
     # Training hyperparameters
-    training_type: str = Field(default="lora")  # [lora, adapters]
+    training_type: str = Field(default="lora")  # [lora, adapters, full]
     learning_rate: float = Field(default=2e-5, gt=0)
     batch_size: int = Field(default=32, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
@@ -32,6 +32,9 @@ class TrainingConfig(BaseModel):
     weight_decay: float = Field(default=0.0, ge=0)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
+    warmup_steps: int = Field(default=0, ge=0)  # 0 = auto (3% of total steps)
+    total_steps: int = Field(default=0, ge=0)  # 0 = auto-compute from dataloader
+    use_scheduler: bool = Field(default=False)
     ignored_index: int = Field(default=-100)
 
     # Logging settings
@@ -46,6 +49,7 @@ class TrainingConfig(BaseModel):
     steps_freq: int = Field(default=25)
     val_steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
+    run_decode_example: bool = Field(default=False)
 
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)

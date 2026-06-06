@@ -36,11 +36,14 @@ def get_model(config: TrainingConfig, device: torch.device):
     model = AutoModelForCausalLM.from_pretrained(config.model_name, use_cache=config.gradient_checkpointing)
 
     # Apply training specific modifications
-    # Apply LoRA if rank is specified
     if config.training_type == "lora":
         model = _apply_lora(model, config)
     elif config.training_type == "adapters":
         _apply_adapters(model, config)
+    elif config.training_type == "full":
+        # Full fine-tuning: leave the base model untouched so every parameter
+        # remains trainable (requires_grad=True from HF defaults).
+        pass
     else:
         raise ValueError(f"Invalid training type: {config.training_type}")
 

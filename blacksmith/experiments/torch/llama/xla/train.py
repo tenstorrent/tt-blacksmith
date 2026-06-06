@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 import torch_xla
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
@@ -19,6 +20,7 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_helpers import (
     collate_fn_for_causal_lm,
     collect_examples,
+    run_decode_example_from_batch,
     show_examples,
 )
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
@@ -81,6 +83,16 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
         logger.info("Printing validation examples...")
         show_examples(collected_examples, tokenizer, config, logger)
 
+    if config.run_decode_example and tokenizer is not None:
+        run_decode_example_from_batch(
+            model=model,
+            tokenizer=tokenizer,
+            batch=next(iter(val_data_loader)),
+            ignored_index=config.ignored_index,
+            device=device_manager.device,
+            logger=logger,
+        )
+
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     logger.info(f"Average validation loss: {avg_val_loss}")
     return avg_val_loss
@@ -126,13 +138,30 @@ def train(
     # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader) * config.batch_size}")
 
     eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader) * config.batch_size}")
 
     tokenizer = train_dataset.tokenizer
+
+    # Cosine annealing with linear warmup.
+    total_steps = (
+        config.total_steps or (len(train_dataloader) // config.gradient_accumulation_steps) * config.num_epochs
+    )
+    warmup_steps = config.warmup_steps or max(1, int(total_steps * 0.03))
+    if config.use_scheduler:
+        scheduler = SequentialLR(
+            optimizer,
+            schedulers=[
+                LinearLR(optimizer, start_factor=1e-2, total_iters=warmup_steps),
+                CosineAnnealingLR(optimizer, T_max=total_steps - warmup_steps, eta_min=config.learning_rate * 0.1),
+            ],
+            milestones=[warmup_steps],
+        )
+    else:
+        scheduler = None
 
     global_step = 0
 
@@ -186,14 +215,22 @@ def train(
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
+
                     device_manager.optimizer_step(optimizer)
+                    if scheduler is not None:
+                        scheduler.step()
 
                     accumulation_step = 0
                     global_step += 1
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
-                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+                        current_lr = scheduler.get_last_lr()[0] if scheduler is not None else config.learning_rate
+                        logger.log_metrics(
+                            {"train/loss": avg_loss, "train/lr": current_lr},
+                            commit=False,
+                            step=global_step,
+                        )
                         running_loss = 0.0
 
                     # Validation
