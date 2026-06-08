@@ -103,7 +103,7 @@ def create_fused_train_step_fn(
             grads,
             lora_shardings,
         )
-
+        
         updates, new_opt = tx.update(grads, opt_state, lora_params)
         new_params = optax.apply_updates(lora_params, updates)
         new_params = jax.tree.map(jax.lax.optimization_barrier, new_params)
