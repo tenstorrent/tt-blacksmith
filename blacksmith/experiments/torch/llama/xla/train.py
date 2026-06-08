@@ -153,9 +153,10 @@ def train(
         model.train()
 
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
+        train_start = None
+        step_start = None
         if config.measure_e2e_time:
             train_start = time.perf_counter()
-            step_start = None
 
         for epoch in range(config.num_epochs):
             accumulation_step = 0
