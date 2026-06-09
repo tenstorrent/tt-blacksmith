@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import time
 import traceback
 from pathlib import Path
 
@@ -134,9 +135,17 @@ def train(
         logger.log_metrics({"val/loss": valid_loss}, commit=True, step=global_step)
         model.train()
 
+        # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
+        train_start = None
+        step_start = None
+        if config.measure_e2e_time:
+            train_start = time.perf_counter()
+
         for epoch in range(config.num_epochs):
             for batch in tqdm(train_dataloader):
                 global_step += 1
+                if config.measure_e2e_time:
+                    step_start = time.perf_counter()
                 optimizer.zero_grad()
 
                 # Shard batch if data parallelism is used.
@@ -156,6 +165,10 @@ def train(
 
                 device_manager.optimizer_step(optimizer)
                 running_loss += loss.item()
+
+                if config.measure_e2e_time:
+                    step_elapsed = time.perf_counter() - step_start
+                    logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
@@ -187,6 +200,10 @@ def train(
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+        if config.measure_e2e_time:
+            train_elapsed = time.perf_counter() - train_start
+            logger.info(f"Training e2e time: {train_elapsed:.3f}s ({global_step} steps)")
 
         # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(
