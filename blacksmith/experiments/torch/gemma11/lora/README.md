@@ -12,7 +12,7 @@ The experiment is designed to run on the Huggingface framework.
 ## Training
 
 ```bash
-python3 blacksmith/experiments/torch/gemma11/train.py
+python3 blacksmith/experiments/torch/gemma11/lora/train.py
 ```
 
 ## Data

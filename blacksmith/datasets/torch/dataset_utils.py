@@ -14,6 +14,7 @@ from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.datasets.torch.stanfordcars.stanfordcars_dataset import (
     StanfordCarsDataset,
 )
+from blacksmith.datasets.torch.mathpreference.math_preference_dataset import MathPreferenceDataset
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 
@@ -25,6 +26,8 @@ class AvailableDataset(Enum):
     TEXT2SQL = "text2sql"
     BANKING77 = "banking77"
     SQUADV2 = "squadv2"
+    MATH_DPO = "math_dpo"
+    MATH_SFT = "math_sft"  # Supervised fine-tuning on chosen responses (stage 1 of DPO pipeline)
     WIKITEXT = "wikitext"
     STANFORDCARS = "stanfordcars"
     ALPACA = "alpaca"
@@ -55,6 +58,11 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return AlpacaDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.METAMATHQA.value:
         return MetaMathQADataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.MATH_DPO.value:
+        # SFT is run separately; use the full filtered dataset for DPO (sft_ratio=0).
+        return MathPreferenceDataset(config, split, collate_fn=collate_fn, mode="dpo")
+    elif dataset_id == AvailableDataset.MATH_SFT.value:
+        return MathPreferenceDataset(config, split, collate_fn=collate_fn, mode="sft")
     else:
         available_datasets = [ds.value for ds in AvailableDataset]
         raise ValueError(f"Unsupported dataset: {dataset_id}. Available options are: {available_datasets}")

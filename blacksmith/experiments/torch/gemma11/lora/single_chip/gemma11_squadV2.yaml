@@ -1,16 +1,16 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "squadv2"
 
 # Model settings
 model_name: "google/gemma-1.1-2b-it"
-max_length: 32
+max_length: 256
 dtype: "torch.bfloat16"
 ignored_index: -100
 
 # Training hyperparameters
 training_type: "lora"
 learning_rate: 6e-5
-batch_size: 4
+batch_size: 1
 gradient_checkpointing: False
 num_epochs: 1
 optim: "adamw_torch"
@@ -19,7 +19,7 @@ optim: "adamw_torch"
 log_level: "INFO"
 use_wandb: True
 wandb_project: "gemma11-finetuning"
-wandb_run_name: "tt-gemma11-sst2"
+wandb_run_name: "tt-gemma11-squadV2"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
@@ -27,7 +27,6 @@ model_to_wandb: False
 steps_freq: 10
 epoch_freq: 1
 val_steps_freq: 50
-run_decode_example: True
 
 # Checkpoint settings
 resume_from_checkpoint: False
@@ -38,7 +37,7 @@ checkpoint_metric_mode: "min"  # [min, max]
 keep_last_n: 3
 keep_best_n: 1
 save_strategy: "step"
-project_dir: "blacksmith/experiments/torch/gemma11"
+project_dir: "blacksmith/experiments/torch/gemma11/lora"
 save_optim: False
 storage_backend: "local"
 sync_to_storage: False
