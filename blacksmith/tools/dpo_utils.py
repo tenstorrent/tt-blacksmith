@@ -29,16 +29,20 @@ import torch_xla
 def get_batch_logps(
     logits: torch.Tensor,
     labels: torch.Tensor,
+    average_log_prob: bool = True,
 ) -> torch.Tensor:
     """
-    Compute summed log probabilities for the labels.
+    Compute log probabilities for the supervised label tokens.
 
     Args:
         logits: Model output (batch_size, seq_len, vocab_size)
         labels: Target token IDs (batch_size, seq_len), -100 for ignored positions
+        average_log_prob: If True, return the mean log prob per supervised token.
+            If False, return the summed log prob over the sequence. Averaging avoids
+            length bias when chosen and rejected responses differ in length.
 
     Returns:
-        log_probs: (batch_size,) summed log prob per sequence
+        log_probs: (batch_size,) log prob per sequence
     """
     if logits.shape[:-1] != labels.shape:
         raise ValueError(f"Logits shape {logits.shape[:-1]} doesn't match labels shape {labels.shape}")
@@ -60,8 +64,10 @@ def get_batch_logps(
     # Get log prob for the target tokens using gather
     per_token_logps = torch.gather(log_probs, dim=-1, index=target_tokens.unsqueeze(-1)).squeeze(-1)
 
-    # Apply mask and sum over sequence
+    # Apply mask over supervised response tokens only
     per_token_logps = per_token_logps * loss_mask
+    if average_log_prob:
+        return per_token_logps.sum(dim=-1) / loss_mask.sum(dim=-1).clamp(min=1.0)
     return per_token_logps.sum(dim=-1)
 
 
@@ -85,7 +91,8 @@ def dpo_loss(
         label_smoothing: Label smoothing parameter (0 = no smoothing)
 
     Returns:
-        Tuple of (loss, chosen_rewards, rejected_rewards)
+        Tuple of (loss, chosen_rewards, rejected_rewards). Reward tensors are per-sample;
+        callers should reduce them before logging if needed.
     """
     # Compute log ratios
     pi_logratios = policy_chosen_logps - policy_rejected_logps
@@ -106,7 +113,7 @@ def dpo_loss(
 
     loss = losses.mean()
 
-    return loss, chosen_rewards.mean(), rejected_rewards.mean()
+    return loss, chosen_rewards, rejected_rewards
 
 
 def create_reference_model(model: nn.Module) -> nn.Module:
@@ -211,16 +218,22 @@ def compute_dpo_loss_from_batch(
         label_smoothing=label_smoothing,
     )
 
-    # Compute accuracy (how often chosen is preferred over rejected)
+    # Per-sample accuracy: how often chosen has higher implicit reward than rejected
     reward_margin = chosen_rewards - rejected_rewards
     accuracy = (reward_margin > 0).float().mean()
 
+    # Log-prob drift from reference (unscaled); growing values mean policy is diverging from pi_ref
+    kl_chosen = (policy_chosen_logps - reference_chosen_logps).mean()
+    kl_rejected = (policy_rejected_logps - reference_rejected_logps).mean()
+
     metrics = {
         "loss": loss.item(),
-        "chosen_rewards": chosen_rewards.item(),
-        "rejected_rewards": rejected_rewards.item(),
+        "chosen_rewards": chosen_rewards.mean().item(),
+        "rejected_rewards": rejected_rewards.mean().item(),
         "reward_margin": reward_margin.mean().item(),
         "accuracy": accuracy.item(),
+        "kl_chosen": kl_chosen.item(),
+        "kl_rejected": kl_rejected.item(),
     }
 
     return loss, metrics

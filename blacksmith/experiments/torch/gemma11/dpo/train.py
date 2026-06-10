@@ -54,9 +54,13 @@ def validate_dpo(
     logger.info("\n=== Starting DPO Validation ===")
     policy_model.eval()
 
-    total_loss = 0.0
-    total_accuracy = 0.0
-    total_reward_margin = 0.0
+    totals = {
+        "loss": 0.0,
+        "accuracy": 0.0,
+        "reward_margin": 0.0,
+        "kl_chosen": 0.0,
+        "kl_rejected": 0.0,
+    }
     num_batches = 0
 
     with torch.no_grad():
@@ -70,9 +74,8 @@ def validate_dpo(
                 label_smoothing=config.dpo_label_smoothing,
                 use_tt=config.use_tt,
             )
-            total_loss += metrics["loss"]
-            total_accuracy += metrics["accuracy"]
-            total_reward_margin += metrics["reward_margin"]
+            for key in totals:
+                totals[key] += metrics[key]
             num_batches += 1
 
             if config.use_tt:
@@ -82,17 +85,21 @@ def validate_dpo(
 
     if num_batches == 0:
         logger.warning("Validation dataloader is empty; skipping validation metrics.")
-        return {"val/loss": 0.0, "val/accuracy": 0.0, "val/reward_margin": 0.0}
+        return {
+            "val/loss": 0.0,
+            "val/accuracy": 0.0,
+            "val/reward_margin": 0.0,
+            "val/kl_chosen": 0.0,
+            "val/kl_rejected": 0.0,
+        }
 
-    val_metrics = {
-        "val/loss": total_loss / num_batches,
-        "val/accuracy": total_accuracy / num_batches,
-        "val/reward_margin": total_reward_margin / num_batches,
-    }
+    val_metrics = {f"val/{k}": totals[k] / num_batches for k in totals}
     logger.info(
         f"Validation | loss: {val_metrics['val/loss']:.4f} | "
         f"accuracy: {val_metrics['val/accuracy']:.3f} | "
-        f"reward_margin: {val_metrics['val/reward_margin']:.4f}"
+        f"reward_margin: {val_metrics['val/reward_margin']:.4f} | "
+        f"kl_chosen: {val_metrics['val/kl_chosen']:.4f} | "
+        f"kl_rejected: {val_metrics['val/kl_rejected']:.4f}"
     )
     return val_metrics
 
@@ -179,14 +186,19 @@ def train_dpo(
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
+    optimizer.zero_grad()
 
     global_step = 0
+    accumulation_step = 0
+    microbatch_count = 0
     running_metrics = {
         "loss": 0.0,
         "chosen_rewards": 0.0,
         "rejected_rewards": 0.0,
         "reward_margin": 0.0,
         "accuracy": 0.0,
+        "kl_chosen": 0.0,
+        "kl_rejected": 0.0,
     }
     last_step_metrics = {}
     last_val_metrics = {}
@@ -210,9 +222,6 @@ def train_dpo(
                     logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
                     break
 
-                # Zero gradients
-                optimizer.zero_grad()
-
                 # Move batch to device
                 batch = {k: v.to(device_manager.device) for k, v in batch.items()}
 
@@ -226,36 +235,38 @@ def train_dpo(
                     use_tt=config.use_tt,
                 )
 
-                # Print rewards after each batch
-                logger.info(
-                    f"[Batch {batch_idx}] Loss: {metrics['loss']:.4f} | "
-                    f"Chosen reward: {metrics['chosen_rewards']:.4f} | "
-                    f"Rejected reward: {metrics['rejected_rewards']:.4f} | "
-                    f"Margin: {metrics['reward_margin']:.4f} | "
-                    f"Accuracy: {metrics['accuracy']:.3f}"
-                )
+                if microbatch_count % config.log_batch_freq == 0:
+                    logger.info(
+                        f"[Microbatch {microbatch_count}] Loss: {metrics['loss']:.4f} | "
+                        f"Margin: {metrics['reward_margin']:.4f} | "
+                        f"KL chosen/rej: {metrics['kl_chosen']:.4f}/{metrics['kl_rejected']:.4f}"
+                    )
 
-                # Accumulate metrics for logging
                 for key in running_metrics:
                     running_metrics[key] += metrics[key]
+                microbatch_count += 1
 
-                # Backward pass
-                loss.backward()
+                # Backward pass (scale for gradient accumulation)
+                (loss / config.gradient_accumulation_steps).backward()
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                # Gradient clipping
+                accumulation_step += 1
+                if accumulation_step < config.gradient_accumulation_steps:
+                    continue
+
+                # Optimizer step after accumulating gradients
                 torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
-
-                # Optimizer step - update weights after each batch
                 device_manager.optimizer_step(optimizer)
-
+                optimizer.zero_grad()
+                accumulation_step = 0
                 global_step += 1
 
                 step_metrics = {}
                 if global_step % config.steps_freq == 0:
-                    avg_metrics = {f"dpo/{k}": v / config.steps_freq for k, v in running_metrics.items()}
+                    metric_divisor = config.steps_freq * config.gradient_accumulation_steps
+                    avg_metrics = {f"dpo/{k}": v / metric_divisor for k, v in running_metrics.items()}
                     avg_metrics["train/learning_rate"] = config.learning_rate
                     avg_metrics["train/epoch"] = epoch + 1
                     last_step_metrics = avg_metrics
@@ -265,6 +276,7 @@ def train_dpo(
                         {
                             "loss": f"{avg_metrics['dpo/loss']:.4f}",
                             "acc": f"{avg_metrics['dpo/accuracy']:.3f}",
+                            "margin": f"{avg_metrics['dpo/reward_margin']:.3f}",
                         }
                     )
 
@@ -281,12 +293,24 @@ def train_dpo(
                         step_metrics.update(last_val_metrics)
                         step_metrics["train/epoch"] = epoch + 1
 
-                logger.log_metrics(step_metrics, commit=True, step=global_step)
+                if step_metrics:
+                    logger.log_metrics(step_metrics, commit=True, step=global_step)
 
                 # Save checkpoint
                 if global_step % config.save_steps == 0:
                     if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(policy_model, global_step, epoch, optimizer)
+                        checkpoint_metrics = {**last_step_metrics, **last_val_metrics}
+                        checkpoint_manager.save_checkpoint(
+                            policy_model, global_step, epoch, optimizer, metrics=checkpoint_metrics
+                        )
+
+            # Flush leftover accumulated gradients at epoch end
+            if accumulation_step > 0:
+                torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
+                device_manager.optimizer_step(optimizer)
+                optimizer.zero_grad()
+                accumulation_step = 0
+                global_step += 1
 
             # End of epoch - check max steps
             if config.max_steps > 0 and global_step >= config.max_steps:
@@ -294,12 +318,21 @@ def train_dpo(
 
             # Save epoch checkpoint
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
-                checkpoint_manager.save_checkpoint(policy_model, global_step, epoch, optimizer)
+                checkpoint_metrics = {**last_step_metrics, **last_val_metrics}
+                checkpoint_manager.save_checkpoint(
+                    policy_model, global_step, epoch, optimizer, metrics=checkpoint_metrics
+                )
 
         # Save final model
         logger.info("Training complete. Saving final model...")
+        checkpoint_metrics = {**last_step_metrics, **last_val_metrics}
         final_model_path = checkpoint_manager.save_checkpoint(
-            policy_model, global_step, epoch, optimizer, checkpoint_name="final_model.pth"
+            policy_model,
+            global_step,
+            epoch,
+            optimizer,
+            metrics=checkpoint_metrics,
+            checkpoint_name="final_model.pth",
         )
         logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
 

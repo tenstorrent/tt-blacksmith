@@ -36,7 +36,7 @@ class DPOTrainingConfig(BaseModel):
     ignored_index: int = Field(default=-100)
 
     # DPO-specific hyperparameters
-    dpo_beta: float = Field(default=0.1, gt=0, description="DPO temperature parameter (higher = more conservative)")
+    dpo_beta: float = Field(default=0.2, gt=0, description="DPO temperature parameter (higher = more conservative)")
     dpo_label_smoothing: float = Field(default=0.0, ge=0, le=0.5, description="Label smoothing for DPO loss")
     dpo_reference_free: bool = Field(
         default=False, description="If True, skip reference model (use implicit reference)"
@@ -50,12 +50,12 @@ class DPOTrainingConfig(BaseModel):
     )
 
     # Training hyperparameters
-    learning_rate: float = Field(default=5e-6, gt=0)  # Lower LR typical for DPO
+    learning_rate: float = Field(default=1e-5, gt=0)  # Lower LR typical for DPO
     batch_size: int = Field(default=1, gt=0)  # Small batch size for memory efficiency
     gradient_accumulation_steps: int = Field(default=8, gt=0)  # Effective batch size = 8
     gradient_checkpointing: bool = Field(default=False)
     weight_decay: float = Field(default=0.0, ge=0)
-    num_epochs: int = Field(default=1, gt=0)
+    num_epochs: int = Field(default=2, gt=0)
     max_steps: int = Field(default=-1)  # -1 means use num_epochs
     optim: str = Field(default="adamw_torch")
     warmup_steps: int = Field(default=100, ge=0)
@@ -71,19 +71,20 @@ class DPOTrainingConfig(BaseModel):
     model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=10)
     epoch_freq: int = Field(default=1)
-    val_steps_freq: int = Field(default=100)
+    val_steps_freq: int = Field(default=32)
+    log_batch_freq: int = Field(default=50, ge=1, description="Log per-microbatch metrics every N batches")
     print_examples: bool = Field(default=False)
 
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)
     resume_option: str = Field(default="last")
     checkpoint_path: str = Field(default="")
-    checkpoint_metric: str = Field(default="dpo/loss")
-    checkpoint_metric_mode: str = Field(default="min")
+    checkpoint_metric: str = Field(default="val/accuracy")
+    checkpoint_metric_mode: str = Field(default="max")
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
-    save_strategy: str = Field(default="steps")
-    save_steps: int = Field(default=500)
+    save_strategy: str = Field(default="step")
+    save_steps: int = Field(default=20)
     project_dir: str = Field(default="blacksmith/experiments/torch/gemma11/dpo")
     save_optim: bool = Field(default=False)
     storage_backend: str = Field(default="local")
@@ -92,7 +93,7 @@ class DPOTrainingConfig(BaseModel):
     remote_path: str = Field(default="")
 
     # Reproducibility settings
-    seed: int = Field(default=42)
+    seed: int = Field(default=23)
     deterministic: bool = Field(default=False)
 
     # Device settings (mesh configuration for parallelism)
@@ -104,9 +105,9 @@ class DPOTrainingConfig(BaseModel):
     # LoRA setup (used when peft_method="lora")
     lora_r: int = Field(default=16, gt=0)
     lora_alpha: int = Field(default=32, gt=0)
-    lora_target_modules: list[str] = Field(default_factory=lambda: ["q_proj", "v_proj"])
+    lora_target_modules: list[str] = Field(default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj"])
     lora_task_type: str = Field(default="CAUSAL_LM")
-    lora_dropout: float = Field(default=0.05, ge=0, le=1)
+    lora_dropout: float = Field(default=0.0, ge=0, le=1)
 
     # Adapter setup (used when peft_method="adapters")
     adapter_bottleneck_dim: int = Field(default=32, ge=0)
