@@ -40,15 +40,14 @@ warmup_steps: 5
 log_level: "INFO"
 use_wandb: True
 wandb_project: "gemma11-dpo"
-wandb_run_name: "gpu-gemma11-dpo-math-v3"
+wandb_run_name: "gpu-gemma11-dpo-math"
 wandb_tags: ["gemma11", "dpo", "math", "lora"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 10  # Log train metrics every 10 optimizer steps
+steps_freq: 10
 epoch_freq: 1
-val_steps_freq: 32  # ~once per epoch (256 samples / 8 accum = 32 steps)
-log_batch_freq: 50  # Reduce per-batch console noise
+val_steps_freq: 32
 print_examples: False
 do_validation: True
 
