@@ -133,24 +133,21 @@ def show_predictions(
     ignored_index: int = IGNORED_LABEL,
     training_logger: Optional[TrainingLogger] = None,
 ) -> None:
-    """Print collected prediction examples (CPU-only, no forward pass).
-
-    Each dict in collected must have input_ids and labels.  Optional
-    keys: predictions, per_token_loss, loss.  The EasyDel JAX eval JIT
-    emits (loss, predictions) from a single fixed-signature program, so
-    predictions are typically populated; per_token_loss is omitted on TT
-    multi-chip because expanding the eval JIT output further has not
-    been validated under the mesh-reopen workaround (tt-xla#1993,
-    tt-xla#4809, tt-mlir#3963).
+    """Log collected examples on CPU. Each entry needs input_ids and labels;
+    predictions, per_token_loss and loss are logged when present. The eval step
+    returns scalar loss only, so predictions are usually absent on multi-chip
+    (https://github.com/tenstorrent/tt-xla/issues/1993,
+    https://github.com/tenstorrent/tt-xla/issues/4809,
+    https://github.com/tenstorrent/tt-mlir/issues/3963).
     """
     log = training_logger.info if training_logger is not None else logging.getLogger(__name__).info
 
-    for i, ex in enumerate(collected):
-        input_ids = ex["input_ids"]
-        labels = ex["labels"]
-        predictions = ex.get("predictions")
-        per_token_loss = ex.get("per_token_loss")
-        batch_loss = ex.get("loss")
+    for i, example in enumerate(collected):
+        input_ids = example["input_ids"]
+        labels = example["labels"]
+        predictions = example.get("predictions")
+        per_token_loss = example.get("per_token_loss")
+        batch_loss = example.get("loss")
 
         shift_labels = labels[1:].astype(np.int32)
         valid_mask = shift_labels != ignored_index

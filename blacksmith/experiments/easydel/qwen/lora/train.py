@@ -84,7 +84,7 @@ def train(
 
     def _make_batch(input_ids, labels, attention_mask):
         return {
-            "input_ids": np.asarray(input_ids, dtype=np.uint32),
+            "input_ids": np.asarray(input_ids, dtype=np.int32),
             "labels": np.asarray(labels, dtype=np.int32),
             "attention_mask": np.asarray(attention_mask, dtype=np.int32),
         }
@@ -110,20 +110,7 @@ def train(
         on_cpu=(device_manager.device_kind == "tt"),
     )
 
-    # Host copy of the frozen embedding table: the lookup runs on the host (see
-    # _attach_embeds) to avoid a device-side gather, which GSPMD lowers to a
-    # tile-illegal reshape on TT. Frozen under LoRA, so this is exact (no grad).
-    embed_host = np.asarray(model.get_embedding().embedding.value)  # [vocab, hidden]
-
-    def _attach_embeds(batch):
-        out = dict(batch)
-        out["inputs_embeds"] = embed_host[np.asarray(batch["input_ids"]).astype(np.int64)]
-        return out
-
     graphdef, lora_params, frozen_state, _shardings = easydel_partition_specs_for_lora(model, device_manager.mesh)
-
-    # Frozen base weights stay bf16 (param_dtype) to save DRAM, but keep the
-    # trainable LoRA params in f32 so small Adam updates don't underflow.
     lora_params = jax.tree.map(lambda x: x.astype(jax.numpy.float32), lora_params)
 
     # Place state across the mesh.
@@ -184,8 +171,8 @@ def train(
         validation_batches = validation_batches[: config.max_val_batches]
         logger.info(f"  Using {len(validation_batches)} of {original_validation_batch_count} validation batches")
 
-    # Pre-shard validation batches (with host-gathered inputs_embeds attached).
-    validation_batches = [device_manager.prepare_batch(_attach_embeds(batch)) for batch in validation_batches]
+    # Pre-shard validation batches; the model embeds input_ids on device.
+    validation_batches = [device_manager.prepare_batch(batch) for batch in validation_batches]
 
     inspect_kwargs: dict = {}
     if config.print_examples and tokenizer is not None:
@@ -213,14 +200,14 @@ def train(
                 batch = train_batches[shuffled_batch_order[batch_index]]
 
                 # Raw labels pass through; the fused JIT runs shift/mask/CE
-                # internally. inputs_embeds is host-gathered; see _attach_embeds.
-                sharded_batch = device_manager.prepare_batch(_attach_embeds(batch))
+                # internally. The model embeds input_ids on device.
+                sharded_batch = device_manager.prepare_batch(batch)
 
                 lora_params, optimizer_state, loss, gradient_stats = jit_fused_train_step(
                     lora_params,
                     frozen_state,
                     optimizer_state,
-                    sharded_batch["inputs_embeds"],
+                    sharded_batch["input_ids"],
                     sharded_batch["labels"],
                     sharded_batch["attention_mask"],
                 )

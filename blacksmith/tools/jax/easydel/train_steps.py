@@ -38,15 +38,13 @@ def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
 
 
 def _make_forward_fn(mesh, model_axis: str = "model") -> Callable:
-    """Return forward(model, inputs_embeds, attention_mask) -> logits.
+    """Return forward(model, input_ids, attention_mask) -> logits.
 
-    inputs_embeds is precomputed on the host (see train.py) so the graph holds
-    no device-side embedding gather, which GSPMD would lower to a tile-illegal
-    reshape on TT.
+    The model embeds input_ids on device.
     """
 
-    def forward(model, inputs_embeds, attention_mask):
-        return model(inputs_embeds=inputs_embeds, attention_mask=attention_mask).logits
+    def forward(model, input_ids, attention_mask):
+        return model(input_ids=input_ids, attention_mask=attention_mask).logits
 
     return forward
 
@@ -64,18 +62,12 @@ def create_fused_train_step_fn(
     micro-ops escape to TT and trigger fabric/MeshDevice re-init.
 
     Returns fused_train_step(lora_params, frozen_state, opt_state,
-    inputs_embeds, labels, attention_mask) -> (new_params, new_opt, loss,
+    input_ids, labels, attention_mask) -> (new_params, new_opt, loss,
     grad_stats).
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
     forward = _make_forward_fn(mesh, model_axis)
-
-    # Replicated 0-D sharding for the scalar outputs (loss / grad stats). On TT
-    # the partitioner otherwise infers a rank-2 sharding for these scalars
-    # (derived from the data/vocab-sharded reductions they come from), which
-    # fails compilation with "Output sharding shape (2) doesn't match the
-    # output shape (0)". Pinning them replicated keeps the 0-D shape consistent.
     scalar_sharding = NamedSharding(mesh, PartitionSpec()) if mesh is not None else None
 
     def _pin_scalar(x):
@@ -83,9 +75,9 @@ def create_fused_train_step_fn(
             return x
         return jax.lax.with_sharding_constraint(x, scalar_sharding)
 
-    def loss_fn(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
+    def loss_fn(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = forward(model, inputs_embeds, attention_mask)
+        logits = forward(model, input_ids, attention_mask)
         logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*([None] * logits.ndim))))
         return cross_entropy(logits, labels)
 
@@ -94,19 +86,18 @@ def create_fused_train_step_fn(
         lora_params,
         frozen_state,
         opt_state,
-        inputs_embeds,
+        input_ids,
         labels,
         attention_mask,
     ):
         loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
             lora_params,
             frozen_state,
-            inputs_embeds,
+            input_ids,
             labels,
             attention_mask,
         )
 
-        # Workaround for the gradient barrier issue (possible)
         grads = jax.tree.map(
             lambda grad, sharding: jax.lax.with_sharding_constraint(grad, sharding),
             grads,
@@ -138,26 +129,24 @@ def create_eval_step_fn(
     CE. A single fixed-signature JIT avoids the MeshDevice re-init crashes that
     alternating JITs caused on TT. Predictions are not emitted; see eval_step.
 
-    Returns eval_step(lora_params, frozen_state, inputs_embeds, labels,
+    Returns eval_step(lora_params, frozen_state, input_ids, labels,
     attention_mask) -> scalar loss.
     """
 
     cross_entropy = _make_loss_fn(mesh, model_axis)
     forward = _make_forward_fn(mesh, model_axis)
 
-    def eval_step(lora_params, frozen_state, inputs_embeds, labels, attention_mask):
+    def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = forward(model, inputs_embeds, attention_mask)
+        logits = forward(model, input_ids, attention_mask)
         logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*[None] * logits.ndim)))
-        # Loss only: also returning argmax predictions would leave the TT
-        # flatbuffer with more outputs than output shardings and break the
-        # single fixed-signature eval JIT that avoids MeshDevice re-init crashes.
+        # Loss only: extra outputs (e.g. argmax predictions) break the
+        # single fixed-signature eval JIT on TT.
         return cross_entropy(logits, labels)
 
-    # Pin the scalar loss to a replicated 0-D sharding. Without this TT infers a
-    # rank-2 sharding for the scalar (from the data/vocab-sharded reductions it
-    # is built from) and fails with "Output sharding shape (2) doesn't match the
-    # output shape (0)".
+    # Pin the scalar loss to a replicated 0-D sharding; otherwise TT infers a
+    # non-0-D sharding for it and compilation fails.
+    # TODO(ndimicTT): remove once TT partitions 0-D scalar outputs correctly.
     if mesh is not None:
         return jax.jit(eval_step, out_shardings=NamedSharding(mesh, PartitionSpec()))
     return jax.jit(eval_step)
@@ -187,9 +176,7 @@ def evaluate(
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
 
-        # inputs_embeds is gathered on host (see train.py); input_ids is retained
-        # only for the host-side prediction display below.
-        loss = jit_eval_step(lora_params, frozen_state, batch["inputs_embeds"], labels, attention_mask)
+        loss = jit_eval_step(lora_params, frozen_state, input_ids, labels, attention_mask)
 
         if tokenizer is not None and len(collected_examples) < num_examples:
             batch_input_ids = np.asarray(JaxDeviceManager.to_cpu(input_ids))

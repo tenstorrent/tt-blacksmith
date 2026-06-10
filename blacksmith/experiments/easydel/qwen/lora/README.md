@@ -51,12 +51,11 @@ python3 blacksmith/experiments/easydel/qwen/lora/train.py \
   --config blacksmith/experiments/easydel/qwen/lora/single_chip/qwen3_0_6b_sst2.yaml
 ```
 
-GPU baseline (override `use_tt`; requires GPU JAX and the CUDA plugin above):
+GPU baseline (set `use_tt: false` in the config; requires GPU JAX and the CUDA plugin above):
 
 ```bash
 python3 blacksmith/experiments/easydel/qwen/lora/train.py \
-  --config blacksmith/experiments/easydel/qwen/lora/single_chip/qwen3_0_6b_sst2.yaml \
-  --test_config '{"use_tt": false}'
+  --config blacksmith/experiments/easydel/qwen/lora/single_chip/qwen3_0_6b_sst2.yaml
 ```
 
 ### Qwen 3 4B (Quietbox, 8 chips)
@@ -90,13 +89,12 @@ python3 blacksmith/experiments/easydel/qwen/lora/train.py \
 Each Quietbox YAML ships one parallelism setup, but either dataset can run in either
 setup by changing only the `mesh_shape`, `mesh_axis_names`, and `input_sharding_dim`
 fields (the `model_sharding_patterns` reference only the `model`/`null` axes, so they
-are valid for both meshes). Switch without editing the file via `--test_config`, e.g.
-run SST-2 as DP+TP:
+are valid for both meshes). For example, to run SST-2 as DP+TP, set in the YAML:
 
-```bash
-python3 blacksmith/experiments/easydel/qwen/lora/train.py \
-  --config blacksmith/experiments/easydel/qwen/lora/quietbox/qwen3_4b_sst2.yaml \
-  --test_config '{"mesh_shape": [2, 4], "mesh_axis_names": ["data", "model"], "input_sharding_dim": "data"}'
+```yaml
+mesh_shape: [2, 4]
+mesh_axis_names: ["data", "model"]
+input_sharding_dim: "data"
 ```
 
 ### Mesh and Sharding Configuration
@@ -110,9 +108,9 @@ Multi-device runs use the Shardy partitioner and enable the GQA workaround (`app
 
 ### Step Functions on TT
 
-To keep every device-side program shape fixed across steps on TT — which avoids the `MeshDevice` re-open crashes tracked in [https://github.com/tenstorrent/tt-xla/issues/1993](https://github.com/tenstorrent/tt-xla/issues/1993) and [https://github.com/tenstorrent/tt-xla/issues/4809](https://github.com/tenstorrent/tt-xla/issues/4809) — the train step fuses the label shift, masking, and clamped cross-entropy into a single `@jax.jit`, and the eval step returns a single scalar loss from a fixed-signature JIT. This keeps per-step micro-ops from escaping to TT.
+To keep every device-side program shape fixed across steps on TT — which avoids the `MeshDevice` re-open crashes tracked in https://github.com/tenstorrent/tt-xla/issues/1993 and https://github.com/tenstorrent/tt-xla/issues/4809 — the train step fuses the label shift, masking, and clamped cross-entropy into a single `@jax.jit`, and the eval step returns a single scalar loss from a fixed-signature JIT. This keeps per-step micro-ops from escaping to TT.
 
-> **TODO:** emit per-token predictions / accuracy from the eval step once multi-output flatbuffers are validated under the mesh-reopen workaround ([https://github.com/tenstorrent/tt-xla/issues/1993](https://github.com/tenstorrent/tt-xla/issues/1993), [https://github.com/tenstorrent/tt-xla/issues/4809](https://github.com/tenstorrent/tt-xla/issues/4809)).
+> **TODO:** emit per-token predictions / accuracy from the eval step once multi-output flatbuffers are validated under the mesh-reopen workaround (https://github.com/tenstorrent/tt-xla/issues/1993, https://github.com/tenstorrent/tt-xla/issues/4809).
 
 ## Data
 
@@ -124,7 +122,7 @@ To keep every device-side program shape fixed across steps on TT — which avoid
 
 ## Configuration
 
-Each YAML specifies training parameters. Override fields via `--test_config` JSON as needed.
+Each YAML specifies training parameters. Override fields by editing the YAML as needed.
 
 ### Dataset
 

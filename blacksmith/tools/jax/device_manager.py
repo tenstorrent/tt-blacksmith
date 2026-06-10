@@ -68,14 +68,14 @@ class JaxDeviceManager:
                 if tt_devs:
                     return tt_devs[0], "tt"
             except Exception:
-                pass
+                logger.warning("No TT devices found, falling back to GPU")
 
         try:
             gpu_devs = jax.devices("gpu")
             if gpu_devs:
                 return gpu_devs[0], "gpu"
         except Exception:
-            pass
+            logger.warning("No GPU devices found, falling back to CPU")
 
         return jax.devices("cpu")[0], "cpu"
 
