@@ -48,6 +48,7 @@ class TrainingConfig(BaseModel):
     steps_freq: int = Field(default=25)
     val_steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
+    measure_e2e_time: bool = Field(default=False)
 
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)
@@ -73,5 +74,5 @@ class TrainingConfig(BaseModel):
     unfreeze_embeddings: bool = Field(default=False)
 
     # Other settings
-    framework: Framework = Field(default=Framework.PYTORCH)
+    framework: Framework = Field(default=Framework.PYTORCH.value)
     use_tt: bool = Field(default=True)

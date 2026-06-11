@@ -6,10 +6,9 @@ import traceback
 from pathlib import Path
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
-from blacksmith.datasets.jax.sst2.sst2_dataset import load_sst2_batches
+from blacksmith.datasets.jax.dataset_utils import load_batches
 from blacksmith.experiments.easydel.qwen.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.jax.checkpoint_manager import JaxCheckpointManager
@@ -21,9 +20,8 @@ from blacksmith.tools.jax.easydel.helpers import (
 )
 from blacksmith.tools.jax.easydel.partitioning import easydel_partition_specs_for_lora
 from blacksmith.tools.jax.easydel.train_steps import (
-    create_eval_inspect_step_fn,
     create_eval_step_fn,
-    create_loss_and_grad_step_fn,
+    create_fused_train_step_fn,
     evaluate,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -37,7 +35,6 @@ def validate(
     validation_batches,
     logger,
     *,
-    jit_inspect_step=None,
     tokenizer=None,
 ):
     """Run evaluation on validation batches and log the result."""
@@ -47,8 +44,8 @@ def validate(
         lora_params,
         frozen_state,
         validation_batches,
-        jit_inspect_step=jit_inspect_step,
         tokenizer=tokenizer,
+        training_logger=logger,
     )
     logger.info(f"Average validation loss: {validation_loss:.4f}")
     return validation_loss
@@ -67,6 +64,7 @@ def train(
         device_manager,
         dtype=config.jax_dtype,
         mask_max_position_embeddings=config.mask_max_position_embeddings,
+        extra_config_kwargs={"tie_word_embeddings": False},
     )
     logger.info(f"Loaded {config.model_name} model.")
     logger.log_model_info(
@@ -81,12 +79,12 @@ def train(
         }
     )
 
-    train_input_ids, train_labels, train_attention_masks = load_sst2_batches(config, split="train")
-    validation_input_ids, validation_labels, validation_attention_masks = load_sst2_batches(config, split="validation")
+    train_input_ids, train_labels, train_attention_masks = load_batches(config, split="train")
+    validation_input_ids, validation_labels, validation_attention_masks = load_batches(config, split="validation")
 
     def _make_batch(input_ids, labels, attention_mask):
         return {
-            "input_ids": np.asarray(input_ids, dtype=np.uint32),
+            "input_ids": np.asarray(input_ids, dtype=np.int32),
             "labels": np.asarray(labels, dtype=np.int32),
             "attention_mask": np.asarray(attention_mask, dtype=np.int32),
         }
@@ -113,7 +111,13 @@ def train(
     )
 
     graphdef, lora_params, frozen_state, _shardings = easydel_partition_specs_for_lora(model, device_manager.mesh)
-    vocab_size = model.config.vocab_size
+    lora_params = jax.tree.map(lambda x: x.astype(jax.numpy.float32), lora_params)
+
+    # Place state across the mesh.
+    sharding_patterns = getattr(config, "model_sharding_patterns", None)
+    lora_params = device_manager.apply_sharding_patterns(lora_params, sharding_patterns)
+    lora_shardings = jax.tree.map(lambda x: x.sharding, lora_params)
+    frozen_state = device_manager.apply_sharding_patterns(frozen_state, sharding_patterns)
 
     # Build optimizer.
     num_train_batches = len(train_batches)
@@ -132,12 +136,24 @@ def train(
         logger.info(
             f"  Gradient accumulation: {accumulation_steps} steps -> Effective batch size {effective_batch_size}"
         )
-    optimizer_state = optimizer.init(lora_params)
 
-    # Compile JIT steps.
-    jit_loss_and_grad = create_loss_and_grad_step_fn(graphdef)
-    jit_eval_step = create_eval_step_fn(graphdef)
-    jit_inspect_step = create_eval_inspect_step_fn(graphdef) if config.print_examples else None
+    # Initialize optimizer state on CPU (avoids eager compilation on TT),
+    # then shard it across the mesh for the fused on-device train step.
+    with jax.default_device(jax.devices("cpu")[0]):
+        lora_params_cpu = jax.tree.map(lambda x: np.asarray(x), lora_params)
+        optimizer_state = optimizer.init(lora_params_cpu)
+    optimizer_state = device_manager.apply_sharding_patterns(optimizer_state, sharding_patterns)
+
+    jit_fused_train_step = create_fused_train_step_fn(
+        graphdef,
+        optimizer,
+        lora_shardings,
+        mesh=device_manager.mesh,
+    )
+    jit_eval_step = create_eval_step_fn(
+        graphdef,
+        mesh=device_manager.mesh,
+    )
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
@@ -155,9 +171,12 @@ def train(
         validation_batches = validation_batches[: config.max_val_batches]
         logger.info(f"  Using {len(validation_batches)} of {original_validation_batch_count} validation batches")
 
+    # Pre-shard validation batches; the model embeds input_ids on device.
+    validation_batches = [device_manager.prepare_batch(batch) for batch in validation_batches]
+
     inspect_kwargs: dict = {}
-    if jit_inspect_step is not None and tokenizer is not None:
-        inspect_kwargs = {"jit_inspect_step": jit_inspect_step, "tokenizer": tokenizer}
+    if config.print_examples and tokenizer is not None:
+        inspect_kwargs = {"tokenizer": tokenizer}
 
     global_step = 0
     running_losses: list[float] = []
@@ -179,25 +198,20 @@ def train(
 
             for batch_index in range(num_batches):
                 batch = train_batches[shuffled_batch_order[batch_index]]
-                input_ids = batch["input_ids"]
-                labels = batch["labels"]
-                attention_mask = batch["attention_mask"]
 
-                shifted_labels = labels[:, 1:].astype(jnp.int32)
-                valid_mask = shifted_labels != config.ignored_label_index
-                safe_labels = jnp.where(valid_mask, shifted_labels, 0)
-                label_mask = valid_mask.astype(jnp.float32)
-                one_hot_labels = jax.nn.one_hot(safe_labels, vocab_size).astype(jnp.float32)
+                # Raw labels pass through; the fused JIT runs shift/mask/CE
+                # internally. The model embeds input_ids on device.
+                sharded_batch = device_manager.prepare_batch(batch)
 
-                # Forward + backward.
-                loss, gradients, gradient_stats = jit_loss_and_grad(
-                    lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
+                lora_params, optimizer_state, loss, gradient_stats = jit_fused_train_step(
+                    lora_params,
+                    frozen_state,
+                    optimizer_state,
+                    sharded_batch["input_ids"],
+                    sharded_batch["labels"],
+                    sharded_batch["attention_mask"],
                 )
-
-                # Optimizer step (CPU-offloaded when optimizer_on_cpu=True on TT).
-                lora_params, optimizer_state = device_manager.optimizer_step(
-                    optimizer, optimizer_state, lora_params, gradients
-                )
+                jax.block_until_ready((lora_params, optimizer_state))
 
                 current_loss = float(loss)
                 gradient_norm = float(gradient_stats["grad_norm"])

@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import linen as nn
+from jax.sharding import Mesh, NamedSharding, PartitionSpec
 
 from blacksmith.tools.logging_manager import TrainingLogger
 
@@ -52,20 +53,14 @@ _LOG_EPS = 1e-12
 
 def clamped_softmax_cross_entropy_per_token(
     logits_f32: jax.Array,
-    one_hot: jax.Array,
-    eps: float = _LOG_EPS,
+    labels: jax.Array,
 ) -> jax.Array:
-    """Per-token cross-entropy robust to TT bf16 fused-softmax drift.
-
-    Computes softmax, clamps to [0, 1], renormalises, then returns
-    -sum(one_hot * log(probs)) per token.
-    """
-    probs = jax.nn.softmax(logits_f32, axis=-1)
-    probs = jnp.clip(probs, 0.0, 1.0)
-    row_sum = jnp.sum(probs, axis=-1, keepdims=True)
-    probs = probs / jnp.maximum(row_sum, eps)
-    log_probs = jnp.log(jnp.maximum(probs, eps))
-    return -jnp.sum(one_hot * log_probs, axis=-1)
+    row_max = jax.lax.stop_gradient(jnp.max(logits_f32, axis=-1, keepdims=True))
+    shifted = logits_f32 - row_max
+    log_normalizer = jnp.log(jnp.sum(jnp.exp(shifted), axis=-1))
+    one_hot = jax.nn.one_hot(labels, logits_f32.shape[-1], dtype=logits_f32.dtype)
+    picked = jnp.sum(one_hot * shifted, axis=-1)
+    return log_normalizer - picked
 
 
 IGNORED_LABEL = -100
@@ -77,36 +72,57 @@ def masked_cross_entropy(
     *,
     ignored_index: int = IGNORED_LABEL,
     clamped: bool = True,
-    vocab_size: int | None = None,
 ) -> jax.Array:
     """Shift-by-one causal cross-entropy with label masking.
 
     Positions where labels == ignored_index are excluded from the mean.
-    When clamped is True the TT-safe CE variant is used; otherwise
-    plain optax softmax cross-entropy.
+    When clamped is True the TT-safe integer-label CE variant is used (no
+    one-hot, no softmax tensor), otherwise plain optax integer-label CE.
 
     Args:
         logits: (batch, seq_len, vocab) model output.
         labels: (batch, seq_len) integer labels.
         ignored_index: Value treated as "don't care".
         clamped: Use the TT bf16-safe CE variant.
-        vocab_size: Vocabulary size; inferred from logits when None.
     """
     shift_logits = logits[:, :-1, :].astype(jnp.float32)
     shift_labels = labels[:, 1:].astype(jnp.int32)
 
-    v = vocab_size or shift_logits.shape[-1]
     valid = shift_labels != ignored_index
     safe = jnp.where(valid, shift_labels, 0)
-    one_hot = jax.nn.one_hot(safe, v).astype(jnp.float32)
 
     if clamped:
-        per_token = clamped_softmax_cross_entropy_per_token(shift_logits, one_hot)
+        per_token = clamped_softmax_cross_entropy_per_token(shift_logits, safe)
     else:
-        per_token = optax.softmax_cross_entropy(shift_logits, one_hot)
+        per_token = optax.softmax_cross_entropy_with_integer_labels(shift_logits, safe)
 
     masked = per_token * valid
     return jnp.sum(masked) / jnp.maximum(jnp.sum(valid), 1)
+
+
+def vocab_parallel_cross_entropy(
+    logits: jax.Array,
+    labels: jax.Array,
+    mesh: Mesh,
+    *,
+    model_axis: str = "model",
+    data_axis: str = "data",
+    ignored_index: int = IGNORED_LABEL,
+) -> jax.Array:
+    """Causal cross-entropy for a vocab(model)-sharded logits tensor.
+
+    A sharding constraint replicates the vocab axis (an all-gather over
+    model_axis, which TT supports), making the softmax normaliser a local
+    reduction so the standard clamped CE can be reused. This avoids the
+    shard_map manual-computation region TT only allows once per module.
+    """
+    data_spec = data_axis if data_axis in mesh.axis_names else None
+
+    # Replicate the model-sharded vocab axis (all-gather over model_axis) so the
+    # cross-entropy reductions are entirely local; no shard_map / manual region.
+    logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(data_spec, None, None)))
+
+    return masked_cross_entropy(logits, labels, clamped=True, ignored_index=ignored_index)
 
 
 def show_predictions(
@@ -117,59 +133,62 @@ def show_predictions(
     ignored_index: int = IGNORED_LABEL,
     training_logger: Optional[TrainingLogger] = None,
 ) -> None:
-    """Print collected prediction examples (CPU-only, no forward pass).
-
-    Args:
-        collected: List of dicts with keys input_ids, labels, predictions,
-            per_token_loss (numpy arrays).
-        tokenizer: HuggingFace tokenizer for decoding.
-        num_tokens: Number of leading tokens to show per example.
-        ignored_index: Label value treated as "don't care".
-        training_logger: Optional TrainingLogger; falls back to the
-            module-level logger when None.
+    """Log collected examples on CPU. Each entry needs input_ids and labels;
+    predictions, per_token_loss and loss are logged when present. The eval step
+    returns scalar loss only, so predictions are usually absent on multi-chip
+    (https://github.com/tenstorrent/tt-xla/issues/1993,
+    https://github.com/tenstorrent/tt-xla/issues/4809,
+    https://github.com/tenstorrent/tt-mlir/issues/3963).
     """
     log = training_logger.info if training_logger is not None else logging.getLogger(__name__).info
 
-    for i, ex in enumerate(collected):
-        input_ids = ex["input_ids"]
-        labels = ex["labels"]
-        predictions = ex["predictions"]
-        per_token_loss = ex["per_token_loss"]
+    for i, example in enumerate(collected):
+        input_ids = example["input_ids"]
+        labels = example["labels"]
+        predictions = example.get("predictions")
+        per_token_loss = example.get("per_token_loss")
+        batch_loss = example.get("loss")
 
         shift_labels = labels[1:].astype(np.int32)
-        target_ids = shift_labels[:num_tokens]
-        pred_ids = predictions[:num_tokens]
-        token_losses = per_token_loss[:num_tokens]
-
-        tok_valid = target_ids != ignored_index
-        valid_targets = target_ids[tok_valid]
-        valid_preds = pred_ids[tok_valid]
-
-        input_text = tokenizer.decode(
-            input_ids.tolist(),
-            skip_special_tokens=True,
-        )[:200]
-        target_text = tokenizer.decode(
-            valid_targets.tolist(),
-            skip_special_tokens=False,
-        )
-        pred_text = tokenizer.decode(
-            valid_preds.tolist(),
-            skip_special_tokens=False,
-        )
-
-        valid = shift_labels != ignored_index
-        correct = int((predictions[valid] == shift_labels[valid]).sum())
-        total = int(valid.sum())
+        valid_mask = shift_labels != ignored_index
 
         log(f"\n--- Example {i + 1} ---")
+
+        if not valid_mask.any():
+            log(f"  (no unmasked target tokens; all labels == {ignored_index})")
+            if batch_loss is not None:
+                log(f"  Batch loss:   {batch_loss:.4f}")
+            continue
+
+        prompt_end = int(np.argmax(valid_mask)) + 1
+        prompt_ids = input_ids[:prompt_end]
+
+        valid_targets = shift_labels[valid_mask]
+        target_ids = valid_targets[:num_tokens]
+
+        input_text = tokenizer.decode(prompt_ids.tolist(), skip_special_tokens=True)
+        target_text = tokenizer.decode(target_ids.tolist(), skip_special_tokens=False)
+
         log(f"  Input:        {input_text!r}")
         log(f"  Target IDs:   {target_ids.tolist()}")
-        log(f"  Pred IDs:     {pred_ids.tolist()}")
         log(f"  Target text:  {target_text!r}")
-        log(f"  Pred text:    {pred_text!r}")
-        log(f"  Token losses: {np.round(token_losses, 4).tolist()}")
-        mean_loss = float(per_token_loss.mean())
-        log(f"  Mean loss:    {mean_loss:.4f}")
-        acc = correct / max(total, 1)
-        log(f"  Accuracy:     {correct}/{total} = {acc:.3f}")
+
+        if predictions is not None:
+            valid_preds_all = predictions[valid_mask]
+            pred_ids = valid_preds_all[:num_tokens]
+            pred_text = tokenizer.decode(pred_ids.tolist(), skip_special_tokens=False)
+            log(f"  Pred IDs:     {pred_ids.tolist()}")
+            log(f"  Pred text:    {pred_text!r}")
+
+            correct = int((valid_preds_all == valid_targets).sum())
+            total = int(valid_targets.size)
+            acc = correct / max(total, 1)
+            log(f"  Accuracy:     {correct}/{total} = {acc:.3f}")
+
+        if per_token_loss is not None:
+            valid_token_losses = per_token_loss[valid_mask][:num_tokens]
+            log(f"  Token losses: {np.round(valid_token_losses, 4).tolist()}")
+            mean_loss = float(per_token_loss[valid_mask].mean())
+            log(f"  Mean loss:    {mean_loss:.4f}")
+        elif batch_loss is not None:
+            log(f"  Batch loss:   {batch_loss:.4f}")
