@@ -1,10 +1,10 @@
 # Dataset settings
-dataset_id: "alpaca"
+dataset_id: "sst2"
 
 # Model settings
 model_name: "Qwen/Qwen3-14B-Base"
-max_length: 128
-mask_max_position_embeddings: 128
+max_length: 256
+mask_max_position_embeddings: 256
 dtype: "bfloat16"
 
 # Training hyperparameters
