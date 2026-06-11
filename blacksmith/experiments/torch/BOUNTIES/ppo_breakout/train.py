@@ -9,7 +9,6 @@ import ale_py
 import gymnasium as gym
 import torch
 import torch_xla
-from torch.utils.data import DataLoader, TensorDataset
 
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import (
     RolloutBuffer,
@@ -149,7 +148,7 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
             mb_values = h_values.index_select(0, mb).to(device)
             mb_adv = h_adv.index_select(0, mb).to(device)
             mb_returns = h_returns.index_select(0, mb).to(device)
-            # ... rest of the loop body unchanged ...
+
             _, new_log_prob, entropy, new_value = agent.get_action_and_value(mb_obs, mb_actions)
             log_ratio = new_log_prob - mb_log_probs
             ratio = log_ratio.exp()
