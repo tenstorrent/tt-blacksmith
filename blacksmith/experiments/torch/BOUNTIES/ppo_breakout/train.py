@@ -15,7 +15,7 @@ from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import 
     RolloutBuffer,
 )
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.configs import TrainingConfig
-from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.model import BreakoutCNN
+from blacksmith.models.torch.BOUNTIES.breakout_cnn import BreakoutCNN
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -121,17 +121,35 @@ def make_vec_env(config: TrainingConfig):
 
 
 def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingConfig, device_manager: DeviceManager):
+    device = device_manager.device
     b_obs, b_actions, b_log_probs, b_values = buffer.flatten()
     b_advantages = advantages.reshape(-1)
     b_returns = returns.reshape(-1)
+    batch_size = b_obs.shape[0]
+
+    # Offload the batch to host (CPU) before shuffling: TT's on-device gather
+    # (index_select with a dynamic index) returns numerically wrong values that blow
+    # the loss up to inf/nan, whereas the same gather on CPU is correct.
+    h_obs = b_obs.cpu()
+    h_actions = b_actions.cpu()
+    h_log_probs = b_log_probs.cpu()
+    h_values = b_values.cpu()
+    h_adv = b_advantages.cpu()
+    h_returns = b_returns.cpu()
 
     clip_fracs = []
 
-    dataset = TensorDataset(b_obs, b_actions, b_log_probs, b_values, b_advantages, b_returns)
-    loader = DataLoader(dataset, batch_size=config.minibatch_size, shuffle=True)
-
     for _ in range(config.update_epochs):
-        for mb_obs, mb_actions, mb_log_probs, mb_values, mb_adv, mb_returns in loader:
+        perm = torch.randperm(batch_size)
+        for start in range(0, batch_size, config.minibatch_size):
+            mb = perm[start : start + config.minibatch_size]
+            mb_obs = h_obs.index_select(0, mb).to(device)
+            mb_actions = h_actions.index_select(0, mb).to(device)
+            mb_log_probs = h_log_probs.index_select(0, mb).to(device)
+            mb_values = h_values.index_select(0, mb).to(device)
+            mb_adv = h_adv.index_select(0, mb).to(device)
+            mb_returns = h_returns.index_select(0, mb).to(device)
+            # ... rest of the loop body unchanged ...
             _, new_log_prob, entropy, new_value = agent.get_action_and_value(mb_obs, mb_actions)
             log_ratio = new_log_prob - mb_log_probs
             ratio = log_ratio.exp()
@@ -340,7 +358,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup.
-    default_config = Path(__file__).parent / "test_breakout_ppo_training.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "ppo_breakout.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

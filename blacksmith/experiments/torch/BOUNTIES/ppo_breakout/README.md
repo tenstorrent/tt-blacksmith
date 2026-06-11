@@ -1,7 +1,7 @@
 # PPO Breakout Training
 
 This directory contains the code for training a PPO (Proximal Policy Optimization) agent on the Atari Breakout game.
-The agent uses a CNN architecture from `blacksmith/models/torch/BOUNTIES/ppo_breakout/model.py` with standard Atari preprocessing wrappers.
+The agent uses a CNN architecture from `blacksmith/models/torch/BOUNTIES/breakout_cnn.py` with standard Atari preprocessing wrappers.
 
 
 ## Overview
@@ -22,12 +22,12 @@ itself, along with the use of GAE for advantage estimation, is from Schulman et 
 ## Training
 
 ```bash
-python blacksmith/experiments/torch/BOUNTIES/ppo_breakout/test_breakout_ppo_training.py
+python blacksmith/experiments/torch/BOUNTIES/ppo_breakout/train.py
 ```
 
 ## Configuration
 
-The experiment is configured using the configuration file `test_breakout_ppo_training.yaml`. Current defaults are the recommended and tested hyperparameters.
+The experiment is configured using the configuration file `ppo_breakout.yaml`. Current defaults are the recommended and tested hyperparameters.
 
 > **Note:** On TT, `num_minibatches` is set to 16 so the CNN's conv activations fit in L1; if you run on CPU (`use_tt: False`) you can use the standard value of 4.
 
