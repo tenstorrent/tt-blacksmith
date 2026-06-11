@@ -1,18 +1,18 @@
 # Dataset settings
-dataset_id: "alpaca"
+dataset_id: "sst2"
 
 # Model settings
 model_name: "Qwen/Qwen3-14B-Base"
-max_length: 128
-mask_max_position_embeddings: 128
+max_length: 256
+mask_max_position_embeddings: 256
 dtype: "bfloat16"
 
 # Training hyperparameters
-learning_rate: 1e-5
-warmup_steps: 20
+learning_rate: 1e-4
+warmup_steps: 0
 end_learning_rate: 0.0
 batch_size: 4
-gradient_accumulation_steps: 2
+gradient_accumulation_steps: 1
 num_epochs: 1
 val_steps_freq: 25
 max_val_batches: 10
@@ -28,7 +28,7 @@ deterministic: true
 # Logging settings
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
-wandb_run_name: "qwen3-14b-alpaca-tt-quietbox-easydel"
+wandb_run_name: "qwen3-32b-sst2-tt-quietbox-easydel"
 print_examples: false
 steps_freq: 10
 log_level: "INFO"
