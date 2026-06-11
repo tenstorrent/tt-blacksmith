@@ -1,8 +1,14 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import ctypes
+import os
 import traceback
 from pathlib import Path
+
+import psutil
+
+_libc = ctypes.CDLL("libc.so.6")
 
 import torch
 import torch_xla
@@ -24,6 +30,40 @@ from blacksmith.tools.torch_helpers import (
     show_examples,
 )
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
+
+
+def log_memory_diagnostics(logger, label="", step=None):
+    """Log heap fragmentation and memory metrics to W&B."""
+    process = psutil.Process(os.getpid())
+    mem = process.memory_info()
+    rss_gb = mem.rss / 1e9
+
+    vm_fields = {}
+    with open("/proc/self/status") as f:
+        for line in f:
+            if line.startswith(("VmRSS", "VmData", "VmHWM", "RssAnon")):
+                key, val = line.split(":")
+                kb = int(val.strip().split()[0])
+                vm_fields[key.strip()] = kb / 1e6
+
+    rss_before = mem.rss
+    _libc.malloc_trim(0)
+    rss_after = psutil.Process(os.getpid()).memory_info().rss
+    reclaimed_gb = (rss_before - rss_after) / 1e9
+
+    metrics = {
+        f"mem/{label}/rss_gb": rss_gb,
+        f"mem/{label}/hwm_gb": vm_fields.get("VmHWM", 0),
+        f"mem/{label}/vm_data_gb": vm_fields.get("VmData", 0),
+        f"mem/{label}/rss_anon_gb": vm_fields.get("RssAnon", 0),
+        f"mem/{label}/malloc_trim_reclaimed_gb": reclaimed_gb,
+    }
+
+    logger.info(
+        f"[MEM {label}] "
+        + " | ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
+    )
+    logger.log_metrics(metrics, commit=False, step=step)
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -54,11 +94,10 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
             expected_output_one_hot, labels_mask = transform_labels(
                 expected_output, config.ignored_index, model.model.config.vocab_size
             )
+            expected_output_one_hot = expected_output_one_hot.to(device)
+            labels_mask = labels_mask.to(device)
 
-            if config.use_tt:
-                loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
-            else:
-                loss = loss_fn(shift_logits, expected_output_one_hot.to(device), labels_mask.to(device))
+            loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
 
             # Predictions
             predictions = shift_logits.argmax(dim=-1)
@@ -127,6 +166,11 @@ def train(
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
+
+    vm = psutil.virtual_memory()
+    logger.info(f"Host total: {vm.total / 1e9:.2f} GB | Available: {vm.available / 1e9:.2f} GB | Used: {vm.used / 1e9:.2f} GB")
+
+    process = psutil.Process(os.getpid())
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
@@ -226,15 +270,28 @@ def train(
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
                         current_lr = scheduler.get_last_lr()[0] if scheduler is not None else config.learning_rate
+
+                        vm = psutil.virtual_memory()
+
                         logger.log_metrics(
-                            {"train/loss": avg_loss, "train/lr": current_lr},
+                            {
+                                "train/loss": avg_loss,
+                                "train/lr": current_lr,
+                                "sys/process_rss_gb": process.memory_info().rss / 1e9,
+                                "sys/host_available_gb": vm.available / 1e9,
+                                "sys/host_used_gb": vm.used / 1e9,
+                                "sys/host_percent": vm.percent,
+                            },
                             commit=False,
                             step=global_step,
                         )
                         running_loss = 0.0
 
+                        log_memory_diagnostics(logger, label="step", step=global_step)
+
                     # Validation
                     if global_step % config.val_steps_freq == 0:
+                        log_memory_diagnostics(logger, label="pre_val", step=global_step)
                         model.eval()
                         val_loss = validate(
                             model,
@@ -247,13 +304,16 @@ def train(
                         )
                         logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
                         model.train()
+                        log_memory_diagnostics(logger, label="post_val", step=global_step)
 
                     # Commit metrics to W&B.
                     logger.log_metrics({}, commit=True, step=global_step)
 
                     # Save step checkpoint.
                     if checkpoint_manager.should_save_checkpoint(global_step):
+                        log_memory_diagnostics(logger, label="pre_ckpt", step=global_step)
                         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+                        log_memory_diagnostics(logger, label="post_ckpt", step=global_step)
 
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
