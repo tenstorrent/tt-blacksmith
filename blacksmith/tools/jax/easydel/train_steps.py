@@ -7,96 +7,149 @@ from typing import Callable, Optional
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optax
 from flax import nnx
+from jax.sharding import NamedSharding, PartitionSpec
 from transformers import PreTrainedTokenizerBase
 
 from blacksmith.tools.jax.device_manager import JaxDeviceManager
 from blacksmith.tools.jax.helpers import (
-    clamped_softmax_cross_entropy_per_token,
     masked_cross_entropy,
     show_predictions,
+    vocab_parallel_cross_entropy,
 )
+from blacksmith.tools.logging_manager import TrainingLogger
 
 
-def create_loss_and_grad_step_fn(graphdef: nnx.GraphDef) -> Callable:
-    """Create a JIT-compiled forward + backward step (no optimizer).
+def _make_loss_fn(mesh, model_axis: str = "model") -> Callable:
+    """Pick the cross-entropy matching the active sharding.
 
-    One-hot labels and label_mask are pre-computed outside JIT.
-    On TT this avoids a ttnn.eq bug that doubles the one-hot value for
-    even uint32 labels.
-
-    Returns a function with signature::
-
-        loss_and_grad_step(lora_params, frozen_state,
-                           input_ids, one_hot_labels, label_mask,
-                           attention_mask)
-            -> (loss, grads, grad_stats)
-
-    The caller is responsible for applying the optimizer update
-    (typically via device_manager.optimizer_step).
+    Vocab-parallel CE when the vocab axis is sharded (model_axis size > 1) so
+    the softmax normaliser is reduced across shards; otherwise the clamped CE.
     """
+    vocab_parallel = mesh is not None and model_axis in getattr(mesh, "axis_names", ()) and mesh.shape[model_axis] > 1
 
-    def loss_fn(lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask):
-        model = nnx.merge(graphdef, lora_params, frozen_state)
-        output = model(input_ids=input_ids, attention_mask=attention_mask)
-        shift_logits = output.logits[:, :-1, :].astype(jnp.float32)
-        per_token_loss = clamped_softmax_cross_entropy_per_token(shift_logits, one_hot_labels)
-        masked_per_token_loss = per_token_loss * label_mask
-        return jnp.sum(masked_per_token_loss) / jnp.maximum(jnp.sum(label_mask), 1.0)
-
-    @jax.jit
-    def loss_and_grad_step(lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask):
-        loss, gradients = jax.value_and_grad(loss_fn, argnums=0)(
-            lora_params, frozen_state, input_ids, one_hot_labels, label_mask, attention_mask
-        )
-        gradient_leaves = jax.tree.leaves(gradients)
-        gradient_norm = jnp.sqrt(sum(jnp.sum(gradient_leaf**2) for gradient_leaf in gradient_leaves))
-        gradient_max = jnp.max(jnp.stack([jnp.max(jnp.abs(gradient_leaf)) for gradient_leaf in gradient_leaves]))
-        return loss, gradients, {"grad_norm": gradient_norm, "grad_max": gradient_max}
-
-    return loss_and_grad_step
-
-
-def create_eval_step_fn(graphdef: nnx.GraphDef) -> Callable:
-    """JIT-compiled evaluation step returning scalar loss.
-
-    Uses the TT-safe clamped CE via masked_cross_entropy(clamped=True)
-    so results are correct on all devices.
-
-    Returns a function with signature::
-
-        eval_step(lora_params, frozen_state,
-                  input_ids, labels, attention_mask) -> loss
-    """
-
-    @jax.jit
-    def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
-        model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
+    def cross_entropy(logits, labels):
+        if vocab_parallel:
+            return vocab_parallel_cross_entropy(logits, labels, mesh, model_axis=model_axis)
         return masked_cross_entropy(logits, labels, clamped=True)
 
-    return eval_step
+    return cross_entropy
 
 
-def create_eval_inspect_step_fn(graphdef: nnx.GraphDef) -> Callable:
-    @jax.jit
-    def eval_inspect_step(lora_params, frozen_state, input_ids, labels, attention_mask):
+def _make_forward_fn(mesh, model_axis: str = "model") -> Callable:
+    """Return forward(model, input_ids, attention_mask) -> logits.
+
+    The model embeds input_ids on device.
+    """
+
+    def forward(model, input_ids, attention_mask):
+        return model(input_ids=input_ids, attention_mask=attention_mask).logits
+
+    return forward
+
+
+def create_fused_train_step_fn(
+    graphdef: nnx.GraphDef,
+    tx: optax.GradientTransformation,
+    lora_shardings,
+    mesh=None,
+    model_axis: str = "model",
+) -> Callable:
+    """JIT-compiled forward + backward + optimizer step.
+
+    Shift/mask/one-hot/clamped CE all run inside the JIT so no per-step
+    micro-ops escape to TT and trigger fabric/MeshDevice re-init.
+
+    Returns fused_train_step(lora_params, frozen_state, opt_state,
+    input_ids, labels, attention_mask) -> (new_params, new_opt, loss,
+    grad_stats).
+    """
+
+    cross_entropy = _make_loss_fn(mesh, model_axis)
+    forward = _make_forward_fn(mesh, model_axis)
+    scalar_sharding = NamedSharding(mesh, PartitionSpec()) if mesh is not None else None
+
+    def _pin_scalar(x):
+        if scalar_sharding is None:
+            return x
+        return jax.lax.with_sharding_constraint(x, scalar_sharding)
+
+    def loss_fn(lora_params, frozen_state, input_ids, labels, attention_mask):
         model = nnx.merge(graphdef, lora_params, frozen_state)
-        logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
+        logits = forward(model, input_ids, attention_mask)
+        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*([None] * logits.ndim))))
+        return cross_entropy(logits, labels)
 
-        shift_logits = logits[:, :-1, :].astype(jnp.float32)
-        shift_labels = labels[:, 1:].astype(jnp.int32)
+    @jax.jit
+    def fused_train_step(
+        lora_params,
+        frozen_state,
+        opt_state,
+        input_ids,
+        labels,
+        attention_mask,
+    ):
+        loss, grads = jax.value_and_grad(loss_fn, argnums=0)(
+            lora_params,
+            frozen_state,
+            input_ids,
+            labels,
+            attention_mask,
+        )
 
-        valid_mask = shift_labels != -100
-        safe_labels = jnp.where(valid_mask, shift_labels, 0)
-        one_hot_labels = jax.nn.one_hot(safe_labels, shift_logits.shape[-1]).astype(jnp.float32)
-        per_token_loss = clamped_softmax_cross_entropy_per_token(shift_logits, one_hot_labels)
-        masked_per_token_loss = per_token_loss * valid_mask
-        loss = jnp.sum(masked_per_token_loss) / jnp.maximum(jnp.sum(valid_mask), 1)
-        predictions = jnp.argmax(shift_logits, axis=-1)
-        return loss, predictions, per_token_loss
+        grads = jax.tree.map(
+            lambda grad, sharding: jax.lax.with_sharding_constraint(grad, sharding),
+            grads,
+            lora_shardings,
+        )
 
-    return eval_inspect_step
+        updates, new_opt = tx.update(grads, opt_state, lora_params)
+        new_params = optax.apply_updates(lora_params, updates)
+        new_params = jax.tree.map(jax.lax.optimization_barrier, new_params)
+        leaves = jax.tree.leaves(grads)
+        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
+        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]))
+        loss = _pin_scalar(loss)
+        grad_norm = _pin_scalar(grad_norm)
+        grad_max = _pin_scalar(grad_max)
+        return new_params, new_opt, loss, {"grad_norm": grad_norm, "grad_max": grad_max}
+
+    return fused_train_step
+
+
+def create_eval_step_fn(
+    graphdef: nnx.GraphDef,
+    mesh=None,
+    model_axis: str = "model",
+) -> Callable:
+    """JIT-compiled evaluation step returning a scalar loss.
+
+    Uses the vocab-parallel CE when the vocab dim is sharded, else the clamped
+    CE. A single fixed-signature JIT avoids the MeshDevice re-init crashes that
+    alternating JITs caused on TT. Predictions are not emitted; see eval_step.
+
+    Returns eval_step(lora_params, frozen_state, input_ids, labels,
+    attention_mask) -> scalar loss.
+    """
+
+    cross_entropy = _make_loss_fn(mesh, model_axis)
+    forward = _make_forward_fn(mesh, model_axis)
+
+    def eval_step(lora_params, frozen_state, input_ids, labels, attention_mask):
+        model = nnx.merge(graphdef, lora_params, frozen_state)
+        logits = forward(model, input_ids, attention_mask)
+        logits = jax.lax.with_sharding_constraint(logits, NamedSharding(mesh, PartitionSpec(*[None] * logits.ndim)))
+        # Loss only: extra outputs (e.g. argmax predictions) break the
+        # single fixed-signature eval JIT on TT.
+        return cross_entropy(logits, labels)
+
+    # Pin the scalar loss to a replicated 0-D sharding; otherwise TT infers a
+    # non-0-D sharding for it and compilation fails.
+    # TODO(ndimicTT): remove once TT partitions 0-D scalar outputs correctly.
+    if mesh is not None:
+        return jax.jit(eval_step, out_shardings=NamedSharding(mesh, PartitionSpec()))
+    return jax.jit(eval_step)
 
 
 def evaluate(
@@ -105,49 +158,48 @@ def evaluate(
     frozen_state: nnx.State,
     val_batches: list[dict[str, np.ndarray]],
     *,
-    jit_inspect_step: Optional[Callable] = None,
     tokenizer: Optional[PreTrainedTokenizerBase] = None,
     num_examples: int = 3,
     num_tokens: int = 20,
+    training_logger: Optional[TrainingLogger] = None,
 ) -> float:
-    """Run evaluation on validation batches and return average loss.
+    """Run evaluation over validation batches and return the average loss.
 
-    When jit_inspect_step and tokenizer are provided, the first few
-    batches also collect decoded prediction examples.
+    When a tokenizer is provided, the first num_examples batches are also moved
+    to CPU and shown via show_predictions (input/target/loss only).
     """
     total_loss = 0.0
     collected_examples: list[dict[str, np.ndarray]] = []
-    can_inspect = jit_inspect_step is not None and tokenizer is not None
 
     for batch in val_batches:
         input_ids = batch["input_ids"]
         labels = batch["labels"]
         attention_mask = batch["attention_mask"]
 
-        if can_inspect and len(collected_examples) < num_examples:
-            loss, predictions, per_token_loss = jit_inspect_step(
-                lora_params, frozen_state, input_ids, labels, attention_mask
-            )
-            batch_input_ids = JaxDeviceManager.to_cpu(input_ids)
-            batch_labels = JaxDeviceManager.to_cpu(labels)
-            batch_predictions = JaxDeviceManager.to_cpu(predictions)
-            batch_per_token_loss = JaxDeviceManager.to_cpu(per_token_loss)
+        loss = jit_eval_step(lora_params, frozen_state, input_ids, labels, attention_mask)
+
+        if tokenizer is not None and len(collected_examples) < num_examples:
+            batch_input_ids = np.asarray(JaxDeviceManager.to_cpu(input_ids))
+            batch_labels = np.asarray(JaxDeviceManager.to_cpu(labels))
             batch_size = batch_input_ids.shape[0]
-            for example_index in range(min(batch_size, num_examples - len(collected_examples))):
+            for i in range(min(batch_size, num_examples - len(collected_examples))):
                 collected_examples.append(
                     {
-                        "input_ids": batch_input_ids[example_index],
-                        "labels": batch_labels[example_index],
-                        "predictions": batch_predictions[example_index],
-                        "per_token_loss": batch_per_token_loss[example_index],
+                        "input_ids": batch_input_ids[i],
+                        "labels": batch_labels[i],
+                        "loss": float(loss),
                     }
                 )
-        else:
-            loss = jit_eval_step(lora_params, frozen_state, input_ids, labels, attention_mask)
+
         total_loss += float(loss)
 
     if collected_examples:
-        show_predictions(collected_examples, tokenizer, num_tokens=num_tokens)
+        show_predictions(
+            collected_examples,
+            tokenizer,
+            num_tokens=num_tokens,
+            training_logger=training_logger,
+        )
 
     num_batches = len(val_batches)
     return total_loss / num_batches if num_batches else 0.0
