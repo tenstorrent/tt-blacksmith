@@ -108,7 +108,7 @@ def create_fused_train_step_fn(
         new_params = optax.apply_updates(lora_params, updates)
         new_params = jax.tree.map(jax.lax.optimization_barrier, new_params)
         loss = _pin_scalar(loss)
-        return new_params, new_opt, loss  
+        return new_params, new_opt, loss
 
     return fused_train_step
 
