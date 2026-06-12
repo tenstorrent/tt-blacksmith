@@ -3,10 +3,16 @@
 # SPDX-License-Identifier: Apache-2.0
 import traceback
 from pathlib import Path
-
+import time
 import torch
 import torch_xla
 from tqdm import tqdm
+try:
+    from tracy import signpost
+except ImportError:
+
+    def signpost(header, message=None):
+        pass
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
@@ -138,26 +144,34 @@ def train(
     running_loss = 0.0
 
     try:
-        # Initial validation
-        model.eval()
-        val_loss = validate(
-            model,
-            eval_dataloader,
-            cross_entropy_loss,
-            logger,
-            device_manager.device,
-            config,
-            tokenizer,
-        )
-        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # # Initial validation
+        # model.eval()
+        # val_loss = validate(
+        #     model,
+        #     eval_dataloader,
+        #     cross_entropy_loss,
+        #     logger,
+        #     device_manager.device,
+        #     config,
+        #     tokenizer,
+        # )
+        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
-
+        train_start = time.perf_counter()
+        step_start = None
+        
         for epoch in range(config.num_epochs):
             accumulation_step = 0
-
+            if global_step >= 4:
+                logger.info("Breaking out of main training loop after 4 steps...")
+                break
             for batch in tqdm(train_dataloader, desc="Training"):
+                if global_step >= 4:
+                    logger.info("Breaking out of training loop after 4 steps...")
+                    break
                 # Zero out gradients at the start of accumulation cycle
                 if accumulation_step == 0:
+                    step_start = time.perf_counter()
                     optimizer.zero_grad()
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
@@ -175,9 +189,16 @@ def train(
                 # Shard model if tensor parallelism is used.
                 device_manager.shard_model(model)
 
-                # Training step.
-                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+                # Skip signposts on step 0 (compilation step); ops only flush after sync.
+                # profiling = global_step >= 1
 
+                # if profiling:
+                #     signpost("forward_start")
+                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+                # if config.use_tt:
+                #     torch_xla.sync(wait=True)
+                # if profiling:
+                #     signpost("backward_start")
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
@@ -186,10 +207,18 @@ def train(
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
+                    # if profiling:
+                    #     signpost("opt_start")
                     device_manager.optimizer_step(optimizer)
+                    # if config.use_tt:
+                    #     torch_xla.sync(wait=True)
+                    # if profiling:
+                    #     signpost("opt_end")
 
                     accumulation_step = 0
                     global_step += 1
+                    step_elapsed = time.perf_counter() - step_start
+                    logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
@@ -221,6 +250,9 @@ def train(
             # Save epoch checkpoint.
             if checkpoint_manager.should_save_checkpoint(global_step, epoch):
                 checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+        train_elapsed = time.perf_counter() - train_start
+        logger.info(f"Training e2e time: {train_elapsed:.3f}s ({global_step} steps)")
 
         # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(

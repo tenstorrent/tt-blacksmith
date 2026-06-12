@@ -44,7 +44,7 @@ Tracy is bundled with the `pjrt_plugin_tt` wheel in the xla venv, but the CLI wr
 **Verify:** Run tracy with PYTHONPATH pointing to the tt-xla source package:
 
 ```bash
-PYTHONPATH="<tt-xla-repo>/python_package:$PYTHONPATH" python3 -m tracy --help
+PYTHONPATH="../tt-xla/python_package:$PYTHONPATH" python3 -m tracy --help
 ```
 
 This should show usage info including `-p`, `-r`, `--sync-host-device`. Always invoke tracy as `python3 -m tracy` with this PYTHONPATH -- the bare `tracy` CLI entry point may fail if the installed `pjrt_plugin_tt` wheel is out of sync with the source tree.

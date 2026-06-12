@@ -3,12 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 import traceback
 from pathlib import Path
-
+import time
 import torch
 import torch_xla
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
+
+try:
+    from tracy import signpost
+except ImportError:
+
+    def signpost(header, message=None):
+        pass
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.qwen.configs import TrainingConfig
@@ -120,23 +127,33 @@ def train(
     global_step = 0
     running_loss = 0.0
     try:
-        # Initial validation
-        model.eval()
-        valid_loss = validate(
-            model,
-            eval_dataloader,
-            loss_fn,
-            logger,
-            device_manager,
-            config,
-            eval_dataset.tokenizer,
-        )
-        logger.log_metrics({"val/loss": valid_loss}, commit=True, step=global_step)
+        # # Initial validation
+        # model.eval()
+        # valid_loss = validate(
+        #     model,
+        #     eval_dataloader,
+        #     loss_fn,
+        #     logger,
+        #     device_manager,
+        #     config,
+        #     eval_dataset.tokenizer,
+        # )
+        # logger.log_metrics({"val/loss": valid_loss}, commit=True, step=global_step)
+
         model.train()
+        train_start = time.perf_counter()
+        step_start = None
 
         for epoch in range(config.num_epochs):
+            if global_step >= 4:
+                logger.info("Breaking out of main loop after 4 steps")
+                break
             for batch in tqdm(train_dataloader):
+                if global_step >= 4:
+                    logger.info("Breaking out of training loop after 4 steps")
+                    break
                 global_step += 1
+                step_start = time.perf_counter()
                 optimizer.zero_grad()
 
                 # Shard batch if data parallelism is used.
@@ -145,48 +162,69 @@ def train(
                 # Shard model if tensor parallelism is used.
                 device_manager.shard_model(model)
 
+                # # Skip signposts on the first (compilation) step
+                # profiling = global_step >= 2
+
+                # if profiling:
+                #     signpost("forward_start")
                 outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
 
                 shift_logits = outputs.logits[..., :-1, :].contiguous()
                 loss = loss_fn(shift_logits.view(-1, model.model.config.vocab_size), batch["labels"].view(-1))
-
+                # if config.use_tt:
+                #     torch_xla.sync(wait=True)
+                # if profiling:
+                #     signpost("backward_start")
                 loss.backward()
                 if config.use_tt:
                     torch_xla.sync(wait=True)
+                # if profiling:
+                #     signpost("opt_start")
 
                 device_manager.optimizer_step(optimizer)
+                # if profiling:
+                #     signpost("opt_end")
                 running_loss += loss.item()
+
+                step_elapsed = time.perf_counter() - step_start
+                logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
                     logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                     running_loss = 0.0
 
-                # Validation
-                if global_step % config.val_steps_freq == 0:
-                    model.eval()
-                    valid_loss = validate(
-                        model,
-                        eval_dataloader,
-                        loss_fn,
-                        logger,
-                        device_manager,
-                        config,
-                        eval_dataset.tokenizer,
-                    )
-                    logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
-                    model.train()
+            #     # Validation
+            #     if global_step % config.val_steps_freq == 0:
+            #         model.eval()
+            #         valid_loss = validate(
+            #             model,
+            #             eval_dataloader,
+            #             loss_fn,
+            #             logger,
+            #             device_manager,
+            #             config,
+            #             eval_dataset.tokenizer,
+            #         )
+            #         logger.log_metrics({"val/loss": valid_loss}, commit=False, step=global_step)
+            #         model.train()
 
-                # Commit metrics to W&B.
-                logger.log_metrics({}, commit=True, step=global_step)
+            #     # Commit metrics to W&B.
+            #     logger.log_metrics({}, commit=True, step=global_step)
 
-                # Save step checkpoint
-                if checkpoint_manager.should_save_checkpoint(global_step):
-                    checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+            #     # Save step checkpoint
+            #     if checkpoint_manager.should_save_checkpoint(global_step):
+            #         checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-            # Save epoch checkpoint.
-            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
-                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+            # # Save epoch checkpoint.
+            # if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+            #     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+
+        train_elapsed = time.perf_counter() - train_start
+        avg_step_time = train_elapsed / global_step if global_step > 0 else 0.0
+        logger.info(
+            f"Training e2e time: {train_elapsed:.3f}s ({global_step} steps, avg {avg_step_time:.3f}s/step)"
+        )
 
         # Save final model.
         final_model_path = checkpoint_manager.save_checkpoint(

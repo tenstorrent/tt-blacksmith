@@ -1,23 +1,19 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "metamathqa"
 
 # Model settings
-model_name: "meta-llama/Llama-3.1-8B"
+model_name: "meta-llama/Llama-3.2-1B"
 max_length: 1024
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-training_type: "lora"
-learning_rate: 1e-4
+training_type: "full"
+learning_rate: 1e-5
 batch_size: 1
+gradient_accumulation_steps: 1
 num_epochs: 1
+use_scheduler: False
 ignored_index: -100
-
-# LoRA setup
-lora_r: 4
-lora_alpha: 8
-lora_target_modules: ["q_proj", "v_proj"]
-lora_task_type: "CAUSAL_LM"
 
 # Reproducibility settings
 seed: 23
@@ -26,15 +22,16 @@ deterministic: False
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "llama8b-p150-lora"
-wandb_run_name: "tt-llama8b-test"
+wandb_project: "llama1b-singlechip-full"
+wandb_run_name: "tt-metamathqa"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
-wandb_log_freq: 1000
+wandb_log_freq: 1
 model_to_wandb: False
-steps_freq: 10
+steps_freq: 1
 val_steps_freq: 10
 epoch_freq: 1
+run_decode_example: False
 
 # Checkpoint settings
 resume_from_checkpoint: False
@@ -45,7 +42,7 @@ checkpoint_metric_mode: "min"  # [min, max]
 keep_last_n: 2
 keep_best_n: 1
 save_strategy: "step"
-project_dir: "blacksmith/experiments/torch/llama/xla/lora"
+project_dir: "blacksmith/experiments/torch/llama/xla/full"
 save_optim: True
 storage_backend: "local"
 sync_to_storage: False
