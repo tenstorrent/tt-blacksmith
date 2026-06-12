@@ -59,10 +59,6 @@ input_sharding_dim: "data"
 apply_gqa_workaround: true
 
 # Tensor-parallel sharding patterns.
-# nn.LoRA wrapping moves the original q_proj/v_proj kernel from
-# self_attn.<proj>.kernel.value to self_attn.<proj>.base_module.kernel.value
-# and adds lora_a [in, rank] and lora_b [rank, out] siblings. The (?:\.base_module)?
-# group keeps the rule working whether or not LoRA is applied.
 model_sharding_patterns:
   # Attention kernels (Megatron-style):
   - ['self_attn\.q_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]

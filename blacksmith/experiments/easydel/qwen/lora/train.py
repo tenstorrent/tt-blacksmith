@@ -215,8 +215,6 @@ def train(
                 jax.block_until_ready((lora_params, optimizer_state))
 
                 current_loss = float(loss)
-                # gradient_norm = float(gradient_stats["grad_norm"])
-                # gradient_max = float(gradient_stats["grad_max"])
                 epoch_losses.append(current_loss)
                 running_losses.append(current_loss)
                 step_losses.append(current_loss)
@@ -225,8 +223,6 @@ def train(
                 logger.log_metrics(
                     {
                         "train/loss": current_loss,
-                        # "grad/global_norm": gradient_norm,
-                        # "grad/global_max": gradient_max,
                         "epoch": epoch + 1,
                         "batch": batch_index + 1,
                     },
@@ -240,14 +236,12 @@ def train(
                     logger.info(
                         f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
                         f"Loss = {current_loss:.4f} | Avg {config.steps_freq} = {average_window_loss:.4f}"
-                        # f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
                     )
                     running_losses = []
                 else:
                     logger.info(
                         f"Epoch {epoch + 1}, Batch {batch_index + 1:3d}: "
                         f"Loss = {current_loss:.4f} ({len(running_losses)}/{config.steps_freq})"
-                        # f"grad_norm = {gradient_norm:.4f}, grad_max = {gradient_max:.4f}"
                     )
 
                 # Periodic validation.
