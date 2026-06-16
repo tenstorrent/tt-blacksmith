@@ -13,7 +13,7 @@ num_steps: 128
 gamma: 0.99
 gae_lambda: 0.95
 # Keep minibatch size small: larger ones overflow TT L1 with the CNN's conv
-# activations, raising "circular buffers clash with L1 buffers" during compilation.
+# activations, raising a "circular buffers clash with L1 buffers" at runtime.
 num_minibatches: 16
 update_epochs: 1
 clip_coef: 0.1

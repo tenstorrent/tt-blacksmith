@@ -299,6 +299,8 @@ def train(
             with torch.no_grad():
                 next_value = agent.get_value(obs).flatten()
             advantages, returns = buffer.compute_gae(next_value, done)
+            # trains faster with this
+            torch_xla.sync()
 
             # PPO update.
             pg_loss, v_loss, ent_loss, approx_kl, clip_frac = ppo_update(

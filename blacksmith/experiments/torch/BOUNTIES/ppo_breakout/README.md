@@ -48,7 +48,7 @@ The experiment is configured using the configuration file `ppo_breakout.yaml`. C
 | `gamma` | Discount factor. | 0.99 |
 | `gae_lambda` | Lambda for GAE advantage estimation. | 0.95 |
 | `num_minibatches` | Number of minibatches per update. | 16 |
-| `update_epochs` | Number of epochs per PPO update. | 4 |
+| `update_epochs` | Number of epochs per PPO update. | 1 |
 | `clip_coef` | PPO clipping coefficient. | 0.1 |
 | `norm_adv` | Whether to normalize advantages. | True |
 | `clip_vloss` | Whether to clip value loss. | True |
