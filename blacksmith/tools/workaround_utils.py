@@ -8,26 +8,24 @@ import torch.nn.functional as F
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
 def cross_entropy_loss(shift_logits, expected_output, labels_mask):
-    log_probs = F.log_softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]
+    # Flatten leading (batch/seq) dims so every vocab-sized tensor is 2D
+    # [tokens, vocab]. On TT this keeps the loss (and its backward) on tensors
+    # that tile normally; a singleton middle dim (e.g. [seq, 1, vocab]) would
+    # tile-pad 32x and blow up DRAM. Mathematically identical: total CE over all
+    # valid tokens divided by the valid-token count.
+    vocab_size = shift_logits.shape[-1]
+    logits = shift_logits.reshape(-1, vocab_size)  # [tokens, vocab]
+    targets = expected_output.reshape(-1, vocab_size)  # [tokens, vocab]
+    mask = labels_mask.reshape(-1, 1).to(logits.dtype)  # [tokens, 1]
+
+    log_probs = F.log_softmax(logits, dim=-1)
     # Cross entropy: -sum(target * log_prob) over vocab dimension.
-    ce_loss = -(expected_output * log_probs).sum(dim=-1, keepdim=True)  # [batch, seq_len, 1]
+    ce_loss = -(targets * log_probs).sum(dim=-1, keepdim=True)  # [tokens, 1]
+    ce_loss = ce_loss * mask
 
-    # Apply mask to ignore padding tokens.
-    labels_mask = labels_mask.unsqueeze(-1).float()  # [batch, seq_len, 1]
-    ce_loss = ce_loss * labels_mask
-
-    # Compute mean over ALL valid tokens (not per-sample average).
-    # Sum over seq_len dimension first.
-    ce_loss_summed = ce_loss.sum(dim=1, keepdim=True)  # [batch, 1, 1]
-    num_valid_per_sample = labels_mask.sum(dim=1, keepdim=True)  # [batch, 1, 1]
-
-    # Then sum over batch dimension.
-    total_loss = ce_loss_summed.sum(dim=0, keepdim=True)  # [1, 1, 1]
-    num_valid_total = num_valid_per_sample.sum(dim=0, keepdim=True)  # [1, 1, 1]
-
-    # Divide total loss by total valid tokens (not average of averages).
-    num_valid_total = torch.clamp(num_valid_total, min=1.0)  # Avoid division by zero.
-    loss = total_loss / num_valid_total  # [1, 1, 1]
+    total_loss = ce_loss.sum()
+    num_valid_total = torch.clamp(mask.sum(), min=1.0)  # Avoid division by zero.
+    loss = total_loss / num_valid_total
     return loss
 
 
@@ -35,7 +33,7 @@ def cross_entropy_loss(shift_logits, expected_output, labels_mask):
 def transform_labels(labels, ignored_index, vocab_size):
     labels_mask = labels != ignored_index
     labels = torch.where(labels_mask, labels, 0)
-    expected_output = F.one_hot(labels, num_classes=vocab_size)
+    expected_output = F.one_hot(labels, num_classes=vocab_size).to(torch.bfloat16)
 
     return expected_output, labels_mask
 

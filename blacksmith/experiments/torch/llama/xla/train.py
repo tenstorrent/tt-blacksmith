@@ -87,20 +87,21 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     return avg_val_loss
 
 
-# Training step extracted into a separate function to keep large vocab-sized
-# tensors (e.g. logits) scoped locally. This ensures they do not propagate beyond
-# the step via the computation graph, avoiding unnecessary and expensive
-# CCLs in multi-chip setups.
-# Issue itself should be investigated further.
-def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
+def training_step_inner(batch, model, loss_fn, ignored_index, vocab_size):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-    logits = output.logits
-    shift_logits = logits[:, :-1, :].contiguous()
-    loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale loss by number of accumulation steps to get correct effective batch size.
-    scaled_loss = loss / gradient_accumulation_steps
-    scaled_loss.backward()
-    return loss.detach()
+    logits = output.logits  # [B, S, V]
+    # Build the one-hot targets INSIDE the compiled graph, from the integer label
+    # indices. A graph input can never be deallocated, so feeding the one-hot in
+    # from outside pinned a ~1GB (1 x S-1 x vocab i64) buffer for the entire graph.
+    # Constructed here it is an in-graph transient, freed right after the loss
+    # consumes it, and the actual input shrinks to [B, S-1] i64 (~KBs).
+    expected_output, labels_mask = transform_labels(batch["labels"], ignored_index, vocab_size)
+    # Labels were pre-shifted to length S-1 by collate_fn_for_causal_lm, so align
+    # by dropping the last logit (which would predict a non-existent token) instead
+    # of padding the labels back up to S; mathematically identical.
+    shift_logits = logits[:, :-1, :]  # [B, S-1, V]
+    loss = loss_fn(shift_logits, expected_output, labels_mask)
+    return loss
 
 
 def train(
@@ -137,19 +138,27 @@ def train(
 
     global_step = 0
 
+    torch._dynamo.config.compiled_autograd = True
+    compile_options = {
+        "tt_enable_torch_fx_fusion_pass": False,
+        "tt_legacy_compile": True,
+        "tt_lazy_execution": True,
+    }
+    train_step_fn = torch.compile(training_step_inner, backend="tt", options=compile_options)
+
     try:
         # Initial validation
-        model.eval()
-        val_loss = validate(
-            model,
-            eval_dataloader,
-            cross_entropy_loss,
-            logger,
-            device_manager.device,
-            config,
-            tokenizer,
-        )
-        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # model.eval()
+        # val_loss = validate(
+        #     model,
+        #     eval_dataloader,
+        #     cross_entropy_loss,
+        #     logger,
+        #     device_manager.device,
+        #     config,
+        #     tokenizer,
+        # )
+        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
@@ -164,76 +173,83 @@ def train(
 
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients at the start of accumulation cycle
-                if accumulation_step == 0:
-                    if config.measure_e2e_time:
-                        step_start = time.perf_counter()
-                    optimizer.zero_grad()
+                # if accumulation_step == 0:
+                if config.measure_e2e_time:
+                    step_start = time.perf_counter()
+                optimizer.zero_grad()
 
-                # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
-                expected_output, labels_mask = transform_labels(
-                    batch["labels"], config.ignored_index, model.model.config.vocab_size
-                )
+                # Pass the integer label indices through; the one-hot expansion now
+                # happens inside the compiled step (see training_step_inner) so the
+                # ~1GB one-hot is a freeable transient rather than a resident input.
                 batch = {
                     "input_ids": batch["input_ids"],
                     "attention_mask": batch["attention_mask"],
-                    "expected_output": expected_output,
-                    "labels_mask": labels_mask,
+                    "labels": batch["labels"],
                 }
                 # Shard batch if data parallelism is used.
                 batch = device_manager.prepare_batch(batch)
                 # Shard model if tensor parallelism is used.
                 device_manager.shard_model(model)
 
-                # Training step.
-                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+                loss_ = train_step_fn(
+                    batch, model, cross_entropy_loss, config.ignored_index, model.model.config.vocab_size
+                )
+                loss_.backward()
+                
+                output_tensors = [loss_] + [p.grad for p in model.parameters() if p.requires_grad and p.grad is not None]
+                devices = list({t.device.type for t in output_tensors})
+                torch_xla._XLAC._xla_sync_multi(output_tensors, devices, wait=False)
 
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
+                # breakpoint()
+                loss_val = loss_.item()
 
-                running_loss += loss_.item()
+                running_loss += loss_val
                 accumulation_step += 1
+                print("Accumulation step:", accumulation_step, "Global step:", global_step)
+
+                device_manager.optimizer_step(optimizer)
 
                 # Only step the optimizer after accumulating gradients.
-                if accumulation_step == config.gradient_accumulation_steps:
-                    device_manager.optimizer_step(optimizer)
+            #     if accumulation_step == config.gradient_accumulation_steps:
+            #         device_manager.optimizer_step(optimizer)
 
-                    accumulation_step = 0
-                    global_step += 1
+            #         accumulation_step = 0
+            #         global_step += 1
 
-                    if config.measure_e2e_time:
-                        step_elapsed = time.perf_counter() - step_start
-                        logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
+            #         if config.measure_e2e_time:
+            #             step_elapsed = time.perf_counter() - step_start
+            #             logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
 
-                    if global_step % config.steps_freq == 0:
-                        avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
-                        logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
-                        running_loss = 0.0
+            #         if global_step % config.steps_freq == 0:
+            #             avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
+            #             logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
+            #             running_loss = 0.0
 
-                    # Validation
-                    if global_step % config.val_steps_freq == 0:
-                        model.eval()
-                        val_loss = validate(
-                            model,
-                            eval_dataloader,
-                            cross_entropy_loss,
-                            logger,
-                            device_manager.device,
-                            config,
-                            tokenizer,
-                        )
-                        logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
-                        model.train()
+            #         # Validation
+            #         # if global_step % config.val_steps_freq == 0:
+            #         #     model.eval()
+            #         #     val_loss = validate(
+            #         #         model,
+            #         #         eval_dataloader,
+            #         #         cross_entropy_loss,
+            #         #         logger,
+            #         #         device_manager.device,
+            #         #         config,
+            #         #         tokenizer,
+            #         #     )
+            #         #     logger.log_metrics({"val/loss": val_loss}, commit=False, step=global_step)
+            #         #     model.train()
 
-                    # Commit metrics to W&B.
-                    logger.log_metrics({}, commit=True, step=global_step)
+            #         # # Commit metrics to W&B.
+            #         # logger.log_metrics({}, commit=True, step=global_step)
 
-                    # Save step checkpoint.
-                    if checkpoint_manager.should_save_checkpoint(global_step):
-                        checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+            #         # Save step checkpoint.
+            #         if checkpoint_manager.should_save_checkpoint(global_step):
+            #             checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
-            # Save epoch checkpoint.
-            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
-                checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
+            # # Save epoch checkpoint.
+            # if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+            #     checkpoint_manager.save_checkpoint(model, global_step, epoch, optimizer)
 
         if config.measure_e2e_time:
             train_elapsed = time.perf_counter() - train_start
