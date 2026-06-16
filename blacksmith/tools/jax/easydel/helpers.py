@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 
 import jax
+import jax.numpy as jnp
 import optax
 from easydel import AutoEasyDeLModelForCausalLM
 from flax import nnx
@@ -60,15 +61,13 @@ def load_easydel_causal_lm(
     if extra_config_kwargs:
         config_overrides.update(extra_config_kwargs)
 
-    load_kwargs: dict = {"dtype": dtype}
+    load_kwargs: dict = {"dtype": dtype, "param_dtype": dtype}
     if config_overrides:
         load_kwargs["config_kwargs"] = config_overrides
 
-    axis_size = device_manager.easydel_load_axis_size()
-    mesh_name = list(device_manager.mesh.shape.keys())[0]
+    load_kwargs["sharding_axis_dims"] = tuple(device_manager.mesh.shape.values())
+    load_kwargs["sharding_axis_names"] = tuple(device_manager.mesh.shape.keys())
 
-    load_kwargs["sharding_axis_dims"] = (axis_size,)
-    load_kwargs["sharding_axis_names"] = (mesh_name,)
     load_kwargs["auto_shard_model"] = auto_shard_model
 
     on_tt = device_manager.device_kind == "tt"
@@ -106,6 +105,7 @@ def apply_lora(
     Returns:
         The model with LoRA layers injected in-place.
     """
+
     ctx = jax.default_device(jax.devices("cpu")[0]) if on_cpu else contextlib.nullcontext()
     with ctx:
         return model.apply_lora_to_layers(
@@ -122,10 +122,15 @@ def build_optimizer(
 ) -> tuple[optax.GradientTransformation, optax.Schedule]:
     """Build an AdamW optimizer with a warmup-cosine-decay schedule.
 
-    Wraps in optax.MultiSteps when config.gradient_accumulation_steps > 1.
+    When config.max_grad_norm is a positive float, prepends
+    optax.clip_by_global_norm so the accumulated gradient is clipped
+    right before the AdamW update.
+
+    Wraps in optax.MultiSteps when config.gradient_accumulation_steps > 1
+    so clipping fires on accumulation-completion steps.
 
     Args:
-        config: Training config with LR, warmup, and accumulation fields.
+        config: Training config with LR, warmup, accumulation, and clipping fields.
         total_opt_steps: Total number of optimizer updates after accumulation.
 
     Returns:
@@ -139,7 +144,12 @@ def build_optimizer(
         end_value=getattr(config, "end_learning_rate", 0.0),
     )
 
-    base_optimizer = optax.adamw(learning_rate=schedule)
+    transforms: list[optax.GradientTransformation] = []
+    max_grad_norm = getattr(config, "max_grad_norm", None)
+    if max_grad_norm is not None and max_grad_norm > 0:
+        transforms.append(optax.clip_by_global_norm(max_grad_norm))
+    transforms.append(optax.adamw(learning_rate=schedule, mu_dtype=jnp.float32, eps=1e-5))
+    base_optimizer = optax.chain(*transforms)
 
     accum = config.gradient_accumulation_steps
     if accum > 1:
