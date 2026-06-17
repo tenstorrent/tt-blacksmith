@@ -107,13 +107,8 @@ def create_fused_train_step_fn(
         updates, new_opt = tx.update(grads, opt_state, lora_params)
         new_params = optax.apply_updates(lora_params, updates)
         new_params = jax.tree.map(jax.lax.optimization_barrier, new_params)
-        leaves = jax.tree.leaves(grads)
-        grad_norm = jnp.sqrt(sum(jnp.sum(g**2) for g in leaves))
-        grad_max = jnp.max(jnp.stack([jnp.max(jnp.abs(g)) for g in leaves]))
         loss = _pin_scalar(loss)
-        grad_norm = _pin_scalar(grad_norm)
-        grad_max = _pin_scalar(grad_max)
-        return new_params, new_opt, loss, {"grad_norm": grad_norm, "grad_max": grad_max}
+        return new_params, new_opt, loss
 
     return fused_train_step
 

@@ -1,22 +1,21 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "alpaca"
 
 # Model settings
-model_name: "Qwen/Qwen3-4B"
-max_length: 512
-mask_max_position_embeddings: 512
+model_name: "Qwen/Qwen3-14B-Base"
+max_length: 256
+mask_max_position_embeddings: 256
 dtype: "bfloat16"
 
 # Training hyperparameters
 learning_rate: 1e-4
 warmup_steps: 0
 end_learning_rate: 0.0
-batch_size: 2
-gradient_accumulation_steps: 4
+batch_size: 4
+gradient_accumulation_steps: 1
 num_epochs: 1
 val_steps_freq: 25
 max_val_batches: 10
-#max_grad_norm: 1.0
 
 # LoRA settings
 lora_rank: 32
@@ -29,8 +28,8 @@ deterministic: true
 # Logging settings
 use_wandb: true
 wandb_project: "Qwen-TT-EasyDel-LoRA-Training"
-wandb_run_name: "qwen3-4b-sst2-tt-quietbox-easydel"
-print_examples: true
+wandb_run_name: "qwen3-32b-sst2-tt-quietbox-easydel"
+print_examples: false
 steps_freq: 10
 log_level: "INFO"
 
@@ -53,17 +52,13 @@ remote_path: ""
 
 # Device settings
 use_tt: true
-num_devices: 8
-mesh_shape: [8]
-mesh_axis_names: ["model"]
-input_sharding_dim: null
+num_devices: 32
+mesh_shape: [4, 8]
+mesh_axis_names: ["data", "model"]
+input_sharding_dim: "data"
 apply_gqa_workaround: true
 
 # Tensor-parallel sharding patterns.
-# nn.LoRA wrapping moves the original q_proj/v_proj kernel from
-# self_attn.<proj>.kernel.value to self_attn.<proj>.base_module.kernel.value
-# and adds lora_a [in, rank] and lora_b [rank, out] siblings. The (?:\.base_module)?
-# group keeps the rule working whether or not LoRA is applied.
 model_sharding_patterns:
   # Attention kernels (Megatron-style):
   - ['self_attn\.q_proj(?:\.base_module)?\.kernel\.value$', [null, "model"]]
@@ -73,7 +68,7 @@ model_sharding_patterns:
   # LoRA adapters on q_proj / v_proj: A replicates (matches replicated input dim),
   # B is column-parallel on its output dim (matches the base column-parallel output).
   - ['self_attn\.(q_proj|v_proj)\.lora_a\.value$',          [null, null]]
-  - ['self_attn\.(q_proj|v_proj)\.lora_b\.value$',          [null, "model"]]
+  - ['self_attn\.(q_proj|v_proj)\.lora_b\.value$',          [null, null]]
   # MLP: column-parallel gate/up, row-parallel down.
   - ['mlp\.gate_proj\.kernel\.value$',                      [null, "model"]]
   - ['mlp\.up_proj\.kernel\.value$',                        [null, "model"]]
