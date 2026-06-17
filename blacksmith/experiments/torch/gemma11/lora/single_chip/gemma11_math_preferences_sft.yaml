@@ -19,7 +19,7 @@ optim: "adamw_torch"
 log_level: "INFO"
 use_wandb: True
 wandb_project: "gemma11-finetuning"
-wandb_run_name: "gpu-gemma11-math-preferences-sft"
+wandb_run_name: "tt-gemma11-math-preferences-sft"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
@@ -60,4 +60,4 @@ lora_task_type: "CAUSAL_LM"
 
 # Other settings
 framework: "pytorch"
-use_tt: False
+use_tt: True

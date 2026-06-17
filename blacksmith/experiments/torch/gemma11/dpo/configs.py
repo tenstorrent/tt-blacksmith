@@ -72,7 +72,6 @@ class DPOTrainingConfig(BaseModel):
     steps_freq: int = Field(default=10)
     epoch_freq: int = Field(default=1)
     val_steps_freq: int = Field(default=32)
-    log_batch_freq: int = Field(default=50, ge=1, description="Log per-microbatch metrics every N batches")
     print_examples: bool = Field(default=False)
 
     # Checkpoint settings

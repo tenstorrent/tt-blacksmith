@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -34,12 +34,27 @@ from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config
 from blacksmith.tools.device_manager import DeviceManager
-from blacksmith.tools.dpo_utils import (
-    compute_dpo_loss_from_batch,
-    create_reference_model,
-)
+from blacksmith.tools.dpo_utils import compute_dpo_loss_from_batch
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+
+
+def _accumulate_metric_tensors(
+    totals: dict[str, torch.Tensor | None],
+    metrics: dict[str, torch.Tensor],
+) -> None:
+    for key, value in metrics.items():
+        if key not in totals:
+            continue
+        detached = value.detach()
+        if totals[key] is None:
+            totals[key] = detached
+        else:
+            totals[key] = totals[key] + detached
+
+
+def _average_metric_tensors(totals: dict[str, torch.Tensor | None], count: int) -> dict[str, float]:
+    return {key: (total / count).item() for key, total in totals.items() if total is not None}
 
 
 def validate_dpo(
@@ -54,17 +69,19 @@ def validate_dpo(
     logger.info("\n=== Starting DPO Validation ===")
     policy_model.eval()
 
-    totals = {
-        "loss": 0.0,
-        "accuracy": 0.0,
-        "reward_margin": 0.0,
-        "kl_chosen": 0.0,
-        "kl_rejected": 0.0,
+    totals: dict[str, torch.Tensor | None] = {
+        "loss": None,
+        "accuracy": None,
+        "reward_margin": None,
+        "kl_chosen": None,
+        "kl_rejected": None,
     }
     num_batches = 0
 
+    # Use no_grad (not inference_mode): TT mark_argument_attributes reshapes inputs and
+    # fails with "Cannot set version_counter for inference tensor" under inference_mode.
     with torch.no_grad():
-        for batch in tqdm(val_dataloader, desc="Validation"):
+        for batch_idx, batch in enumerate(tqdm(val_dataloader, desc="Validation")):
             batch = {k: v.to(device_manager.device) for k, v in batch.items()}
             _, metrics = compute_dpo_loss_from_batch(
                 policy_model=policy_model,
@@ -72,10 +89,8 @@ def validate_dpo(
                 batch=batch,
                 beta=config.dpo_beta,
                 label_smoothing=config.dpo_label_smoothing,
-                use_tt=config.use_tt,
             )
-            for key in totals:
-                totals[key] += metrics[key]
+            _accumulate_metric_tensors(totals, metrics)
             num_batches += 1
 
             if config.use_tt:
@@ -93,7 +108,7 @@ def validate_dpo(
             "val/kl_rejected": 0.0,
         }
 
-    val_metrics = {f"val/{k}": totals[k] / num_batches for k in totals}
+    val_metrics = {f"val/{k}": v for k, v in _average_metric_tensors(totals, num_batches).items()}
     logger.info(
         f"Validation | loss: {val_metrics['val/loss']:.4f} | "
         f"accuracy: {val_metrics['val/accuracy']:.3f} | "
@@ -144,25 +159,27 @@ def train_dpo(
     # Create reference model
     # Standard DPO: π_ref should be an SFT model trained on chosen responses
     if config.sft_checkpoint_path:
-        logger.info(f"Loading SFT checkpoint as reference model from: {config.sft_checkpoint_path}")
+        logger.info(f"Loading SFT checkpoint into policy model from: {config.sft_checkpoint_path}")
         checkpoint_manager.load_checkpoint_path(config.sft_checkpoint_path, policy_model)
         logger.info("Loaded SFT checkpoint into policy model.")
-        # Create reference model as frozen copy of policy
-        reference_model = create_reference_model(policy_model)
-        logger.info("Created reference model from SFT checkpoint.")
     else:
         logger.warning(
             "No SFT checkpoint provided (sft_checkpoint_path is empty). "
             "Using base pretrained model as reference. "
             "For best results, first train an SFT model on chosen responses."
         )
-        reference_model = create_reference_model(policy_model)
 
-    # Freeze reference model
+    reference_model = get_model(config, device_manager.device)
+    if config.sft_checkpoint_path:
+        logger.info(f"Loading SFT checkpoint into reference model from: {config.sft_checkpoint_path}")
+        checkpoint_manager.load_checkpoint_path(config.sft_checkpoint_path, reference_model)
+    else:
+        reference_model.load_state_dict(policy_model.state_dict(), strict=False)
+    logger.info("Reference model loaded on device.")
+
     for param in reference_model.parameters():
         param.requires_grad = False
     reference_model.eval()
-    reference_model.to(device_manager.device)
     logger.info("Reference model frozen.")
 
     # Load checkpoint if needed
@@ -185,20 +202,20 @@ def train_dpo(
         policy_model.parameters(),
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
+        capturable=config.use_tt,
     )
     optimizer.zero_grad()
 
     global_step = 0
     accumulation_step = 0
-    microbatch_count = 0
-    running_metrics = {
-        "loss": 0.0,
-        "chosen_rewards": 0.0,
-        "rejected_rewards": 0.0,
-        "reward_margin": 0.0,
-        "accuracy": 0.0,
-        "kl_chosen": 0.0,
-        "kl_rejected": 0.0,
+    running_metrics: dict[str, torch.Tensor | None] = {
+        "loss": None,
+        "chosen_rewards": None,
+        "rejected_rewards": None,
+        "reward_margin": None,
+        "accuracy": None,
+        "kl_chosen": None,
+        "kl_rejected": None,
     }
     last_step_metrics = {}
     last_val_metrics = {}
@@ -210,8 +227,8 @@ def train_dpo(
             )
             logger.log_metrics({**last_val_metrics, "train/epoch": 0}, commit=True, step=global_step)
 
+        policy_model.train()
         for epoch in range(config.num_epochs):
-            policy_model.train()
             logger.info(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
 
             progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}")
@@ -232,31 +249,21 @@ def train_dpo(
                     batch=batch,
                     beta=config.dpo_beta,
                     label_smoothing=config.dpo_label_smoothing,
-                    use_tt=config.use_tt,
                 )
 
-                if microbatch_count % config.log_batch_freq == 0:
-                    logger.info(
-                        f"[Microbatch {microbatch_count}] Loss: {metrics['loss']:.4f} | "
-                        f"Margin: {metrics['reward_margin']:.4f} | "
-                        f"KL chosen/rej: {metrics['kl_chosen']:.4f}/{metrics['kl_rejected']:.4f}"
-                    )
-
-                for key in running_metrics:
-                    running_metrics[key] += metrics[key]
-                microbatch_count += 1
+                _accumulate_metric_tensors(running_metrics, metrics)
 
                 # Backward pass (scale for gradient accumulation)
                 (loss / config.gradient_accumulation_steps).backward()
 
+                accumulation_step += 1
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                accumulation_step += 1
                 if accumulation_step < config.gradient_accumulation_steps:
                     continue
 
-                # Optimizer step after accumulating gradients
+                # Optimizer step after accumulating gradients.
                 torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
                 device_manager.optimizer_step(optimizer)
                 optimizer.zero_grad()
@@ -266,11 +273,20 @@ def train_dpo(
                 step_metrics = {}
                 if global_step % config.steps_freq == 0:
                     metric_divisor = config.steps_freq * config.gradient_accumulation_steps
-                    avg_metrics = {f"dpo/{k}": v / metric_divisor for k, v in running_metrics.items()}
+                    avg_metrics = {
+                        f"dpo/{k}": v
+                        for k, v in _average_metric_tensors(running_metrics, metric_divisor).items()
+                    }
                     avg_metrics["train/learning_rate"] = config.learning_rate
                     avg_metrics["train/epoch"] = epoch + 1
                     last_step_metrics = avg_metrics
                     step_metrics.update(avg_metrics)
+
+                    logger.info(
+                        f"[Step {global_step}] Loss: {avg_metrics['dpo/loss']:.4f} | "
+                        f"Margin: {avg_metrics['dpo/reward_margin']:.4f} | "
+                        f"KL chosen/rej: {avg_metrics['dpo/kl_chosen']:.4f}/{avg_metrics['dpo/kl_rejected']:.4f}"
+                    )
 
                     progress_bar.set_postfix(
                         {
@@ -281,7 +297,7 @@ def train_dpo(
                     )
 
                     for key in running_metrics:
-                        running_metrics[key] = 0.0
+                        running_metrics[key] = None
 
                 if config.do_validation and val_dataloader is not None:
                     is_val_step = global_step % config.val_steps_freq == 0

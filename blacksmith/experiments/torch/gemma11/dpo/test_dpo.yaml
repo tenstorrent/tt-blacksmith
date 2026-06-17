@@ -23,7 +23,8 @@ dpo_reference_free: False
 # Reference model settings
 # Standard DPO requires π_ref to be an SFT model trained on chosen responses.
 # Set this to your SFT checkpoint path. If empty, base pretrained model is used (less ideal).
-sft_checkpoint_path: ""
+# TODO(mmilosevicTT): Remove path once PR is ready.
+sft_checkpoint_path: "blacksmith/experiments/torch/gemma11/lora/checkpoints/checkpoint_step360_epoch2_20260617_070852.pt"
 
 # Training hyperparameters
 learning_rate: 1e-5  # Learning rate for DPO
@@ -40,7 +41,7 @@ warmup_steps: 5
 log_level: "INFO"
 use_wandb: True
 wandb_project: "gemma11-dpo"
-wandb_run_name: "gpu-gemma11-dpo-math"
+wandb_run_name: "tt-gemma11-dpo-math"
 wandb_tags: ["gemma11", "dpo", "math", "lora"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
@@ -49,7 +50,7 @@ steps_freq: 10
 epoch_freq: 1
 val_steps_freq: 32
 print_examples: False
-do_validation: True
+do_validation: False
 
 # Checkpoint settings
 resume_from_checkpoint: False
@@ -91,4 +92,4 @@ adapter_layers: []
 
 # Other settings
 framework: "pytorch"
-use_tt: False
+use_tt: True

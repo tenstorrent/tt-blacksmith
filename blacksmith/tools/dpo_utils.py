@@ -23,7 +23,10 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla
+
+from blacksmith.tools.workaround_utils import transform_labels
+
+IGNORED_LABEL_ID = -100
 
 
 def get_batch_logps(
@@ -51,23 +54,16 @@ def get_batch_logps(
     shift_logits = logits[:, :-1, :].contiguous()
     shift_labels = labels[:, 1:].contiguous()
 
-    # Loss mask: only compute log probs where labels != -100
-    loss_mask = (shift_labels != -100).float()
+    vocab_size = shift_logits.shape[-1]
+    expected_output, labels_mask = transform_labels(shift_labels, IGNORED_LABEL_ID, vocab_size)
+    expected_output = expected_output.to(shift_logits.dtype)
 
-    # Log probabilities over vocab
     log_probs = F.log_softmax(shift_logits, dim=-1)
+    per_token_logps = (expected_output * log_probs).sum(dim=-1)
+    per_token_logps = per_token_logps * labels_mask.float()
 
-    # Replace -100 with 0 for valid indexing (masked out below)
-    target_tokens = shift_labels.clone()
-    target_tokens[target_tokens == -100] = 0
-
-    # Get log prob for the target tokens using gather
-    per_token_logps = torch.gather(log_probs, dim=-1, index=target_tokens.unsqueeze(-1)).squeeze(-1)
-
-    # Apply mask over supervised response tokens only
-    per_token_logps = per_token_logps * loss_mask
     if average_log_prob:
-        return per_token_logps.sum(dim=-1) / loss_mask.sum(dim=-1).clamp(min=1.0)
+        return per_token_logps.sum(dim=-1) / labels_mask.sum(dim=-1).float().clamp(min=1.0)
     return per_token_logps.sum(dim=-1)
 
 
@@ -137,13 +133,25 @@ def create_reference_model(model: nn.Module) -> nn.Module:
     return reference_model
 
 
+def _forward_batch_logps(
+    model: nn.Module,
+    input_ids: torch.Tensor,
+    attention_mask: torch.Tensor,
+    labels: torch.Tensor,
+) -> torch.Tensor:
+    """Run a forward pass, compute sequence log-probs, then drop logits before the next pass."""
+    outputs = model(input_ids=input_ids, attention_mask=attention_mask)
+    logits = outputs.logits
+    logps = get_batch_logps(logits, labels)
+    return logps
+
+
 def compute_dpo_loss_from_batch(
     policy_model: nn.Module,
     reference_model: nn.Module,
     batch: Dict[str, torch.Tensor],
     beta: float = 0.1,
     label_smoothing: float = 0.0,
-    use_tt: bool = False,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """
     Compute DPO loss for a batch of preference pairs.
@@ -158,55 +166,34 @@ def compute_dpo_loss_from_batch(
     Returns:
         Tuple of (loss, metrics_dict)
     """
-    # Forward pass for chosen responses
-    policy_chosen_outputs = policy_model(
-        input_ids=batch["chosen_input_ids"],
-        attention_mask=batch["chosen_attention_mask"],
-    )
-    policy_chosen_logps = get_batch_logps(
-        policy_chosen_outputs.logits,
+    with torch.no_grad():
+        reference_chosen_logps = _forward_batch_logps(
+            reference_model,
+            batch["chosen_input_ids"],
+            batch["chosen_attention_mask"],
+            batch["chosen_labels"],
+        ).detach()
+
+        reference_rejected_logps = _forward_batch_logps(
+            reference_model,
+            batch["rejected_input_ids"],
+            batch["rejected_attention_mask"],
+            batch["rejected_labels"],
+        ).detach()
+
+    policy_chosen_logps = _forward_batch_logps(
+        policy_model,
+        batch["chosen_input_ids"],
+        batch["chosen_attention_mask"],
         batch["chosen_labels"],
     )
 
-    if use_tt:
-        torch_xla.sync(wait=True)
-    # Forward pass for rejected responses
-    policy_rejected_outputs = policy_model(
-        input_ids=batch["rejected_input_ids"],
-        attention_mask=batch["rejected_attention_mask"],
-    )
-    policy_rejected_logps = get_batch_logps(
-        policy_rejected_outputs.logits,
+    policy_rejected_logps = _forward_batch_logps(
+        policy_model,
+        batch["rejected_input_ids"],
+        batch["rejected_attention_mask"],
         batch["rejected_labels"],
     )
-
-    if use_tt:
-        torch_xla.sync(wait=True)
-    # Reference model forward passes (no gradients needed)
-    with torch.no_grad():
-        ref_chosen_outputs = reference_model(
-            input_ids=batch["chosen_input_ids"],
-            attention_mask=batch["chosen_attention_mask"],
-        )
-        reference_chosen_logps = get_batch_logps(
-            ref_chosen_outputs.logits,
-            batch["chosen_labels"],
-        )
-
-        if use_tt:
-            torch_xla.sync(wait=True)
-
-        ref_rejected_outputs = reference_model(
-            input_ids=batch["rejected_input_ids"],
-            attention_mask=batch["rejected_attention_mask"],
-        )
-        reference_rejected_logps = get_batch_logps(
-            ref_rejected_outputs.logits,
-            batch["rejected_labels"],
-        )
-
-        if use_tt:
-            torch_xla.sync(wait=True)
 
     # Compute DPO loss
     loss, chosen_rewards, rejected_rewards = dpo_loss(
@@ -227,13 +214,13 @@ def compute_dpo_loss_from_batch(
     kl_rejected = (policy_rejected_logps - reference_rejected_logps).mean()
 
     metrics = {
-        "loss": loss.item(),
-        "chosen_rewards": chosen_rewards.mean().item(),
-        "rejected_rewards": rejected_rewards.mean().item(),
-        "reward_margin": reward_margin.mean().item(),
-        "accuracy": accuracy.item(),
-        "kl_chosen": kl_chosen.item(),
-        "kl_rejected": kl_rejected.item(),
+        "loss": loss,
+        "chosen_rewards": chosen_rewards.mean(),
+        "rejected_rewards": rejected_rewards.mean(),
+        "reward_margin": reward_margin.mean(),
+        "accuracy": accuracy,
+        "kl_chosen": kl_chosen,
+        "kl_rejected": kl_rejected,
     }
 
     return loss, metrics
