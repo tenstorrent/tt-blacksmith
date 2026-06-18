@@ -76,3 +76,4 @@ class TrainingConfig(BaseModel):
     # Other settings
     framework: Framework = Field(default=Framework.PYTORCH.value)
     use_tt: bool = Field(default=True)
+    enable_trace: bool = Field(default=False)

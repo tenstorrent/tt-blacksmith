@@ -57,3 +57,4 @@ framework: "pytorch"
 print_examples: True
 use_tt: True
 measure_e2e_time: False
+enable_trace: False

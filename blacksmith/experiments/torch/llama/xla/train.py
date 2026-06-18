@@ -290,7 +290,7 @@ if __name__ == "__main__":
     # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
-        compile_options = {"fp32_dest_acc_en": True, "math_fidelity": "hifi4"}
+        compile_options = {"fp32_dest_acc_en": True, "math_fidelity": "hifi4", "enable_trace": config.enable_trace}
         if config.experimental_weight_dtype:
             compile_options["experimental_weight_dtype"] = config.experimental_weight_dtype
         torch_xla.set_custom_compile_options(compile_options)
