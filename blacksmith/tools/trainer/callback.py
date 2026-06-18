@@ -5,37 +5,53 @@ from abc import ABC
 
 
 class Callback(ABC):
-    # train
-    def on_train_start(self, trainer): ...
+    # Training callbacks.
+    def on_train_start(self, trainer):
+        pass
 
-    def on_train_end(self, trainer): ...
+    def on_train_end(self, trainer):
+        pass
 
-    def on_train_epoch_start(self, trainer): ...
+    def on_train_epoch_start(self, trainer):
+        pass
 
-    def on_train_epoch_end(self, trainer): ...
+    def on_train_epoch_end(self, trainer):
+        pass
 
-    def on_train_batch_start(self, trainer, batch): ...
+    def on_train_batch_start(self, trainer, batch):
+        pass
 
-    def on_train_batch_end(self, trainer): ...
+    def on_train_batch_end(self, trainer):
+        pass
 
-    # validation
-    def on_validation_start(self, trainer): ...
+    # Validation callbacks.
+    def on_validation_start(self, trainer):
+        pass
 
-    def on_validation_batch_start(self, trainer, batch): ...
+    def on_validation_batch_start(self, trainer, batch):
+        pass
 
-    def on_validation_batch_end(self, trainer, batch): ...
+    def on_validation_batch_end(self, trainer, batch):
+        pass
 
-    def on_validation_end(self, trainer): ...
+    def on_validation_end(self, trainer):
+        pass
 
-    # forward / backward / optimizer step
-    def on_forward_start(self, trainer, batch): ...
+    # Forward / Backward / Optimizer Step callbacks.
+    def on_forward_start(self, trainer, batch):
+        pass
 
-    def on_forward_end(self, trainer, loss): ...
+    def on_forward_end(self, trainer, loss):
+        pass
 
-    def on_backward_start(self, trainer, loss): ...
+    def on_backward_start(self, trainer, loss):
+        pass
 
-    def on_backward_end(self, trainer): ...
+    def on_backward_end(self, trainer):
+        pass
 
-    def on_optimizer_step_start(self, trainer): ...
+    def on_optimizer_step_start(self, trainer):
+        pass
 
-    def on_optimizer_step_end(self, trainer): ...
+    def on_optimizer_step_end(self, trainer):
+        pass

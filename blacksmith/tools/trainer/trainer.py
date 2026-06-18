@@ -44,7 +44,7 @@ class Trainer(ABC):
         pass
 
     @abstractmethod
-    def cleanup(self) -> None: 
+    def cleanup(self) -> None:
         """
         Clean up any resources used by the trainer.
         """

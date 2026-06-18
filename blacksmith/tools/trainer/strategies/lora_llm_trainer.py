@@ -4,6 +4,7 @@
 
 from blacksmith.tools.trainer.trainer import Trainer
 
-# TODO(mmilosevicTT): Implement Lora LLM Trainer
+
+# TODO(mmilosevicTT): Implement Lora Adapter Layer LLM Trainer. See https://github.com/tenstorrent/tt-blacksmith/issues/617
 class LoraLLMTrainer(Trainer):
     pass
