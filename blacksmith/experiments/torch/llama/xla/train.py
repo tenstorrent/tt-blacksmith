@@ -189,8 +189,8 @@ def train(
 
                 # Sync only gradients and loss.
                 tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
-                devices = list({t.device.type for t in  tensors_to_sync})
-                torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True) 
+                devices = list({t.device.type for t in tensors_to_sync})
+                torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
                 torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
 
                 running_loss += loss_.item()
