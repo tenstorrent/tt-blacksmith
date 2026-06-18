@@ -107,6 +107,7 @@ def train(
 
     # Load model.
     model = get_model(config, device_manager.device, compile_model=False)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -131,6 +132,7 @@ def train(
 
     compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True, "tt_lazy_execution": True}
     train_fn = torch.compile(training_step_inner, backend="tt", options=compile_options)
+    model_compiled = torch.compile(model, backend="tt", options=compile_options)
 
     global_step = 0
 
@@ -138,7 +140,7 @@ def train(
         # Initial validation
         model.eval()
         val_loss = validate(
-            model,
+            model_compiled,
             eval_dataloader,
             cross_entropy_loss,
             logger,
@@ -214,7 +216,7 @@ def train(
                     if global_step % config.val_steps_freq == 0:
                         model.eval()
                         val_loss = validate(
-                            model,
+                            model_compiled,
                             eval_dataloader,
                             cross_entropy_loss,
                             logger,
