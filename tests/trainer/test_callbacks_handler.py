@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from blacksmith.tools.trainer.callback import Callback
+from blacksmith.tools.trainer.callback import Callback, CallbackEvent
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.trainer.utils import normalize_callbacks
 
@@ -36,8 +36,8 @@ def test_callback_handler_order():
         ],
     )
 
-    handler("on_train_batch_start", batch=None)
-    handler("on_train_batch_end")
+    handler(CallbackEvent.ON_TRAIN_BATCH_START, batch=None)
+    handler(CallbackEvent.ON_TRAIN_BATCH_END)
 
     assert events == [
         "first:on_train_batch_start",
@@ -57,6 +57,11 @@ def test_callback_handler_injects_trainer():
     trainer = object()
     handler = CallbackHandler(trainer, [TrainerCapturingCallback()])
 
-    handler("on_train_start")
+    handler(CallbackEvent.ON_TRAIN_START)
 
     assert received_trainers == [trainer]
+
+
+def test_callback_event_values_match_callback_hooks():
+    for event in CallbackEvent:
+        assert hasattr(Callback, event)
