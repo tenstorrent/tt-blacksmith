@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from collections.abc import Sequence
 
-from blacksmith.tools.trainer.callback import Callback, CallbackEvent
+from blacksmith.tools.trainer.callback import Callback
 
 
 class CallbackHandler:
@@ -11,6 +11,7 @@ class CallbackHandler:
         self.trainer = trainer
         self.callbacks = list(callbacks)
 
-    def __call__(self, event: CallbackEvent, *args, **kwargs) -> None:
+    def __call__(self, method_name: str, *args, **kwargs) -> None:
         for callback in self.callbacks:
-            getattr(callback, event)(self.trainer, *args, **kwargs)
+            if hasattr(callback, method_name):
+                getattr(callback, method_name)(self.trainer, *args, **kwargs)
