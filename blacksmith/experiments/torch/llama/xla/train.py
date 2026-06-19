@@ -87,14 +87,11 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     return avg_val_loss
 
 
-def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
+def compute_loss(batch, model, loss_fn):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
-    loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale loss by number of accumulation steps to get correct effective batch size.
-    scaled_loss = loss / gradient_accumulation_steps
-    return scaled_loss
+    return loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
 
 
 def train(
@@ -130,9 +127,17 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
-    compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True, "tt_lazy_execution": True}
-    train_fn = torch.compile(training_step_inner, backend="tt", options=compile_options)
-    model_compiled = torch.compile(model, backend="tt", options=compile_options)
+    if config.use_tt:
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_lazy_execution": True,
+        }
+        compute_loss_fn = torch.compile(compute_loss, backend="tt", options=compile_options)
+        eval_model = torch.compile(model, backend="tt", options=compile_options)
+    else:
+        compute_loss_fn = compute_loss
+        eval_model = model
 
     global_step = 0
 
@@ -140,7 +145,7 @@ def train(
         # Initial validation
         model.eval()
         val_loss = validate(
-            model_compiled,
+            eval_model,
             eval_dataloader,
             cross_entropy_loss,
             logger,
@@ -183,15 +188,17 @@ def train(
                 # Shard model if tensor parallelism is used.
                 device_manager.shard_model(model)
 
-                # Forward (compiled) + backward (traced lazily into the same graph).
-                loss_ = train_fn(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
-                loss_.backward()
+                loss_ = compute_loss_fn(batch, model, cross_entropy_loss)
+                # Scale by the accumulation steps so the effective-batch gradient is the mean.
+                scaled_loss = loss_ / config.gradient_accumulation_steps
+                scaled_loss.backward()
 
-                # Sync only gradients and loss.
-                tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
-                devices = list({t.device.type for t in tensors_to_sync})
-                torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
-                torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
+                if config.use_tt:
+                    tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
+                    devices = list({t.device.type for t in tensors_to_sync})
+                    torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
+                    # Optimizer will do unnecessary recompute if we don't clear the pending IRs after syncing the loss and grads.
+                    torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
 
                 running_loss += loss_.item()
                 accumulation_step += 1
@@ -216,7 +223,7 @@ def train(
                     if global_step % config.val_steps_freq == 0:
                         model.eval()
                         val_loss = validate(
-                            model_compiled,
+                            eval_model,
                             eval_dataloader,
                             cross_entropy_loss,
                             logger,
