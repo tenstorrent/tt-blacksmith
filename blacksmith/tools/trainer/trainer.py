@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import Any, Union
 
+from blacksmith.tools.templates.configs import TrainingConfig
 from blacksmith.tools.trainer.callback import Callback
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.trainer.utils import normalize_callbacks
@@ -21,7 +22,7 @@ class Trainer(ABC):
     @abstractmethod
     def setup(
         self,
-        config: str | None = None,
+        config: TrainingConfig | None = None,
         **kwargs: Any,
     ) -> None:
         """
