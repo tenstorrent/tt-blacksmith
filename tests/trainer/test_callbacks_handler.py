@@ -5,6 +5,8 @@ from blacksmith.tools.trainer.callback import Callback, CallbackEvent
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.trainer.utils import normalize_callbacks
 
+# TODO(mmilosevicTT): Add tests to CI once we have trainings through trainer class. See https://github.com/tenstorrent/tt-blacksmith/issues/629.
+
 
 class RecordingCallback(Callback):
     def __init__(self, name: str, events: list[str]):
