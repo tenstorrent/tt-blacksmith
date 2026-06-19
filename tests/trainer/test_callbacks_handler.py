@@ -25,30 +25,38 @@ def test_normalize_callbacks():
     assert normalize_callbacks([callback]) == [callback]
 
 
-def test_callback_handler_stack_order():
+def test_callback_handler_order():
     events = []
+    trainer = object()
     handler = CallbackHandler(
+        trainer,
         [
             RecordingCallback("first", events),
             RecordingCallback("second", events),
-        ]
+        ],
     )
 
-    handler.call("on_train_batch_start", trainer=None, batch=None)
-    handler.call("on_train_batch_end", trainer=None)
+    handler("on_train_batch_start", batch=None)
+    handler("on_train_batch_end")
 
     assert events == [
         "first:on_train_batch_start",
         "second:on_train_batch_start",
-        "second:on_train_batch_end",
         "first:on_train_batch_end",
+        "second:on_train_batch_end",
     ]
 
 
-def test_callback_handler_rejects_invalid_hook_name():
-    handler = CallbackHandler([])
-    try:
-        handler.call("on_train_begin", trainer=None)
-        assert False, "expected ValueError"
-    except ValueError as error:
-        assert "_start' or '_end'" in str(error)
+def test_callback_handler_injects_trainer():
+    received_trainers = []
+
+    class TrainerCapturingCallback(Callback):
+        def on_train_start(self, trainer):
+            received_trainers.append(trainer)
+
+    trainer = object()
+    handler = CallbackHandler(trainer, [TrainerCapturingCallback()])
+
+    handler("on_train_start")
+
+    assert received_trainers == [trainer]

@@ -16,7 +16,7 @@ class Trainer(ABC):
         callbacks: Union[Callback, Sequence[Callback], None] = None,
     ):
         self.config = None
-        self.callback_handler = CallbackHandler(normalize_callbacks(callbacks))
+        self.callback_handler = CallbackHandler(self, normalize_callbacks(callbacks))
 
     @abstractmethod
     def setup(
