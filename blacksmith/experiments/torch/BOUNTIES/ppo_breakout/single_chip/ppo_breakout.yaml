@@ -35,7 +35,7 @@ wandb_log_freq: 1000
 model_to_wandb: False
 
 # Checkpoint settings
-resume_from_checkpoint: False
+resume_from_checkpoint: True
 resume_option: "last"
 checkpoint_path: ""
 checkpoint_metric: "charts/avg_return"

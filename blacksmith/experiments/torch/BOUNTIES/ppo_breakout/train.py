@@ -119,6 +119,12 @@ def make_vec_env(config: TrainingConfig):
 # ---------------------------------------------------------------------------
 
 
+def _shuffle_rows_onehot(perm_onehot, t):
+    # Permute rows via matmul (P @ t), where row i of P is one_hot(perm[i]).
+    flat = t.reshape(t.shape[0], -1).to(perm_onehot.dtype)
+    return (perm_onehot @ flat).reshape(t.shape[0], *t.shape[1:])
+
+
 def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingConfig, device_manager: DeviceManager):
     device = device_manager.device
     b_obs, b_actions, b_log_probs, b_values = buffer.flatten()
@@ -126,28 +132,30 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
     b_returns = returns.reshape(-1)
     batch_size = b_obs.shape[0]
 
-    # Offload the batch to host (CPU) before shuffling: TT's on-device gather
-    # (index_select with a dynamic index) returns numerically wrong values that blow
-    # the loss up to inf/nan, whereas the same gather on CPU is correct.
-    h_obs = b_obs.cpu()
-    h_actions = b_actions.cpu()
-    h_log_probs = b_log_probs.cpu()
-    h_values = b_values.cpu()
-    h_adv = b_advantages.cpu()
-    h_returns = b_returns.cpu()
+    # A dynamic-index gather is broken on TT (returns wrong values that blow the loss to
+    # inf/nan), so we can't shuffle minibatches with a gather. Instead shuffle the whole
+    # batch on device with a one-hot permutation matmul, then take minibatches as static
+    # contiguous slices, which are safe on TT.
 
     clip_fracs = []
 
     for _ in range(config.update_epochs):
-        perm = torch.randperm(batch_size)
+        perm = torch.randperm(batch_size).to(device)
+        perm_onehot = torch.nn.functional.one_hot(perm, batch_size).to(b_obs.dtype)
+        s_obs = _shuffle_rows_onehot(perm_onehot, b_obs)
+        s_actions = _shuffle_rows_onehot(perm_onehot, b_actions)
+        s_log_probs = _shuffle_rows_onehot(perm_onehot, b_log_probs)
+        s_values = _shuffle_rows_onehot(perm_onehot, b_values)
+        s_adv = _shuffle_rows_onehot(perm_onehot, b_advantages)
+        s_returns = _shuffle_rows_onehot(perm_onehot, b_returns)
         for start in range(0, batch_size, config.minibatch_size):
-            mb = perm[start : start + config.minibatch_size]
-            mb_obs = h_obs.index_select(0, mb).to(device)
-            mb_actions = h_actions.index_select(0, mb).to(device)
-            mb_log_probs = h_log_probs.index_select(0, mb).to(device)
-            mb_values = h_values.index_select(0, mb).to(device)
-            mb_adv = h_adv.index_select(0, mb).to(device)
-            mb_returns = h_returns.index_select(0, mb).to(device)
+            sl = slice(start, start + config.minibatch_size)
+            mb_obs = s_obs[sl]
+            mb_actions = s_actions[sl]
+            mb_log_probs = s_log_probs[sl]
+            mb_values = s_values[sl]
+            mb_adv = s_adv[sl]
+            mb_returns = s_returns[sl]
 
             _, new_log_prob, entropy, new_value = agent.get_action_and_value(mb_obs, mb_actions)
             log_ratio = new_log_prob - mb_log_probs
@@ -299,8 +307,9 @@ def train(
             with torch.no_grad():
                 next_value = agent.get_value(obs).flatten()
             advantages, returns = buffer.compute_gae(next_value, done)
-            # trains faster with this
-            torch_xla.sync()
+            # Empirically faster on TT.
+            if config.use_tt:
+                torch_xla.sync()
 
             # PPO update.
             pg_loss, v_loss, ent_loss, approx_kl, clip_frac = ppo_update(

@@ -41,25 +41,22 @@ class BreakoutCNN(nn.Module):
         hidden = self.network(x)
         logits = self.actor(hidden)
         target_device = logits.device
+        num_actions = logits.shape[-1]
 
-        # Offload the categorical math to CPU: on TT the softmax+entropy has poor
-        # PCC against CPU, and running it on the host fixes that. We also compute
-        # it manually rather than with torch.distributions.Categorical because the
-        # manual softmax/gather/entropy gave better precision on TT hardware.
-        logits_host = logits.to("cpu").float()
-        log_probs_host = torch.log_softmax(logits_host, dim=-1)
-        probs_host = log_probs_host.exp()
+        log_probs = torch.log_softmax(logits, dim=-1).to(target_device)
+        probs = log_probs.exp()
 
         if action is None:
-            # Sample on CPU with multinomial, then move back to TT.
-            action_host = torch.multinomial(probs_host, num_samples=1).squeeze(-1)
-            action = action_host.to(target_device)
-        else:
-            action_host = action.to("cpu")
+            # Sample on device via the Gumbel-max trick instead of torch.multinomial, to
+            # keep a random node out of the graph: re-drawn across executions it would
+            # desync action from its log_prob
+            u = torch.rand(log_probs.shape, device="cpu").to(target_device)
+            gumbel = -torch.log(-torch.log(u + 1e-20) + 1e-20)
+            action = (log_probs + gumbel).argmax(dim=-1)
 
-        log_prob_host = log_probs_host.gather(-1, action_host.unsqueeze(-1)).squeeze(-1)
-        entropy_host = -(probs_host * log_probs_host).sum(dim=-1)
-
-        log_prob = log_prob_host.to(target_device)
-        entropy = entropy_host.to(target_device)
+        # Select the chosen action's log-prob with a one-hot masked sum, not a gather --
+        # same gather-is-broken-on-TT workaround as the minibatch shuffle in train.py
+        onehot = torch.nn.functional.one_hot(action.long(), num_actions).to(log_probs.dtype)
+        log_prob = (log_probs * onehot).sum(dim=-1)
+        entropy = -(probs * log_probs).sum(dim=-1)
         return action, log_prob, entropy, self.critic(hidden)
