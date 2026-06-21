@@ -32,7 +32,7 @@ class TrainingConfig(BaseModel):
         return _DTYPE_MAP[key]
 
     # Training hyperparameters
-    learning_rate: float = Field(default=2e-4, gt=0)
+    learning_rate: float = Field(default=2e-4, ge=0)
     warmup_steps: int = Field(default=0, ge=0)
     end_learning_rate: float = Field(default=0.0, ge=0)
     batch_size: int = Field(default=4, gt=0)
@@ -41,6 +41,7 @@ class TrainingConfig(BaseModel):
     val_steps_freq: Optional[int] = Field(default=None, ge=1)
     max_val_batches: Optional[int] = Field(default=None, ge=1)
     ignored_label_index: int = Field(default=-100)
+    max_grad_norm: Optional[float] = Field(default=None, ge=0)
 
     # LoRA settings
     lora_rank: int = Field(default=16, ge=1)
@@ -85,7 +86,12 @@ class TrainingConfig(BaseModel):
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     input_sharding_dim: Optional[str] = Field(default=None)
-    optimizer_on_cpu: bool = Field(default=False)
+    apply_gqa_workaround: bool = Field(default=True)
+    # Tensor parallelism: list of [regex, [axis_or_null, ...]] entries.
+    # When None, params are replicated (pure DP).
+    model_sharding_patterns: Optional[list[list]] = Field(default=None)
+    # Extra kwargs forwarded to the EasyDel model config.
+    extra_config_kwargs: Optional[dict] = Field(default=None)
 
     # Framework
-    framework: str = Field(default="easydel")
+    framework: str = Field(default="jax")

@@ -21,6 +21,8 @@ def _path_to_str(path: tuple) -> str:
             parts.append(str(key.key))
         elif hasattr(key, "idx"):
             parts.append(str(key.idx))
+        elif hasattr(key, "name"):
+            parts.append(str(key.name))
         else:
             parts.append(str(key))
     return ".".join(parts)
