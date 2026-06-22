@@ -132,10 +132,9 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
     b_returns = returns.reshape(-1)
     batch_size = b_obs.shape[0]
 
-    # A dynamic-index gather is broken on TT (returns wrong values that blow the loss to
-    # inf/nan), so we can't shuffle minibatches with a gather. Instead shuffle the whole
-    # batch on device with a one-hot permutation matmul, then take minibatches as static
-    # contiguous slices, which are safe on TT.
+    # Shuffle minibatches with a one-hot permutation matmul instead of a row gather
+    # (b_obs[perm] / index_select(0, perm)): the gather returns wrong values on TT.
+    # Minibatches are then taken as static slices, which are safe.
 
     clip_fracs = []
 
