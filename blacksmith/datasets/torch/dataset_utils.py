@@ -59,7 +59,7 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
     elif dataset_id == AvailableDataset.METAMATHQA.value:
         return MetaMathQADataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.MATH_DPO.value:
-        # SFT is run separately; use the full filtered dataset for DPO (sft_ratio=0).
+        # SFT is run separately.
         return MathPreferenceDataset(config, split, collate_fn=collate_fn, mode="dpo")
     elif dataset_id == AvailableDataset.MATH_SFT.value:
         return MathPreferenceDataset(config, split, collate_fn=collate_fn, mode="sft")
