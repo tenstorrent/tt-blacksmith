@@ -83,7 +83,7 @@ lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
 lora_task_type: "CAUSAL_LM"
 lora_dropout: 0.0  # Disable dropout for stable DPO training
 
-# Adapter setup (if peft_method is "adapters")
+# Adapter setup (used when training_model_type is "adapters")
 adapter_bottleneck_dim: 32
 adapter_non_linearity: "torch.nn.GELU"
 adapter_layers: []

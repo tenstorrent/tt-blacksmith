@@ -23,19 +23,20 @@ If `sft_checkpoint_path` is left empty, the base pre-trained model is used as π
 
 ## Training
 
-The experiment is configured through `test_dpo.yaml` in this directory, which is loaded automatically by the training script.
+The dataset and hyperparameters are selected through the configuration file passed via `--config`.
+If no config is provided, `single_chip/gemma11_math_preferences_dpo.yaml` is used by default.
 
 ### Single Chip Training
 
 ```bash
-python3 blacksmith/experiments/torch/gemma11/dpo/train.py
+python3 blacksmith/experiments/torch/gemma11/dpo/train.py --config blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml
 ```
 
 #### Training Configuration
 
 | Architecture | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------ | ---------- | --------------- | ------- | ------ |
-| [P150](test_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
+| [P150](single_chip/gemma11_math_preferences_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
 
 ## Data
 
@@ -63,7 +64,7 @@ Example:
 
 ## Configuration
 
-The experiment is configured using `test_dpo.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the DPO objective parameters, the reference model checkpoint, the number of epochs, the batch size, and the LoRA configuration.
+The experiment is configured using `single_chip/gemma11_math_preferences_dpo.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the DPO objective parameters, the reference model checkpoint, the number of epochs, the batch size, and the LoRA configuration.
 
 ### Configuration Parameters
 

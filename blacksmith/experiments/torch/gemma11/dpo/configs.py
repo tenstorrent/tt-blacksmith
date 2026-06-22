@@ -14,6 +14,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from blacksmith.tools.test_config import TestConfig
+
 
 class DPOTrainingConfig(BaseModel):
     """
@@ -115,3 +117,6 @@ class DPOTrainingConfig(BaseModel):
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
     do_validation: bool = Field(default=True)
+
+    # Testing utils (used to limit training duration during CI runs).
+    test_config: Optional[TestConfig] = Field(default=None)

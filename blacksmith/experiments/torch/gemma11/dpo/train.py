@@ -31,7 +31,7 @@ from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.gemma11.dpo.configs import DPOTrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
-from blacksmith.tools.cli import generate_config
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.dpo_utils import compute_dpo_loss_from_batch
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -149,35 +149,40 @@ def train_dpo(
     )
     logger.watch_model(policy_model)
 
-    # Create reference model
-    # Standard DPO: π_ref should be an SFT model trained on chosen responses
-    if config.sft_checkpoint_path:
+    # Initialize the policy model weights, preferring (in order):
+    #   1. a resume checkpoint (checkpoint_path / resume_option),
+    #   2. the SFT checkpoint,
+    #   3. the base pretrained weights (no warm start).
+    if config.resume_from_checkpoint:
+        logger.info("Loading policy model from resume checkpoint.")
+        checkpoint_manager.load_checkpoint(policy_model)
+    elif config.sft_checkpoint_path:
         logger.info(f"Loading SFT checkpoint into policy model from: {config.sft_checkpoint_path}")
         checkpoint_manager.load_checkpoint_path(config.sft_checkpoint_path, policy_model)
-        logger.info("Loaded SFT checkpoint into policy model.")
     else:
         logger.warning(
-            "No SFT checkpoint provided (sft_checkpoint_path is empty). "
-            "Using base pretrained model as reference. "
-            "For best results, first train an SFT model on chosen responses."
+            "No checkpoint provided for the policy model (resume_from_checkpoint is False and "
+            "sft_checkpoint_path is empty). Starting the policy model from the base pretrained weights."
         )
 
+    # Standard DPO: π_ref should be an SFT model trained on chosen responses. Load it from the
+    # SFT checkpoint when available, otherwise leave it at the base pretrained weights.
     reference_model = get_model(config, device_manager.device)
     if config.sft_checkpoint_path:
         logger.info(f"Loading SFT checkpoint into reference model from: {config.sft_checkpoint_path}")
         checkpoint_manager.load_checkpoint_path(config.sft_checkpoint_path, reference_model)
     else:
-        reference_model.load_state_dict(policy_model.state_dict(), strict=False)
+        logger.warning(
+            "No SFT checkpoint provided (sft_checkpoint_path is empty); "
+            "using the base pretrained model as the reference model. "
+            "For best results, first train an SFT model on chosen responses."
+        )
     logger.info("Reference model loaded on device.")
 
     for param in reference_model.parameters():
         param.requires_grad = False
     reference_model.eval()
     logger.info("Reference model frozen.")
-
-    # Load checkpoint if needed
-    if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint()
 
     # Load DPO dataset
     train_dataset = get_dataset(config=config, split="train")
@@ -265,7 +270,7 @@ def train_dpo(
                 if global_step % config.steps_freq == 0:
                     metric_divisor = config.steps_freq * config.gradient_accumulation_steps
                     avg_metrics = {
-                        f"dpo/{k}": v for k, v in _average_metric_tensors(running_metrics, metric_divisor).items()
+                        f"train/{k}": v for k, v in _average_metric_tensors(running_metrics, metric_divisor).items()
                     }
                     avg_metrics["train/learning_rate"] = config.learning_rate
                     avg_metrics["train/epoch"] = epoch + 1
@@ -273,15 +278,15 @@ def train_dpo(
                     step_metrics.update(avg_metrics)
 
                     logger.info(
-                        f"[Step {global_step}] Loss: {avg_metrics['dpo/loss']:.4f} | "
-                        f"Margin: {avg_metrics['dpo/reward_margin']:.4f}"
+                        f"[Step {global_step}] Loss: {avg_metrics['train/loss']:.4f} | "
+                        f"Margin: {avg_metrics['train/reward_margin']:.4f}"
                     )
 
                     progress_bar.set_postfix(
                         {
-                            "loss": f"{avg_metrics['dpo/loss']:.4f}",
-                            "acc": f"{avg_metrics['dpo/accuracy']:.3f}",
-                            "margin": f"{avg_metrics['dpo/reward_margin']:.3f}",
+                            "loss": f"{avg_metrics['train/loss']:.4f}",
+                            "acc": f"{avg_metrics['train/accuracy']:.3f}",
+                            "margin": f"{avg_metrics['train/reward_margin']:.3f}",
                         }
                     )
 
@@ -358,15 +363,22 @@ def train_dpo(
 
 if __name__ == "__main__":
     # Config setup
-    config_file_path = Path(__file__).parent / "test_dpo.yaml"
-    config = generate_config(DPOTrainingConfig, config_file_path)
+    default_config = Path(__file__).parent / "single_chip" / "gemma11_math_preferences_dpo.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config = generate_config(
+        DPOTrainingConfig,
+        args.config,
+        args.test_config,
+        args.test_checkpoint_path,
+        args.reference_model_checkpoint_path,
+    )
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
     # Logger setup
-    logger = TrainingLogger(config)
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
 
     # Checkpoint manager setup
     checkpoint_manager = CheckpointManager(config, logger)

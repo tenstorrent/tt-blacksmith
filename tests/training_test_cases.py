@@ -324,6 +324,22 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
+            "test_script": "blacksmith/experiments/torch/gemma11/dpo/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml",
+            "test_config": "tests/configs/tt-gemma11-math_preference_dpo-p150.yaml",
+            "reference_model_checkpoint_path": "tests/checkpoints/tt-gemma11-math_preference_sft-p150_checkpoint_step360_epoch2_20260622_192415.pt",
+            "timeout": 10000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.p150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-gemma11-math_preference_dpo-p150",
+    ),
+    pytest.param(
+        {
             "test_script": "blacksmith/experiments/torch/albert/train.py",
             "experiment_config": "blacksmith/experiments/torch/albert/single_chip/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
