@@ -34,13 +34,20 @@ PROMPT_TEMPLATE = Template("### Instruction:\n$instruction\n\n### Response:\n")
 IGNORED_LABEL_ID = -100
 
 # Required columns for DPO training.
-REQUIRED_COLUMNS = [
+DPO_REQUIRED_COLUMNS = [
     "chosen_input_ids",
     "chosen_attention_mask",
     "chosen_labels",
     "rejected_input_ids",
     "rejected_attention_mask",
     "rejected_labels",
+]
+
+# Required columns for SFT training.
+SFT_REQUIRED_COLUMNS = [
+    "input_ids",
+    "attention_mask",
+    "labels",
 ]
 
 # Original dataset columns.
