@@ -33,7 +33,16 @@ def get_model(config: TrainingConfig, device: torch.device):
     # This will be replaced with forge models loader, we should add adapter functions to modify the model as needed
 
     # Load a model
-    model = AutoModelForCausalLM.from_pretrained(config.model_name, use_cache=config.gradient_checkpointing)
+    load_on_gpu = not config.use_tt and device.type == "cuda"
+    load_kwargs = {
+        "use_cache": config.gradient_checkpointing,
+        "low_cpu_mem_usage": True,
+    }
+    if load_on_gpu:
+        # Stream weights directly to GPU to avoid CPU RAM spikes during load.
+        load_kwargs["device_map"] = device
+
+    model = AutoModelForCausalLM.from_pretrained(config.model_name, **load_kwargs)
 
     # Apply training specific modifications
     # Apply LoRA if rank is specified
@@ -45,7 +54,8 @@ def get_model(config: TrainingConfig, device: torch.device):
         raise ValueError(f"Invalid training type: {config.training_type}")
 
     model.to(eval(config.dtype))
-    model.to(device)
+    if not load_on_gpu:
+        model.to(device)
 
     # Per-tensor weight dtype overrides must be registered before torch.compile
     # so the custom_call appears in the traced graph.
