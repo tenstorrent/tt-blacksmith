@@ -29,7 +29,7 @@ def _is_trainable_param(model: torch.nn.Module, param_path: str) -> bool:
     return isinstance(param, torch.nn.Parameter) and param.requires_grad
 
 
-def get_model(config: TrainingConfig, device: torch.device):
+def get_model(config: TrainingConfig, device: torch.device, compile_model: bool = True):
     # This will be replaced with forge models loader, we should add adapter functions to modify the model as needed
 
     # Load a model
@@ -68,7 +68,7 @@ def get_model(config: TrainingConfig, device: torch.device):
                 "config to frozen weights only.\nOffending parameters:\n  - " + "\n  - ".join(trainable_hits)
             )
 
-    if config.use_tt:
+    if config.use_tt and compile_model:
         compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True}
         model = torch.compile(model, backend="tt", options=compile_options)
 
