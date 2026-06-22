@@ -24,8 +24,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from blacksmith.tools.workaround_utils import transform_labels
-
 IGNORED_LABEL_ID = -100
 
 
@@ -54,12 +52,20 @@ def get_batch_logps(
     shift_logits = logits[:, :-1, :].contiguous()
     shift_labels = labels[:, 1:].contiguous()
 
-    vocab_size = shift_logits.shape[-1]
-    expected_output, labels_mask = transform_labels(shift_labels, IGNORED_LABEL_ID, vocab_size)
-    expected_output = expected_output.to(shift_logits.dtype)
+    batch_size, seq_len, vocab_size = shift_logits.shape
 
-    log_probs = F.log_softmax(shift_logits, dim=-1)
-    per_token_logps = (expected_output * log_probs).sum(dim=-1)
+    labels_mask = shift_labels != IGNORED_LABEL_ID
+    # cross_entropy would index out of range on the ignored sentinel (-100), so point those
+    # positions at a valid class; their contribution is removed by labels_mask below.
+    safe_labels = torch.where(labels_mask, shift_labels, torch.zeros_like(shift_labels))
+
+    # F.cross_entropy(reduction="none") returns -log p(label) per token via an internal gather,
+    # avoiding a [seq_len, vocab_size] one-hot tensor (which tile-pads to multi-GB on TT and OOMs).
+    per_token_logps = -F.cross_entropy(
+        shift_logits.reshape(-1, vocab_size),
+        safe_labels.reshape(-1),
+        reduction="none",
+    ).reshape(batch_size, seq_len)
     per_token_logps = per_token_logps * labels_mask.float()
 
     if average_log_prob:

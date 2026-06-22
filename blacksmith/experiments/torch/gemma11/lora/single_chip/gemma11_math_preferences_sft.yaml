@@ -46,7 +46,7 @@ remote_path: ""
 
 # Reproducibility settings
 seed: 23
-deterministic: False
+deterministic: True
 
 # Device settings
 mesh_shape: null

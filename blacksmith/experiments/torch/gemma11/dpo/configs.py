@@ -38,9 +38,6 @@ class DPOTrainingConfig(BaseModel):
     # DPO-specific hyperparameters
     dpo_beta: float = Field(default=0.2, gt=0, description="DPO temperature parameter (higher = more conservative)")
     dpo_label_smoothing: float = Field(default=0.0, ge=0, le=0.5, description="Label smoothing for DPO loss")
-    dpo_reference_free: bool = Field(
-        default=False, description="If True, skip reference model (use implicit reference)"
-    )
 
     # Reference model settings
     # Standard DPO requires π_ref to be an SFT model trained on chosen responses.
