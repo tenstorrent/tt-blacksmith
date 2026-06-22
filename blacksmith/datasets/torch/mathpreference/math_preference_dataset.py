@@ -115,13 +115,13 @@ class MathPreferenceDataset(BaseDataset):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # Set mode
+        # Set mode.
         if isinstance(mode, str):
             self.mode = DatasetMode(mode.lower())
         else:
             self.mode = mode
 
-        # Set required columns based on mode
+        # Set required columns based on mode.
         if self.mode == DatasetMode.DPO:
             self.required_columns = [
                 "chosen_input_ids",
@@ -131,7 +131,7 @@ class MathPreferenceDataset(BaseDataset):
                 "rejected_attention_mask",
                 "rejected_labels",
             ]
-        else:  # SFT mode
+        else:  # SFT mode.
             self.required_columns = ["input_ids", "attention_mask", "labels"]
 
         if not (0.0 <= sft_ratio <= 1.0):
