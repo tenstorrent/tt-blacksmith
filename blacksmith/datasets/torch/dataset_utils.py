@@ -37,6 +37,7 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
     if dataset_id == AvailableDataset.MNIST.value:
         return MNISTDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.NERF.value:
+        # BlenderDataset requires kornia, which has problems with torch 2.7.0 version.
         from blacksmith.datasets.torch.nerf.blender import BlenderDataset
 
         return BlenderDataset(config, split, collate_fn=collate_fn)
