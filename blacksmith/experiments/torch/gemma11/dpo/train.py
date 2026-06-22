@@ -72,8 +72,6 @@ def validate_dpo(
         "loss": None,
         "accuracy": None,
         "reward_margin": None,
-        "kl_chosen": None,
-        "kl_rejected": None,
     }
     num_batches = 0
 
@@ -103,17 +101,13 @@ def validate_dpo(
             "val/loss": 0.0,
             "val/accuracy": 0.0,
             "val/reward_margin": 0.0,
-            "val/kl_chosen": 0.0,
-            "val/kl_rejected": 0.0,
         }
 
     val_metrics = {f"val/{k}": v for k, v in _average_metric_tensors(totals, num_batches).items()}
     logger.info(
         f"Validation | loss: {val_metrics['val/loss']:.4f} | "
         f"accuracy: {val_metrics['val/accuracy']:.3f} | "
-        f"reward_margin: {val_metrics['val/reward_margin']:.4f} | "
-        f"kl_chosen: {val_metrics['val/kl_chosen']:.4f} | "
-        f"kl_rejected: {val_metrics['val/kl_rejected']:.4f}"
+        f"reward_margin: {val_metrics['val/reward_margin']:.4f}"
     )
     return val_metrics
 
@@ -213,8 +207,6 @@ def train_dpo(
         "rejected_rewards": None,
         "reward_margin": None,
         "accuracy": None,
-        "kl_chosen": None,
-        "kl_rejected": None,
     }
     last_step_metrics = {}
     last_val_metrics = {}
@@ -282,8 +274,7 @@ def train_dpo(
 
                     logger.info(
                         f"[Step {global_step}] Loss: {avg_metrics['dpo/loss']:.4f} | "
-                        f"Margin: {avg_metrics['dpo/reward_margin']:.4f} | "
-                        f"KL chosen/rej: {avg_metrics['dpo/kl_chosen']:.4f}/{avg_metrics['dpo/kl_rejected']:.4f}"
+                        f"Margin: {avg_metrics['dpo/reward_margin']:.4f}"
                     )
 
                     progress_bar.set_postfix(
@@ -300,7 +291,7 @@ def train_dpo(
                 if config.do_validation and val_dataloader is not None:
                     is_val_step = global_step % config.val_steps_freq == 0
                     is_end_of_epoch = batch_idx == num_batches - 1
-                    if is_val_step or (is_end_of_epoch and not is_val_step):
+                    if is_val_step or is_end_of_epoch:
                         last_val_metrics = validate_dpo(
                             policy_model, reference_model, val_dataloader, config, device_manager, logger
                         )

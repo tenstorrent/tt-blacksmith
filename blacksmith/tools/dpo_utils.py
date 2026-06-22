@@ -193,18 +193,12 @@ def compute_dpo_loss_from_batch(
     reward_margin = chosen_rewards - rejected_rewards
     accuracy = (reward_margin > 0).float().mean()
 
-    # Log-prob drift from reference (unscaled); growing values mean policy is diverging from pi_ref
-    kl_chosen = (policy_chosen_logps - reference_chosen_logps).mean()
-    kl_rejected = (policy_rejected_logps - reference_rejected_logps).mean()
-
     metrics = {
         "loss": loss,
         "chosen_rewards": chosen_rewards.mean(),
         "rejected_rewards": rejected_rewards.mean(),
         "reward_margin": reward_margin.mean(),
         "accuracy": accuracy,
-        "kl_chosen": kl_chosen,
-        "kl_rejected": kl_rejected,
     }
 
     return loss, metrics
