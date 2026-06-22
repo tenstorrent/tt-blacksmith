@@ -1,4 +1,4 @@
-# Gemma 1.1 2B with DPO Experiment
+# Gemma 1.1 2B DPO Experiment
 
 This directory contains the code for the Gemma 1.1 2B alignment experiment using DPO (Direct Preference Optimization).
 
@@ -35,7 +35,7 @@ python3 blacksmith/experiments/torch/gemma11/dpo/train.py
 
 | Architecture | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](test_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
+| [P150](test_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
 
 ## Data
 
