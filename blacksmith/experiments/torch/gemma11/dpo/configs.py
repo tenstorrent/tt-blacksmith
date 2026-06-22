@@ -114,4 +114,4 @@ class DPOTrainingConfig(BaseModel):
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-    do_validation: bool = Field(default=False)  # DPO typically doesn't do validation in same way
+    do_validation: bool = Field(default=True)
