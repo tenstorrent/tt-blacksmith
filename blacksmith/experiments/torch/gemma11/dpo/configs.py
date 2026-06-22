@@ -8,7 +8,7 @@ Based on the paper: "Direct Preference Optimization: Your Language Model is Secr
 https://arxiv.org/pdf/2305.18290
 
 DPO is a training objective (loss function), orthogonal to PEFT methods like LoRA/adapters.
-Use `peft_method` to specify the parameter-efficient fine-tuning approach.
+Use `training_model_type` to specify the parameter-efficient fine-tuning approach.
 """
 from typing import Optional
 
@@ -19,8 +19,9 @@ class DPOTrainingConfig(BaseModel):
     """
     Configuration for DPO training.
 
-    training_model_type: "dpo" - indicates DPO objective
-    peft_method: "lora", "adapters", "full" - indicates the fine-tuning approach
+    training_model_type: fine-tuning approach for the policy model -
+        "lora" or "adapters" (any other value falls back to full fine-tuning).
+        DPO itself is the training objective and is always applied by this experiment.
     """
 
     # Training type - DPO objective
