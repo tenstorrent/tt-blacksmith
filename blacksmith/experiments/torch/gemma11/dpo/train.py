@@ -309,13 +309,10 @@ def train_dpo(
                             policy_model, global_step, epoch, optimizer, metrics=checkpoint_metrics
                         )
 
-            # Flush leftover accumulated gradients at epoch end
+            # Discard leftover gradients from a partial accumulation window at epoch end
             if accumulation_step > 0:
-                torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_norm=1.0)
-                device_manager.optimizer_step(optimizer)
                 optimizer.zero_grad()
                 accumulation_step = 0
-                global_step += 1
 
             # End of epoch - check max steps
             if config.max_steps > 0 and global_step >= config.max_steps:
