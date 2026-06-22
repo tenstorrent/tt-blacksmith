@@ -145,5 +145,6 @@ def apply_gqa_workaround() -> None:
 
     See _vanilla_attn_forward_4d_repeat_kv for rationale.
     """
+    # TODO(ndimicTT): drop once tt-mlir lowers EasyDeL's default 5D GQA path.
     VanillaAttn.forward_native = _vanilla_attn_forward_4d_repeat_kv
     logger.info("Applied GQA 4D workaround: VanillaAttn.forward_native patched to avoid 5D tensors")

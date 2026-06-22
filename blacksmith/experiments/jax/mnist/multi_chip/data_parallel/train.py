@@ -72,7 +72,7 @@ def train_mnist(config: ExperimentConfig):
     def cross_entropy(logits, y):
         return -jnp.mean(jnp.sum(y * jax.nn.log_softmax(logits), axis=-1))
 
-    def compute_loss_grads_logits(params, x_batch, y_batch, lr):
+    def compute_loss_grads_logits(params, x_batch, y_batch):
         def loss_fn(p):
             logits = mlp_model(p, x_batch)
             return cross_entropy(logits, y_batch), logits
@@ -92,18 +92,20 @@ def train_mnist(config: ExperimentConfig):
 
         return loss, gathered_grads, gathered_logits
 
-    def update(params, grads, learning_rate):
+    def update(params, grads):
+        # Use a Python float for lr inside shard_map; a replicated on-device scalar
+        # breaks TT multichip multiply (DistributeTensor / MeshShape [1, 2]).
+        lr = training_config.lr
         w1, b1, w2, b2, w3, b3 = params
         dw1, db1, dw2, db2, dw3, db3 = grads
-        updated_params = (
-            w1 - learning_rate * dw1,
-            b1 - learning_rate * db1,
-            w2 - learning_rate * dw2,
-            b2 - learning_rate * db2,
-            w3 - learning_rate * dw3,
-            b3 - learning_rate * db3,
+        return (
+            w1 - lr * dw1,
+            b1 - lr * db1,
+            w2 - lr * dw2,
+            b2 - lr * db2,
+            w3 - lr * dw3,
+            b3 - lr * db3,
         )
-        return updated_params
 
     def validation_loss(params, x_batch, y_batch):
         def loss_fn(p):
@@ -159,21 +161,18 @@ def train_mnist(config: ExperimentConfig):
 
         num_batches = x_train_host.shape[0] // batch_size
 
-        def training_step(params, x_batch, y_batch, lr):
+        def training_step(params, x_batch, y_batch):
             return shard_map.shard_map(
-                lambda p, x, y, lr: compute_loss_grads_logits(p, x, y, lr),
+                lambda p, x, y: compute_loss_grads_logits(p, x, y),
                 mesh=sharding_config.mesh,
                 in_specs=(
                     PartitionSpec(),
                     PartitionSpec("dp"),
                     PartitionSpec("dp"),
-                    PartitionSpec(),
                 ),
                 out_specs=(PartitionSpec(), PartitionSpec(), PartitionSpec()),
                 check_rep=False,
-            )(params, x_batch, y_batch, lr)
-
-        learning_rate = jax.device_put(training_config.lr, sharding_config.scalar_sharding)
+            )(params, x_batch, y_batch)
 
         training_step_jit = jax.jit(
             training_step,
@@ -184,14 +183,14 @@ def train_mnist(config: ExperimentConfig):
             ),
         )
 
-        def optimizer_step(params, grads, learning_rate):
+        def optimizer_step(params, grads):
             return shard_map.shard_map(
-                lambda p, g, lr: update(p, g, lr),
+                lambda p, g: update(p, g),
                 mesh=sharding_config.mesh,
-                in_specs=(PartitionSpec(), PartitionSpec(), PartitionSpec()),
+                in_specs=(PartitionSpec(), PartitionSpec()),
                 out_specs=PartitionSpec(),
                 check_rep=False,
-            )(params, grads, learning_rate)
+            )(params, grads)
 
         optimizer_step_jit = jax.jit(
             optimizer_step,
@@ -224,9 +223,9 @@ def train_mnist(config: ExperimentConfig):
                 x_batch = jax.device_put(x_batch_host, sharding_config.data_sharding)
                 y_batch = jax.device_put(y_batch_host, sharding_config.data_sharding)
 
-                loss, grads, logits = training_step_jit(params, x_batch, y_batch, learning_rate)
+                loss, grads, logits = training_step_jit(params, x_batch, y_batch)
 
-                params = optimizer_step_jit(params, grads, learning_rate)
+                params = optimizer_step_jit(params, grads)
 
                 loss_host = jax.device_put(loss, jax.devices("cpu")[0])
                 batch_loss_accum += loss_host

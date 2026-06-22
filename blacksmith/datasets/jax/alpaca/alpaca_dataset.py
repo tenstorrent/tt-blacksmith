@@ -6,7 +6,7 @@ import logging
 
 import numpy as np
 
-from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
+from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 
 logger = logging.getLogger(__name__)
@@ -18,12 +18,13 @@ def _create_batches(data: np.ndarray, batch_size: int) -> np.ndarray:
     return data[: num_batches * batch_size].reshape(num_batches, batch_size, -1)
 
 
-def load_sst2_batches(
+def load_alpaca_batches(
     config: TrainingConfig,
     split: str = "train",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Load SST-2 instruction-CLM batches via the torch SSTDataset.
+    """Load Alpaca instruction-CLM batches via the torch AlpacaDataset.
 
+    Uses the same prompt/response templates as the Torch Alpaca experiments.
     Labels contain -100 at prompt positions so only response tokens
     contribute to the loss.
 
@@ -31,7 +32,7 @@ def load_sst2_batches(
         (input_ids, labels, attention_masks), each a numpy array of shape
         (num_batches, batch_size, seq_len).
     """
-    dataset = SSTDataset(config, split=split)
+    dataset = AlpacaDataset(config, split=split)
     dataloader = dataset.get_dataloader()
 
     all_input_ids: list[np.ndarray] = []
@@ -50,6 +51,6 @@ def load_sst2_batches(
     attention_masks = _create_batches(np.stack(all_attention_masks).astype(np.int32), config.batch_size)
 
     logger.info(
-        f"  prepared {len(input_ids)} {split} SST-2 batches " f"of shape ({config.batch_size}, {config.max_length})"
+        f"  prepared {len(input_ids)} {split} Alpaca batches of shape ({config.batch_size}, {config.max_length})"
     )
     return input_ids, labels, attention_masks
