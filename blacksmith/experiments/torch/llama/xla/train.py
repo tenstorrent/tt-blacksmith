@@ -92,7 +92,6 @@ def compute_loss(batch, model, loss_fn, gradient_accumulation_steps):
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale by the accumulation steps so the effective-batch gradient is the mean.
     return loss / gradient_accumulation_steps
 
 
@@ -215,8 +214,6 @@ def train(
                         logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
 
                     if global_step % config.steps_freq == 0:
-                        # loss_ is already scaled by gradient_accumulation_steps, so running_loss
-                        # holds the summed per-step mean loss; divide by steps_freq for the window mean.
                         avg_loss = running_loss / config.steps_freq
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
