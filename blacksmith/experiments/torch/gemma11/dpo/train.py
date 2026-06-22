@@ -274,8 +274,7 @@ def train_dpo(
                 if global_step % config.steps_freq == 0:
                     metric_divisor = config.steps_freq * config.gradient_accumulation_steps
                     avg_metrics = {
-                        f"dpo/{k}": v
-                        for k, v in _average_metric_tensors(running_metrics, metric_divisor).items()
+                        f"dpo/{k}": v for k, v in _average_metric_tensors(running_metrics, metric_divisor).items()
                     }
                     avg_metrics["train/learning_rate"] = config.learning_rate
                     avg_metrics["train/epoch"] = epoch + 1

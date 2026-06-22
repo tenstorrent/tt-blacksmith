@@ -258,9 +258,7 @@ class MathPreferenceDataset(BaseDataset):
             return MathPreferenceDataset._cached_filtered_source_dataset
 
         raw_dataset = load_dataset(DATASET_PATH, split="train")
-        dataset_with_lengths = raw_dataset.map(
-            self._with_sequence_lengths, desc="Computing chosen/rejected lengths"
-        )
+        dataset_with_lengths = raw_dataset.map(self._with_sequence_lengths, desc="Computing chosen/rejected lengths")
         filtered_dataset = dataset_with_lengths.filter(
             lambda example: example["chosen_len"] <= self.config.max_length
             and example["rejected_len"] <= self.config.max_length
