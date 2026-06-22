@@ -20,7 +20,6 @@ If no SFT checkpoint is provided, the base pretrained model is used as π_ref (l
 Model: https://huggingface.co/google/gemma-1.1-2b-it
 Dataset: argilla/distilabel-math-preference-dpo
 """
-import os
 import traceback
 from pathlib import Path
 
