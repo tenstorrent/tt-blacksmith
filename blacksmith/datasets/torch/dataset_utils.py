@@ -10,6 +10,7 @@ from blacksmith.datasets.torch.mathpreference.math_preference_dataset import (
     MathDPODataset,
     MathSFTDataset,
 )
+from blacksmith.datasets.torch.fusechat.fusechat_dataset import FuseChatDataset
 from blacksmith.datasets.torch.metamathqa.metamathqa_dataset import MetaMathQADataset
 from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
 from blacksmith.datasets.torch.nerf.blender import BlenderDataset
@@ -33,6 +34,7 @@ class AvailableDataset(Enum):
     MATH_PREFERENCE_SFT = "math_preference_sft"  # Supervised fine-tuning on chosen responses (stage 1 of DPO pipeline)
     WIKITEXT = "wikitext"
     STANFORDCARS = "stanfordcars"
+    FUSECHAT = "fusechat"
     ALPACA = "alpaca"
     METAMATHQA = "metamathqa"
 
@@ -57,6 +59,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return WikitextDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.STANFORDCARS.value:
         return StanfordCarsDataset(config, split)
+    elif dataset_id == AvailableDataset.FUSECHAT.value:
+        return FuseChatDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.ALPACA.value:
         return AlpacaDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.METAMATHQA.value:
