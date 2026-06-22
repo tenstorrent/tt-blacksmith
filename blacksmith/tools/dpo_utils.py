@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -17,7 +17,6 @@ Where:
     - pi_ref is the reference model (frozen)
     - beta is the temperature parameter
 """
-import copy
 from typing import Dict, Tuple
 
 import torch
@@ -118,27 +117,6 @@ def dpo_loss(
     return loss, chosen_rewards, rejected_rewards
 
 
-def create_reference_model(model: nn.Module) -> nn.Module:
-    """
-    Create a frozen copy of the model to use as the reference model for DPO.
-
-    Args:
-        model: The policy model
-
-    Returns:
-        A frozen copy of the model
-    """
-    reference_model = copy.deepcopy(model)
-
-    # Freeze all parameters
-    for param in reference_model.parameters():
-        param.requires_grad = False
-
-    reference_model.eval()
-
-    return reference_model
-
-
 def _forward_batch_logps(
     model: nn.Module,
     input_ids: torch.Tensor,
@@ -178,14 +156,14 @@ def compute_dpo_loss_from_batch(
             batch["chosen_input_ids"],
             batch["chosen_attention_mask"],
             batch["chosen_labels"],
-        ).detach()
+        )
 
         reference_rejected_logps = _forward_batch_logps(
             reference_model,
             batch["rejected_input_ids"],
             batch["rejected_attention_mask"],
             batch["rejected_labels"],
-        ).detach()
+        )
 
     policy_chosen_logps = _forward_batch_logps(
         policy_model,
