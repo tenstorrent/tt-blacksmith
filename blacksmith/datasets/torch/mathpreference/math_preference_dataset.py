@@ -247,9 +247,6 @@ class MathPreferenceDataset(BaseDataset):
 
         self.dataset = split_dataset
 
-        # Set format for PyTorch
-        self.dataset.set_format(type="torch")
-
     def __len__(self) -> int:
         return len(self.dataset)
 
