@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """
@@ -27,7 +27,7 @@ class DPOTrainingConfig(BaseModel):
     training_type: str = Field(default="lora")
 
     # Dataset settings
-    dataset_id: str = Field(default="math_dpo")
+    dataset_id: str = Field(default="math_preference_dpo")
 
     # Model settings
     model_name: str = Field(default="google/gemma-1.1-2b-it")

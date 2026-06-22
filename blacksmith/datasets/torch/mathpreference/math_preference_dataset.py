@@ -11,9 +11,8 @@ Dataset: argilla/distilabel-math-preference-dpo
 
 Supports two modes:
 - "dpo": Returns both chosen and rejected responses for DPO training
-- "sft": Returns only chosen responses for SFT training (stage 1 of DPO pipeline)
+- "sft": Returns only chosen responses for SFT training
 """
-from enum import Enum
 from typing import Dict, List, Tuple
 
 import torch
@@ -22,23 +21,15 @@ from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
 from blacksmith.datasets.torch.mathpreference.math_preference_utils import (
     DATASET_PATH,
+    DEFAULT_SFT_RATIO,
     IGNORED_LABEL_ID,
     PROMPT_TEMPLATE,
+    TRAIN_VAL_SPLIT_RATIO,
+    DatasetMode,
 )
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import Dataset, load_dataset
-
-
-class DatasetMode(Enum):
-    """Mode for the math preference dataset."""
-
-    DPO = "dpo"  # Returns chosen + rejected for DPO training
-    SFT = "sft"  # Returns only chosen for SFT training
-
-
-TRAIN_VAL_SPLIT_RATIO = 0.9
-DEFAULT_SFT_RATIO = 0.33
 
 
 class DPODataCollator:
@@ -118,7 +109,7 @@ class MathPreferenceDataset(BaseDataset):
             collate_fn: Optional additional collate function
             mode: "dpo" for DPO training, "sft" for SFT training
             sft_ratio: Fraction in [0, 1] used to split filtered train data
-                into SFT and DPO pools (default: 0.33).
+                into SFT and DPO pools
         """
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
         if self.tokenizer.pad_token is None:
