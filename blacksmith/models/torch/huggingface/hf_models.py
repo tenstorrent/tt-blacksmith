@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import warnings
+
 import torch
 import torch.nn as nn
 from peft import LoraConfig, get_peft_model
@@ -37,12 +39,17 @@ def get_model(config: TrainingConfig, device: torch.device, compile_model: bool 
 
     # Apply training specific modifications
     # Apply LoRA if rank is specified
-    if config.training_type == "lora":
+    if config.training_model_type == "lora":
         model = _apply_lora(model, config)
-    elif config.training_type == "adapters":
+    elif config.training_model_type == "adapters":
         _apply_adapters(model, config)
     else:
-        raise ValueError(f"Invalid training type: {config.training_type}")
+        warnings.warn(
+            f"Unknown training_model_type '{config.training_model_type}'; "
+            "falling back to full fine-tuning (all parameters trainable)."
+        )
+        for param in model.parameters():
+            param.requires_grad = True
 
     model.to(eval(config.dtype))
     model.to(device)

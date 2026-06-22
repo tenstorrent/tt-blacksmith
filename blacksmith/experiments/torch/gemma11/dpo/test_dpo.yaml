@@ -4,7 +4,7 @@
 # Dataset: argilla/distilabel-math-preference-dpo
 
 # Training type
-training_type: "lora"
+training_model_type: "lora"
 
 # Dataset settings
 dataset_id: "math_preference_dpo"

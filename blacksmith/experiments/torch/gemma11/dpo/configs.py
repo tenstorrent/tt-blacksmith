@@ -19,12 +19,12 @@ class DPOTrainingConfig(BaseModel):
     """
     Configuration for DPO training.
 
-    training_type: "dpo" - indicates DPO objective
+    training_model_type: "dpo" - indicates DPO objective
     peft_method: "lora", "adapters", "full" - indicates the fine-tuning approach
     """
 
     # Training type - DPO objective
-    training_type: str = Field(default="lora")
+    training_model_type: str = Field(default="lora")
 
     # Dataset settings
     dataset_id: str = Field(default="math_preference_dpo")
