@@ -2,17 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Constants and utilities for DPO (Direct Preference Optimization) dataset.
-
-Based on the paper: "Direct Preference Optimization: Your Language Model is Secretly a Reward Model"
-https://arxiv.org/pdf/2305.18290
+Constants and utilities for Math Preference dataset.
 """
 from enum import Enum
 from string import Template
 
 
 class DatasetMode(Enum):
-    """Mode for the math preference dataset."""
+    """Mode for the Math Preference dataset."""
 
     DPO = "dpo"  # Returns chosen + rejected for DPO training.
     SFT = "sft"  # Returns only chosen for SFT training.

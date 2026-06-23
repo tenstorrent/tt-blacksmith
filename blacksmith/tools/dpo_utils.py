@@ -26,7 +26,7 @@ import torch.nn.functional as F
 IGNORED_LABEL_ID = -100
 
 
-def get_batch_logps(
+def get_batch_log_probs(
     logits: torch.Tensor,
     labels: torch.Tensor,
     average_log_prob: bool = True,
@@ -126,8 +126,8 @@ def _forward_batch_logps(
     """Run a forward pass, compute sequence log-probs, then drop logits before the next pass."""
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
     logits = outputs.logits
-    logps = get_batch_logps(logits, labels)
-    return logps
+    log_probs = get_batch_log_probs(logits, labels)
+    return log_probs
 
 
 def compute_dpo_loss_from_batch(

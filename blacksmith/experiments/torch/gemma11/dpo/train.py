@@ -36,24 +36,10 @@ from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.dpo_utils import compute_dpo_loss_from_batch
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-
-
-def _accumulate_metric_tensors(
-    totals: dict[str, torch.Tensor | None],
-    metrics: dict[str, torch.Tensor],
-) -> None:
-    for key, value in metrics.items():
-        if key not in totals:
-            continue
-        detached = value.detach()
-        if totals[key] is None:
-            totals[key] = detached
-        else:
-            totals[key] = totals[key] + detached
-
-
-def _average_metric_tensors(totals: dict[str, torch.Tensor | None], count: int) -> dict[str, float]:
-    return {key: (total / count).item() for key, total in totals.items() if total is not None}
+from blacksmith.tools.torch_helpers import (
+    accumulate_metric_tensors,
+    average_metric_tensors,
+)
 
 
 def validate_dpo(
@@ -91,7 +77,7 @@ def validate_dpo(
                 torch_xla.sync(wait=True)
 
             # Accumulate metrics
-            _accumulate_metric_tensors(totals, metrics)
+            accumulate_metric_tensors(totals, metrics)
 
     policy_model.train()
 
@@ -103,7 +89,7 @@ def validate_dpo(
             "val/reward_margin": 0.0,
         }
 
-    val_metrics = {f"val/{k}": v for k, v in _average_metric_tensors(totals, num_batches).items()}
+    val_metrics = {f"val/{k}": v for k, v in average_metric_tensors(totals, num_batches).items()}
     logger.info(
         f"Validation | loss: {val_metrics['val/loss']:.4f} | "
         f"accuracy: {val_metrics['val/accuracy']:.3f} | "
@@ -248,7 +234,7 @@ def train_dpo(
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                _accumulate_metric_tensors(running_metrics, metrics)
+                accumulate_metric_tensors(running_metrics, metrics)
 
                 if accumulation_step < config.gradient_accumulation_steps:
                     continue
@@ -264,7 +250,7 @@ def train_dpo(
                 if global_step % config.steps_freq == 0:
                     metric_divisor = config.steps_freq * config.gradient_accumulation_steps
                     avg_metrics = {
-                        f"train/{k}": v for k, v in _average_metric_tensors(running_metrics, metric_divisor).items()
+                        f"train/{k}": v for k, v in average_metric_tensors(running_metrics, metric_divisor).items()
                     }
                     avg_metrics["train/learning_rate"] = config.learning_rate
                     avg_metrics["train/epoch"] = epoch + 1

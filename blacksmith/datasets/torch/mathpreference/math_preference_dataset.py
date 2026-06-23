@@ -1,18 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""
-Math Preference Dataset for DPO and SFT training.
-
-Based on the paper: "Direct Preference Optimization: Your Language Model is Secretly a Reward Model"
-https://arxiv.org/pdf/2305.18290
-
-Dataset: argilla/distilabel-math-preference-dpo
-
-Supports two modes:
-- "dpo": Returns both chosen and rejected responses for DPO training
-- "sft": Returns only chosen responses for SFT training
-"""
 from typing import Dict, List
 
 import torch
@@ -78,19 +66,14 @@ class DPODataCollator:
 
 class MathPreferenceDataset(BaseDataset):
     """
-    Dataset for math preference data supporting both DPO and SFT modes.
+    Dataset for Math Preference data supporting both DPO and SFT modes.
 
     Modes:
-    - DPO mode: Returns chosen + rejected responses for preference learning
-    - SFT mode: Returns only chosen responses for supervised fine-tuning
-
-    Each sample in the source dataset contains:
-    - instruction: The math problem/question
-    - chosen_response: The preferred (better) response
-    - rejected_response: The less preferred response
+    - DPO mode: Returns chosen + rejected responses for DPO training.
+    - SFT mode: Returns only chosen responses for SFT training.
     """
 
-    # Cache the tokenized, phase-selected pool for the current mode, shared
+    # Cache the tokenized, mode-selected pool for the current mode, shared
     # across the train/validation instances to avoid re-tokenizing per run.
     _shared_dataset: Dataset = None
 
@@ -150,27 +133,27 @@ class MathPreferenceDataset(BaseDataset):
 
         prompt = self._format_prompt(instruction)
 
-        # Tokenize prompt to get its length
+        # Tokenize prompt to get its length.
         prompt_encoding = self.tokenizer(prompt, truncation=False, padding=False, return_tensors="pt")
         prompt_len = prompt_encoding["input_ids"].size(1)
 
-        # Tokenize chosen response
+        # Tokenize chosen response.
         chosen_full = prompt + chosen
         chosen_encoding = self.tokenizer(chosen_full, truncation=False, padding=False, return_tensors="pt")
         chosen_input_ids = chosen_encoding["input_ids"].squeeze(0)
         chosen_attention_mask = chosen_encoding["attention_mask"].squeeze(0)
 
-        # Chosen labels (mask the prompt part)
+        # Chosen labels (mask the prompt part).
         chosen_labels = chosen_input_ids.clone()
         chosen_labels[:prompt_len] = IGNORED_LABEL_ID
 
-        # Tokenize rejected response
+        # Tokenize rejected response.
         rejected_full = prompt + rejected
         rejected_encoding = self.tokenizer(rejected_full, truncation=False, padding=False, return_tensors="pt")
         rejected_input_ids = rejected_encoding["input_ids"].squeeze(0)
         rejected_attention_mask = rejected_encoding["attention_mask"].squeeze(0)
 
-        # Rejected labels (mask the prompt part)
+        # Rejected labels (mask the prompt part).
         rejected_labels = rejected_input_ids.clone()
         rejected_labels[:prompt_len] = IGNORED_LABEL_ID
 
@@ -276,7 +259,7 @@ class MathPreferenceDataset(BaseDataset):
         )
 
 
-# Backward compatibility aliases
+# Backward compatibility aliases.
 MathDPODataset = lambda config, split="train", collate_fn=None, sft_ratio=DEFAULT_SFT_RATIO: MathPreferenceDataset(
     config, split, collate_fn, mode="dpo", sft_ratio=sft_ratio
 )
