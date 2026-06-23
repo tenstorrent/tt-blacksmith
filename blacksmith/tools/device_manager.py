@@ -51,6 +51,10 @@ class DeviceManager:
             os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
             xr.use_spmd()
 
+        # Additional setup for DRAM region for runtime trace (before device initialization).
+        if hasattr(self.config, "enable_trace") and self.config.enable_trace is True:
+            os.environ.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", str(self.config.trace_region_size))
+
     def _create_mesh(self) -> Optional[xs.Mesh]:
         # Check if mesh configuration is provided.
         if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
