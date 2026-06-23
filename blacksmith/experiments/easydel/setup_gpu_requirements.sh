@@ -1,6 +1,6 @@
 set -e
 
-# TODO(pglusac): This is a temporary workaround. Refactor once we figure out what to do with torch-xla GPU package.
+# TODO(pglusacTT): This is a temporary workaround. Refactor once we figure out what to do with torch-xla GPU package.
 echo "Installing EasyDeL without deps (avoids triton conflict with torch)..."
 pip install --no-deps \
     git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
