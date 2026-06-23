@@ -52,7 +52,7 @@ class DeviceManager:
             xr.use_spmd()
 
         # Additional setup for DRAM region for runtime trace (before device initialization).
-        if self.config.enable_trace:
+        if hasattr(self.config, "enable_trace") and self.config.enable_trace is True:
             os.environ.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", str(self.config.trace_region_size))
 
     def _create_mesh(self) -> Optional[xs.Mesh]:
