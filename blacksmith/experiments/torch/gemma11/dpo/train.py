@@ -75,8 +75,6 @@ def validate_dpo(
     }
     num_batches = 0
 
-    # Use no_grad (not inference_mode): TT mark_argument_attributes reshapes inputs and
-    # fails with "Cannot set version_counter for inference tensor" under inference_mode.
     with torch.no_grad():
         for batch_idx, batch in enumerate(tqdm(val_dataloader, desc="Validation")):
             batch = {k: v.to(device_manager.device) for k, v in batch.items()}
@@ -87,11 +85,13 @@ def validate_dpo(
                 beta=config.dpo_beta,
                 label_smoothing=config.dpo_label_smoothing,
             )
-            _accumulate_metric_tensors(totals, metrics)
             num_batches += 1
 
             if config.use_tt:
                 torch_xla.sync(wait=True)
+
+            # Accumulate metrics
+            _accumulate_metric_tensors(totals, metrics)
 
     policy_model.train()
 
@@ -147,12 +147,11 @@ def train_dpo(
             "sft_checkpoint_path": config.sft_checkpoint_path or "none",
         }
     )
-    logger.watch_model(policy_model)
 
     # Initialize the policy model weights, preferring (in order):
-    #   1. a resume checkpoint (checkpoint_path / resume_option),
-    #   2. the SFT checkpoint,
-    #   3. the base pretrained weights (no warm start).
+    #   1. a resume checkpoint (checkpoint_path),
+    #   2. the SFT checkpoint (sft_checkpoint_path),
+    #   3. the base pretrained weights.
     if config.resume_from_checkpoint:
         logger.info("Loading policy model from resume checkpoint.")
         checkpoint_manager.load_checkpoint(policy_model)
@@ -178,11 +177,6 @@ def train_dpo(
             "For best results, first train an SFT model on chosen responses."
         )
     logger.info("Reference model loaded on device.")
-
-    for param in reference_model.parameters():
-        param.requires_grad = False
-    reference_model.eval()
-    logger.info("Reference model frozen.")
 
     # Load DPO dataset
     train_dataset = get_dataset(config=config, split="train")
@@ -247,14 +241,14 @@ def train_dpo(
                     label_smoothing=config.dpo_label_smoothing,
                 )
 
-                _accumulate_metric_tensors(running_metrics, metrics)
-
                 # Backward pass (scale for gradient accumulation)
                 (loss / config.gradient_accumulation_steps).backward()
 
                 accumulation_step += 1
                 if config.use_tt:
                     torch_xla.sync(wait=True)
+
+                _accumulate_metric_tensors(running_metrics, metrics)
 
                 if accumulation_step < config.gradient_accumulation_steps:
                     continue
