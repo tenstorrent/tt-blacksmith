@@ -11,4 +11,3 @@ test_config:
 
 steps_freq: 10
 val_steps_freq: 32
-
