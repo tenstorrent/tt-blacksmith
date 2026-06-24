@@ -156,6 +156,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-data_tensor_parallel-n300-llmbox.yaml",
             "timeout": 5000,
         },
         marks=[
