@@ -9,7 +9,6 @@ from blacksmith.datasets.torch.BOUNTIES.wikitext.wikitext_dataset import Wikitex
 from blacksmith.datasets.torch.fusechat.fusechat_dataset import FuseChatDataset
 from blacksmith.datasets.torch.metamathqa.metamathqa_dataset import MetaMathQADataset
 from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset
-from blacksmith.datasets.torch.nerf.blender import BlenderDataset
 from blacksmith.datasets.torch.squadV2.squadV2_dataset import SquadV2Dataset
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.datasets.torch.stanfordcars.stanfordcars_dataset import (
@@ -40,6 +39,9 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
     if dataset_id == AvailableDataset.MNIST.value:
         return MNISTDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.NERF.value:
+        # BlenderDataset requires kornia, which has problems with torch 2.7.0 version.
+        from blacksmith.datasets.torch.nerf.blender import BlenderDataset
+
         return BlenderDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.SST2.value:
         return SSTDataset(config, split, collate_fn=collate_fn)
