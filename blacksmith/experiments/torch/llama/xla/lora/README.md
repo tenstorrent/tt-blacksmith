@@ -220,7 +220,7 @@ Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested 
 | `model_name`                  | Name or path of the pre-trained model.                 | "meta-llama/Llama-3.2-1B".          |
 | `max_length`                  | Maximum token length for inputs.                       | 128                                 |
 | `dtype`                       | Data type used during training.                        | "torch.bfloat16"                    |
-| `training_type`               | Which type of finetuning to do.                        | "lora"                              |
+| `training_model_type`               | Which type of finetuning to do.                        | "lora"                              |
 | `learning_rate`               | Learning rate for the optimizer.                       | 2e-5                                |
 | `batch_size`                  | Number of samples per training batch.                  | 32                                  |
 | `gradient_accumulation_steps` | Steps to accumulate gradients before updating.         | 1                                   |

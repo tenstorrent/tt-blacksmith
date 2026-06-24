@@ -7,7 +7,7 @@ max_length: 128
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-training_type: "lora"
+training_model_type: "lora"
 learning_rate: 2e-5
 batch_size: 1
 num_epochs: 1

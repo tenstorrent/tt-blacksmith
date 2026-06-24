@@ -1,33 +1,32 @@
 # Dataset settings
-dataset_id: "sst2"
+dataset_id: "math_preference_sft"
 
 # Model settings
 model_name: "google/gemma-1.1-2b-it"
-max_length: 32
+max_length: 256
 dtype: "torch.bfloat16"
 ignored_index: -100
 
 # Training hyperparameters
-training_type: "lora"
-learning_rate: 6e-5
-batch_size: 4
+training_model_type: "lora"
+learning_rate: 5e-5
+batch_size: 1
 gradient_checkpointing: False
-num_epochs: 1
+num_epochs: 3
 optim: "adamw_torch"
 
 # Logging settings
 log_level: "INFO"
 use_wandb: True
 wandb_project: "gemma11-finetuning"
-wandb_run_name: "tt-gemma11-sst2"
+wandb_run_name: "tt-gemma11-math-preferences-sft"
 wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
 steps_freq: 10
 epoch_freq: 1
-val_steps_freq: 50
-run_decode_example: True
+val_steps_freq: 100
 
 # Checkpoint settings
 resume_from_checkpoint: False
@@ -38,7 +37,7 @@ checkpoint_metric_mode: "min"  # [min, max]
 keep_last_n: 3
 keep_best_n: 1
 save_strategy: "step"
-project_dir: "blacksmith/experiments/torch/gemma11"
+project_dir: "blacksmith/experiments/torch/gemma11/lora"
 save_optim: False
 storage_backend: "local"
 sync_to_storage: False
@@ -47,16 +46,16 @@ remote_path: ""
 
 # Reproducibility settings
 seed: 23
-deterministic: False
+deterministic: True
 
 # Device settings
 mesh_shape: null
 mesh_axis_names: null
 
 # LoRA setup
-lora_r: 4
-lora_alpha: 8
-lora_target_modules: ["q_proj", "v_proj"]
+lora_r: 16
+lora_alpha: 32
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
 lora_task_type: "CAUSAL_LM"
 
 # Other settings

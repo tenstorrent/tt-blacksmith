@@ -125,7 +125,7 @@ experiment.
 | `model_name` | Name or path of the pre-trained model. | `"openai/gpt-oss-20b"` |
 | `max_length` | Maximum token length for inputs. | `128` |
 | `dtype` | Data type used during training. | `"torch.bfloat16"` |
-| `training_type` | Which type of fine-tuning to do. | `"lora"` |
+| `training_model_type` | Which type of fine-tuning to do. | `"lora"` |
 | `learning_rate` | Learning rate for the optimizer. | `1e-4` |
 | `batch_size` | Number of samples per training batch. | `1` |
 | `gradient_accumulation_steps` | Steps to accumulate gradients before updating. | `4` |

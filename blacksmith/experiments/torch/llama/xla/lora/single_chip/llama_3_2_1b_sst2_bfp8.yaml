@@ -12,7 +12,7 @@ weight_dtype_overrides: "llama_3_2_1b_bfp8.json"
 experimental_weight_dtype: "bfp_bf8"
 
 # Training hyperparameters
-training_type: "lora"
+training_model_type: "lora"
 learning_rate: 1e-4
 batch_size: 16
 num_epochs: 1
