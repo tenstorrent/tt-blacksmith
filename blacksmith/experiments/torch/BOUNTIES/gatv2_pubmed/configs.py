@@ -9,8 +9,7 @@ from pydantic import BaseModel, Field
 class TrainingConfig(BaseModel):
     # Model settings
     model_name: str = Field(default="GATv2")
-    dataset_name: str = Field(default="PubMed")
-    dataset_root: str = Field(default="./data")
+    dataset_id: str = Field(default="pubmed")
 
     # GATv2 architecture
     in_channels: int = Field(default=500)
@@ -63,7 +62,6 @@ class TrainingConfig(BaseModel):
     use_tt: bool = Field(default=False)
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
-    scatter_cpu_fallback: bool = Field(default=False)
 
     # Other settings
     framework: str = Field(default="pytorch")

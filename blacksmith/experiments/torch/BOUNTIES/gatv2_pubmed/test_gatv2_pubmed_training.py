@@ -7,26 +7,17 @@ from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.datasets import Planetoid
 
 from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.configs import TrainingConfig
-from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.model import GATv2
+from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.dataset_utils import (
+    load_dataset,
+)
+from blacksmith.models.torch.gatv2_pubmed.model import GATv2
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-
-
-def load_dataset(config, logger):
-    """Load PubMed dataset via Planetoid."""
-    dataset = Planetoid(root=config.dataset_root, name=config.dataset_name)
-    data = dataset[0]
-    logger.info(f"Loaded {config.dataset_name} dataset:")
-    logger.info(f"  Nodes: {data.num_nodes}, Edges: {data.num_edges}")
-    logger.info(f"  Features: {data.num_node_features}, Classes: {dataset.num_classes}")
-    logger.info(f"  Train: {data.train_mask.sum()}, Val: {data.val_mask.sum()}, Test: {data.test_mask.sum()}")
-    return data
 
 
 def create_model(config, num_features, num_classes, device, logger):
@@ -38,10 +29,6 @@ def create_model(config, num_features, num_classes, device, logger):
         heads=config.heads,
         dropout=config.dropout,
     ).to(device)
-
-    if config.use_tt and config.scatter_cpu_fallback:
-        model.enable_cpu_fallback()
-        logger.info("CPU fallback enabled for GATv2Conv (scatter ops unsupported on TT-XLA)")
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -55,7 +42,6 @@ def train_epoch(model, data, optimizer, loss_fn, device_manager):
     model.train()
     optimizer.zero_grad()
     out = model(data.x, data.edge_index)
-    # out may be on CPU (fallback) or TT — align masks/labels
     train_mask = data.train_mask.to(out.device)
     y = data.y.to(out.device)
     loss = loss_fn(out[train_mask], y[train_mask])
@@ -111,6 +97,54 @@ def generate_plots(metrics_history, output_dir):
     ax.grid(True)
     fig.savefig(output_dir / "accuracy_curve.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+
+def finalize_training(
+    model,
+    data,
+    optimizer_step,
+    best_val_acc,
+    best_model_path,
+    metrics_history,
+    results_dir,
+    config,
+    device_manager,
+    logger,
+    checkpoint_manager,
+):
+    """Evaluate the best model on the test split and write plots/summary artifacts."""
+    if best_model_path is not None:
+        checkpoint_manager.load_checkpoint_path(best_model_path, model)
+        logger.info(f"Loaded best model from {best_model_path}")
+
+    test_loss, test_acc = evaluate(model, data, data.test_mask, F.nll_loss)
+    logger.info(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
+    logger.log_metrics({"test/loss": test_loss, "test/accuracy": test_acc}, commit=True, step=optimizer_step + 1)
+
+    generate_plots(metrics_history, results_dir)
+    logger.info(f"Plots saved to {results_dir}")
+
+    results_summary = {
+        "model": config.model_name,
+        "dataset": config.dataset_id,
+        "device": str(device_manager.device),
+        "use_tt": config.use_tt,
+        "best_val_accuracy": best_val_acc,
+        "test_loss": test_loss,
+        "test_accuracy": test_acc,
+        "total_epochs": len(metrics_history["epochs"]),
+        "hyperparameters": {
+            "hidden_channels": config.hidden_channels,
+            "heads": config.heads,
+            "dropout": config.dropout,
+            "learning_rate": config.learning_rate,
+            "weight_decay": config.weight_decay,
+        },
+    }
+    summary_path = results_dir / "results_summary.json"
+    with open(summary_path, "w") as f:
+        json.dump(results_summary, f, indent=2)
+    logger.info(f"Results summary saved to {summary_path}")
 
 
 def train(
@@ -200,41 +234,19 @@ def train(
 
         logger.info(f"Training finished. Best val accuracy: {best_val_acc:.4f}")
 
-        # Test evaluation with best model
-        if best_model_path is not None:
-            checkpoint_manager.load_checkpoint_path(best_model_path, model)
-            logger.info(f"Loaded best model from {best_model_path}")
-
-        test_loss, test_acc = evaluate(model, data, data.test_mask, loss_fn)
-        logger.info(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
-        logger.log_metrics({"test/loss": test_loss, "test/accuracy": test_acc}, commit=True, step=global_step + 1)
-
-        # Generate artifacts
-        generate_plots(metrics_history, results_dir)
-        logger.info(f"Plots saved to {results_dir}")
-
-        results_summary = {
-            "model": config.model_name,
-            "dataset": config.dataset_name,
-            "device": str(device_manager.device),
-            "use_tt": config.use_tt,
-            "scatter_cpu_fallback": config.scatter_cpu_fallback,
-            "best_val_accuracy": best_val_acc,
-            "test_loss": test_loss,
-            "test_accuracy": test_acc,
-            "total_epochs": len(metrics_history["epochs"]),
-            "hyperparameters": {
-                "hidden_channels": config.hidden_channels,
-                "heads": config.heads,
-                "dropout": config.dropout,
-                "learning_rate": config.learning_rate,
-                "weight_decay": config.weight_decay,
-            },
-        }
-        summary_path = results_dir / "results_summary.json"
-        with open(summary_path, "w") as f:
-            json.dump(results_summary, f, indent=2)
-        logger.info(f"Results summary saved to {summary_path}")
+        finalize_training(
+            model,
+            data,
+            optimizer_step=global_step,
+            best_val_acc=best_val_acc,
+            best_model_path=best_model_path,
+            metrics_history=metrics_history,
+            results_dir=results_dir,
+            config=config,
+            device_manager=device_manager,
+            logger=logger,
+            checkpoint_manager=checkpoint_manager,
+        )
 
     except Exception as e:
         traceback_str = traceback.format_exc()
@@ -246,7 +258,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "test_gatv2_pubmed_training.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "gatv2_pubmed.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 

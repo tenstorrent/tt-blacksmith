@@ -1,7 +1,6 @@
 # Model settings
 model_name: "GATv2"
-dataset_name: "PubMed"
-dataset_root: "./data"
+dataset_id: "pubmed"
 
 # GATv2 architecture
 in_channels: 500
