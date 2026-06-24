@@ -87,20 +87,12 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=
     return avg_val_loss
 
 
-# Training step extracted into a separate function to keep large vocab-sized
-# tensors (e.g. logits) scoped locally. This ensures they do not propagate beyond
-# the step via the computation graph, avoiding unnecessary and expensive
-# CCLs in multi-chip setups.
-# Issue itself should be investigated further.
-def training_step_inner(batch, model, loss_fn, gradient_accumulation_steps):
+def compute_loss(batch, model, loss_fn, gradient_accumulation_steps):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
     logits = output.logits
     shift_logits = logits[:, :-1, :].contiguous()
     loss = loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
-    # Scale loss by number of accumulation steps to get correct effective batch size.
-    scaled_loss = loss / gradient_accumulation_steps
-    scaled_loss.backward()
-    return loss.detach()
+    return loss / gradient_accumulation_steps
 
 
 def train(
@@ -112,7 +104,8 @@ def train(
     logger.info("Starting training...")
 
     # Load model.
-    model = get_model(config, device_manager.device)
+    model = get_model(config, device_manager.device, compile_model=False)
+
     logger.info(f"Loaded {config.model_name} model.")
     logger.info(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
@@ -135,13 +128,25 @@ def train(
 
     tokenizer = train_dataset.tokenizer
 
+    if config.use_tt:
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_lazy_execution": True,
+        }
+        compute_loss_fn = torch.compile(compute_loss, backend="tt", options=compile_options)
+        eval_model = torch.compile(model, backend="tt", options=compile_options)
+    else:
+        compute_loss_fn = compute_loss
+        eval_model = model
+
     global_step = 0
 
     try:
         # Initial validation
         model.eval()
         val_loss = validate(
-            model,
+            eval_model,
             eval_dataloader,
             cross_entropy_loss,
             logger,
@@ -184,11 +189,15 @@ def train(
                 # Shard model if tensor parallelism is used.
                 device_manager.shard_model(model)
 
-                # Training step.
-                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+                loss_ = compute_loss_fn(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
+                loss_.backward()
 
                 if config.use_tt:
-                    torch_xla.sync(wait=True)
+                    tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
+                    devices = list({t.device.type for t in tensors_to_sync})
+                    torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
+                    # Optimizer will do unnecessary recompute if we don't clear the pending IRs after syncing the loss and grads.
+                    torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
 
                 running_loss += loss_.item()
                 accumulation_step += 1
@@ -205,7 +214,7 @@ def train(
                         logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
 
                     if global_step % config.steps_freq == 0:
-                        avg_loss = running_loss / (config.steps_freq * config.gradient_accumulation_steps)
+                        avg_loss = running_loss / config.steps_freq
                         logger.log_metrics({"train/loss": avg_loss}, commit=False, step=global_step)
                         running_loss = 0.0
 
@@ -213,7 +222,7 @@ def train(
                     if global_step % config.val_steps_freq == 0:
                         model.eval()
                         val_loss = validate(
-                            model,
+                            eval_model,
                             eval_dataloader,
                             cross_entropy_loss,
                             logger,
@@ -281,7 +290,7 @@ if __name__ == "__main__":
     # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
-        compile_options = {"fp32_dest_acc_en": True, "math_fidelity": "hifi4"}
+        compile_options = {"fp32_dest_acc_en": True, "math_fidelity": "hifi4", "enable_trace": config.enable_trace}
         if config.experimental_weight_dtype:
             compile_options["experimental_weight_dtype"] = config.experimental_weight_dtype
         torch_xla.set_custom_compile_options(compile_options)

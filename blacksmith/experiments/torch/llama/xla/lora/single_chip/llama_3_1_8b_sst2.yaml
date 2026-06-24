@@ -7,7 +7,7 @@ max_length: 128
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-training_type: "lora"
+training_model_type: "lora"
 learning_rate: 1e-4
 batch_size: 8
 num_epochs: 1
@@ -57,3 +57,5 @@ framework: "pytorch"
 print_examples: True
 use_tt: True
 measure_e2e_time: False
+enable_trace: False
+trace_region_size: 1000000000 # DRAM region size (bytes) for runtime trace

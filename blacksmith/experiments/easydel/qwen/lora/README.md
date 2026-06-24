@@ -33,11 +33,10 @@ source env/activate --gpu
 
 EasyDel is pulled in automatically by `env/xla_requirements.txt`, pinned to the validated commit.
 
-For **GPU baseline** runs, also install EasyDel manually (the GPU env does not pin it) plus the JAX CUDA plugin (`--no-deps` avoids a cuDNN version conflict with torch):
+For **GPU baseline** runs, also run:
 
 ```bash
-pip install git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
-pip install --no-deps jax-cuda12-plugin==0.7.1 jax-cuda12-pjrt==0.7.1
+bash blacksmith/experiments/easydel/setup_gpu_requirements.sh
 ```
 
 ## Training

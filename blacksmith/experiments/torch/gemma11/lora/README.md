@@ -1,19 +1,45 @@
 # Gemma 1.1 2B with LoRA Experiment
 
-This directory contains the code for the Gemma 1.1 2B model with LoRA fine-tuning experiment.
-Gemma 1.1 2B model specification can be found [here](https://huggingface.co/google/gemma-1.1-2b-it).
+This directory contains the code for the Gemma 1.1 2B fine-tuning experiment using LoRA.
+
+- Gemma 1.1 2B model specification can be found [here](https://huggingface.co/google/gemma-1.1-2b-it).
+
 Original LoRA paper can be found [here](https://arxiv.org/pdf/2106.09685).
 
 ## Overview
 
-The Gemma 1.1 2B fine-tuning experiment applies the LoRA technique to adapt a pre-trained Gemma 1.1 2B model on the SST sentiment analysis dataset.
-The experiment is designed to run on the Huggingface framework.
+The Gemma 1.1 2B fine-tuning experiment applies the LoRA technique to adapt a pre-trained Gemma 1.1 2B model on a configurable dataset (SST2, SQuAD V2, or the math preference dataset).
+The experiment is designed to run on the Huggingface framework and targets single-chip Tenstorrent hardware.
 
 ## Training
 
+The dataset and hyperparameters are selected through the configuration file passed via `--config`.
+If no config is provided, `single_chip/gemma11_sst2.yaml` is used by default.
+
+### Single Chip Training
+
+SST2 dataset:
 ```bash
-python3 blacksmith/experiments/torch/gemma11/train.py
+python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/single_chip/gemma11_sst2.yaml
 ```
+
+SQuAD V2 dataset:
+```bash
+python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/single_chip/gemma11_squadV2.yaml
+```
+
+Math preference (SFT) dataset:
+```bash
+python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/single_chip/gemma11_math_preferences_sft.yaml
+```
+
+#### Training Configurations
+
+| Architecture | mesh_shape | mesh_axis_names | dataset | Method |
+| ------------ | ---------- | --------------- | ------- | ------ |
+| [Single-Chip](single_chip/gemma11_sst2.yaml) | None | None | SST2 | LoRA |
+| [Single-Chip](single_chip/gemma11_squadV2.yaml) | None | None | SQuAD V2 | LoRA |
+| [P150](single_chip/gemma11_math_preferences_sft.yaml) | None | None | Math Preference (SFT) | LoRA |
 
 ## Data
 
@@ -36,12 +62,13 @@ Example:
 - sentence: A short movie review or phrase.
 - label: Sentiment label (1 for positive, 0 for negative).
 
-### Squad-V2
+### SQuAD V2
 
 The Stanford Question Answering Dataset V2.0 (SQuAD V2.0) is a challenging benchmark for extractive Question Answering (QA) models.
 It requires a model to read a context passage and a question, then either:
 1. Extract the answer as a span of text from the passage (if the question is answerable), OR
 2. Determine the question is unanswerable and abstain from answering.
+
 SQuAD V2.0 combines the 100,000+ answerable questions from the original SQuAD with over 50,000 new, unanswerable questions, pushing models to be both accurate and robust in identifying when information is missing.
 
 Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/rajpurkar/squad_v2)
@@ -55,22 +82,42 @@ Example:
 }
 ```
 
+### Math Preference (SFT)
+
+The math preference dataset is a collection of math instructions paired with a higher-rated (chosen) and a lower-rated (rejected) response.
+In SFT mode only the chosen responses are used to supervise the model, training it to produce the preferred answer for each instruction. The same dataset is reused as the preference source for the [DPO experiment](../dpo/README.md).
+
+Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/argilla/distilabel-math-preference-dpo)
+
+Example:
+```
+{
+  "instruction": "What is the derivative of f(x) = 3x^2 + 2x?",
+  "chosen_response": "Using the power rule, f'(x) = 6x + 2.",
+  "rejected_response": "The derivative is 3x + 2.",
+  "chosen_rating": 9.0,
+  "rejected_rating": 4.0
+}
+```
+- instruction: The math problem or question.
+- chosen_response / rejected_response: The preferred and dispreferred answers.
+- chosen_rating / rejected_rating: Quality scores for each response.
+
 ## Configuration
 
-The experiment to be trained on SST2 dataset is configured using the configuration file `gemma11_sst2.yaml`. This is the default setting.
+The experiment is configured using the configuration files in `single_chip/`. The configuration file specifies the hyperparameters for the experiment, such as the dataset, the number of epochs, the batch size, and the LoRA configuration.
 
-The experiment to be trained on Squad-V2 dataset is configured using the configuration file `gemma11_squadV2.yaml`.
+`gemma11_sst2.yaml` is the default config and has the recommended and tested hyperparameters for the experiment (using SST2 as the default dataset).
 
-Current `gemma11_sst2.yaml` has the recommended and tested hyperparameters for the experiment (using SST2 as the default dataset).
-
-### Configuration Parameters for SST2 dataset
+### Configuration Parameters
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
 | `dataset_id` | The dataset used for fine-tuning. | "sst2" |
-| `model_name` | Name or path of the pre-trained Gemma 1.1 2B model. | "google/gemma-1.1-1b-it" |
+| `model_name` | Name or path of the pre-trained Gemma 1.1 2B model. | "google/gemma-1.1-2b-it" |
 | `max_length` | Maximum token length for inputs. | 32 |
 | `dtype` | Data type used during training. | "torch.bfloat16" |
+| `training_model_type` | Which type of fine-tuning to do (`lora`, `adapters`, or full fine-tuning). | "lora" |
 | `learning_rate` | Learning rate for the optimizer. | 6e-5 |
 | `batch_size` | Number of samples per training batch. | 4 |
 | `gradient_checkpointing` | Whether to use gradient checkpointing to save memory. | False |
@@ -103,6 +150,8 @@ Current `gemma11_sst2.yaml` has the recommended and tested hyperparameters for t
 | `remote_path` | Remote storage path (if applicable). | "" |
 | `seed` | Random seed for reproducibility. | 23 |
 | `deterministic` | Whether to enforce deterministic behavior. | False |
+| `mesh_shape` | Mesh shape for distributed training. | None |
+| `mesh_axis_names` | Axis names for the mesh. | None |
 | `lora_r` | Rank of LoRA adaptation matrices. | 4 |
 | `lora_alpha` | Scaling factor for LoRA updates. | 8 |
 | `lora_target_modules` | Target modules for LoRA adaptation. | ["all-linear"] |

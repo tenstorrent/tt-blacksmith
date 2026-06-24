@@ -79,16 +79,23 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 
 **Llama 3.2 3B requires multi-chip configurations (not supported on single chip).**
 
+**P150 Training:**
+
+```bash
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_3b_fusechat.yaml
+```
+
 **QuietBox Training:**
 ```bash
-python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_3b_sst2.yaml
+python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_3b_fusechat.yaml
 ```
 
 #### Llama 3.2 3B Training Configuration
 
 | Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
 | ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
-| [Blackhole QuietBox](quietbox/llama_3_2_3b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`  | SST2         | LoRA       |
+| [P150](single_chip/llama_3_2_3b_fusechat.yaml) | None                         | None                                     | FuseChat  | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_2_3b_fusechat.yaml) | `[1, 4]`                     | `["data", "model"]`  | FuseChat         | LoRA       |
 
 ### Llama 3.1 8B Training
 
@@ -213,7 +220,7 @@ Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested 
 | `model_name`                  | Name or path of the pre-trained model.                 | "meta-llama/Llama-3.2-1B".          |
 | `max_length`                  | Maximum token length for inputs.                       | 128                                 |
 | `dtype`                       | Data type used during training.                        | "torch.bfloat16"                    |
-| `training_type`               | Which type of finetuning to do.                        | "lora"                              |
+| `training_model_type`               | Which type of finetuning to do.                        | "lora"                              |
 | `learning_rate`               | Learning rate for the optimizer.                       | 2e-5                                |
 | `batch_size`                  | Number of samples per training batch.                  | 32                                  |
 | `gradient_accumulation_steps` | Steps to accumulate gradients before updating.         | 1                                   |
