@@ -44,7 +44,7 @@ pip install torch_geometric
 ### CPU Baseline
 
 ```bash
-PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/test_gatv2_pubmed_training.py
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py
 ```
 
 ## Configuration Parameters

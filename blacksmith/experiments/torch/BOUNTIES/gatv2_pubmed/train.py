@@ -5,36 +5,21 @@ import json
 import traceback
 from pathlib import Path
 
+import matplotlib
+import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 
+from blacksmith.datasets.torch.BOUNTIES.pubmed.pubmed_dataset import load_dataset
 from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.configs import TrainingConfig
-from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.dataset_utils import (
-    load_dataset,
-)
-from blacksmith.models.torch.gatv2_pubmed.model import GATv2
+from blacksmith.models.torch.gatv2_pubmed.model import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
-
-def create_model(config, num_features, num_classes, device, logger):
-    """Instantiate GATv2 model and move to device."""
-    model = GATv2(
-        in_channels=num_features,
-        hidden_channels=config.hidden_channels,
-        out_channels=num_classes,
-        heads=config.heads,
-        dropout=config.dropout,
-    ).to(device)
-
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"Model parameters: {total_params}")
-    logger.info(f"Trainable parameters: {trainable_params}")
-    return model
+matplotlib.use("Agg")
 
 
 def train_epoch(model, data, optimizer, loss_fn, device_manager):
@@ -65,11 +50,6 @@ def evaluate(model, data, mask, loss_fn):
 
 def generate_plots(metrics_history, output_dir):
     """Generate loss and accuracy plots."""
-    import matplotlib
-    import matplotlib.pyplot as plt
-
-    matplotlib.use("Agg")
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -156,16 +136,10 @@ def train(
     """Main training loop for GATv2 node classification on PubMed."""
     logger.info("Starting GATv2 PubMed training...")
 
-    if config.use_tt:
-        import torch_xla
-
-        torch_xla.set_custom_compile_options({"fp32_dest_acc_en": True, "math_fidelity": "hifi4"})
-        logger.info("TT device: compile options set " "(fp32 accumulation, hifi4 fidelity)")
-
     data = load_dataset(config, logger)
     data = data.to(device_manager.device)
 
-    model = create_model(config, data.num_node_features, config.out_channels, device_manager.device, logger)
+    model = get_model(config, data.num_node_features, config.out_channels, device_manager.device, logger)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
     loss_fn = F.nll_loss
@@ -189,10 +163,9 @@ def train(
         logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=True, step=global_step)
 
         for epoch in range(1, config.num_epochs + 1):
-            global_step += 1
-
             # Train
             train_loss = train_epoch(model, data, optimizer, loss_fn, device_manager)
+            global_step += 1
 
             # Log training loss
             logger.log_metrics({"train/loss": train_loss}, commit=False, step=global_step)

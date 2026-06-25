@@ -20,3 +20,20 @@ class GATv2(nn.Module):
         x = F.dropout(x, p=self.dropout, training=self.training)
         x = self.conv2(x, edge_index)
         return F.log_softmax(x, dim=1)
+
+
+def get_model(config, num_features, num_classes, device, logger):
+    """Instantiate GATv2 model and move to device."""
+    model = GATv2(
+        in_channels=num_features,
+        hidden_channels=config.hidden_channels,
+        out_channels=num_classes,
+        heads=config.heads,
+        dropout=config.dropout,
+    ).to(device)
+
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Model parameters: {total_params}")
+    logger.info(f"Trainable parameters: {trainable_params}")
+    return model
