@@ -770,9 +770,16 @@ class WanDeviceManager:
         These are TT backend knobs interpreted by the dynamo backend, not
         XLA — they accept Python types.
         """
+        # Composite SDPA is enabled by default: it lowers to the fused attention
+        # kernel and an A/B test (WAN_ENABLE_COMPOSITE_OPS=0) showed it makes no
+        # difference to loss or gradient PCC, so there is no reason to pay the
+        # perf cost of the decomposed path. Set WAN_ENABLE_COMPOSITE_OPS=0 to
+        # force the math decomposition for debugging.
+        enable_composite_ops = os.environ.get("WAN_ENABLE_COMPOSITE_OPS", "1") == "1"
         return {
             "tt_enable_torch_fx_fusion_pass": False,
             "tt_legacy_compile": True,
+            "tt_enable_composite_ops": enable_composite_ops,
         }
 
     def _setup_tt(self) -> None:
