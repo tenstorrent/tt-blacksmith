@@ -6,56 +6,56 @@ from abc import ABC
 
 class Callback(ABC):
     # Training callbacks.
-    def on_train_start(self, trainer, **kwargs):
+    def on_train_start(self, trainer):
         pass
 
-    def on_train_end(self, trainer, **kwargs):
+    def on_train_end(self, trainer):
         pass
 
-    def on_train_epoch_start(self, trainer, **kwargs):
+    def on_train_epoch_start(self, trainer):
         pass
 
-    def on_train_epoch_end(self, trainer, **kwargs):
+    def on_train_epoch_end(self, trainer):
         pass
 
-    def on_train_batch_start(self, trainer, batch, **kwargs):
+    def on_train_batch_start(self, trainer, batch):
         pass
 
-    def on_train_batch_end(self, trainer, **kwargs):
+    def on_train_batch_end(self, trainer):
         pass
 
     # Validation callbacks.
-    def on_validation_start(self, trainer, **kwargs):
+    def on_validation_start(self, trainer):
         pass
 
-    def on_validation_batch_start(self, trainer, batch, **kwargs):
+    def on_validation_batch_start(self, trainer, batch):
         pass
 
-    def on_validation_batch_end(self, trainer, batch, loss, **kwargs):
+    def on_validation_batch_end(self, trainer, batch, loss):
         pass
 
-    def on_validation_end(self, trainer, val_loss, **kwargs):
+    def on_validation_end(self, trainer, val_loss):
         pass
 
     # Forward / Backward / Optimizer Step callbacks.
-    def on_forward_start(self, trainer, batch, **kwargs):
+    def on_forward_start(self, trainer, batch):
         pass
 
-    def on_forward_end(self, trainer, loss, **kwargs):
+    def on_forward_end(self, trainer, loss):
         pass
 
-    def on_backward_start(self, trainer, loss, **kwargs):
+    def on_backward_start(self, trainer, loss):
         pass
 
-    def on_backward_end(self, trainer, **kwargs):
+    def on_backward_end(self, trainer):
         pass
 
-    def on_optimizer_step_start(self, trainer, **kwargs):
+    def on_optimizer_step_start(self, trainer):
         pass
 
-    def on_optimizer_step_end(self, trainer, **kwargs):
+    def on_optimizer_step_end(self, trainer):
         pass
 
-    # Error callback. Called when training fails with an exception.
-    def on_error(self, trainer, exception, **kwargs):
+    # Error callback.
+    def on_error(self, trainer, exception):
         pass

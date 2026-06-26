@@ -15,12 +15,7 @@ from blacksmith.tools.trainer.trainer import Trainer
 
 class LoraLLMTrainer(Trainer):
     """
-    Trainer for parameter-efficient fine-tuning of causal LLMs.
-
-    Provides the strategy-specific pieces (model, dataloaders and the
-    forward/loss computation) on top of the generic training loop, optimizer,
-    gradient accumulation, validation and callback orchestration implemented in
-    :class:`~blacksmith.tools.trainer.trainer.Trainer`.
+    Trainer for parameter-efficient fine-tuning of causal LLMs using LoRA.
     """
 
     def _load_model(self) -> torch.nn.Module:

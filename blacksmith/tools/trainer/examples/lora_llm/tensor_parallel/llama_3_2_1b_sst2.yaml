@@ -14,9 +14,6 @@ num_epochs: 1
 ignored_index: -100
 
 # LoRA setup
-# Only q_proj/v_proj are LoRA-wrapped so the sharding patterns below match the
-# resulting module names (LoRA targets expose `.base_layer`/`.lora_B.default`,
-# while frozen projections keep their plain name).
 lora_r: 4
 lora_alpha: 8
 lora_target_modules: ["q_proj", "v_proj"]
@@ -25,7 +22,7 @@ lora_task_type: "CAUSAL_LM"
 # Validation settings
 val_steps_freq: 50
 
-mesh_shape: [1, 2]  # [batch, model]
+mesh_shape: [1, 2]
 mesh_axis_names: ["batch", "model"]
 input_sharding_dim: null
 model_sharding_patterns:
