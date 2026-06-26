@@ -7,6 +7,7 @@ from typing import Any, Union
 
 import torch
 import torch_xla
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from blacksmith.tools.device_manager import DeviceManager
@@ -65,7 +66,7 @@ class Trainer(ABC):
         pass
 
     @abstractmethod
-    def _load_dataloaders(self) -> tuple:
+    def _load_dataloaders(self) -> tuple[DataLoader, DataLoader | None]:
         """
         Build and return the ``(train_dataloader, val_dataloader)`` pair.
 

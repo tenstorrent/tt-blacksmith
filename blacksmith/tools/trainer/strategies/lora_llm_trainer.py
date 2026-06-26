@@ -5,6 +5,7 @@ from typing import Any
 
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
@@ -25,7 +26,7 @@ class LoraLLMTrainer(Trainer):
     def _load_model(self) -> torch.nn.Module:
         return get_model(self.config, self.device_manager.device, compile_model=True)
 
-    def _load_dataloaders(self) -> tuple:
+    def _load_dataloaders(self) -> tuple[DataLoader, DataLoader]:
         train_dataset = get_dataset(config=self.config, split="train", collate_fn=collate_fn_for_causal_lm)
         val_dataset = get_dataset(config=self.config, split="validation", collate_fn=collate_fn_for_causal_lm)
 
