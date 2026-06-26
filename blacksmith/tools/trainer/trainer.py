@@ -36,14 +36,6 @@ class Trainer(ABC):
     ) -> None:
         """
         Setup the trainer with the given configuration.
-
-        Initializes the strategy-independent pieces (config, reproducibility and
-        device manager), then loads the strategy-specific model, dataloaders and
-        optimizer via the
-        ``_load_model`` / ``_load_dataloaders`` / ``_load_optimizer`` hooks.
-
-        Always cleans up first so setup can run from a clean state (this also
-        initializes ``global_step`` / ``epoch``).
         """
         if self.config is not None:
             self.cleanup()
@@ -61,7 +53,7 @@ class Trainer(ABC):
     @abstractmethod
     def _load_model(self) -> torch.nn.Module:
         """
-        Build and return compiled model to train if using TT, otherwise return the model.
+        Build and return compiled model to train.
         """
         pass
 
@@ -89,14 +81,6 @@ class Trainer(ABC):
         )
 
     def train(self) -> None:
-        """
-        Run the training loop.
-
-        The loop is generic: subclasses provide the model-specific behaviour
-        through the ``_forward`` / ``_backward`` / ``_optimizer_step`` extension
-        points, while this method orchestrates epochs, gradient accumulation,
-        inline validation and callback hooks.
-        """
         self.callback_handler("on_train_start")
         # `on_train_start` callbacks need to guard against having a config.
         if self.config is None:
@@ -173,19 +157,11 @@ class Trainer(ABC):
 
                 self.callback_handler("on_train_epoch_end")
         except Exception as exception:
-            self.callback_handler("on_error", exception)
+            self.callback_handler("on_error", trainer=self, exception=exception)
         finally:
             self.callback_handler("on_train_end")
 
     def validate(self) -> None:
-        """
-        Run the validation loop over ``self.val_dataloader``.
-
-        Reuses ``_forward`` under ``torch.no_grad`` (the forward pass is
-        identical to training), computes the mean loss and passes it to the
-        validation callback hooks. Callers are responsible for ensuring a
-        validation dataloader exists before invoking this.
-        """
         self.model.eval()
         self.callback_handler("on_validation_start")
 
