@@ -22,7 +22,7 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 matplotlib.use("Agg")
 
 
-def train_epoch(model, data, optimizer, loss_fn, device_manager):
+def train_step(model, data, optimizer, loss_fn, device_manager):
     """Single training step over the full graph."""
     model.train()
     optimizer.zero_grad()
@@ -164,7 +164,7 @@ def train(
 
         for epoch in range(1, config.num_epochs + 1):
             # Train
-            train_loss = train_epoch(model, data, optimizer, loss_fn, device_manager)
+            train_loss = train_step(model, data, optimizer, loss_fn, device_manager)
             global_step += 1
 
             # Log training loss
