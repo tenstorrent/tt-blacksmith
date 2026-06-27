@@ -1,0 +1,163 @@
+# Model settings
+model_id: "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+dtype: "torch.bfloat16"
+vae_precompute_dtype: "torch.bfloat16"
+gradient_checkpointing: False
+
+# Dataset / cache settings
+dataset_id: "jainr3/diffusiondb-pixelart"
+cache_dir: "cache/wan22_5b"
+subset_size: 64
+val_holdout: 4
+
+# Train resolution (single image as 1-frame video; multiple of 32)
+train_h: 480
+train_w: 832
+
+# Inference / validation video generation
+infer_h: 480
+infer_w: 832
+infer_frames: 65
+infer_fps: 16
+infer_steps: 40
+infer_guidance: 5.0
+infer_flow_shift: 5.0
+infer_output: "cache/wan22_5b/pixelart_video.mp4"
+
+# Style trigger + CFG dropout
+trigger: "pxa, "
+text_drop_prob: 0.10
+
+# LoRA setup
+lora_rank: 32
+lora_alpha: 32
+lora_targets: ["to_q", "to_k", "to_v", "to_out.0", "ff.net.0.proj", "ff.net.2"]
+
+# Training hyperparameters
+learning_rate: 1e-4
+weight_decay: 0.01
+batch_size: 1
+gradient_accumulation_steps: 4
+max_steps: 3000
+
+# Flow-matching training
+train_flow_shift: 3.0
+lognorm_mean: 0.0
+lognorm_std: 1.0
+
+# Validation (image generation only)
+val_prompt: "a car driving through the desert with sunset in background"
+val_img_steps: 40
+val_img_frames: 65
+neg_prompt: ""
+
+# Device / sharding settings (Wormhole QuietBox: 8 devices -> 2x4 mesh)
+use_tt: True
+mesh_shape: [2, 4]
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: null
+# Column-parallel (QKV / FFN-up) -> ["model", "batch"]; row-parallel (O / FFN-down)
+# -> ["batch", "model"]. LoRA A/B keep the rank dim replicated.
+# Each pattern is anchored to one component (UMT5 / VAE / DiT)
+# so the single list applies cleanly to all of them via shard_model.
+model_sharding_patterns:
+  # === UMT5 text encoder ===
+  - ['^shared$',                                  [null, "batch"]]
+  - ['\.layer\.0\.SelfAttention\.q$',             ["model", "batch"]]
+  - ['\.layer\.0\.SelfAttention\.k$',             ["model", "batch"]]
+  - ['\.layer\.0\.SelfAttention\.v$',             ["model", "batch"]]
+  - ['\.layer\.0\.SelfAttention\.o$',             ["batch", "model"]]
+  - ['\.layer\.0\.layer_norm$',                   ["batch"]]
+  - ['\.layer\.1\.DenseReluDense\.wi_0$',         ["model", "batch"]]
+  - ['\.layer\.1\.DenseReluDense\.wi_1$',         ["model", "batch"]]
+  - ['\.layer\.1\.DenseReluDense\.wo$',           ["batch", "model"]]
+  - ['\.layer\.1\.layer_norm$',                   ["batch"]]
+  - ['^encoder\.final_layer_norm$',               ["batch"]]
+  # === VAE (encoder seeds + decoder seeds) ===
+  - ['^quant_conv$',                              ["batch", null, null, null, null]]
+  - ['^post_quant_conv$',                         ["batch", null, null, null, null]]
+  - ['^encoder\.conv_in$',                        ["batch", null, null, null, null]]
+  - ['^decoder\.conv_in$',                        ["batch", null, null, null, null]]
+  # === DiT (WanTransformer3DModel) ===
+  - ['^patch_embedding$',                         ["batch", null, null, null, null]]
+  - ['^proj_out$',                                [null, "batch"]]
+  - ['^condition_embedder\.time_embedder\.linear_1$', ["model", "batch"]]
+  - ['^condition_embedder\.time_embedder\.linear_2$', ["batch", "model"]]
+  - ['^condition_embedder\.time_proj$',           ["batch", null]]
+  - ['^condition_embedder\.text_embedder\.linear_1$', ["model", "batch"]]
+  - ['^condition_embedder\.text_embedder\.linear_2$', ["batch", "model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer$',      ["model", "batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_k\.base_layer$',      ["model", "batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_v\.base_layer$',      ["model", "batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.base_layer$', ["batch", "model"]]
+  - ['\bblocks\.\d+\.attn[12]\.norm_q$',                ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.norm_k$',                ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_q\.lora_A\.default$',      [null, "batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_q\.lora_B\.default$',      ["model", null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_k\.lora_A\.default$',      [null, "batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_k\.lora_B\.default$',      ["model", null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_v\.lora_A\.default$',      [null, "batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_v\.lora_B\.default$',      ["model", null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.lora_A\.default$', [null, "model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.lora_B\.default$', ["batch", null]]
+  - ['\bblocks\.\d+\.ffn\.net\.0\.proj$',         ["model", "batch"]]
+  - ['\bblocks\.\d+\.ffn\.net\.2$',               ["batch", "model"]]
+  - ['\bblocks\.\d+\.norm2$',                     ["batch"]]
+param_sharding_patterns:
+  # === DiT biases + scale/shift tables (top-level and per-block) ===
+  - ['scale_shift_table$',                        [null, null, "batch"]]
+  - ['^patch_embedding\.bias$',                   ["batch"]]
+  - ['^proj_out\.bias$',                          [null]]
+  - ['^condition_embedder\.time_embedder\.linear_1\.bias$', ["model"]]
+  - ['^condition_embedder\.time_embedder\.linear_2\.bias$', ["batch"]]
+  - ['^condition_embedder\.time_proj\.bias$',     ["batch"]]
+  - ['^condition_embedder\.text_embedder\.linear_1\.bias$', ["model"]]
+  - ['^condition_embedder\.text_embedder\.linear_2\.bias$', ["batch"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer\.bias$',      ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_k\.base_layer\.bias$',      ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_v\.base_layer\.bias$',      ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.base_layer\.bias$', ["batch"]]
+  - ['\bblocks\.\d+\.ffn\.net\.0\.proj\.bias$',   ["model"]]
+  - ['\bblocks\.\d+\.ffn\.net\.2\.bias$',         ["batch"]]
+  - ['\bblocks\.\d+\.norm2\.bias$',               ["batch"]]
+  # === VAE conv biases ===
+  - ['^quant_conv\.bias$',                        ["batch"]]
+  - ['^post_quant_conv\.bias$',                   ["batch"]]
+  - ['^encoder\.conv_in\.bias$',                  ["batch"]]
+  - ['^decoder\.conv_in\.bias$',                  ["batch"]]
+
+# Reproducibility settings
+seed: 42
+deterministic: False
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "wan22-pixelart-lora"
+wandb_run_name: "tt-wan22-5b-pxa-quietbox"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 25
+val_steps_freq: 300
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: ""
+checkpoint_metric: "train/loss"
+checkpoint_metric_mode: "min"
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/wan2_2"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other settings
+framework: "pytorch"
