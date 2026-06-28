@@ -230,7 +230,7 @@ def train_mlp(
 
     def compute_accuracy(logits_frag, y_batch_sharded):
         return shard_map.shard_map(
-            lambda logits, y: compute_accuracy_step(logits, y),
+            compute_accuracy_step,
             mesh=sharding_config.mesh,
             in_specs=(PartitionSpec(None, "tp"), PartitionSpec(None, "tp")),
             out_specs=PartitionSpec(),  # scalar accuracy per shard
