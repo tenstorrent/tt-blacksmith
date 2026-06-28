@@ -1,0 +1,10 @@
+# CI test overlay for GATv2/PubMed on a single Wormhole chip.
+# Trains the scatter-free SpMM convolution (use_spmm) so the step fits in DRAM and
+# runs natively on TT; a short fixed epoch budget keeps the golden losses deterministic.
+use_tt: true
+use_spmm: true
+num_epochs: 10
+patience: 50
+val_freq: 1
+seed: 42
+deterministic: true

@@ -62,6 +62,9 @@ class TrainingConfig(BaseModel):
     use_tt: bool = Field(default=False)
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
+    # Use the SpMM (matmul) GATv2 convolution instead of scatter-based GATv2Conv, so the
+    # model trains natively on TT without the scatter tile-padding OOM (tt-mlir#8887).
+    use_spmm: bool = Field(default=False)
 
     # Other settings
     framework: str = Field(default="pytorch")

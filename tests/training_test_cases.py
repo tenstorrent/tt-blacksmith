@@ -50,6 +50,22 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
+            "test_script": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py",
+            "experiment_config": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed.yaml",
+            "test_config": "tests/configs/tt-gatv2_pubmed-pubmed-n150.yaml",
+            "timeout": 1200,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.n150,
+            pytest.mark.n300,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-gatv2_pubmed-pubmed-n150",
+    ),
+    pytest.param(
+        {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/train.py",
             "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 3000,

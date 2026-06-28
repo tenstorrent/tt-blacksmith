@@ -47,6 +47,16 @@ pip install torch_geometric
 PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py
 ```
 
+### TT (scatter-free SpMM)
+
+```bash
+PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed_tt.yaml
+```
+
+The CI regression test (golden-loss check on a single Wormhole chip) is
+`tt-gatv2_pubmed-pubmed-n150` in `tests/training_test_cases.py`.
+
 ## Configuration Parameters
 
 | Parameter | Description | Default Value |
@@ -66,6 +76,7 @@ PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py
 | `seed` | Random seed for reproducibility. | 42 |
 | `deterministic` | Enforce deterministic operations. | True |
 | `use_tt` | Whether to run on TT device. | False |
+| `use_spmm` | Use the SpMM (matmul) GATv2 conv so the model trains natively on TT (bypasses the scatter tile-padding OOM, tt-mlir#8887). | False |
 | `use_wandb` | Enable Weights & Biases logging. | False |
 | `checkpoint_metric` | Metric for best checkpoint selection. | "val/accuracy" |
 | `checkpoint_metric_mode` | Mode for checkpoint metric. | "max" |
@@ -83,6 +94,50 @@ PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py
 | Convergence | ~100-200 epochs |
 
 The same seed (42) is used for reproducibility.
+
+A side-by-side CPU↔TT parity run (test 0.776 vs 0.780) and the comparison plots
+are in **[RESULTS.md](RESULTS.md)** (`assets/compare_loss.png`,
+`assets/compare_accuracy.png`).
+
+## TT Execution Status
+
+### The scatter blocker (and why a workaround is needed)
+
+Standard `GATv2Conv` aggregates messages with `scatter_add` / `scatter_reduce_`.
+The original blocker — a single logical `scatter` over a length-`L` index lowering
+to a **serial chain of ~`L/256` `ttnn.scatter` ops** — was filed as
+[tt-mlir#8714](https://github.com/tenstorrent/tt-mlir/issues/8714) and **fixed**
+by [tt-mlir#8718](https://github.com/tenstorrent/tt-mlir/pull/8718) (merged
+2026-06-15). However, after that fix the `scatter` operand's reshape to 1-D
+emits a TILE-layout tensor whose degenerate height (1 padded to 32) causes a
+**32× DRAM blow-up that still OOMs full-PubMed GNN training**. That residual
+issue is open as
+[tt-mlir#8887](https://github.com/tenstorrent/tt-mlir/issues/8887), so the
+scatter path (`use_spmm: false`) still cannot train on TT today.
+
+### The SpMM solution (`spmm_gatv2.py`, enabled by `use_spmm: true`)
+
+`SpMMGATv2Conv` keeps the **exact** GATv2 math but rewrites every node↔edge
+operation (the `x_i`/`x_j` feature lookups, the attention-softmax denominator,
+and the message aggregation) as a **matmul against a one-hot incidence**. This
+lowers to `ttnn.matmul` and emits **zero `ttnn.scatter`**, fully bypassing the
+tiling/padding issues. It is bit-equivalent to `GATv2Conv` on CPU (loss
+identical, per-parameter gradient cosine 1.0) and trains full PubMed on a
+Wormhole N300 to ~78% test accuracy, matching the CPU baseline. The mandatory
+TTIR proof graph (`module @SyncTensorsGraph`, zero scatter) is emitted under
+`TTXLA_LOGGER_LEVEL=DEBUG`.
+
+Making it run on the current stack required five small, documented techniques:
+SpMM aggregation; storing `att` flat as `[1, H*C]`; a constant block-ones matmul
+for the per-head reduction; a blocked bf16 one-hot (memory); and a static masked
+loss (`masked_nll_loss`) in place of boolean-mask indexing. Each sidesteps a
+distinct tt-mlir / ttnn limitation. **[DESIGN.md](DESIGN.md)** tells the full
+story — every workaround tried (targeted CPU fallback, dense incidence, cumsum
+segment-sum), why each failed, and how those failures led to the final design.
+
+Once tt-mlir#8887 is resolved, standard `GATv2Conv` (`use_spmm: false`) is
+expected to run natively on TT as well; the SpMM path works today and does not
+depend on it.
 
 ## Output Artifacts
 

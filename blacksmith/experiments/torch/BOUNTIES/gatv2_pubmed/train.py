@@ -8,11 +8,11 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
-import torch.nn.functional as F
 
 from blacksmith.datasets.torch.BOUNTIES.pubmed.pubmed_dataset import load_dataset
 from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.configs import TrainingConfig
 from blacksmith.models.torch.gatv2_pubmed.model import get_model
+from blacksmith.models.torch.gatv2_pubmed.spmm_gatv2 import masked_accuracy, masked_nll_loss
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -22,29 +22,30 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 matplotlib.use("Agg")
 
 
-def train_step(model, data, optimizer, loss_fn, device_manager):
+def train_step(model, data, optimizer, device_manager):
     """Single training step over the full graph."""
     model.train()
     optimizer.zero_grad()
     out = model(data.x, data.edge_index)
     train_mask = data.train_mask.to(out.device)
     y = data.y.to(out.device)
-    loss = loss_fn(out[train_mask], y[train_mask])
+    # Static float-mask loss instead of boolean indexing (out[mask]): the latter has a
+    # dynamic-shape backward that ttnn rejects. Mathematically identical on CPU.
+    loss = masked_nll_loss(out, y, train_mask)
     loss.backward()
     device_manager.optimizer_step(optimizer)
     return loss.item()
 
 
 @torch.no_grad()
-def evaluate(model, data, mask, loss_fn):
+def evaluate(model, data, mask):
     """Evaluate model on nodes selected by mask. Returns (loss, accuracy)."""
     model.eval()
     out = model(data.x, data.edge_index)
     mask = mask.to(out.device)
     y = data.y.to(out.device)
-    loss = loss_fn(out[mask], y[mask]).item()
-    pred = out[mask].argmax(dim=1)
-    accuracy = (pred == y[mask]).float().mean().item()
+    loss = masked_nll_loss(out, y, mask).item()
+    accuracy = masked_accuracy(out, y, mask).item()
     return loss, accuracy
 
 
@@ -97,7 +98,7 @@ def finalize_training(
         checkpoint_manager.load_checkpoint_path(best_model_path, model)
         logger.info(f"Loaded best model from {best_model_path}")
 
-    test_loss, test_acc = evaluate(model, data, data.test_mask, F.nll_loss)
+    test_loss, test_acc = evaluate(model, data, data.test_mask)
     logger.info(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
     logger.log_metrics({"test/loss": test_loss, "test/accuracy": test_acc}, commit=True, step=optimizer_step + 1)
 
@@ -142,7 +143,6 @@ def train(
     model = get_model(config, data.num_node_features, config.out_channels, device_manager.device, logger)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-    loss_fn = F.nll_loss
 
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
@@ -159,12 +159,12 @@ def train(
 
     try:
         # Initial validation
-        val_loss, val_acc = evaluate(model, data, data.val_mask, loss_fn)
+        val_loss, val_acc = evaluate(model, data, data.val_mask)
         logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=True, step=global_step)
 
         for epoch in range(1, config.num_epochs + 1):
             # Train
-            train_loss = train_step(model, data, optimizer, loss_fn, device_manager)
+            train_loss = train_step(model, data, optimizer, device_manager)
             global_step += 1
 
             # Log training loss
@@ -172,7 +172,7 @@ def train(
 
             # Validate
             if epoch % config.val_freq == 0:
-                val_loss, val_acc = evaluate(model, data, data.val_mask, loss_fn)
+                val_loss, val_acc = evaluate(model, data, data.val_mask)
                 logger.log_metrics({"val/loss": val_loss, "val/accuracy": val_acc}, commit=False, step=global_step)
 
                 metrics_history["epochs"].append(epoch)
@@ -233,14 +233,14 @@ if __name__ == "__main__":
     # Config setup
     default_config = Path(__file__).parent / "single_chip" / "gatv2_pubmed.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config)
+    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)
     repro_manager.setup()
 
     # Logger setup
-    logger = TrainingLogger(config)
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
 
     # Device setup
     device_manager = DeviceManager(config)
