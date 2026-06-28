@@ -71,11 +71,11 @@ def train(
     # Load the training and evaluation datasets.
     train_dataset = get_dataset(config=config, split="train")
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader) * config.batch_size}")
 
     eval_dataset = get_dataset(config=config, split="test")
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader) * config.batch_size}")
 
     # Load the model.
     # TODO(agobeljicTT): Use get_model function from models/torch/huggingface/hf_models.py. (https://github.com/tenstorrent/tt-blacksmith/issues/403)

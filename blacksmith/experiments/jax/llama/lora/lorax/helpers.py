@@ -12,8 +12,7 @@ from typing import Any, Dict, Tuple
 import jax
 import jax.numpy as jnp
 import optax
-import quax
-from jax.tree_util import DictKey, SequenceKey, tree_map_with_path
+from jax.tree_util import tree_map_with_path
 
 from .constants import LORA_FREEZE, LORA_FULL
 from .transform import LoraWeight
@@ -198,7 +197,7 @@ def split_trainable_frozen(lora_params, lora_spec) -> Tuple[Dict[str, Any], Dict
 
     traverse_tree(lora_params, lora_spec)
 
-    print(f"Split completed:")
+    print("Split completed:")
     print(f" Trainable params: {len(trainable_params)} LoRA matrix pairs")
     print(f" Frozen params: {len(frozen_params)} weight groups")
 

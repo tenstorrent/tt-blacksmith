@@ -8,11 +8,10 @@ from random import random
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import Dataset
 from torchdata.stateful_dataloader import StatefulDataLoader
 from torchvision import transforms as T
 
-from blacksmith.datasets.torch.nerf.ray_utils import *
+from blacksmith.datasets.torch.nerf.ray_utils import get_ray_directions, get_rays
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 
 trans_t = lambda t: torch.Tensor([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, t], [0, 0, 0, 1]]).float()

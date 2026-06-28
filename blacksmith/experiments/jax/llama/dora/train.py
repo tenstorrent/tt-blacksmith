@@ -12,7 +12,7 @@ import numpy as np
 import optax
 import wandb
 from lorax import DORA_FREEZE
-from transformers import AutoConfig, AutoTokenizer, FlaxAutoModelForCausalLM
+from transformers import AutoConfig, FlaxAutoModelForCausalLM
 
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig

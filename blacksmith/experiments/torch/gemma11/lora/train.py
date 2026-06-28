@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 import traceback
 from pathlib import Path
 
@@ -26,7 +25,7 @@ from blacksmith.tools.torch_helpers import (
 
 
 def validate(model, val_data_loader, loss_fn, device_manager, config, logger, tokenizer=None):
-    logger.info(f"\n=== Starting Validation ===")
+    logger.info("\n=== Starting Validation ===")
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
@@ -68,7 +67,7 @@ def validate(model, val_data_loader, loss_fn, device_manager, config, logger, to
                 )
 
     if config.print_examples and tokenizer is not None:
-        logger.info(f"\n=== Validation Examples (Random samples) ===")
+        logger.info("\n=== Validation Examples (Random samples) ===")
         show_examples(collected_examples, tokenizer, config, logger)
 
     if config.run_decode_example and tokenizer is not None:
@@ -108,11 +107,11 @@ def train(
     # Load dataset
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
     train_dataloader = train_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Train dataset size: {len(train_dataloader) * config.batch_size}")
 
     eval_dataset = get_dataset(config=config, split="validation", collate_fn=collate_fn_for_causal_lm)
     eval_dataloader = eval_dataset.get_dataloader()
-    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader)*config.batch_size}")
+    logger.info(f"Loaded {config.dataset_id} dataset. Eval dataset size: {len(eval_dataloader) * config.batch_size}")
 
     # Init training components (optimizer, lr scheduler, etc.)
     trainable_params = [p for p in model.parameters() if p.requires_grad]

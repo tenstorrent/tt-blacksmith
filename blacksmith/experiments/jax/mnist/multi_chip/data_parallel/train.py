@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from pathlib import Path
 
 import jax
@@ -197,7 +196,7 @@ def train_mnist(config: ExperimentConfig):
             out_shardings=sharding_config.param_sharding,
         )
 
-        config = init_wandb(
+        init_wandb(
             project_name="DP - Pure JAX MLP training",
             job_type="DP - Pure JAX MLP training",
             dir_path=logger_config.checkpoint.checkpoint_dir,

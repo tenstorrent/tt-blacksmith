@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from pathlib import Path
 
 import jax
@@ -231,7 +230,7 @@ def train_mlp(
 
     def compute_accuracy(logits_frag, y_batch_sharded):
         return shard_map.shard_map(
-            lambda l, y: compute_accuracy_step(l, y),
+            lambda logits, y: compute_accuracy_step(logits, y),
             mesh=sharding_config.mesh,
             in_specs=(PartitionSpec(None, "tp"), PartitionSpec(None, "tp")),
             out_specs=PartitionSpec(),  # scalar accuracy per shard
@@ -287,7 +286,7 @@ def train_mlp(
                 avg_accuracy = batch_accuracy_sum / logger_config.log_every_n_steps
 
                 wandb.log({"train loss": avg_loss, "train accuracy": avg_accuracy})
-                print(f"Epoch {epoch}, Batch {i +1}, Loss: {avg_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
+                print(f"Epoch {epoch}, Batch {i + 1}, Loss: {avg_loss:.4f}, Accuracy: {avg_accuracy:.4f}")
 
                 batch_loss_sum = 0.0
                 batch_accuracy_sum = 0.0
@@ -313,7 +312,7 @@ def train_mlp(
 
     wandb.log({"test loss": test_loss_global, "test accuracy": test_accuracy})
     wandb.finish()
-    print(f"\n--- Final Evaluation ---")
+    print("\n--- Final Evaluation ---")
     print(f"Test Loss: {test_loss_global:.4f}")
     print(f"Test Accuracy: {test_accuracy:.4f}")
 
@@ -351,7 +350,7 @@ def evaluate(params, x_test, y_test, sharding_config, param_in_specs, batch_size
 
     def compute_accuracy(logits_frag, y_batch_sharded):
         return shard_map.shard_map(
-            lambda l, y: compute_accuracy_step(l, y),
+            lambda logits, y: compute_accuracy_step(logits, y),
             mesh=sharding_config.mesh,
             in_specs=(PartitionSpec(None, "tp"), PartitionSpec(None, "tp")),
             out_specs=PartitionSpec(),  # scalar accuracy per shard
