@@ -2,21 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import torch
 
-from blacksmith.experiments.torch.qwen.configs import TrainingConfig
+from blacksmith.tools.configs import CheckpointConfig
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.storage_backends import StorageBackend
 
 
 class CheckpointManager:
-    def __init__(self, config: TrainingConfig, logger: TrainingLogger, device: Optional[torch.device] = None):
+    def __init__(
+        self,
+        config: CheckpointConfig,
+        logger: Optional[TrainingLogger] = None,
+        device: Optional[torch.device] = None,
+    ):
         self.config = config
-        self.logger = logger
+        # Fall back to a plain module logger when no TrainingLogger is provided
+        # (e.g. when used standalone via the checkpoint callback). Both expose
+        # the .info/.warning methods used below.
+        self.logger = logger if logger is not None else logging.getLogger(__name__)
         self.device = device
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")

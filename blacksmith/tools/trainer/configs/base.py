@@ -5,6 +5,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from blacksmith.tools.configs import CheckpointConfig, LoggingConfig
+
 
 class TrainerConfig(BaseModel):
     """
@@ -32,6 +34,10 @@ class TrainerConfig(BaseModel):
 
     # Validation settings
     val_steps_freq: int = Field(default=25, ge=1)
+
+    # Logging / checkpointing settings (nested sub-configs).
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
 
     # Reproducibility settings
     framework: str = Field(default="pytorch")
