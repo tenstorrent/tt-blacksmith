@@ -71,7 +71,7 @@ class NeRF(nn.Module):
                 layer = NeRFEncoding(in_channels_xyz, width, width)
             else:
                 layer = NeRFEncoding(width, width, width)
-            setattr(self, f"xyz_encoding_{i+1}", layer)
+            setattr(self, f"xyz_encoding_{i + 1}", layer)
 
         self.sigma = NeRFHead(width, 1)
         self.sh = NeRFHead(width, 32)
@@ -82,7 +82,7 @@ class NeRF(nn.Module):
 
         xyz_ = input_xyz
         for i in range(self.depth):
-            xyz_ = getattr(self, f"xyz_encoding_{i+1}")(xyz_)
+            xyz_ = getattr(self, f"xyz_encoding_{i + 1}")(xyz_)
 
         sigma = self.sigma(xyz_)
         sh = self.sh(xyz_)

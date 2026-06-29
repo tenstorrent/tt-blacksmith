@@ -5,12 +5,7 @@ from typing import Optional
 
 import jax
 import jax.numpy as jnp
-import torch
 import torchvision
-from torch.nn import functional as F
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.datasets import MNIST as mnist_dataset
 
 from blacksmith.experiments.jax.mnist.configs import ExperimentConfig
 

@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-import torchvision
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms

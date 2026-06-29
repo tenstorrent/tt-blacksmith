@@ -8,12 +8,7 @@ Source: https://github.com/davisyoshida/lorax
 See THIRD_PARTY_NOTICES.md for the full MIT license text.
 """
 from .constants import DORA_FREEZE, DORA_FULL
-from .helpers import (
-    init_dora,
-    merge_trainable_frozen,
-    simple_spec,
-    split_trainable_frozen,
-)
+from .helpers import init_dora, simple_spec
 from .transform import DoraWeight, dora
 
 __all__ = [

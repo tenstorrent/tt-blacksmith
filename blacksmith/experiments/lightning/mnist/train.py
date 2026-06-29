@@ -1,9 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import forge
 import lightning as L
-import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 from blacksmith.datasets.torch.mnist.mnist_dataset import MNISTDataset

@@ -1,12 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import torch
 from forge._C import DataFormat
 from forge.module import ForgeModule
 from forge.op.constant import Constant
 from forge.op.eltwise_binary import Multiply
-from forge.op.eltwise_unary import Cast, Log
+from forge.op.eltwise_unary import Log
 from forge.op.nn import Softmax
 from forge.op.reduce import ReduceAvg, ReduceSum
 
