@@ -27,8 +27,9 @@ TIMEOUT_SECONDS = 30
 
 def _strip_html_to_text(content: str) -> str:
     # Remove script/style blocks first so they do not pollute search text.
-    content = re.sub(r"<script\b[^>]*>.*?</script>", " ", content, flags=re.IGNORECASE | re.DOTALL)
-    content = re.sub(r"<style\b[^>]*>.*?</style>", " ", content, flags=re.IGNORECASE | re.DOTALL)
+    # \s* before > matches end tags with optional whitespace e.g. </script >.
+    content = re.sub(r"<script\b[^>]*>.*?</script\s*>", " ", content, flags=re.IGNORECASE | re.DOTALL)
+    content = re.sub(r"<style\b[^>]*>.*?</style\s*>", " ", content, flags=re.IGNORECASE | re.DOTALL)
     # Strip tags.
     content = re.sub(r"<[^>]+>", " ", content)
     # Decode entities and normalize whitespace.
@@ -97,48 +98,51 @@ def _post_json(url: str, payload: dict, api_key: str) -> tuple[int, str]:
         return err.code, err.read().decode("utf-8", errors="replace")
 
 
+def _read_config() -> tuple[dict[str, str], int]:
+    """Read and validate required environment variables. Returns (config, exit_code)."""
+    required = [
+        ("SEARCH_API_BASE", "api_base"),
+        ("DOC_CATALOG_SOURCE_ID", "source_id"),
+        ("DOCS_SEARCH_INGEST_API_KEY", "api_key"),
+        ("DOC_SITE_BASE_URL", "site_base"),
+        ("DOCS_ID_NAMESPACE", "id_namespace"),
+    ]
+    cfg: dict[str, str] = {}
+    for env_var, key in required:
+        val = os.environ.get(env_var, "").strip()
+        if not val:
+            print(f"Missing {env_var}", file=sys.stderr)
+            return {}, 2
+        cfg[key] = val
+    cfg["api_base"] = cfg["api_base"].rstrip("/")
+    cfg["site_base"] = cfg["site_base"].rstrip("/")
+    cfg["output_dir"] = os.environ.get("DOCS_OUTPUT_DIR", "output").strip()
+    cfg["version"] = os.environ.get("DOCS_INDEX_VERSION", "latest").strip()
+    return cfg, 0
+
+
 def main() -> int:
-    api_base = os.environ.get("SEARCH_API_BASE", "").rstrip("/")
-    source_id = os.environ.get("DOC_CATALOG_SOURCE_ID", "").strip()
-    api_key = os.environ.get("DOCS_SEARCH_INGEST_API_KEY", "").strip()
-    output_dir = os.environ.get("DOCS_OUTPUT_DIR", "output").strip()
-    site_base = os.environ.get("DOC_SITE_BASE_URL", "").rstrip("/")
-    version = os.environ.get("DOCS_INDEX_VERSION", "latest").strip()
-    id_namespace = os.environ.get("DOCS_ID_NAMESPACE", "tenstorrent").strip()
+    cfg, rc = _read_config()
+    if rc != 0:
+        return rc
 
-    if not api_base:
-        print("Missing SEARCH_API_BASE", file=sys.stderr)
-        return 2
-    if not source_id:
-        print("Missing DOC_CATALOG_SOURCE_ID", file=sys.stderr)
-        return 2
-    if not api_key:
-        print("Missing DOCS_SEARCH_INGEST_API_KEY", file=sys.stderr)
-        return 2
-    if not site_base:
-        print("Missing DOC_SITE_BASE_URL", file=sys.stderr)
-        return 2
-    if not id_namespace:
-        print("Missing DOCS_ID_NAMESPACE", file=sys.stderr)
-        return 2
-
-    output_root = Path(output_dir)
+    output_root = Path(cfg["output_dir"])
     if not output_root.exists():
         print(f"Output directory not found: {output_root}", file=sys.stderr)
         return 2
 
-    docs = _build_documents(output_root, site_base, source_id, version, id_namespace)
+    docs = _build_documents(output_root, cfg["site_base"], cfg["source_id"], cfg["version"], cfg["id_namespace"])
     if not docs:
         print("No HTML docs found to index.", file=sys.stderr)
         return 1
 
-    endpoint = f"{api_base}/v1/index/{source_id}"
+    endpoint = f"{cfg['api_base']}/v1/index/{cfg['source_id']}"
     print(f"Indexing {len(docs)} documents to {endpoint}")
 
     indexed = 0
     for batch in _chunks(docs, MAX_BATCH_SIZE):
-        payload = {"version": version, "documents": batch}
-        status, body = _post_json(endpoint, payload, api_key)
+        payload = {"version": cfg["version"], "documents": batch}
+        status, body = _post_json(endpoint, payload, cfg["api_key"])
         if status < 200 or status >= 300:
             print(f"Indexing failed: HTTP {status}", file=sys.stderr)
             print(body, file=sys.stderr)
