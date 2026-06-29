@@ -8,11 +8,11 @@ This document walks you through how to set up TT-Blacksmith. TT-Blacksmith provi
 
 ### 1. Set Up the Hardware
 
-- Follow the instructions for the Tenstorrent device you are using at: [Hardware Setup](https://docs.tenstorrent.com/getting-started/README.html)
+- Follow the instructions for the Tenstorrent device you are using at: [Hardware Setup](https://firdovsimammedovk.github.io/tenstorrent-sandbox/getting-started/README.html)
 
 ### 2. Install Software
 
-- Follow the [manual software dependencies installation guide](https://docs.tenstorrent.com/getting-started/README.html) to set up your system.
+- Follow the [manual software dependencies installation guide](https://firdovsimammedovk.github.io/tenstorrent-sandbox/getting-started/README.html) to set up your system.
 
 ## TT-Blacksmith Installation
 
@@ -73,7 +73,7 @@ This section guides you through the process of running experiments included in t
 
 - Explore more experiments in the [experiments documentation](./experiments.md)
 - Check out the [TT-XLA documentation](https://docs.tenstorrent.com/tt-xla/) for more information about the underlying framework
-- Use [TT-Installer](https://docs.tenstorrent.com/getting-started/README.html) for a quick software installation path
+- Use [TT-Installer](https://firdovsimammedovk.github.io/tenstorrent-sandbox/getting-started/README.html) for a quick software installation path
 
 ## Visual Demo: 3D Reconstruction with NeRF
 

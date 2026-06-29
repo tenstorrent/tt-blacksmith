@@ -19,13 +19,13 @@
 
 The **TT-Blacksmith** project contains optimized training recipes for a variety of machine learning models on [Tenstorrent](https://tenstorrent.com/) hardware, powered by the [TT-Forge](https://github.com/tenstorrent/tt-forge) compiler stack. Showcasing the compiler's flexibility, it enables the use of popular [AI frameworks](https://github.com/tenstorrent/tt-forge?tab=readme-ov-file#current-ai-framework-front-end-projects) like PyTorch and JAX for training workflows.
 
-For more information on the project, see our [documentation](https://docs.tenstorrent.com/tt-blacksmith/).
+For more information on the project, see our [documentation](https://firdovsimammedovk.github.io/tt-blacksmith-sandbox/).
 
 -----
 # Quick Links
 
-- [Getting Started](https://docs.tenstorrent.com/tt-blacksmith/src/getting-started.html)
-- [Experiments](https://docs.tenstorrent.com/tt-blacksmith/src/experiments.html)
+- [Getting Started](https://firdovsimammedovk.github.io/tt-blacksmith-sandbox/src/getting-started.html)
+- [Experiments](https://firdovsimammedovk.github.io/tt-blacksmith-sandbox/src/experiments.html)
 
 -----
 # What is this Repo?
@@ -48,7 +48,7 @@ TT-Blacksmith shows demonstrations of models using the TT-Forge compiler stack. 
 
 -----
 # Tenstorrent Bounty Program Terms and Conditions
-This repo is a part of Tenstorrent’s bounty program. If you are interested in helping to improve tt-forge, please make sure to read the [Tenstorrent Bounty Program Terms and Conditions](https://docs.tenstorrent.com/bounty_terms.html) before heading to the issues tab. Look for the issues that are tagged with both “bounty” and difficulty level!
+This repo is a part of Tenstorrent’s bounty program. If you are interested in helping to improve tt-forge, please make sure to read the [Tenstorrent Bounty Program Terms and Conditions](https://firdovsimammedovk.github.io/tenstorrent-sandbox/bounty_terms.html) before heading to the issues tab. Look for the issues that are tagged with both “bounty” and difficulty level!
 
 [deepwiki]: https://deepwiki.com/tenstorrent/tt-blacksmith
 [deepwiki badge]: https:deepwiki.com/badge.svg
