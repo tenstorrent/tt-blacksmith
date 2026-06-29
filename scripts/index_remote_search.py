@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Crawl the built docs in output/ and push them to the OpenSearch-backed
 docs search service so the in-page search modal has something to query.
 
@@ -17,7 +20,6 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-
 # Keep batches small: the indexer Lambda fans each batch out to an OpenSearch
 # _bulk call, and API Gateway caps the request at ~29s. 200 docs in one POST
 # times out (HTTP 504) on the larger catalogs; 50 stays comfortably under it.
@@ -27,9 +29,9 @@ TIMEOUT_SECONDS = 30
 
 def _strip_html_to_text(content: str) -> str:
     # Remove script/style blocks first so they do not pollute search text.
-    # \s* before > matches end tags with optional whitespace e.g. </script >.
-    content = re.sub(r"<script\b[^>]*>.*?</script\s*>", " ", content, flags=re.IGNORECASE | re.DOTALL)
-    content = re.sub(r"<style\b[^>]*>.*?</style\s*>", " ", content, flags=re.IGNORECASE | re.DOTALL)
+    # [^>]* in end tags matches whitespace and attributes e.g. </script >, </script\t\n bar>.
+    content = re.sub(r"<script\b[^>]*>.*?</script[^>]*>", " ", content, flags=re.IGNORECASE | re.DOTALL)
+    content = re.sub(r"<style\b[^>]*>.*?</style[^>]*>", " ", content, flags=re.IGNORECASE | re.DOTALL)
     # Strip tags.
     content = re.sub(r"<[^>]+>", " ", content)
     # Decode entities and normalize whitespace.
@@ -59,7 +61,9 @@ def _iter_html_files(output_root: Path) -> Iterable[Path]:
         yield path
 
 
-def _build_documents(output_root: Path, site_base_url: str, catalog: str, version: str, id_namespace: str) -> list[dict]:
+def _build_documents(
+    output_root: Path, site_base_url: str, catalog: str, version: str, id_namespace: str
+) -> list[dict]:
     site_base_url = site_base_url.rstrip("/")
     docs: list[dict] = []
 
