@@ -133,7 +133,7 @@ class SpMMGATv2Conv(GATv2Conv):
         self._Mt = M.t().contiguous()
 
     def forward(self, x, edge_index=None):
-        H, C, N = self.heads, self.out_channels, self._N
+        H, N = self.heads, self._N
         M = self._M.to(x.dtype)
         x_l = self.lin_l(x)  # [N, H*C]
         x_r = x_l if self.share_weights else self.lin_r(x)  # [N, H*C]

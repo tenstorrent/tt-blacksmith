@@ -35,8 +35,8 @@ Source: [Planetoid (PyTorch Geometric)](https://pytorch-geometric.readthedocs.io
 # Activate environment
 source env/activate --xla
 
-# Install PyTorch Geometric
-pip install torch_geometric
+# Install the experiment-specific dependency (PyTorch Geometric)
+pip install -r blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/requirements.txt
 ```
 
 ## Running
@@ -44,18 +44,19 @@ pip install torch_geometric
 ### CPU Baseline
 
 ```bash
-PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py
+python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py
 ```
 
 ### TT (scatter-free SpMM)
 
 ```bash
-PYTHONPATH=. python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py \
+python3 blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed_tt.yaml
 ```
 
-The CI regression test (golden-loss check on a single Wormhole chip) is
-`tt-gatv2_pubmed-pubmed-n150` in `tests/training_test_cases.py`.
+A golden-loss regression case (`tt-gatv2_pubmed-pubmed-n150`, config under
+`tests/configs/BOUNTIES/`) is defined in `tests/training_test_cases.py` but kept
+commented out until the experiment dependency and a TT runner are wired into CI.
 
 ## Configuration Parameters
 
@@ -95,9 +96,11 @@ The CI regression test (golden-loss check on a single Wormhole chip) is
 
 The same seed (42) is used for reproducibility.
 
-A side-by-side CPU↔TT parity run (test 0.776 vs 0.780) and the comparison plots
-are in **[RESULTS.md](RESULTS.md)** (`assets/compare_loss.png`,
-`assets/compare_accuracy.png`).
+A three-way parity comparison — CPU stock `GATv2Conv`, CPU `SpMMGATv2Conv`, and
+TT `SpMMGATv2Conv` (all seed 42, same stack) — is summarized in
+**[RESULTS.md](RESULTS.md)**: the two CPU runs reach identical test accuracy
+(0.780) and TT lands at 0.784, all within noise. The comparison plots are
+attached to the pull request description.
 
 ## TT Execution Status
 
@@ -131,9 +134,9 @@ Making it run on the current stack required five small, documented techniques:
 SpMM aggregation; storing `att` flat as `[1, H*C]`; a constant block-ones matmul
 for the per-head reduction; a blocked bf16 one-hot (memory); and a static masked
 loss (`masked_nll_loss`) in place of boolean-mask indexing. Each sidesteps a
-distinct tt-mlir / ttnn limitation. **[DESIGN.md](DESIGN.md)** tells the full
-story — every workaround tried (targeted CPU fallback, dense incidence, cumsum
-segment-sum), why each failed, and how those failures led to the final design.
+distinct tt-mlir / ttnn limitation; see the header docstring in
+[`spmm_gatv2.py`](../../../../models/torch/gatv2_pubmed/spmm_gatv2.py) for the
+per-technique rationale.
 
 Once tt-mlir#8887 is resolved, standard `GATv2Conv` (`use_spmm: false`) is
 expected to run natively on TT as well; the SpMM path works today and does not

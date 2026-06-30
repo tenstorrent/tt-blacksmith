@@ -1,7 +1,6 @@
 wandb>=0.12.10
 pydantic>2.0
 torchdata
-torch_geometric
 peft
 tqdm
 datasets
