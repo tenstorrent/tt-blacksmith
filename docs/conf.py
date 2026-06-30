@@ -83,8 +83,8 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 
-_BLACKSMITH_BASE = "https://firdovsimammedovk.github.io/tt-blacksmith-sandbox/"
-_GLOBAL_CSS = "https://firdovsimammedovk.github.io/tenstorrent-sandbox/_static/tt_theme.css"
+_BLACKSMITH_BASE = "https://tenstorrent.github.io/tt-blacksmith/"
+_GLOBAL_CSS = "https://tenstorrent.github.io/tenstorrent-sandbox/_static/tt_theme.css"
 
 html_theme = "sphinx_rtd_theme"
 html_theme_options = {
@@ -106,7 +106,7 @@ html_baseurl = _BLACKSMITH_BASE
 html_css_files = [_GLOBAL_CSS]
 
 html_context = {
-    "logo_link_url": "https://firdovsimammedovk.github.io/tenstorrent-sandbox/",
+    "logo_link_url": "https://tenstorrent.github.io/tenstorrent-sandbox/",
 }
 
 

@@ -5,7 +5,7 @@
 {%- set _logo_url = logo_url|default(pathto('_static/' + (logo or ""), 1)) %}
 {%- set _root_doc = root_doc|default(master_doc) %}
 {#- Navbar core-content links point to the core sandbox hub so they resolve cross-site -#}
-{%- set _home = "https://firdovsimammedovk.github.io/tenstorrent-sandbox/" %}
+{%- set _home = "https://tenstorrent.github.io/tenstorrent-sandbox/" %}
 <nav class="tt-top-nav" role="navigation" aria-label="Top navigation">
   <div class="tt-top-nav-left">
     <a href="{{ _home }}" class="tt-nav-logo">
@@ -27,11 +27,11 @@
         <a href="{{ _home }}#software">Software</a>
         <div class="tt-nav-dropdown">
           <a href="{{ _home }}forge/index.html">TT-Forge</a>
-          <a href="https://firdovsimammedovk.github.io/tt-metal-sandbox/ttnn/" target="_blank" rel="noopener">TT-NN</a>
-          <a href="https://firdovsimammedovk.github.io/tt-lang-sandbox/" target="_blank" rel="noopener">TT-Lang</a>
-          <a href="https://firdovsimammedovk.github.io/tt-mlir-sandbox/" target="_blank" rel="noopener">TT-MLIR</a>
-          <a href="https://firdovsimammedovk.github.io/tt-xla-sandbox/" target="_blank" rel="noopener">TT-XLA</a>
-          <a href="https://firdovsimammedovk.github.io/tt-metal-sandbox/tt-metalium/" target="_blank" rel="noopener">TT-Metalium</a>
+          <a href="https://tenstorrent.github.io/tt-metal/ttnn/" target="_blank" rel="noopener">TT-NN</a>
+          <a href="https://tenstorrent.github.io/tt-lang/" target="_blank" rel="noopener">TT-Lang</a>
+          <a href="https://tenstorrent.github.io/tt-mlir/" target="_blank" rel="noopener">TT-MLIR</a>
+          <a href="https://tenstorrent.github.io/tt-xla/" target="_blank" rel="noopener">TT-XLA</a>
+          <a href="https://tenstorrent.github.io/tt-metal/tt-metalium/" target="_blank" rel="noopener">TT-Metalium</a>
         </div>
       </li>
       <li class="has-dropdown">
@@ -54,10 +54,10 @@
           <a href="https://github.com/tenstorrent/tt-studio" target="_blank" rel="noopener">TT-Studio</a>
           <a href="https://github.com/tenstorrent/tt-smi" target="_blank" rel="noopener">TT-SMI</a>
           <a href="https://docs.tenstorrent.com/tt-toplike/" target="_blank" rel="noopener">TT-Toplike</a>
-          <a href="https://firdovsimammedovk.github.io/tt-visualizer-sandbox/" target="_blank" rel="noopener">TT-NN Visualizer</a>
+          <a href="https://tenstorrent.github.io/tt-visualizer/" target="_blank" rel="noopener">TT-NN Visualizer</a>
           <a href="https://github.com/tenstorrent/tt-topology" target="_blank" rel="noopener">TT-Topology</a>
           <a href="https://docs.tenstorrent.com/tt-vscode-toolkit" target="_blank" rel="noopener">TT-VSCode-Toolkit</a>
-          <a href="https://firdovsimammedovk.github.io/tt-blacksmith-sandbox/" target="_blank" rel="noopener">TT-Blacksmith</a>
+          <a href="https://tenstorrent.github.io/tt-blacksmith/" target="_blank" rel="noopener">TT-Blacksmith</a>
         </div>
       </li>
       <li class="has-dropdown">
@@ -197,13 +197,13 @@
 {%- block footer %}
 <script src="{{ pathto('_static/docs-toc.js', 1) }}"></script>
 {#- Keep the left sidebar from jumping to the top on every navigation -#}
-<script src="https://firdovsimammedovk.github.io/tenstorrent-sandbox/_static/sidebar-scroll.js"></script>
+<script src="https://tenstorrent.github.io/tenstorrent-sandbox/_static/sidebar-scroll.js"></script>
 <script id="tt-search-script"
-        src="https://firdovsimammedovk.github.io/tenstorrent-sandbox/_static/tt-search.js"
+        src="https://tenstorrent.github.io/tenstorrent-sandbox/_static/tt-search.js"
         data-search-url="{{ pathto('search') }}"
         data-search-api-base="https://csl860x2oj.execute-api.us-east-2.amazonaws.com/prod"
         data-search-source="{{ search_source_id | default('docs-tenstorrent', true) }}"
         data-site-base-url="{{ search_site_base_url | default('https://docs.tenstorrent.com/', true) }}"
-        data-kapa-src="https://firdovsimammedovk.github.io/tenstorrent-sandbox/_static/kapa.js"
+        data-kapa-src="https://tenstorrent.github.io/tenstorrent-sandbox/_static/kapa.js"
         data-kapa-integration-id="c37e0bab-7623-43d7-bff1-daa52e901bbe"></script>
 {%- endblock %}
