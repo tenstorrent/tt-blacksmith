@@ -84,7 +84,7 @@ exclude_patterns = []
 #
 
 _BLACKSMITH_BASE = "https://docs.tenstorrent.com/tt-blacksmith/"
-_GLOBAL_CSS = "https://tenstorrent.github.io/tenstorrent-sandbox/_static/tt_theme.css"
+_GLOBAL_CSS = "https://tenstorrent.github.io/_static/tt_theme.css"
 
 html_theme = "sphinx_rtd_theme"
 html_theme_options = {
@@ -102,11 +102,11 @@ html_last_updated_fmt = "%b %d, %Y"
 # Single-version site: published at a flat path, no version switcher.
 html_baseurl = _BLACKSMITH_BASE
 
-# Load global CSS from tenstorrent-sandbox CDN; local tt_theme.css adds overrides
+# Load global CSS from shared CDN; local tt_theme.css adds overrides
 html_css_files = [_GLOBAL_CSS]
 
 html_context = {
-    "logo_link_url": "https://tenstorrent.github.io/tenstorrent-sandbox/",
+    "logo_link_url": "https://tenstorrent.github.io/",
 }
 
 
