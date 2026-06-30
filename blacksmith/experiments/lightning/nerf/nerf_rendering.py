@@ -35,7 +35,7 @@ def render_rays(
     n_samples_fine = n_samples_coarse * config.model.fine.samples
 
     # Decompose rays into origins and directions
-    rays_origin, rays_direction = rays[:, 0:3], rays[:, 3:6]
+    _, rays_direction = rays[:, 0:3], rays[:, 3:6]
 
     # Generate sample points along rays
     xyz_coarse, deltas_coarse = generate_ray_samples(rays, n_samples_coarse, near, far)

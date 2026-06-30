@@ -1,12 +1,15 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import logging
 import os
 from collections import defaultdict
 
 import matplotlib
+import numpy as np
 import torch
 import wandb
+from loguru import logger
 from nerf_rendering import render_rays
 from pytorch_lightning import LightningModule, Trainer, seed_everything
 
@@ -17,24 +20,18 @@ from torchvision import transforms
 
 from blacksmith.datasets.torch.torch_dataset import get_dataset
 from blacksmith.experiments.lightning.nerf.configs import NerfConfig, load_config
-from blacksmith.experiments.lightning.nerf.utils import *
+from blacksmith.experiments.lightning.nerf.utils import get_learning_rate, get_optimizer
 from blacksmith.experiments.lightning.nerf.utils.log import (
     log_gradients,
     log_training_metrics,
 )
 from blacksmith.experiments.lightning.nerf.utils.losses import loss_dict
-from blacksmith.experiments.lightning.nerf.utils.metrics import *
+from blacksmith.experiments.lightning.nerf.utils.metrics import psnr
 from blacksmith.models.torch.nerf import Embedding, NeRF
 from blacksmith.models.torch.nerf.nerftree import NerfTree
 
 matplotlib.use("Agg")
-import logging
-
-import numpy as np
-
 logging.getLogger("lightning").setLevel(logging.DEBUG)
-from loguru import logger
-
 logger.disable("")
 
 torch.manual_seed(0)
@@ -246,7 +243,7 @@ class EfficientNeRFSystem(LightningModule):
         rays, rgbs = batch["rays"], batch["rgbs"]
         extract_time = self.current_epoch >= (self.config.training.epochs - 1)
 
-        if extract_time and self.nerf_tree.voxels_fine == None:
+        if extract_time and self.nerf_tree.voxels_fine is None:
             self.nerf_tree.create_voxels_fine()
         results = self(rays)
 
@@ -467,8 +464,6 @@ def main(config: NerfConfig):
 
 
 if __name__ == "__main__":
-    import os
-
     config_file_path = os.path.join(os.path.dirname(__file__), "nerf.yaml")
     config = load_config(config_file_path)
     main(config)

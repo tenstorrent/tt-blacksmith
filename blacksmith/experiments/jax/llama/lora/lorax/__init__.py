@@ -11,10 +11,8 @@ from .constants import LORA_FREEZE, LORA_FULL
 from .helpers import (
     init_lora,
     merge_params,
-    merge_trainable_frozen,
     simple_spec,
     split_lora_params,
-    split_trainable_frozen,
     wrap_optimizer,
 )
 from .transform import LoraWeight, lora

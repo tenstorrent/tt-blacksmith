@@ -4,7 +4,6 @@
 
 from typing import Dict
 
-import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorWithPadding
 

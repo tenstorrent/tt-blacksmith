@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from string import Template
-from typing import Dict
 
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq

@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -14,12 +12,11 @@ import numpy as np
 import optax
 import wandb
 from lorax import LORA_FREEZE
-from transformers import AutoConfig, AutoTokenizer, FlaxAutoModelForCausalLM
+from transformers import AutoConfig, FlaxAutoModelForCausalLM
 
 from blacksmith.datasets.torch.sst2.sst2_dataset import SSTDataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
-from datasets import load_dataset
 
 MODEL_NAME = "Erland/Llama-3.2-1B-JAX"
 DEFAULT_EXPERIMENT_NAME = "Llama-TT-LoRA-Training"
@@ -204,7 +201,7 @@ def main(training_config: TrainingConfig) -> None:
 
     model.params = jax.tree_util.tree_map(lambda x: jax.device_put(x, current_device), model.params)
 
-    wandb_run = setup_wandb(training_config, enable=training_config.model_to_wandb, device=device_kind)
+    setup_wandb(training_config, enable=training_config.model_to_wandb, device=device_kind)
 
     input_id_batches, attention_mask_batches, label_batches = load_data(training_config)
 
@@ -284,15 +281,13 @@ def main(training_config: TrainingConfig) -> None:
                         step=global_step,
                     )
                     print(
-                        f"Epoch {epoch+1}, Batch {batch_idx+1:2d}: Loss = {current_loss:.4f} | Avg 10 = {avg_10_loss:.4f}"
+                        f"Epoch {epoch + 1}, Batch {batch_idx + 1:2d}: Loss = {current_loss:.4f} | Avg 10 = {avg_10_loss:.4f}"
                     )
                     last_10_losses = []
                 else:
                     print(
-                        f"Epoch {epoch+1}, Batch {batch_idx+1:2d}: Loss = {current_loss:.4f} ({len(last_10_losses)}/10)"
+                        f"Epoch {epoch + 1}, Batch {batch_idx + 1:2d}: Loss = {current_loss:.4f} ({len(last_10_losses)}/10)"
                     )
-
-            avg_epoch_loss = np.mean(epoch_losses)
 
         log_to_wandb(
             {

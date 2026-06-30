@@ -11,7 +11,7 @@ from typing import Any, Dict, Tuple
 
 import jax
 import jax.numpy as jnp
-from jax.tree_util import DictKey, SequenceKey, tree_map_with_path
+from jax.tree_util import tree_map_with_path
 
 from .constants import DORA_FREEZE, DORA_FULL
 from .transform import DoraWeight
@@ -121,7 +121,7 @@ def split_trainable_frozen(dora_params, dora_spec) -> Tuple[Dict[str, Any], Dict
 
     traverse_tree(dora_params, dora_spec)
 
-    print(f"Split completed:")
+    print("Split completed:")
     print(f" Trainable params: {len(trainable_params)} DoRA matrix pairs (a, b, m)")
     print(f" Frozen params: {len(frozen_params)} weight groups")
 

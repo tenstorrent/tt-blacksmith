@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Dict
 
-import jax
 import jax.numpy as jnp
 from flax import linen as nn
 
