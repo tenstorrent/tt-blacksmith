@@ -6,16 +6,18 @@ import traceback
 from blacksmith.tools.trainer.callback import Callback
 
 
-class LoggingCallback(Callback):
+class MetricsCallback(Callback):
     """
-    Default logging callback for the ``Trainer``.
+    Default metrics-logging callback for the ``Trainer``.
 
     Uses the trainer-owned logger (``trainer.logger``) to report hyperparameters,
-    model/dataset info, and train/validation loss to stdout and Weights & Biases.
-    The logger lifecycle (creation / ``finish``) is owned by the ``Trainer``; this
-    callback only decides what to log and when.
+    model/dataset info, and the metrics requested in ``trainer.config.metrics``
+    (a ``MetricsConfig``). The logger lifecycle (creation / ``finish``) is owned by
+    the ``Trainer``; this callback only decides what to log and when.
 
-    Cadence is read from ``trainer.config.logging`` (a ``LoggingConfig``).
+    Which metrics are logged is driven by ``MetricsConfig.train_metrics`` /
+    ``val_metrics`` and the cadence by ``MetricsConfig.steps_freq``. Logger setup
+    (W&B, log level) lives separately in ``LoggingConfig``.
     """
 
     def __init__(self):
@@ -64,11 +66,12 @@ class LoggingCallback(Callback):
         # holds ``steps_freq`` values when we log.
         self._running_loss += self._last_loss
 
-        steps_freq = trainer.config.logging.steps_freq
+        steps_freq = trainer.config.metrics.steps_freq
         if trainer.global_step % steps_freq == 0:
-            trainer.logger.log_metrics(
-                {"train/loss": self._running_loss / steps_freq}, commit=False, step=trainer.global_step
-            )
+            available = {"loss": self._running_loss / steps_freq}
+            metrics = self._select(available, trainer.config.metrics.train_metrics, phase="train")
+            if metrics:
+                trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)
             self._running_loss = 0.0
 
         # Flush the batched W&B logs so train and validation land on the same step.
@@ -77,11 +80,20 @@ class LoggingCallback(Callback):
     def on_validation_end(self, trainer, val_loss):
         if trainer.logger is None:
             return
-        trainer.logger.log_metrics({"val/loss": val_loss}, commit=False, step=trainer.global_step)
+        available = {"loss": val_loss}
+        metrics = self._select(available, trainer.config.metrics.val_metrics, phase="val")
+        if metrics:
+            trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)
 
     def on_error(self, trainer, exception):
         if trainer.logger is not None:
             trainer.logger.error(f"Training failed with error: {exception}", traceback.format_exc())
+
+    @staticmethod
+    def _select(available: dict[str, float], requested: list[str], phase: str) -> dict[str, float]:
+        # Keep only requested metrics the trainer can currently provide; unknown
+        # names are ignored so the metric set stays forward-compatible.
+        return {f"{phase}/{name}": available[name] for name in requested if name in available}
 
     @staticmethod
     def _dataloader_size(dataloader, batch_size):

@@ -6,24 +6,41 @@ from pydantic import BaseModel, Field
 
 class LoggingConfig(BaseModel):
     """
-    Reusable logging settings consumed by ``TrainingLogger`` and the logging callback.
+    Logger / Weights & Biases setup consumed by ``TrainingLogger``.
 
-    Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.logging``) so
-    logging settings live in their own namespace, independent of experiment configs.
+    Holds only logger configuration; *what* metrics get logged and *how often*
+    lives in :class:`MetricsConfig`. Designed to be composed as a nested
+    sub-config (e.g. ``TrainerConfig.logging``).
     """
 
     log_level: str = Field(default="INFO")
     use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="model-finetuning")
-    wandb_run_name: str = Field(default="tt-model-test")
+    wandb_run_name: str = Field(default="tt-model")
     wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
     wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=1000)
     model_to_wandb: bool = Field(default=False)
 
-    # Cadence at which train metrics are logged.
+
+class MetricsConfig(BaseModel):
+    """
+    Declares which metrics to log and how often.
+
+    Separated from :class:`LoggingConfig` (logger/W&B setup) so trainings can
+    extend the set of logged metrics without touching logger configuration.
+    Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.metrics``).
+    """
+
+    # Cadence at which train/validation metrics are logged.
     steps_freq: int = Field(default=25, ge=1)
     epoch_freq: int = Field(default=1, ge=1)
+
+    # Metric names to log, per phase. The callback logs each name it can resolve
+    # (currently "loss"); names without a source yet are ignored, keeping the set
+    # forward-compatible with metrics future trainers expose.
+    train_metrics: list[str] = Field(default_factory=lambda: ["loss"])
+    val_metrics: list[str] = Field(default_factory=lambda: ["loss"])
 
 
 class CheckpointConfig(BaseModel):

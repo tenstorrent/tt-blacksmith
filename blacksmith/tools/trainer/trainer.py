@@ -28,7 +28,7 @@ class Trainer(ABC):
         self.config: TrainerConfig | None = None
         self.reproducibility_manager: ReproducibilityManager | None = None
         # The trainer owns the logger; callbacks (and other consumers) use it via
-        # ``trainer.logger``. It is created in ``setup`` and finished in ``train``.
+        # `trainer.logger`. It is created in `setup` and finished in `train`.
         self.logger: TrainingLogger | None = None
         self.global_step: int = 0
         self.epoch: int = 0
@@ -154,7 +154,7 @@ class Trainer(ABC):
             self.callback_handler("on_error", exception)
         finally:
             self.callback_handler("on_train_end")
-            # Finish the logger after ``on_train_end`` so callbacks can still use it.
+            # Finish the logger after `on_train_end` so callbacks can still use it.
             if self.logger is not None:
                 self.logger.finish()
 

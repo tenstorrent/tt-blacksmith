@@ -3,9 +3,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from blacksmith.tools.trainer.callbacks.checkpoint_callback import CheckpointCallback
-from blacksmith.tools.trainer.callbacks.logging_callback import LoggingCallback
+from blacksmith.tools.trainer.callbacks.metrics_callback import MetricsCallback
 
 __all__ = [
-    "LoggingCallback",
+    "MetricsCallback",
     "CheckpointCallback",
 ]
