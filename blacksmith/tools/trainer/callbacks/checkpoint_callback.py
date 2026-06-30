@@ -4,19 +4,10 @@
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.trainer.callback import Callback
 
-FINAL_CHECKPOINT_NAME = "final_model.pth"
-
 
 class CheckpointCallback(Callback):
     """
-    Default checkpointing callback for the ``Trainer``.
-
-    Wraps :class:`CheckpointManager` to save checkpoints on the configured step or
-    epoch cadence, track best-N checkpoints by the latest validation metric, and
-    save a final model at the end of training.
-
-    Reads its settings from ``trainer.config.checkpoint`` (a ``CheckpointConfig``)
-    and reuses the trainer-owned logger (``trainer.logger``).
+    Default checkpointing callback for the `Trainer`.
     """
 
     def __init__(self):
@@ -25,7 +16,7 @@ class CheckpointCallback(Callback):
         self._prev_global_step = 0
 
     def on_train_start(self, trainer):
-        # ``on_train_start`` fires before the trainer validates its config, so guard.
+        # `on_train_start` fires before the trainer validates its config, so guard.
         if trainer.config is None:
             return
 
@@ -38,7 +29,7 @@ class CheckpointCallback(Callback):
 
     def on_validation_end(self, trainer, val_loss):
         # Cache the freshest validation loss so saved checkpoints carry it as a
-        # metric (used for best-N tracking). Runs before ``on_train_batch_end``.
+        # metric (used for best-N tracking). Runs before `on_train_batch_end`.
         self._last_val_loss = val_loss
 
     def on_train_batch_end(self, trainer):
@@ -46,7 +37,7 @@ class CheckpointCallback(Callback):
             return
 
         # Only act when an optimizer step completed this batch. Under gradient
-        # accumulation most batches do not advance ``global_step``.
+        # accumulation most batches do not advance `global_step`.
         if trainer.global_step == self._prev_global_step:
             return
         self._prev_global_step = trainer.global_step
@@ -77,16 +68,17 @@ class CheckpointCallback(Callback):
         if self.manager is None:
             return
 
+        final_name = trainer.config.checkpoint.final_checkpoint_name
         final_path = self.manager.save_checkpoint(
             trainer.model,
             step=trainer.global_step,
             epoch=trainer.epoch,
             optimizer=trainer.optimizer,
             metrics=self._metrics(trainer),
-            checkpoint_name=FINAL_CHECKPOINT_NAME,
+            checkpoint_name=final_name,
         )
         if trainer.logger is not None:
-            trainer.logger.log_artifact(final_path, artifact_type="model", name=FINAL_CHECKPOINT_NAME)
+            trainer.logger.log_artifact(final_path, artifact_type="model", name=final_name)
 
     def _metrics(self, trainer):
         if self._last_val_loss is None:

@@ -8,25 +8,20 @@ from blacksmith.tools.trainer.callback import Callback
 
 class MetricsCallback(Callback):
     """
-    Default metrics-logging callback for the ``Trainer``.
-
-    Uses the trainer-owned logger (``trainer.logger``) to report hyperparameters,
-    model/dataset info, and the metrics requested in ``trainer.config.metrics``
-    (a ``MetricsConfig``). The logger lifecycle (creation / ``finish``) is owned by
-    the ``Trainer``; this callback only decides what to log and when.
-
-    Which metrics are logged is driven by ``MetricsConfig.train_metrics`` /
-    ``val_metrics`` and the cadence by ``MetricsConfig.steps_freq``. Logger setup
-    (W&B, log level) lives separately in ``LoggingConfig``.
+    Default metrics-logging callback for the `Trainer`.
     """
 
     def __init__(self):
+        # Sum of per-step average losses since the last log; divided by
+        # `steps_freq` (exactly that many steps complete between logs).
         self._running_loss = 0.0
-        self._last_loss = 0.0
+        # Sum of micro-batch losses for the current step (count is always
+        # `gradient_accumulation_steps`).
+        self._step_running_loss = 0.0
         self._prev_global_step = 0
 
     def on_train_start(self, trainer):
-        # ``on_train_start`` fires before the trainer validates its config, so guard.
+        # `on_train_start` fires before the trainer validates its config, so guard.
         if trainer.config is None or trainer.logger is None:
             return
 
@@ -47,24 +42,24 @@ class MetricsCallback(Callback):
             trainer.logger.watch_model(trainer.model)
 
     def on_forward_end(self, trainer, loss):
-        # Track the latest micro-batch loss; it becomes the loss for the
-        # optimizer step that this micro-batch contributes to.
-        self._last_loss = loss.item()
+        # Fires for every micro-batch; accumulate each one so the per-step loss is
+        # the mean over the step's micro-batches.
+        self._step_running_loss += loss.item()
 
     def on_train_batch_end(self, trainer):
         if trainer.logger is None:
             return
 
-        # Only act when an optimizer step completed this batch. Under gradient
-        # accumulation most batches do not advance ``global_step``.
+        # Only finalize when an optimizer step completed this batch. Under gradient
+        # accumulation most micro-batches do not advance `global_step`.
         if trainer.global_step == self._prev_global_step:
             return
         self._prev_global_step = trainer.global_step
 
-        # Accumulate one loss per optimizer step. Between two logs exactly
-        # ``steps_freq`` optimizer steps complete, so the running sum always
-        # holds ``steps_freq`` values when we log.
-        self._running_loss += self._last_loss
+        # Reduce the step to its mean micro-batch loss, then accumulate that into
+        # the window so the logged value is the mean of per-step means.
+        self._running_loss += self._step_running_loss / trainer.config.gradient_accumulation_steps
+        self._step_running_loss = 0.0
 
         steps_freq = trainer.config.metrics.steps_freq
         if trainer.global_step % steps_freq == 0:

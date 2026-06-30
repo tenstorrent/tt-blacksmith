@@ -56,6 +56,7 @@ class CheckpointConfig(BaseModel):
     save_strategy: str = Field(default="epoch")  # [epoch, step, none]
 
     project_dir: str = Field(default="blacksmith/experiments/torch/model")
+    final_checkpoint_name: str = Field(default="final_model.pth")
     save_optim: bool = Field(default=False)
     keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=3, ge=0)
