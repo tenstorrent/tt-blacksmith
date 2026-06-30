@@ -22,7 +22,7 @@ jobs:
       # OpenSearch-backed docs search ingest (see scripts/index_remote_search.py).
       SEARCH_API_BASE: https://csl860x2oj.execute-api.us-east-2.amazonaws.com/prod
       DOC_CATALOG_SOURCE_ID: docs-tenstorrent
-      DOC_SITE_BASE_URL: https://firdovsimammedovk.github.io/tt-blacksmith-sandbox
+      DOC_SITE_BASE_URL: https://docs.tenstorrent.com/tt-blacksmith
       DOCS_ID_NAMESPACE: tt-blacksmith
       DOCS_INDEX_VERSION: latest
       DOCS_OUTPUT_DIR: docs/output

@@ -83,7 +83,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 
-_BLACKSMITH_BASE = "https://tenstorrent.github.io/tt-blacksmith/"
+_BLACKSMITH_BASE = "https://docs.tenstorrent.com/tt-blacksmith/"
 _GLOBAL_CSS = "https://tenstorrent.github.io/tenstorrent-sandbox/_static/tt_theme.css"
 
 html_theme = "sphinx_rtd_theme"
