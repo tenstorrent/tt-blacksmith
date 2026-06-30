@@ -2,9 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp

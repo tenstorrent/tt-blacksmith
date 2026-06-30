@@ -36,7 +36,7 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 def init_configs(config: ExperimentConfig):
 
     if config.logger_config.log_on_wandb:
-        config_wandb = init_wandb(
+        init_wandb(
             project_name=config.logger_config.experiment_name,
             job_type=config.logger_config.experiment_name,
             dir_path=config.logger_config.wandb_dir,

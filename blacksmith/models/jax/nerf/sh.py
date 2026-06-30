@@ -43,7 +43,6 @@ def eval_sh(deg, sh, dirs):
     """
     assert deg <= 4 and deg >= 0
     assert (deg + 1) ** 2 == sh.shape[-1]
-    C = sh.shape[-2]
 
     result = C0 * sh[..., 0]
     if deg > 0:

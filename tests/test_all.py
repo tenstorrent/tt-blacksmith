@@ -81,14 +81,14 @@ def run_cmd(cmd: list[str], test_id: str, setup_dict: dict, debug: bool):
         )
 
         if result.returncode != 0:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"FAILED: {test_id}")
             print(f"Exit code: {result.returncode}")
             if result.stdout:
                 print(f"\nSTDOUT:\n{result.stdout}")
             if result.stderr:
                 print(f"\nSTDERR:\n{result.stderr}")
-            print(f"{'='*60}\n")
+            print(f"{'=' * 60}\n")
             pytest.fail(f"Training script exited with code {result.returncode}")
 
     except subprocess.TimeoutExpired:

@@ -76,7 +76,7 @@ def log_mem(stage):
 def show_examples(examples, tokenizer, config, logger):
 
     for i, example in enumerate(examples):
-        logger.info(f"\nExample {i+1} (from batch {example['batch_num']}):")
+        logger.info(f"\nExample {i + 1} (from batch {example['batch_num']}):")
 
         input_ids = example["input_ids"]
         expected = example["expected"]

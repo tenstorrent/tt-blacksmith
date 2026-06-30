@@ -137,7 +137,6 @@ class EfficientNeRFSystem:
             raise ValueError(f"Expected rays shape (batch_size, 6), got {rays.shape}")
 
         rays_chunk = rays_data["rays_chunk"]
-        num_padding_needed = rays_data["num_padding_needed"]
         xyz_coarse = rays_data["xyz_coarse"]
         deltas_coarse = rays_data["deltas_coarse"]
         xyz_fine = rays_data["xyz_fine"]
@@ -282,8 +281,6 @@ class EfficientNeRFSystem:
             nn_backward_fine = results.pop("nn_backward_fine", None)
             idx_render_coarse = results.get("idx_render_coarse")
             idx_render_fine = results.get("idx_render_fine")
-
-            rgb_valid_idx = results.get("rgb_valid", None)
 
             # Helper function to recompute rgb from sigma and sh
             def compute_rgb_from_sigma_sh(
@@ -545,8 +542,6 @@ class EfficientNeRFSystem:
 
             # Convert JAX arrays to numpy for Wandb logging
             sigma_voxels_coarse_np = np.array(self.nerf_tree_base.sigma_voxels_coarse)
-            index_voxels_coarse_np = np.array(self.nerf_tree_base.index_voxels_coarse)
-            voxels_fine_np = np.array(self.nerf_tree_base.voxels_fine)
 
             if config.training.log_on_wandb:
                 wandb_log_dict = {
@@ -590,7 +585,6 @@ def train_step(system, batch, step, rng_key):
             log_weights(system.state_coarse.params, "coarse")
             log_weights(system.state_fine.params, "fine")
 
-        rgbs = batch["rgbs"]
         pred_rgb = results.get("rgb_fine", results["rgb_coarse"])
         mse = jnp.mean((pred_rgb - rgbs_chunk) ** 2)
         psnr = -10.0 * jnp.log10(mse)
@@ -863,7 +857,7 @@ def render(config: NerfConfig):
             system.validation_step_outputs = []
 
             for batch_idx in range(system.val_steps_per_epoch):
-                print(f"Rendering batch {batch_idx+1}/{system.val_steps_per_epoch}")
+                print(f"Rendering batch {batch_idx + 1}/{system.val_steps_per_epoch}")
                 batch = next(val_iter)
                 rng_key, subkey = random.split(rng_key)
                 system.validation_step(batch, batch_idx, loaded_step, subkey)
