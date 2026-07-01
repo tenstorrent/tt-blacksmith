@@ -27,10 +27,10 @@ inference:
   infer_guidance: 5.0
   infer_flow_shift: 5.0
   infer_output: "cache/wan22_5b/pixelart_video.mp4"
-  # Validation (image generation only)
-  val_prompt: "a car driving through the desert with sunset in background"
+  # Validation (image generation only: 1 frame)
+  val_prompt: "a train speeding through snowy fields, distant forest in background"
   val_img_steps: 40
-  val_img_frames: 65
+  val_img_frames: 1
   neg_prompt: ""
 
 # Style trigger + CFG dropout
@@ -142,7 +142,7 @@ wandb_tags: ["test"]
 wandb_watch_mode: "all"
 wandb_log_freq: 1000
 model_to_wandb: False
-steps_freq: 25
+steps_freq: 1
 val_steps_freq: 300
 epoch_freq: 1
 

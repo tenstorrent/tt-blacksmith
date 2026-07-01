@@ -26,10 +26,10 @@ class InferenceConfig(BaseModel):
     infer_flow_shift: float = Field(default=5.0)
     infer_output: str = Field(default="cache/wan22_5b/pixelart_video.mp4")
 
-    # Validation (image generation only)
+    # Validation (image generation only: 1 frame)
     val_prompt: str = Field(default="a car driving through the desert with sunset in background")
     val_img_steps: int = Field(default=40)
-    val_img_frames: int = Field(default=65)
+    val_img_frames: int = Field(default=1)
     neg_prompt: str = Field(default="")
 
     @model_validator(mode="after")

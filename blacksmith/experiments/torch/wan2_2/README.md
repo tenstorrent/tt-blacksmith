@@ -111,7 +111,7 @@ both are validated at config load.
 | `lognorm_mean` / `lognorm_std` | Logit-normal timestep sampling params. | `0.0` / `1.0` |
 | `inference.val_prompt` | Prompt used for validation/inference. | see YAML |
 | `inference.val_img_steps` | Denoise steps for validation sample. | `40` |
-| `inference.val_img_frames` | Frames for validation sample (`4k+1`). | `65` |
+| `inference.val_img_frames` | Frames for validation sample (`1` = image-only). | `1` |
 | `inference.neg_prompt` | Negative prompt (empty by default). | `""` |
 | `log_level` | Logging verbosity. | `"INFO"` |
 | `use_wandb` | Enable Weights & Biases logging. | `True` |

@@ -133,6 +133,8 @@ def train(
 
     global_step = 0
     avg_loss = float("nan")
+    ema_loss: float | None = None
+    ema_alpha = 0.1
     accum_loss = 0.0
     accum_count = 0
     micro_step = 0
@@ -162,6 +164,9 @@ def train(
                 global_step += 1
 
                 avg_loss = accum_loss / accum_count
+                # Per-step flow-matching loss is noisy (each step averages only a few
+                # random timesteps/sigmas); the EMA is the meaningful trend curve.
+                ema_loss = avg_loss if ema_loss is None else (1 - ema_alpha) * ema_loss + ema_alpha * avg_loss
                 accum_loss = 0.0
                 accum_count = 0
 
@@ -171,17 +176,20 @@ def train(
                     logger.log_metrics(
                         {
                             "train/loss": avg_loss,
+                            "train/loss_ema": ema_loss,
                             "train/lr": optimizer.param_groups[0]["lr"],
                             "train/step_time_s": step_time,
                         },
                         step=global_step,
                     )
 
-                if global_step % config.val_steps_freq == 0:
+                is_val = global_step % config.val_steps_freq == 0
+                if is_val or global_step == 1:
                     device_manager.sync()
-                    checkpoint_manager.save_checkpoint(
-                        transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}
-                    )
+                    if is_val:
+                        checkpoint_manager.save_checkpoint(
+                            transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}
+                        )
                     validate(transformer, config, device_manager, logger, global_step)
 
         device_manager.sync()
