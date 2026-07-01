@@ -12,7 +12,10 @@ import torch
 from blacksmith.datasets.torch.BOUNTIES.pubmed.pubmed_dataset import load_dataset
 from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.configs import TrainingConfig
 from blacksmith.models.torch.gatv2_pubmed.model import get_model
-from blacksmith.models.torch.gatv2_pubmed.spmm_gatv2 import masked_accuracy, masked_nll_loss
+from blacksmith.models.torch.gatv2_pubmed.spmm_gatv2 import (
+    masked_accuracy,
+    masked_nll_loss,
+)
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
