@@ -8,8 +8,10 @@ import time
 import traceback
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn.functional as F
+import torch_xla
 from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.diffusiondb_pixelart.diffusiondb_pixelart_dataset import (
@@ -17,11 +19,21 @@ from blacksmith.datasets.torch.diffusiondb_pixelart.diffusiondb_pixelart_dataset
     make_collate_fn,
 )
 from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
-from blacksmith.experiments.torch.wan2_2.generate import generate_validation_sample
+from blacksmith.experiments.torch.wan2_2.generate import (
+    build_pipeline_for_validation,
+    generate_validation_sample,
+    generate_wan_video,
+)
 from blacksmith.models.torch.wan2_2.device import WanDeviceManager
-from blacksmith.models.torch.wan2_2.model_overrides import build_lora_transformer
+from blacksmith.models.torch.wan2_2.model_overrides import (
+    apply_generality_overrides,
+    apply_perf_overrides,
+    build_lora_transformer,
+)
 from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
 def _sample_timesteps(batch_size: int, config: TrainingConfig, generator: torch.Generator | None = None):
@@ -61,9 +73,7 @@ def flow_matching_step(
     timestep = (t * 1000.0).long()
 
     x_t = (1.0 - sigma) * x0 + sigma * noise
-    pred = transformer(
-        hidden_states=x_t, timestep=timestep, encoder_hidden_states=text_embed, return_dict=True
-    ).sample
+    pred = transformer(hidden_states=x_t, timestep=timestep, encoder_hidden_states=text_embed, return_dict=True).sample
     target = noise - x0
     return F.mse_loss(pred.float(), target.float())
 
@@ -71,10 +81,10 @@ def flow_matching_step(
 def validate(transformer, config: TrainingConfig, device_manager: WanDeviceManager, logger: TrainingLogger, step: int):
     logger.info(f"Generating validation sample at step {step} ...")
     img, video_np = generate_validation_sample(transformer, config, device_manager, step)
-    caption = f"step={step} prompt={config.trigger + config.val_prompt!r}"
+    caption = f"step={step} prompt={config.trigger + config.inference.val_prompt!r}"
     logger.log_image("val/sample", img, step=step, caption=caption)
     if video_np is not None:
-        logger.log_video("val/sample_video", video_np, fps=config.infer_fps, step=step)
+        logger.log_video("val/sample_video", video_np, fps=config.inference.infer_fps, step=step)
 
 
 def train(
@@ -112,10 +122,10 @@ def train(
     compiled_transformer = device_manager.compile(transformer)
 
     trainable = [p for p in transformer.parameters() if p.requires_grad]
-    # capturable=False: deliberate; the fused capturable AdamW path is numerically
-    # unstable for this LoRA run on XLA.
+    # Note: we don't use capturable = True, as it results in collective_permute op
+    # which we don't support yet. (https://github.com/tenstorrent/tt-mlir/issues/3370)
     optimizer = torch.optim.AdamW(
-        trainable, lr=config.learning_rate, weight_decay=config.weight_decay, betas=(0.9, 0.999), capturable=False
+        trainable, lr=config.learning_rate, weight_decay=config.weight_decay, betas=(0.9, 0.999)
     )
 
     if config.resume_from_checkpoint:
@@ -187,14 +197,55 @@ def train(
         logger.finish()
 
 
+@torch.no_grad()
+def infer(
+    config: TrainingConfig,
+    device_manager: WanDeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
+):
+    from diffusers.utils import export_to_video
+
+    inf = config.inference
+    transformer = build_lora_transformer(config, device_manager)
+    checkpoint_manager.load_checkpoint(transformer)
+    transformer.eval()
+
+    pipe = build_pipeline_for_validation(transformer, config, device_manager)
+    compiled_transformer = device_manager.compile(transformer)
+
+    logger.info(f"Generating {inf.infer_frames} frames @ {inf.infer_h}x{inf.infer_w} in {inf.infer_steps} steps.")
+    t0 = time.time()
+    gen = torch.Generator(device="cpu").manual_seed(config.seed)
+    video = generate_wan_video(
+        pipe,
+        compiled_transformer,
+        config,
+        device_manager,
+        prompt=config.trigger + inf.val_prompt,
+        negative_prompt=inf.neg_prompt or None,
+        height=inf.infer_h,
+        width=inf.infer_w,
+        num_frames=inf.infer_frames,
+        num_inference_steps=inf.infer_steps,
+        guidance_scale=inf.infer_guidance,
+        generator=gen,
+        output_type="pil",
+    )
+    frames = video[0]
+    logger.info(f"Generated in {(time.time() - t0) / 60.0:.1f} min; frames={len(frames)}")
+
+    out_path = inf.infer_output
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    export_to_video(frames, out_path, fps=inf.infer_fps)
+    logger.info(f"Saved video -> {out_path}")
+
+    np_frames = np.stack([np.asarray(f) for f in frames], axis=0).astype(np.uint8)
+    logger.log_video("infer/video", np_frames, fps=inf.infer_fps)
+    logger.finish()
+
+
 if __name__ == "__main__":
-    import torch_xla
-
-    from blacksmith.models.torch.wan2_2.device import wan_xla_compile_options
-    from blacksmith.models.torch.wan2_2.model_overrides import apply_generality_overrides, apply_perf_overrides
-    from blacksmith.tools.cli import generate_config, parse_cli_options
-    from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-
     default_config = Path(__file__).parent / "lora" / "quietbox" / "wan2_2_ti2v_5b_diffusiondb.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
@@ -208,7 +259,10 @@ if __name__ == "__main__":
     device_manager = WanDeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
     if config.use_tt:
-        torch_xla.set_custom_compile_options(wan_xla_compile_options())
+        torch_xla.set_custom_compile_options(device_manager.xla_compile_options)
 
     checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
-    train(config, device_manager, logger, checkpoint_manager)
+    if config.mode == "infer":
+        infer(config, device_manager, logger, checkpoint_manager)
+    else:
+        train(config, device_manager, logger, checkpoint_manager)

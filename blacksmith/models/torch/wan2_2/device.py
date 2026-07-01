@@ -14,6 +14,14 @@ _TORCH_COMPILE_OPTIONS = {
     "tt_enable_composite_ops": True,
 }
 
+# XLA custom compile options. Values must be strings (the API does not coerce bool/int).
+_XLA_COMPILE_OPTIONS = {
+    "optimization_level": "0",
+    "fp32_dest_acc_en": "true",
+    "math_fidelity": "hifi4",
+    "experimental-enable-dram-space-saving-optimization": "true",
+}
+
 
 class WanDeviceManager(DeviceManager):
     """DeviceManager extended with cached `torch.compile(backend="tt")` wrappers.
@@ -25,6 +33,8 @@ class WanDeviceManager(DeviceManager):
     def __init__(self, config: TrainingConfig):
         super().__init__(config)
         self._compile_cache: dict = {}
+        # Passed to torch_xla.set_custom_compile_options(...) in the entry point.
+        self.xla_compile_options: dict = dict(_XLA_COMPILE_OPTIONS)
 
     def to_device(self, module_or_tensor):
         return module_or_tensor.to(self.device)
@@ -45,14 +55,3 @@ class WanDeviceManager(DeviceManager):
         import torch_xla
 
         torch_xla.sync(wait=True)
-
-
-def wan_xla_compile_options() -> dict:
-    # Passed to torch_xla.set_custom_compile_options(...) in the entry points.
-    # Values must be strings (the API does not coerce bool/int).
-    return {
-        "optimization_level": "0",
-        "fp32_dest_acc_en": "true",
-        "math_fidelity": "hifi4",
-        "experimental-enable-dram-space-saving-optimization": "true",
-    }

@@ -1,3 +1,6 @@
+# Entry mode dispatched by train.py (train | infer)
+mode: "train"
+
 # Model settings
 model_id: "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 dtype: "torch.bfloat16"
@@ -14,15 +17,21 @@ val_holdout: 4
 train_h: 480
 train_w: 832
 
-# Inference / validation video generation
-infer_h: 480
-infer_w: 832
-infer_frames: 65
-infer_fps: 16
-infer_steps: 40
-infer_guidance: 5.0
-infer_flow_shift: 5.0
-infer_output: "cache/wan22_5b/pixelart_video.mp4"
+# Inference / validation video generation (decomposed from the training params)
+inference:
+  infer_h: 480
+  infer_w: 832
+  infer_frames: 65
+  infer_fps: 16
+  infer_steps: 40
+  infer_guidance: 5.0
+  infer_flow_shift: 5.0
+  infer_output: "cache/wan22_5b/pixelart_video.mp4"
+  # Validation (image generation only)
+  val_prompt: "a car driving through the desert with sunset in background"
+  val_img_steps: 40
+  val_img_frames: 65
+  neg_prompt: ""
 
 # Style trigger + CFG dropout
 trigger: "pxa, "
@@ -44,12 +53,6 @@ max_steps: 3000
 train_flow_shift: 3.0
 lognorm_mean: 0.0
 lognorm_std: 1.0
-
-# Validation (image generation only)
-val_prompt: "a car driving through the desert with sunset in background"
-val_img_steps: 40
-val_img_frames: 65
-neg_prompt: ""
 
 # Device / sharding settings (Wormhole QuietBox: 8 devices -> 2x4 mesh)
 use_tt: True
@@ -128,7 +131,7 @@ param_sharding_patterns:
 
 # Reproducibility settings
 seed: 42
-deterministic: False
+deterministic: True
 
 # Logging settings
 log_level: "INFO"

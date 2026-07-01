@@ -11,7 +11,6 @@ import torch.nn as nn
 from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
 from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 
-
 # --- Generality patches (correctness; the model will not run on TT without these) ---
 
 
@@ -77,39 +76,25 @@ def _patch_wan_resample_rep_sentinel() -> None:
 _ORIG_GETITEM = torch.Tensor.__getitem__
 
 
+def _clamp_bound(value, size: int, none_default: int, step_positive: bool) -> int:
+    # Clamp one slice endpoint the way slice.indices(size) would. For step > 0 the
+    # valid range is [0, size]; for step < 0 it is [-1, size - 1]. `none_default` is
+    # the value slice.indices uses when the endpoint is omitted.
+    if value is None:
+        return none_default
+    lo, hi = (0, size) if step_positive else (-1, size - 1)
+    if value < 0:
+        return max(lo, value + size)
+    return min(value, hi)
+
+
 def _clamp_slice(s: slice, size: int) -> slice:
     # Canonicalize a slice into bounds the way slice.indices(size) would, but with
     # plain int math (slice.indices is a slot wrapper dynamo graph-breaks on).
-    start, stop, step = s.start, s.stop, s.step
-    step = 1 if step is None else step
-
-    if step > 0:
-        if start is None:
-            start = 0
-        elif start < 0:
-            start = max(0, start + size)
-        else:
-            start = min(start, size)
-        if stop is None:
-            stop = size
-        elif stop < 0:
-            stop = max(0, stop + size)
-        else:
-            stop = min(stop, size)
-    else:
-        if start is None:
-            start = size - 1
-        elif start < 0:
-            start = max(-1, start + size)
-        else:
-            start = min(start, size - 1)
-        if stop is None:
-            stop = -1
-        elif stop < 0:
-            stop = max(-1, stop + size)
-        else:
-            stop = min(stop, size - 1)
-
+    step = 1 if s.step is None else s.step
+    pos = step > 0
+    start = _clamp_bound(s.start, size, 0 if pos else size - 1, pos)
+    stop = _clamp_bound(s.stop, size, size if pos else -1, pos)
     return slice(start, stop, step)
 
 

@@ -17,9 +17,9 @@ The run is split into three config-driven stages:
 
 1. **precompute** — VAE-encode the image subset into latents and UMT5-encode the captions,
    caching both to `cache_dir`. This is done once, before training.
-2. **train** — LoRA fine-tune the DiT on the cached latents/embeds. Validation generates an
-   image sample (logged to W&B) and a checkpoint at `val_steps_freq`.
-3. **infer** — generate a video with the trained LoRA loaded from a checkpoint.
+2. **train** — LoRA fine-tune the DiT on the cached latents/embeds.
+3. **infer** — generate a video with the trained LoRA loaded from a checkpoint; run `train.py`
+   with `mode: infer` in the config.
 
 LoRA is applied to the DiT attention and FFN projections
 (`to_q`, `to_k`, `to_v`, `to_out.0`, `ff.net.0.proj`, `ff.net.2`).
@@ -54,9 +54,9 @@ python3 blacksmith/experiments/torch/wan2_2/precompute.py --config blacksmith/ex
 python3 blacksmith/experiments/torch/wan2_2/train.py --config blacksmith/experiments/torch/wan2_2/lora/quietbox/wan2_2_ti2v_5b_diffusiondb.yaml
 ```
 
-**Infer (set `resume_option`/`checkpoint_path` to pick a checkpoint):**
+**Infer (set `mode: infer` and `resume_option`/`checkpoint_path` in the config to pick a checkpoint):**
 ```bash
-python3 blacksmith/experiments/torch/wan2_2/infer.py --config blacksmith/experiments/torch/wan2_2/lora/quietbox/wan2_2_ti2v_5b_diffusiondb.yaml
+python3 blacksmith/experiments/torch/wan2_2/train.py --config blacksmith/experiments/torch/wan2_2/lora/quietbox/wan2_2_ti2v_5b_diffusiondb.yaml
 ```
 
 ## Data
@@ -70,14 +70,17 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/jainr3/diffus
 
 ## Configuration
 
-The experiment is configured with the YAML files under `lora/`. Resolutions must be a multiple
-of 32 (VAE spatial stride 16 × DiT patch size 2) and `infer_frames`/`val_img_frames` must be
-`4k+1` (VAE temporal stride 4); both are validated at config load.
+The experiment is configured with the YAML files under `lora/`. Inference/validation params are
+grouped under a nested `inference:` block (a separate `InferenceConfig`); the training params stay
+at the top level. Resolutions must be a multiple of 32 (VAE spatial stride 16 × DiT patch size 2)
+and `inference.infer_frames`/`inference.val_img_frames` must be `4k+1` (VAE temporal stride 4);
+both are validated at config load.
 
 ### Configuration Parameters
 
 | Parameter | Description | Default Value |
 | --- | --- | --- |
+| `mode` | Entry mode dispatched by `train.py` (`train` or `infer`). | `"train"` |
 | `model_id` | Hub id of the Wan 2.2 TI2V-5B diffusers model. | `"Wan-AI/Wan2.2-TI2V-5B-Diffusers"` |
 | `dtype` | Data type used for the DiT/UMT5 forward. | `"torch.bfloat16"` |
 | `vae_precompute_dtype` | Data type used for VAE encode during precompute. | `"torch.bfloat16"` |
@@ -87,13 +90,13 @@ of 32 (VAE spatial stride 16 × DiT patch size 2) and `infer_frames`/`val_img_fr
 | `subset_size` | Number of images to use. | `64` |
 | `val_holdout` | Number of held-out samples (not trained on). | `4` |
 | `train_h` / `train_w` | Train resolution (multiple of 32). | `480` / `832` |
-| `infer_h` / `infer_w` | Inference resolution (multiple of 32). | `480` / `832` |
-| `infer_frames` | Frames to generate at inference (`4k+1`). | `65` |
-| `infer_fps` | Output video fps. | `16` |
-| `infer_steps` | Inference denoise steps. | `40` |
-| `infer_guidance` | Classifier-free guidance scale. | `5.0` |
-| `infer_flow_shift` | UniPC scheduler flow shift. | `5.0` |
-| `infer_output` | Output mp4 path. | `"cache/wan22_5b/pixelart_video.mp4"` |
+| `inference.infer_h` / `inference.infer_w` | Inference resolution (multiple of 32). | `480` / `832` |
+| `inference.infer_frames` | Frames to generate at inference (`4k+1`). | `65` |
+| `inference.infer_fps` | Output video fps. | `16` |
+| `inference.infer_steps` | Inference denoise steps. | `40` |
+| `inference.infer_guidance` | Classifier-free guidance scale. | `5.0` |
+| `inference.infer_flow_shift` | UniPC scheduler flow shift. | `5.0` |
+| `inference.infer_output` | Output mp4 path. | `"cache/wan22_5b/pixelart_video.mp4"` |
 | `trigger` | Style trigger prepended to prompts. | `"pxa, "` |
 | `text_drop_prob` | Probability of dropping the caption (CFG). | `0.10` |
 | `lora_rank` | Rank of LoRA matrices. | `32` |
@@ -106,10 +109,10 @@ of 32 (VAE spatial stride 16 × DiT patch size 2) and `infer_frames`/`val_img_fr
 | `max_steps` | Total optimizer steps. | `3000` |
 | `train_flow_shift` | Flow shift for training timestep sampling. | `3.0` |
 | `lognorm_mean` / `lognorm_std` | Logit-normal timestep sampling params. | `0.0` / `1.0` |
-| `val_prompt` | Prompt used for validation/inference. | see YAML |
-| `val_img_steps` | Denoise steps for validation sample. | `40` |
-| `val_img_frames` | Frames for validation sample (`4k+1`). | `65` |
-| `neg_prompt` | Negative prompt (empty by default). | `""` |
+| `inference.val_prompt` | Prompt used for validation/inference. | see YAML |
+| `inference.val_img_steps` | Denoise steps for validation sample. | `40` |
+| `inference.val_img_frames` | Frames for validation sample (`4k+1`). | `65` |
+| `inference.neg_prompt` | Negative prompt (empty by default). | `""` |
 | `log_level` | Logging verbosity. | `"INFO"` |
 | `use_wandb` | Enable Weights & Biases logging. | `True` |
 | `wandb_project` | W&B project name. | `"wan22-pixelart-lora"` |

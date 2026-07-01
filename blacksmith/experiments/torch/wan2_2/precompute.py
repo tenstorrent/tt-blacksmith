@@ -13,7 +13,7 @@ from blacksmith.datasets.torch.diffusiondb_pixelart.diffusiondb_pixelart_dataset
     wan_latents_normalize,
 )
 from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
-from blacksmith.models.torch.wan2_2.device import WanDeviceManager, wan_xla_compile_options
+from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 from blacksmith.models.torch.wan2_2.model_overrides import (
     UMT5Wrapper,
     VAEEncoderWrapper,
@@ -65,8 +65,10 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
     ).eval()
     # The checkpoint stores only `shared.weight` and relies on weight-tying for
     # `encoder.embed_tokens.weight`; the pinned transformers version does not auto-tie.
-    text_encoder.encoder.embed_tokens.weight = text_encoder.shared.weight
+    # Move first, then re-tie: .to(device) copies each param, so tying before the move
+    # would leave embed_tokens/shared as two independent device tensors.
     text_encoder = device_manager.to_device(text_encoder)
+    text_encoder.encoder.embed_tokens.weight = text_encoder.shared.weight
     device_manager.shard_model(text_encoder)
     umt5_compiled = device_manager.compile(UMT5Wrapper(text_encoder))
 
@@ -109,6 +111,6 @@ if __name__ == "__main__":
 
     device_manager = WanDeviceManager(config)
     if config.use_tt:
-        torch_xla.set_custom_compile_options(wan_xla_compile_options())
+        torch_xla.set_custom_compile_options(device_manager.xla_compile_options)
 
     precompute_latents_and_embeds(config, device_manager)

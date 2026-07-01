@@ -15,7 +15,40 @@ _TORCH_DTYPES = {
 }
 
 
+class InferenceConfig(BaseModel):
+    # Video generation (used by infer.py and by in-training validation).
+    infer_h: int = Field(default=480)
+    infer_w: int = Field(default=832)
+    infer_frames: int = Field(default=65)
+    infer_fps: int = Field(default=16)
+    infer_steps: int = Field(default=40)
+    infer_guidance: float = Field(default=5.0)
+    infer_flow_shift: float = Field(default=5.0)
+    infer_output: str = Field(default="cache/wan22_5b/pixelart_video.mp4")
+
+    # Validation (image generation only)
+    val_prompt: str = Field(default="a car driving through the desert with sunset in background")
+    val_img_steps: int = Field(default=40)
+    val_img_frames: int = Field(default=65)
+    neg_prompt: str = Field(default="")
+
+    @model_validator(mode="after")
+    def _validate_shapes(self):
+        """infer_h/w must be multiples of 32 (VAE spatial stride 16 * DiT patch size 2) and
+        infer_frames must be 4k+1 (Wan VAE temporal stride is 4); otherwise patch_embedding /
+        unpatchify round down and pred/target shapes mismatch."""
+        for label, v in [("infer_h", self.infer_h), ("infer_w", self.infer_w)]:
+            if v % 32 != 0:
+                raise ValueError(f"{label}={v} must be a multiple of 32 (VAE_stride * patch_size).")
+        if (self.infer_frames - 1) % 4 != 0:
+            raise ValueError(f"infer_frames={self.infer_frames} must satisfy 4k+1 (Wan VAE temporal stride is 4).")
+        return self
+
+
 class TrainingConfig(BaseModel):
+    # Entry mode dispatched by train.py's __main__ ("train" or "infer").
+    mode: str = Field(default="train")
+
     # Model settings
     model_id: str = Field(default="Wan-AI/Wan2.2-TI2V-5B-Diffusers")
     dtype: str = Field(default="torch.bfloat16")
@@ -32,15 +65,8 @@ class TrainingConfig(BaseModel):
     train_h: int = Field(default=480)
     train_w: int = Field(default=832)
 
-    # Inference / validation video generation
-    infer_h: int = Field(default=480)
-    infer_w: int = Field(default=832)
-    infer_frames: int = Field(default=65)
-    infer_fps: int = Field(default=16)
-    infer_steps: int = Field(default=40)
-    infer_guidance: float = Field(default=5.0)
-    infer_flow_shift: float = Field(default=5.0)
-    infer_output: str = Field(default="cache/wan22_5b/pixelart_video.mp4")
+    # Inference / validation params (decomposed from the training params).
+    inference: InferenceConfig = Field(default_factory=InferenceConfig)
 
     # Style trigger + CFG dropout
     trigger: str = Field(default="pxa, ")
@@ -64,12 +90,6 @@ class TrainingConfig(BaseModel):
     train_flow_shift: float = Field(default=3.0)
     lognorm_mean: float = Field(default=0.0)
     lognorm_std: float = Field(default=1.0)
-
-    # Validation (image generation only)
-    val_prompt: str = Field(default="a car driving through the desert with sunset in background")
-    val_img_steps: int = Field(default=40)
-    val_img_frames: int = Field(default=65)
-    neg_prompt: str = Field(default="")
 
     # Logging settings
     log_level: str = Field(default="INFO")
@@ -122,12 +142,10 @@ class TrainingConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_shapes(self):
-        # vae_scale_factor_spatial(16) * transformer.patch_size(2) = 32. A non-multiple
-        # rounds down in patch_embedding and unpatchify, so pred/target shapes mismatch.
-        for label, v in [("train_h", self.train_h), ("train_w", self.train_w),
-                         ("infer_h", self.infer_h), ("infer_w", self.infer_w)]:
+        """train_h/w must be multiples of 32 (VAE spatial stride 16 * DiT patch size 2);
+        a non-multiple rounds down in patch_embedding / unpatchify and pred/target shapes mismatch.
+        (infer_* shapes are validated on InferenceConfig.)"""
+        for label, v in [("train_h", self.train_h), ("train_w", self.train_w)]:
             if v % 32 != 0:
                 raise ValueError(f"{label}={v} must be a multiple of 32 (VAE_stride * patch_size).")
-        if (self.infer_frames - 1) % 4 != 0:
-            raise ValueError(f"infer_frames={self.infer_frames} must satisfy 4k+1 (Wan VAE temporal stride is 4).")
         return self

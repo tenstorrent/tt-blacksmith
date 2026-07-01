@@ -38,11 +38,15 @@ def build_pipeline_for_validation(transformer, config: TrainingConfig, device_ma
     pipe = WanPipeline.from_pretrained(
         config.model_id, transformer=transformer, vae=vae, torch_dtype=config.torch_dtype()
     )
-    pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config, flow_shift=config.infer_flow_shift)
+    pipe.scheduler = UniPCMultistepScheduler.from_config(
+        pipe.scheduler.config, flow_shift=config.inference.infer_flow_shift
+    )
 
     if getattr(pipe, "text_encoder", None) is not None:
-        pipe.text_encoder.encoder.embed_tokens.weight = pipe.text_encoder.shared.weight
+        # Move first, then re-tie: .to(device) copies each param, so tying before the
+        # move would leave embed_tokens/shared as two independent device tensors.
         pipe.text_encoder = device_manager.to_device(pipe.text_encoder)
+        pipe.text_encoder.encoder.embed_tokens.weight = pipe.text_encoder.shared.weight
         device_manager.shard_model(pipe.text_encoder)
     pipe.vae = device_manager.to_device(pipe.vae)
     device_manager.shard_model(pipe.vae)
@@ -87,7 +91,7 @@ def generate_wan_video(
         return x.to(dtype=transformer_dtype, device=device)
 
     def cpu_cast(x):
-        return x.to(device="cpu", dtype=torch.float32)
+        return x.to(dtype=torch.float32, device="cpu")
 
     # UMT5 compiled as its own cached graph; wrapper stashed on `pipe` for a stable id().
     umt5 = getattr(pipe, "_compiled_umt5", None)
@@ -172,11 +176,8 @@ def generate_wan_video(
         .view(1, pipe.vae.config.z_dim, 1, 1, 1)
         .to(latents_vae.device, latents_vae.dtype)
     )
-    latents_std = (
-        1.0
-        / torch.tensor(pipe.vae.config.latents_std).view(1, pipe.vae.config.z_dim, 1, 1, 1).to(
-            latents_vae.device, latents_vae.dtype
-        )
+    latents_std = 1.0 / torch.tensor(pipe.vae.config.latents_std).view(1, pipe.vae.config.z_dim, 1, 1, 1).to(
+        latents_vae.device, latents_vae.dtype
     )
     latents_vae = (latents_vae / latents_std + latents_mean).to(dtype=pipe.vae.dtype, device=device)
 
@@ -199,18 +200,19 @@ def generate_validation_sample(transformer, config: TrainingConfig, device_manag
     pipe = build_pipeline_for_validation(transformer, config, device_manager)
     compiled_transformer = device_manager.compile(transformer)
     gen = torch.Generator(device="cpu").manual_seed(config.seed)
+    inf = config.inference
     video = generate_wan_video(
         pipe,
         compiled_transformer,
         config,
         device_manager,
-        prompt=config.trigger + config.val_prompt,
-        negative_prompt=config.neg_prompt or None,
-        height=config.infer_h,
-        width=config.infer_w,
-        num_frames=config.val_img_frames,
-        num_inference_steps=config.val_img_steps,
-        guidance_scale=config.infer_guidance,
+        prompt=config.trigger + inf.val_prompt,
+        negative_prompt=inf.neg_prompt or None,
+        height=inf.infer_h,
+        width=inf.infer_w,
+        num_frames=inf.val_img_frames,
+        num_inference_steps=inf.val_img_steps,
+        guidance_scale=inf.infer_guidance,
         generator=gen,
         output_type="pil",
     )
