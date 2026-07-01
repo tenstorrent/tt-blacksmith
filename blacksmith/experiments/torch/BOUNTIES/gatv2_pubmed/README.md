@@ -96,11 +96,11 @@ commented out until the experiment dependency and a TT runner are wired into CI.
 
 The same seed (42) is used for reproducibility.
 
-A three-way parity comparison — CPU stock `GATv2Conv`, CPU `SpMMGATv2Conv`, and
-TT `SpMMGATv2Conv` (all seed 42, same stack) — is summarized in
-**[RESULTS.md](RESULTS.md)**: the two CPU runs reach identical test accuracy
-(0.780) and TT lands at 0.784, all within noise. The comparison plots are
-attached to the pull request description.
+A CPU↔TT parity comparison — CPU stock `GATv2Conv` vs TT `SpMMGATv2Conv` (both
+seed 42, same stack) — is summarized in **[RESULTS.md](RESULTS.md)**: the CPU
+baseline reaches 0.780 test accuracy and TT lands at 0.784, within noise (the
+rewrite is bit-equivalent per step). The comparison plots are attached to the
+pull request description.
 
 ## TT Execution Status
 
