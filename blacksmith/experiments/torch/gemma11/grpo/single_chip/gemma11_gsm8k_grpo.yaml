@@ -1,0 +1,74 @@
+# Gemma 1.1 2B GRPO (Group Relative Policy Optimization) Training Configuration
+# Paper: https://arxiv.org/pdf/2402.03300
+# Model: https://huggingface.co/google/gemma-1.1-2b-it
+# Dataset: https://huggingface.co/datasets/openai/gsm8k
+#
+# CPU SMOKE TEST. GRPO of a 2B model on CPU is extremely slow and memory hungry,
+# so these values are intentionally tiny: they exist to validate the pipeline
+# end-to-end without freezing the host, NOT to actually train the model. For real
+# training, move to GPU/TT, switch dtype to torch.bfloat16, enable use_vllm, and
+# scale up max_completion_length / num_generations / max_steps / num_epochs.
+
+# Fine-tuning approach (fresh LoRA adapter on the base model)
+training_model_type: "lora"
+
+# Dataset settings
+dataset_id: "gsm8k"
+
+# Model settings
+model_name: "google/gemma-1.1-2b-it"
+dtype: "torch.float32"
+
+# GRPO / generation hyperparameters
+grpo_beta: 0.005          # KL coefficient towards the frozen base policy
+num_generations: 2        # completions sampled per prompt (group size)
+temperature: 0.5          # sampling temperature
+max_completion_length: 32 # short completions keep CPU steps tractable
+use_vllm: False           # CPU: must stay False (vLLM is GPU only)
+
+# Training hyperparameters
+learning_rate: 1e-5
+batch_size: 2             # per_device_train_batch_size; multiple of num_generations
+gradient_accumulation_steps: 1
+gradient_checkpointing: True   # trade compute for much lower activation memory
+weight_decay: 0.1
+num_epochs: 1
+max_steps: 2              # smoke test: only a couple of optimizer steps
+optim: "adamw_torch"
+adam_beta1: 0.9
+adam_beta2: 0.99
+warmup_ratio: 0.1
+max_grad_norm: 0.1
+lr_scheduler_type: "cosine"
+
+# CPU guardrail: cap intra-op threads so the run cannot saturate every core and
+# freeze the host (tune to your machine; null leaves PyTorch's default).
+cpu_num_threads: 16
+
+# Logging settings
+log_level: "INFO"
+use_wandb: False
+wandb_project: "gemma11-grpo"
+wandb_run_name: "gemma11-grpo-gsm8k"
+wandb_tags: ["gemma11", "grpo", "gsm8k", "lora"]
+logging_steps: 1
+
+# Checkpoint settings (set high so the smoke test does not write checkpoints)
+save_steps: 1000
+keep_last_n: 3
+project_dir: "blacksmith/experiments/torch/gemma11/grpo"
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# LoRA setup (r == alpha => effective LoRA scaling of 1.0, as in the blog)
+lora_r: 64
+lora_alpha: 64
+lora_dropout: 0.0
+lora_task_type: "CAUSAL_LM"
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# Other settings
+framework: "pytorch"
+use_tt: False

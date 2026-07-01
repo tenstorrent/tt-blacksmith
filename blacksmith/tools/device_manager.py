@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
 import os
 import re
 from typing import Dict, Optional, Tuple
@@ -8,15 +10,39 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.spmd as xs
-import torch_xla.runtime as xr
-from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
-    SpmdFullyShardedDataParallel as FSDP,
-)
 
 from blacksmith.tools.templates.configs import TrainingConfig
+
+# torch_xla (and, through it, the TT PJRT plugin) is imported lazily in `_setup`
+# only when `use_tt` is True. Importing torch_xla eagerly initializes the TT
+# plugin even on CPU/GPU runs, which is wasteful and emits the plugin's setup
+# warnings. Keeping these as module globals lets the methods below reference
+# them unchanged once `_import_torch_xla` has populated them on the TT path.
+torch_xla = None
+xm = None
+xs = None
+xr = None
+FSDP = None
+
+
+def _import_torch_xla() -> None:
+    """Import torch_xla modules into the module globals (TT runs only)."""
+    global torch_xla, xm, xs, xr, FSDP
+    if torch_xla is not None:
+        return
+    import torch_xla as _torch_xla
+    import torch_xla.core.xla_model as _xm
+    import torch_xla.distributed.spmd as _xs
+    import torch_xla.runtime as _xr
+    from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
+        SpmdFullyShardedDataParallel as _FSDP,
+    )
+
+    torch_xla = _torch_xla
+    xm = _xm
+    xs = _xs
+    xr = _xr
+    FSDP = _FSDP
 
 
 class DeviceManager:
@@ -33,6 +59,8 @@ class DeviceManager:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             return
 
+        # torch_xla / the TT PJRT plugin are only needed (and only imported) here.
+        _import_torch_xla()
         self._setup_tt_environment()
         self.device = torch_xla.device()
 

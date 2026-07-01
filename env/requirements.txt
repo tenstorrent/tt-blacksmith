@@ -5,6 +5,7 @@ peft
 tqdm
 datasets
 transformers==4.57.1
+trl>=0.21
 flax
 six
 kornia
