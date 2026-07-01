@@ -48,6 +48,25 @@ TRAINING_TEST_CASES = [
         ],
         id="tt-mlp-mnist-n150",
     ),
+    # Bounty #453 (GATv2/PubMed). Disabled in CI until the experiment-specific
+    # torch_geometric dependency and a TT runner are wired into the regression pipeline;
+    # the golden config lives in tests/configs/BOUNTIES/. Re-enable by uncommenting.
+    # pytest.param(
+    #     {
+    #         "test_script": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py",
+    #         "experiment_config": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed.yaml",
+    #         "test_config": "tests/configs/BOUNTIES/tt-gatv2_pubmed-pubmed-n150.yaml",
+    #         "timeout": 1200,
+    #     },
+    #     marks=[
+    #         pytest.mark.uplift,
+    #         pytest.mark.n150,
+    #         pytest.mark.n300,
+    #         pytest.mark.torch,
+    #         pytest.mark.single_chip,
+    #     ],
+    #     id="tt-gatv2_pubmed-pubmed-n150",
+    # ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/train.py",
