@@ -1,0 +1,39 @@
+# Dataset
+dataset_id: "Reddit"
+dataset_root: "/tmp/Reddit"
+
+# Model
+hidden_channels: 256
+dropout: 0.5
+
+# Training — small batch / few neighbours for TT feasibility run
+# Dense adj shape: ~200-700 nodes per batch with these settings
+learning_rate: 0.001
+weight_decay: 5.0e-4
+batch_size: 32
+num_epochs: 1
+num_neighbors: [5, 3]
+val_batch_size: 128
+
+# Stop after 10 training steps (enough to verify compilation + forward/backward)
+max_steps: 10
+
+# Logging
+steps_freq: 1
+use_wandb: False
+wandb_project: "graphsage-reddit"
+wandb_run_name: "graphsage-reddit-tt"
+wandb_tags: ["graphsage", "reddit", "tt"]
+
+# Checkpoint
+checkpoint_metric: "val/acc"
+checkpoint_metric_mode: "max"
+epoch_freq: 1
+keep_last_n: 1
+keep_best_n: 1
+
+# Reproducibility
+seed: 42
+
+# Device — TT single chip
+use_tt: True

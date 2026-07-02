@@ -1,0 +1,11 @@
+# Experiment-specific dependencies for GraphSAGE/Reddit (not part of the shared env).
+# Install with: pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requirements.txt
+#
+# torch-scatter/torch-sparse ship prebuilt wheels keyed to an exact torch version;
+# if `env/xla_requirements.txt` uplifts torch, update the --find-links URL below to match
+# (see https://data.pyg.org/whl/ for available versions).
+torch_geometric
+
+--find-links https://data.pyg.org/whl/torch-2.10.0+cpu.html
+torch-scatter
+torch-sparse

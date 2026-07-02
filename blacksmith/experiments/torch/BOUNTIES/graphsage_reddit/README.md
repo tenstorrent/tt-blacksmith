@@ -22,24 +22,25 @@ Too large for full-graph training — mini-batch via `NeighborLoader` with `[25,
 Input (602) → SAGEConv → ReLU → Dropout(0.5) → SAGEConv → 41 classes (raw logits, F.cross_entropy loss)
 ```
 
-**Parameters:** ~330K  
+**Parameters:** ~330K
 **Optimizer:** Adam, lr=0.001, weight_decay=5e-4
 
 ## Setup
 
 ```bash
 source env/activate --xla
+pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requirements.txt
 ```
 
 ## Run
 
 ```bash
-# Train (pipe to file so analyze.py can read the log)
-python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
-    2>&1 | tee /tmp/graphsage_reddit_train.log
+# CPU baseline
+python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
 
-# Generate training-curve plots
-python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/analyze.py
+# TT single chip
+python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+    --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/tt_single_chip/graphsage_reddit_tt.yaml
 ```
 
 ## Results (CPU Baseline)
@@ -55,7 +56,6 @@ python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/analyze.py
 
 The model converges by epoch 4–5 and plateaus at 95.7–96.1% val accuracy through epoch 30 with no signs of overfitting (val loss tracks train loss closely, test accuracy matches val accuracy).
 
-## Known Limitation for PR-2
+## Results (TT)
 
-`SAGEConv` uses `scatter_reduce_` for neighbourhood aggregation.
-This op does not compile on TT-XLA and will need a CPU fallback in PR-2.
+<!-- TODO(sarthakmangla1): Add TT results after PR-2. See https://github.com/tenstorrent/tt-blacksmith/issues/529 -->

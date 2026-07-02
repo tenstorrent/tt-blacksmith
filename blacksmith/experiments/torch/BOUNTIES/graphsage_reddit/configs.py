@@ -1,9 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Optional
+
 from pydantic import Field
 
 from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.test_config import TestConfig
 
 
 class GraphSAGEConfig(TrainingConfig):
@@ -44,3 +47,6 @@ class GraphSAGEConfig(TrainingConfig):
 
     # Feasibility / debugging — limit training to N steps (-1 = unlimited)
     max_steps: int = Field(default=-1)
+
+    # Testing
+    test_config: Optional[TestConfig] = Field(default=None)
