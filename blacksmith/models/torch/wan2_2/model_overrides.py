@@ -26,7 +26,9 @@ def _patch_wan_resample_rep_sentinel() -> None:
     cache_t = akw.CACHE_T
     rep = object()
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         b, c, t, h, w = x.size()
         if self.mode == "upsample3d":
             if feat_cache is not None:
@@ -130,7 +132,7 @@ class _SafeSlicingMode(torch.overrides.TorchFunctionMode):
     def __torch_function__(self, func, types, args=(), kwargs=None):
         kwargs = kwargs or {}
         if func is torch.Tensor.__getitem__:
-            self_, idx = args
+            self_, idx = args[0], args[1]
             return _ORIG_GETITEM(self_, _normalize_index(idx, self_.shape))
         return func(*args, **kwargs)
 
@@ -157,7 +159,9 @@ def _patch_wan_resample_avoid_4d_fold() -> None:
     cache_t = akw.CACHE_T
     rep = object()
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         b, c, t, h, w = x.size()
         if self.mode == "upsample3d":
             if feat_cache is not None:
