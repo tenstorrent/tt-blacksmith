@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import gc
-import time
 from contextlib import nullcontext
 
 import numpy as np
@@ -134,7 +133,6 @@ def generate_wan_video(
 
     n_steps = len(timesteps)
     for i, t in enumerate(timesteps):
-        t_step = time.time()
         latent_model_input = latents.to(transformer_dtype)
         if expand_ts:
             temp_ts = (mask[0][0][:, ::2, ::2] * t).flatten()
@@ -165,7 +163,7 @@ def generate_wan_video(
             noise_pred = noise_cond
 
         latents = pipe.scheduler.step(noise_pred, t, latents, return_dict=False)[0]
-        print(f"[infer] step {i + 1}/{n_steps} t={float(t):.1f} {time.time() - t_step:.1f}s", flush=True)
+        print(f"[infer] step {i + 1}/{n_steps} t={float(t):.1f}", flush=True)
 
     if output_type == "latent":
         return latents

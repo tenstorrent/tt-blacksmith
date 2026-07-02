@@ -24,10 +24,11 @@ def download_and_subset_dataset(config: TrainingConfig) -> list[tuple[Image.Imag
     """Pull a seeded subset of (image, prompt) pairs straight from the HF hub.
 
     `datasets >= 4` dropped loader-script support, so instead of `load_dataset` we:
-    read `metadata.parquet` (has `image_name`, `prompt`, `part_id`), enumerate the
-    available `images/part-*.zip` archives via `HfApi`, keep only rows whose `part_id`
-    has an archive and whose prompt is non-empty, seeded-shuffle, then open each
-    needed zip and read images until `subset_size` samples are collected.
+      - read `metadata.parquet` (has `image_name`, `prompt`, `part_id`);
+      - enumerate the available `images/part-*.zip` archives via `HfApi`;
+      - keep only rows whose `part_id` has an archive and whose prompt is non-empty;
+      - seeded-shuffle the remaining rows;
+      - open each needed zip and read images until `subset_size` samples are collected.
     """
     meta_path = hf_hub_download(repo_id=config.dataset_id, filename="metadata.parquet", repo_type="dataset")
     df = pd.read_parquet(meta_path)

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import time
 import traceback
 from pathlib import Path
 
@@ -138,9 +137,12 @@ def train(
     accum_loss = 0.0
     accum_count = 0
     micro_step = 0
-    step_start = time.time()
     data_iter = iter(train_loader)
     optimizer.zero_grad(set_to_none=True)
+
+    device_manager.sync()
+    validate(transformer, config, device_manager, logger, 0)
+    logger.log_metrics({}, commit=True, step=0)
 
     try:
         while global_step < config.max_steps:
@@ -171,26 +173,26 @@ def train(
                 accum_count = 0
 
                 if global_step % config.steps_freq == 0:
-                    step_time = time.time() - step_start
-                    step_start = time.time()
                     logger.log_metrics(
                         {
                             "train/loss": avg_loss,
                             "train/loss_ema": ema_loss,
                             "train/lr": optimizer.param_groups[0]["lr"],
-                            "train/step_time_s": step_time,
                         },
+                        commit=False,
                         step=global_step,
                     )
 
-                is_val = global_step % config.val_steps_freq == 0
-                if is_val or global_step == 1:
+                if global_step % config.val_steps_freq == 0:
                     device_manager.sync()
-                    if is_val:
-                        checkpoint_manager.save_checkpoint(
-                            transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}
-                        )
+                    checkpoint_manager.save_checkpoint(
+                        transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}
+                    )
                     validate(transformer, config, device_manager, logger, global_step)
+
+                # Commit everything buffered for this step (metrics + any val image) in a
+                # single W&B row.
+                logger.log_metrics({}, commit=True, step=global_step)
 
         device_manager.sync()
         final_path = checkpoint_manager.save_checkpoint(
@@ -223,7 +225,6 @@ def infer(
     compiled_transformer = device_manager.compile(transformer)
 
     logger.info(f"Generating {inf.infer_frames} frames @ {inf.infer_h}x{inf.infer_w} in {inf.infer_steps} steps.")
-    t0 = time.time()
     gen = torch.Generator(device="cpu").manual_seed(config.seed)
     video = generate_wan_video(
         pipe,
@@ -241,7 +242,7 @@ def infer(
         output_type="pil",
     )
     frames = video[0]
-    logger.info(f"Generated in {(time.time() - t0) / 60.0:.1f} min; frames={len(frames)}")
+    logger.info(f"Generated {len(frames)} frames.")
 
     out_path = inf.infer_output
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)

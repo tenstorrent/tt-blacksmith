@@ -46,7 +46,8 @@ class InferenceConfig(BaseModel):
 
 
 class TrainingConfig(BaseModel):
-    # Entry mode dispatched by train.py's __main__ ("train" or "infer").
+    # Selects what train.py runs: "train" fine-tunes the LoRA on cached latents;
+    # "infer" loads a checkpoint and generates a video (no training).
     mode: str = Field(default="train")
 
     # Model settings
