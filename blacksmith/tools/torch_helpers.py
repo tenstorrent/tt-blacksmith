@@ -249,6 +249,145 @@ def run_decode_example(
     logger.info(f"Generated: {''.join(output_tokens)!r}")
 
 
+def _sample_next_tokens(
+    logits: torch.Tensor,
+    temperature: float,
+    top_k: int,
+) -> torch.Tensor:
+    """Pick the next token id per row from last-position logits, entirely on device.
+
+    ``logits`` is (B, V) on the compute device. Greedy (``argmax``) when
+    ``temperature <= 0``; otherwise temperature (+ optional top-k) sampling via the
+    Gumbel-max trick: ``argmax(logits/T + g)`` with ``g = -log(-log(u))`` and
+    ``u ~ Uniform(0, 1)``. This draws from the tempered softmax using only
+    elementwise ops, ``torch.rand_like`` and ``argmax``, so no host-side
+    ``torch.multinomial`` (and no logits copy to CPU) is needed.
+    """
+    if not temperature or temperature <= 0:
+        return logits.argmax(dim=-1)
+
+    logits = logits.float() / temperature
+    if top_k and top_k > 0:
+        k = min(top_k, logits.size(-1))
+        kth = torch.topk(logits, k, dim=-1).values[:, -1, None]
+        logits = torch.where(logits < kth, torch.full_like(logits, float("-inf")), logits)
+    u = torch.rand_like(logits).clamp_(1e-10, 1.0 - 1e-10)
+    gumbel = -torch.log(-torch.log(u))
+    return torch.argmax(logits + gumbel, dim=-1)
+
+
+def generate_completions(
+    model,
+    model_config,
+    prompt_input_ids: torch.Tensor,  # (B, max_prompt_length), left-padded
+    prompt_attention_mask: torch.Tensor,  # (B, max_prompt_length), 0 over left-pad
+    pad_token_id: int,
+    eos_token_id: int,
+    max_prompt_length: int,
+    max_completion_length: int,
+    device,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    dtype=torch.bfloat16,
+    sync_fn=None,
+):
+    """Batched autoregressive generation over left-padded prompts, fully on device.
+
+    The whole decode loop stays on the compute device: the model forward, token
+    sampling (Gumbel-max, see ``_sample_next_tokens``), EOS bookkeeping and the
+    StaticCache all run on device. Unlike a typical decode helper, no per-step
+    logits are copied to host and no host-side sampling/early-stop is performed;
+    only the final id / validity tensors are moved to CPU once (for the host-side
+    reward computation). To keep the lazy graph bounded, ``sync_fn`` (e.g.
+    ``torch_xla.sync``) is invoked once per step to materialize that step's work
+    on device without a host transfer.
+
+    Returns ``(completion_ids, completion_valid)``:
+      - ``completion_ids`` (B, max_completion_length) LongTensor on CPU; positions
+        after a row emits EOS are ``pad_token_id``.
+      - ``completion_valid`` (B, max_completion_length) bool mask on CPU; True for
+        real generated tokens up to and including EOS, False for trailing pad.
+
+    Left padding aligns the generation frontier across rows (last real token sits
+    at index ``max_prompt_length - 1`` for every row), so a single ``cache_position``
+    advances all rows together. Adapted from the single-example decode helper /
+    https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/llama.py
+    """
+    batch_size = prompt_input_ids.shape[0]
+    max_cache_len = max_prompt_length + max_completion_length
+
+    # StaticCache must be built on CPU, then moved to device.
+    # See https://github.com/tenstorrent/tt-xla/issues/1645
+    static_cache = StaticCache(
+        config=model_config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=dtype,
+    )
+    # Prefer the explicit head_dim (Gemma 2 sets head_dim != hidden_size / num_heads);
+    # fall back to the derived value for models that omit it.
+    head_dim = getattr(model_config, "head_dim", None) or (
+        model_config.hidden_size // model_config.num_attention_heads
+    )
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=model_config.num_key_value_heads,
+        head_dim=head_dim,
+        dtype=dtype,
+        device="cpu",
+    )
+    for layer in static_cache.layers:
+        layer.keys = layer.keys.to(device)
+        layer.values = layer.values.to(device)
+
+    # Padding mask sized to the whole cache: 0 over prompt left-pad slots, 1 elsewhere
+    # (future positions are handled by the causal mask inside the model).
+    attention_mask = torch.ones((batch_size, max_cache_len), dtype=torch.long)
+    attention_mask[:, :max_prompt_length] = prompt_attention_mask
+    attention_mask = attention_mask.to(device)
+
+    input_ids = prompt_input_ids.to(device)
+    cache_position = torch.arange(0, max_prompt_length, device=device)
+
+    # All decode state lives on device (no host reads inside the loop).
+    eos_id = torch.tensor(eos_token_id, device=device)
+    pad_id = torch.tensor(pad_token_id, device=device)
+    finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
+    token_steps = []
+    valid_steps = []
+
+    with torch.no_grad():
+        for _ in range(max_completion_length):
+            output = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                past_key_values=static_cache,
+                cache_position=cache_position,
+                use_cache=True,
+            )
+            next_logits = output.logits[:, -1, :]
+            # A row's token this step is valid iff it had not already finished.
+            valid_this = ~finished
+            next_tokens = _sample_next_tokens(next_logits, temperature, top_k)
+            # Force already-finished rows to pad so generation stays batched.
+            next_tokens = torch.where(finished, pad_id.expand_as(next_tokens), next_tokens)
+            finished = finished | (next_tokens == eos_id)
+
+            token_steps.append(next_tokens)
+            valid_steps.append(valid_this)
+
+            input_ids = next_tokens.unsqueeze(-1)
+            cache_position = cache_position[-1:] + 1
+            if sync_fn is not None:
+                sync_fn()
+
+    # Single device -> host transfer at the very end.
+    completion_ids = torch.stack(token_steps, dim=1).to("cpu")
+    completion_valid = torch.stack(valid_steps, dim=1).to("cpu")
+    return completion_ids, completion_valid
+
+
 def construct_inputs_for_decode(
     prompt_ids,  # 1D LongTensor, len <= max_prompt_length
     pad_token_id: int,
@@ -270,7 +409,11 @@ def construct_inputs_for_decode(
         device="cpu",
         dtype=torch.bfloat16,
     )
-    head_dim = model_config.hidden_size // model_config.num_attention_heads
+    # Prefer the explicit head_dim (Gemma 2 sets head_dim != hidden_size / num_heads);
+    # fall back to the derived value for models that omit it.
+    head_dim = getattr(model_config, "head_dim", None) or (
+        model_config.hidden_size // model_config.num_attention_heads
+    )
     static_cache.early_initialization(
         batch_size=1,
         num_heads=model_config.num_key_value_heads,
