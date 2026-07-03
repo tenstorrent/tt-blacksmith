@@ -1,0 +1,93 @@
+# Gemma 1.1 2B DPO (Direct Preference Optimization) Training Configuration
+# Paper: https://arxiv.org/pdf/2305.18290
+# Model: https://huggingface.co/google/gemma-1.1-2b-it
+# Dataset: argilla/distilabel-math-preference-dpo
+
+# Training type
+training_model_type: "lora"
+
+# Dataset settings
+dataset_id: "math_preference_dpo"
+
+# Model settings
+model_name: "google/gemma-1.1-2b-it"
+max_length: 256
+dtype: "torch.bfloat16"
+ignored_index: -100
+
+# DPO-specific hyperparameters
+dpo_beta: 0.2  # Temperature for DPO loss (higher = more conservative)
+dpo_label_smoothing: 0.0  # Label smoothing (0 = no smoothing)
+
+# Reference model settings
+# Standard DPO requires π_ref to be an SFT model trained on chosen responses.
+# Set this to your SFT checkpoint path. If empty, base pretrained model is used (less ideal).
+sft_checkpoint_path: "blacksmith/experiments/torch/gemma11/lora/checkpoints/checkpoint_step360_epoch2_20260622_192415.pt"
+
+# Training hyperparameters
+learning_rate: 1e-5  # Learning rate for DPO
+batch_size: 1
+gradient_accumulation_steps: 8
+gradient_checkpointing: False
+weight_decay: 0.0
+num_epochs: 10
+max_steps: -1  # -1 means use num_epochs
+optim: "adamw_torch"
+warmup_steps: 5
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gemma11-dpo"
+wandb_run_name: "tt-gemma11-dpo-math"
+wandb_tags: ["gemma11", "dpo", "math", "lora"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+epoch_freq: 1
+val_steps_freq: 32
+print_examples: False
+do_validation: True
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"
+checkpoint_path: ""
+checkpoint_metric: "val/accuracy"
+checkpoint_metric_mode: "max"
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
+save_steps: 32
+project_dir: "blacksmith/experiments/torch/gemma11/dpo"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 23  # Match SFT seed for consistent data splits
+deterministic: True
+
+# Device settings (mesh configuration for parallelism)
+# Leave mesh_shape and mesh_axis_names as null for single device
+mesh_shape: null
+mesh_axis_names: null
+
+# LoRA setup - larger rank for DPO to capture preference learning
+lora_r: 16
+lora_alpha: 32
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+lora_dropout: 0.0  # Disable dropout for stable DPO training
+
+# Adapter setup (used when training_model_type is "adapters")
+adapter_bottleneck_dim: 32
+adapter_non_linearity: "torch.nn.GELU"
+adapter_layers: []
+
+# Other settings
+framework: "pytorch"
+use_tt: True

@@ -24,7 +24,7 @@ class TrainingConfig(BaseModel):
     )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
 
     # Training hyperparameters
-    training_type: str = Field(default="lora")  # [lora, adapters]
+    training_model_type: str = Field(default="lora")  # [lora, adapters]
     learning_rate: float = Field(default=2e-5, gt=0)
     batch_size: int = Field(default=32, gt=0)
     gradient_accumulation_steps: int = Field(default=1, gt=0)
@@ -100,3 +100,5 @@ class TrainingConfig(BaseModel):
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)
+    enable_trace: bool = Field(default=False)
+    trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace

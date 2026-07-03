@@ -5,6 +5,26 @@ import torch
 from transformers import StaticCache
 
 
+def accumulate_metric_tensors(
+    totals: dict[str, torch.Tensor | None],
+    metrics: dict[str, torch.Tensor],
+) -> None:
+    """Accumulate detached metric tensors into ``totals`` in place."""
+    for key, value in metrics.items():
+        if key not in totals:
+            continue
+        detached = value.detach()
+        if totals[key] is None:
+            totals[key] = detached
+        else:
+            totals[key] = totals[key] + detached
+
+
+def average_metric_tensors(totals: dict[str, torch.Tensor | None], count: int) -> dict[str, float]:
+    """Average accumulated metric tensors over ``count`` and return them as Python floats."""
+    return {key: (total / count).item() for key, total in totals.items() if total is not None}
+
+
 def print_trainable_params(model):
     """Helper function for lora models to check number of trainable parameters."""
     total_params = sum([p.numel() for p in model.parameters()])
@@ -56,7 +76,7 @@ def log_mem(stage):
 def show_examples(examples, tokenizer, config, logger):
 
     for i, example in enumerate(examples):
-        logger.info(f"\nExample {i+1} (from batch {example['batch_num']}):")
+        logger.info(f"\nExample {i + 1} (from batch {example['batch_num']}):")
 
         input_ids = example["input_ids"]
         expected = example["expected"]

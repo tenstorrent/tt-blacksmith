@@ -48,6 +48,25 @@ TRAINING_TEST_CASES = [
         ],
         id="tt-mlp-mnist-n150",
     ),
+    # Bounty #453 (GATv2/PubMed). Disabled in CI until the experiment-specific
+    # torch_geometric dependency and a TT runner are wired into the regression pipeline;
+    # the golden config lives in tests/configs/BOUNTIES/. Re-enable by uncommenting.
+    # pytest.param(
+    #     {
+    #         "test_script": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py",
+    #         "experiment_config": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed.yaml",
+    #         "test_config": "tests/configs/BOUNTIES/tt-gatv2_pubmed-pubmed-n150.yaml",
+    #         "timeout": 1200,
+    #     },
+    #     marks=[
+    #         pytest.mark.uplift,
+    #         pytest.mark.n150,
+    #         pytest.mark.n300,
+    #         pytest.mark.torch,
+    #         pytest.mark.single_chip,
+    #     ],
+    #     id="tt-gatv2_pubmed-pubmed-n150",
+    # ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/train.py",
@@ -156,6 +175,7 @@ TRAINING_TEST_CASES = [
         {
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_config": "tests/configs/tt-llama_3_1_8b-sst2-data_tensor_parallel-n300-llmbox.yaml",
             "timeout": 5000,
         },
         marks=[
@@ -321,6 +341,22 @@ TRAINING_TEST_CASES = [
             pytest.mark.split_1,
         ],
         id="tt-gemma11-squadv2-n150",
+    ),
+    pytest.param(
+        {
+            "test_script": "blacksmith/experiments/torch/gemma11/dpo/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml",
+            "test_config": "tests/configs/tt-gemma11-math_preference_dpo-p150.yaml",
+            "reference_model_checkpoint_path": "tests/checkpoints/tt-gemma11-math_preference_sft-p150_checkpoint_step360_epoch2_20260622_192415.pt",
+            "timeout": 1200,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.p150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-gemma11-math_preference_dpo-p150",
     ),
     pytest.param(
         {

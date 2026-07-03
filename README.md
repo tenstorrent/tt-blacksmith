@@ -48,7 +48,7 @@ TT-Blacksmith shows demonstrations of models using the TT-Forge compiler stack. 
 
 -----
 # Tenstorrent Bounty Program Terms and Conditions
-This repo is a part of Tenstorrent’s bounty program. If you are interested in helping to improve tt-forge, please make sure to read the [Tenstorrent Bounty Program Terms and Conditions](https://docs.tenstorrent.com/bounty_terms.html) before heading to the issues tab. Look for the issues that are tagged with both “bounty” and difficulty level!
+This repo is a part of Tenstorrent’s bounty program. If you are interested in helping to improve tt-forge, please make sure to read the [Tenstorrent Bounty Program Terms and Conditions](https://tenstorrent.github.io/tenstorrent-sandbox/bounty_terms.html) before heading to the issues tab. Look for the issues that are tagged with both “bounty” and difficulty level!
 
 [deepwiki]: https://deepwiki.com/tenstorrent/tt-blacksmith
 [deepwiki badge]: https:deepwiki.com/badge.svg

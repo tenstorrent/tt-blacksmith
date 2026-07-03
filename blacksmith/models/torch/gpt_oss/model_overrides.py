@@ -32,7 +32,7 @@ def get_model(config, device_manager: DeviceManager, shard_model=False):
 
     override_gpt_oss_modules(model)
 
-    if config.training_type == "lora":
+    if config.training_model_type == "lora":
         n = model.config.num_hidden_layers
         lora_config = LoraConfig(
             r=config.lora_r,

@@ -11,11 +11,15 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 import wandb
-from flax import linen as nn
 from transformers import AutoTokenizer
 
-from blacksmith.datasets.jax.distil_bert.sst2_dataset import *
-from blacksmith.experiments.jax.distil_bert.checkpoint_utils import *
+from blacksmith.datasets.jax.distil_bert.sst2_dataset import load_sst2, numpy_batch_iter
+from blacksmith.experiments.jax.distil_bert.checkpoint_utils import (
+    cleanup_old_checkpoints,
+    get_latest_checkpoint,
+    load_checkpoint,
+    save_checkpoint,
+)
 from blacksmith.experiments.jax.distil_bert.configs import ExperimentConfig
 from blacksmith.models.jax.distil_bert.model import init_model
 from blacksmith.models.jax.distil_bert.model_utils import combine_params, split_params
@@ -251,7 +255,7 @@ def train(config: ExperimentConfig):
                 val_acc = evaluate(
                     val_data, eval_step, trainable_params, frozen_params, columns, batch_size=config.batch_size
                 )
-                print(f"→ step {global_step}: validation accuracy={val_acc*100:.2f}%")
+                print(f"→ step {global_step}: validation accuracy={val_acc * 100:.2f}%")
 
                 # Log validation to wandb.
                 wandb.log(

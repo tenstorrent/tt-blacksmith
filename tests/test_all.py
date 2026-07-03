@@ -20,6 +20,8 @@ DEFAULT_SETUP_DICT = {
     "timeout": 800.0,
     "skip_loss_checks": False,
     "test_checkpoint_path": None,
+    # Checkpoint used to initialize a DPO reference model; injected into `sft_checkpoint_path`.
+    "reference_model_checkpoint_path": None,
 }
 
 
@@ -61,6 +63,9 @@ def get_cmd(test_id: str, setup_dict: dict) -> list[str]:
     if setup_dict["test_checkpoint_path"]:
         cmd.append("--test-checkpoint-path")
         cmd.append(setup_dict["test_checkpoint_path"])
+    if setup_dict["reference_model_checkpoint_path"]:
+        cmd.append("--reference-model-checkpoint-path")
+        cmd.append(setup_dict["reference_model_checkpoint_path"])
     return cmd
 
 
@@ -76,14 +81,14 @@ def run_cmd(cmd: list[str], test_id: str, setup_dict: dict, debug: bool):
         )
 
         if result.returncode != 0:
-            print(f"\n{'='*60}")
+            print(f"\n{'=' * 60}")
             print(f"FAILED: {test_id}")
             print(f"Exit code: {result.returncode}")
             if result.stdout:
                 print(f"\nSTDOUT:\n{result.stdout}")
             if result.stderr:
                 print(f"\nSTDERR:\n{result.stderr}")
-            print(f"{'='*60}\n")
+            print(f"{'=' * 60}\n")
             pytest.fail(f"Training script exited with code {result.returncode}")
 
     except subprocess.TimeoutExpired:
@@ -141,6 +146,9 @@ def test_training_script(
 
     if setup_dict["test_checkpoint_path"]:
         fetch_checkpoint(setup_dict["test_checkpoint_path"])
+
+    if setup_dict["reference_model_checkpoint_path"]:
+        fetch_checkpoint(setup_dict["reference_model_checkpoint_path"])
 
     cmd = get_cmd(test_id, setup_dict)
     debug = request.config.getoption("--debug-experiment", default=False)

@@ -16,7 +16,8 @@ The following table provides an overview of different model and dataset combinat
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA, Data + Tensor parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | LoRA, Data + Tensor parallel| WH/BH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.2 1B | SST-2 | Adapters | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/adapters/README.md) |
-| PyTorch | Llama 3.2 3B | SST-2 | LoRA, Tensor parallel| BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.2 3B | FuseChat | LoRA | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
+| PyTorch | Llama 3.2 3B | FuseChat | LoRA, Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA, Data + Tensor parallel| T3K | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
 | PyTorch | Llama 3.1 8B | SST-2 | LoRA, Data + Tensor parallel| BH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md) |
@@ -36,13 +37,16 @@ The following table provides an overview of different model and dataset combinat
 | Pytorch | Qwen 3 8B | Alpaca | LoRA, Data + Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Qwen 3 32B | Alpaca | LoRA, Tensor parallel| WH Galaxy | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/qwen/README.md) |
 | PyTorch | Gemma 3 1B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
-| PyTorch | Gemma 1.1 2B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/README.md) |
-| PyTorch | Gemma 1.1 2B | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/README.md) |
+| PyTorch | Gemma 1.1 2B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
+| PyTorch | Gemma 1.1 2B | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
+| PyTorch | Gemma 1.1 2B | Math Preference | LoRA | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
+| PyTorch | Gemma 1.1 2B | Math Preference | LoRA, DPO | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/dpo/README.md) |
 | PyTorch | ALBERT | Banking77 | Adapters | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/albert/README.md) |
 | PyTorch | Phi-1 | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md) |
 | PyTorch | Phi-1 | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md) |
 | PyTorch | Phi-1.5 | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md) |
 | PyTorch | Phi-1.5 | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md) |
+| PyTorch | GATv2 | PubMed | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/README.md) |
 | JAX | MLP | MNIST | Full-model | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | MLP | MNIST | Full-model, Data parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | MLP | MNIST | Full-model, Tensor parallel | N300 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |

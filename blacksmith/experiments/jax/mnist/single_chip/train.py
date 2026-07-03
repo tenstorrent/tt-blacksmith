@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import os
 from pathlib import Path
 
 import jax
@@ -128,7 +127,7 @@ def train_mnist(config: ExperimentConfig):
         num_batches = x_train_host.shape[0] // batch_size
 
         if logger_config.log_on_wandb:
-            config = init_wandb(
+            init_wandb(
                 project_name="Pure JAX MLP training",
                 job_type="Pure JAX MLP training",
                 dir_path=logger_config.checkpoint.checkpoint_dir,
@@ -234,7 +233,7 @@ def train_mnist(config: ExperimentConfig):
         key = random.PRNGKey(0)
         x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host = load_mnist_jax(config)
 
-    params = train_mlp(x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host, key)
+    train_mlp(x_train_host, y_train_host, x_val_host, y_val_host, x_test_host, y_test_host, key)
 
 
 if __name__ == "__main__":

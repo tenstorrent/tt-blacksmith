@@ -24,6 +24,7 @@ def generate_config(
     yaml_path: Path,
     test_yaml_path: Optional[Path] = None,
     test_checkpoint_path: Optional[str] = None,
+    reference_model_checkpoint_path: Optional[str] = None,
 ) -> BaseModel:
     assert yaml_path.exists(), f"Config file {yaml_path} does not exist"
     with yaml_path.open() as file:
@@ -44,6 +45,9 @@ def generate_config(
         config_data["resume_from_checkpoint"] = True
         config_data["resume_option"] = "path"
         config_data["checkpoint_path"] = test_checkpoint_path
+
+    if reference_model_checkpoint_path:
+        config_data["sft_checkpoint_path"] = reference_model_checkpoint_path
 
     return config.model_validate(config_data)
 
@@ -66,6 +70,13 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
 
     parser.add_argument(
         "--test-checkpoint-path", type=str, required=False, help="[Testing utils] Path to the checkpoint to resume from"
+    )
+
+    parser.add_argument(
+        "--reference-model-checkpoint-path",
+        type=str,
+        required=False,
+        help="[Testing utils] Path to the checkpoint used to initialize the DPO reference model (sft_checkpoint_path)",
     )
 
     args = parser.parse_args()

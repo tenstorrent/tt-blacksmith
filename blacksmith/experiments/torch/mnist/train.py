@@ -2,13 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
 import traceback
 from pathlib import Path
 from typing import Tuple
 
 import torch
-import torch_xla
 from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset

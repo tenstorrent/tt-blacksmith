@@ -17,7 +17,7 @@ from blacksmith.tools.cli import generate_config, parse_cli_options
 
 def show_examples(examples, tokenizer, config):
     for i, example in enumerate(examples):
-        print(f"\nExample {i+1} (from batch {example['batch_num']}):")
+        print(f"\nExample {i + 1} (from batch {example['batch_num']}):")
 
         input_ids = example["input_ids"]
         expected = example["expected"]
@@ -53,7 +53,7 @@ def show_examples(examples, tokenizer, config):
 
 
 def validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype, tokenizer=None):
-    print(f"\n=== Starting Validation ===")
+    print("\n=== Starting Validation ===")
     total_val_loss = 0.0
     num_val_batches = 0
     collected_examples = []
@@ -103,7 +103,7 @@ def validate(model, val_data_loader, loss_fn, device, config, vocab_size, dtype,
                         }
                     )
 
-    print(f"\n=== Validation Examples (Random samples) ===")
+    print("\n=== Validation Examples (Random samples) ===")
     show_examples(collected_examples, tokenizer, config)
     avg_val_loss = total_val_loss / num_val_batches if num_val_batches > 0 else 0.0
     print(f"Average validation loss: {avg_val_loss}")
@@ -269,7 +269,7 @@ def train(config, model, tokenizer, train_data_loader, val_data_loader):
                         torch.save(model.state_dict(), checkpoint_path)
 
             if config.save_strategy == "epoch":
-                checkpoint_path = os.path.join(config.output_dir, "checkpoints", f"checkpoint-{epoch+1}.pth")
+                checkpoint_path = os.path.join(config.output_dir, "checkpoints", f"checkpoint-{epoch + 1}.pth")
                 torch.save(model.state_dict(), checkpoint_path)
 
         # Save final model
