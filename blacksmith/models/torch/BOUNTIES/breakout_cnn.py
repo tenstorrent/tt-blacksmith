@@ -54,9 +54,6 @@ class BreakoutCNN(nn.Module):
             gumbel = -torch.log(-torch.log(u + 1e-20) + 1e-20)
             action = (log_probs + gumbel).argmax(dim=-1)
 
-        # Select the chosen action's log-prob with a one-hot masked sum instead
-        # of log_probs.gather(-1, action): torch.gather returns wrong values.
-        onehot = torch.nn.functional.one_hot(action.long(), num_actions).to(log_probs.dtype)
-        log_prob = (log_probs * onehot).sum(dim=-1)
+        log_prob = log_probs.gather(-1, action.long().unsqueeze(-1)).squeeze(-1)
         entropy = -(probs * log_probs).sum(dim=-1)
         return action, log_prob, entropy, self.critic(hidden)

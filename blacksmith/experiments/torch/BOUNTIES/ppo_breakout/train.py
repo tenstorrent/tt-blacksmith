@@ -119,12 +119,6 @@ def make_vec_env(config: TrainingConfig):
 # ---------------------------------------------------------------------------
 
 
-def _shuffle_rows_onehot(perm_onehot, t):
-    # Permute rows via matmul (P @ t), where row i of P is one_hot(perm[i]).
-    flat = t.reshape(t.shape[0], -1).to(perm_onehot.dtype)
-    return (perm_onehot @ flat).reshape(t.shape[0], *t.shape[1:])
-
-
 def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingConfig, device_manager: DeviceManager):
     device = device_manager.device
     b_obs, b_actions, b_log_probs, b_values = buffer.flatten()
@@ -132,29 +126,18 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
     b_returns = returns.reshape(-1)
     batch_size = b_obs.shape[0]
 
-    # Shuffle minibatches with a one-hot permutation matmul instead of a row gather
-    # (b_obs[perm] / index_select(0, perm)): the gather returns wrong values on TT.
-    # Minibatches are then taken as static slices, which are safe.
-
     clip_fracs = []
 
     for _ in range(config.update_epochs):
         perm = torch.randperm(batch_size).to(device)
-        perm_onehot = torch.nn.functional.one_hot(perm, batch_size).to(b_obs.dtype)
-        s_obs = _shuffle_rows_onehot(perm_onehot, b_obs)
-        s_actions = _shuffle_rows_onehot(perm_onehot, b_actions)
-        s_log_probs = _shuffle_rows_onehot(perm_onehot, b_log_probs)
-        s_values = _shuffle_rows_onehot(perm_onehot, b_values)
-        s_adv = _shuffle_rows_onehot(perm_onehot, b_advantages)
-        s_returns = _shuffle_rows_onehot(perm_onehot, b_returns)
         for start in range(0, batch_size, config.minibatch_size):
-            sl = slice(start, start + config.minibatch_size)
-            mb_obs = s_obs[sl]
-            mb_actions = s_actions[sl]
-            mb_log_probs = s_log_probs[sl]
-            mb_values = s_values[sl]
-            mb_adv = s_adv[sl]
-            mb_returns = s_returns[sl]
+            mb_inds = perm[start : start + config.minibatch_size]
+            mb_obs = b_obs.index_select(0, mb_inds)
+            mb_actions = b_actions.index_select(0, mb_inds)
+            mb_log_probs = b_log_probs.index_select(0, mb_inds)
+            mb_values = b_values.index_select(0, mb_inds)
+            mb_adv = b_advantages.index_select(0, mb_inds)
+            mb_returns = b_returns.index_select(0, mb_inds)
 
             _, new_log_prob, entropy, new_value = agent.get_action_and_value(mb_obs, mb_actions)
             log_ratio = new_log_prob - mb_log_probs

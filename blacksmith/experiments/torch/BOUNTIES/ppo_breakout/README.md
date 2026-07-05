@@ -29,8 +29,6 @@ python blacksmith/experiments/torch/BOUNTIES/ppo_breakout/train.py
 
 The experiment is configured using the configuration file `ppo_breakout.yaml`. Current defaults are the recommended and tested hyperparameters.
 
-> **Note:** On TT, `num_minibatches` is set to 16 so the CNN's conv activations fit in L1; if you run on CPU (`use_tt: False`) you can use the standard value of 4.
-
 ### Configuration Parameters
 
 | Parameter | Description | Default Value |
