@@ -120,17 +120,15 @@ def make_vec_env(config: TrainingConfig):
 
 
 def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingConfig, device_manager: DeviceManager):
-    device = device_manager.device
     b_obs, b_actions, b_log_probs, b_values = buffer.flatten()
     b_advantages = advantages.reshape(-1)
     b_returns = returns.reshape(-1)
-    batch_size = b_obs.shape[0]
 
     clip_fracs = []
 
     for _ in range(config.update_epochs):
-        perm = torch.randperm(batch_size).to(device)
-        for start in range(0, batch_size, config.minibatch_size):
+        perm = torch.randperm(config.batch_size).to(device_manager.device)
+        for start in range(0, config.batch_size, config.minibatch_size):
             mb_inds = perm[start : start + config.minibatch_size]
             mb_obs = b_obs.index_select(0, mb_inds)
             mb_actions = b_actions.index_select(0, mb_inds)
