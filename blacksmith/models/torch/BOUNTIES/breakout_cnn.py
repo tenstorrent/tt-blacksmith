@@ -46,9 +46,9 @@ class BreakoutCNN(nn.Module):
         probs = log_probs.exp()
 
         if action is None:
-            # Sample on device via the Gumbel-max trick instead of torch.multinomial, to
-            # keep a random node out of the graph: re-drawn across executions it would
-            # desync action from its log_prob
+            # Sample on device with the Gumbel-max trick, not torch.multinomial: multinomial
+            # adds a random node to the graph that re-draws each execution, desyncing the
+            # action from its log_prob.
             u = torch.rand(log_probs.shape, device="cpu").to(target_device)
             gumbel = -torch.log(-torch.log(u + 1e-20) + 1e-20)
             action = (log_probs + gumbel).argmax(dim=-1)
