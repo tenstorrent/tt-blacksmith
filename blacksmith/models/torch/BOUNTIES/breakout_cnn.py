@@ -41,9 +41,8 @@ class BreakoutCNN(nn.Module):
         hidden = self.network(x)
         logits = self.actor(hidden)
         target_device = logits.device
-        num_actions = logits.shape[-1]
 
-        log_probs = torch.log_softmax(logits, dim=-1).to(target_device)
+        log_probs = torch.log_softmax(logits, dim=-1)
         probs = log_probs.exp()
 
         if action is None:
