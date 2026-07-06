@@ -3,13 +3,13 @@ dataset_id: "sst2"
 
 # Model settings
 model_name: "meta-llama/Llama-3.1-8B"
-max_length: 128
+max_length: 512
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
 training_model_type: "lora"
 learning_rate: 1e-4
-batch_size: 8
+batch_size: 1
 num_epochs: 1
 ignored_index: -100
 
@@ -59,3 +59,4 @@ use_tt: True
 measure_e2e_time: False
 enable_trace: False
 trace_region_size: 1000000000 # DRAM region size (bytes) for runtime trace
+enable_const_eval: False
