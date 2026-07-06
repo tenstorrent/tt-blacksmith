@@ -10,7 +10,7 @@ https://arxiv.org/pdf/2305.18290
 DPO is a training objective (loss function), orthogonal to PEFT methods like LoRA/adapters.
 Use `training_model_type` to specify the parameter-efficient fine-tuning approach.
 """
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -100,6 +100,10 @@ class DPOTrainingConfig(BaseModel):
     mesh_axis_names: Optional[list[str]] = Field(
         default=None, description="Axis names for mesh, e.g. ['data', 'model']"
     )
+    # Data parallelism: mesh axis along which input batches are sharded (must be in mesh_axis_names or None).
+    input_sharding_dim: Optional[str] = Field(default=None)
+    # Tensor parallelism: list of (regex_pattern, sharding_spec_tuple) matched against module names.
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # LoRA setup (used when peft_method="lora")
     lora_r: int = Field(default=16, gt=0)

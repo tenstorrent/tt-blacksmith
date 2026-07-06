@@ -40,7 +40,9 @@ The following table provides an overview of different model and dataset combinat
 | PyTorch | Gemma 1.1 2B | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
 | PyTorch | Gemma 1.1 2B | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
 | PyTorch | Gemma 1.1 2B | Math Preference | LoRA | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
+| PyTorch | Gemma 1.1 2B | Math Preference | LoRA, Data + Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
 | PyTorch | Gemma 1.1 2B | Math Preference | LoRA, DPO | P150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/dpo/README.md) |
+| PyTorch | Gemma 1.1 2B | Math Preference | LoRA, DPO, Data + Tensor parallel | BH QuietBox | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/dpo/README.md) |
 | PyTorch | ALBERT | Banking77 | Adapters | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/albert/README.md) |
 | PyTorch | Phi-1 | SST-2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md) |
 | PyTorch | Phi-1 | Squad-V2 | LoRA | N150 | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md) |

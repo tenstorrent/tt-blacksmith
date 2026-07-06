@@ -32,11 +32,29 @@ If no config is provided, `single_chip/gemma11_math_preferences_dpo.yaml` is use
 python3 blacksmith/experiments/torch/gemma11/dpo/train.py --config blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml
 ```
 
+### Multi-Chip Training
+
+The multi-chip config spreads both the policy and reference models across a 4-chip 2D mesh
+(2-way data parallel x 2-way tensor parallel). Data parallelism shards the preference batch across
+the `batch` mesh axis; tensor parallelism shards the Q/O attention and MLP weights across the
+`model` axis (Gemma 1.1's multi-query K/V projections are left replicated).
+
+Run the [multi-chip SFT config](../lora/multi_chip/gemma11_math_preferences_sft.yaml) first, then
+point `sft_checkpoint_path` at the resulting checkpoint (or pass it on the command line via
+`--reference-model-checkpoint-path`, which overrides the config field):
+
+```bash
+python3 blacksmith/experiments/torch/gemma11/dpo/train.py \
+  --config blacksmith/experiments/torch/gemma11/dpo/multi_chip/gemma11_math_preferences_dpo.yaml \
+  --reference-model-checkpoint-path blacksmith/experiments/torch/gemma11/lora/checkpoints/<SFT_CHECKPOINT>.pt
+```
+
 #### Training Configuration
 
 | Architecture | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------ | ---------- | --------------- | ------- | ------ |
 | [P150](single_chip/gemma11_math_preferences_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
+| [Multi-Chip](multi_chip/gemma11_math_preferences_dpo.yaml) | [2, 2] | ["batch", "model"] | Math Preference (DPO) | DPO + LoRA (DP + TP) |
 
 ## Data
 
@@ -118,8 +136,10 @@ The experiment is configured using `single_chip/gemma11_math_preferences_dpo.yam
 | `remote_path` | Remote storage path (if applicable). | "" |
 | `seed` | Random seed for reproducibility. | 23 |
 | `deterministic` | Whether to enforce deterministic behavior. | False |
-| `mesh_shape` | Mesh shape for distributed training. | None |
-| `mesh_axis_names` | Axis names for the mesh. | None |
+| `mesh_shape` | Mesh shape for distributed training (e.g. `[2, 2]` for 4 chips). | None |
+| `mesh_axis_names` | Axis names for the mesh (e.g. `["batch", "model"]`). | None |
+| `input_sharding_dim` | Mesh axis along which input batches are sharded (data parallelism). | None |
+| `model_sharding_patterns` | Tensor-parallel sharding rules: list of `(regex, partition_spec)` matched against module names. | None |
 | `lora_r` | Rank of LoRA adaptation matrices. | 16 |
 | `lora_alpha` | Scaling factor for LoRA updates. | 32 |
 | `lora_target_modules` | Target modules for LoRA adaptation. | ["q_proj", "k_proj", "v_proj", "o_proj"] |

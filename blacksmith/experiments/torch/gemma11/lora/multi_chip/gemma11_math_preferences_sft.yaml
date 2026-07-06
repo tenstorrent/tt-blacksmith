@@ -1,0 +1,82 @@
+# Gemma 1.1 2B SFT (reference model for DPO) - multi-chip configuration.
+# 4 chips arranged as a 2D mesh: 2-way data parallel x 2-way tensor parallel.
+# Model: https://huggingface.co/google/gemma-1.1-2b-it
+# Dataset: argilla/distilabel-math-preference-dpo (chosen responses only, SFT mode)
+
+# Dataset settings
+dataset_id: "math_preference_sft"
+
+# Model settings
+model_name: "google/gemma-1.1-2b-it"
+max_length: 256
+dtype: "torch.bfloat16"
+ignored_index: -100
+
+# Training hyperparameters
+training_model_type: "lora"
+learning_rate: 5e-5
+batch_size: 2  # Global batch; sharded across the 2-way "batch" (data-parallel) mesh axis -> 1 per DP rank.
+gradient_checkpointing: False
+num_epochs: 3
+optim: "adamw_torch"
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gemma11-finetuning"
+wandb_run_name: "tt-gemma11-math-preferences-sft-multichip"
+wandb_tags: ["gemma11", "sft", "math", "multichip"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 10
+epoch_freq: 1
+val_steps_freq: 100
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: ""  # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 3
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gemma11/lora"
+save_optim: False
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Reproducibility settings
+seed: 23
+deterministic: True
+
+# Device settings (4 chips: 2D mesh of data parallel x tensor parallel)
+mesh_shape: [2, 2]
+mesh_axis_names: ["batch", "model"]  # "batch" = data parallel, "model" = tensor parallel
+input_sharding_dim: "batch"          # shard input batch dim across the data-parallel axis
+# Tensor-parallel sharding patterns (regex on module name -> partition spec per weight dim).
+# Gemma 1.1 2B uses multi-query attention (1 KV head, 8 query heads, head_dim=256), so K/V
+# projections are left REPLICATED; only Q/O and the MLP are sharded across the "model" axis.
+model_sharding_patterns:
+  # === Attention: q_proj column-parallel (shard output), o_proj row-parallel (shard input) ===
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.o_proj\.base_layer$',      [null, "model"]]
+  - ['\.self_attn\.o_proj\.lora_A\.default$', [null, "model"]]
+  # === MLP: gate/up column-parallel, down row-parallel (not LoRA-targeted -> plain Linear) ===
+  - ['\.mlp\.gate_proj$', ["model", null]]
+  - ['\.mlp\.up_proj$',   ["model", null]]
+  - ['\.mlp\.down_proj$', [null, "model"]]
+
+# LoRA setup
+lora_r: 16
+lora_alpha: 32
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Other settings
+framework: "pytorch"
+use_tt: True
