@@ -8,6 +8,7 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import torch
+import torch_xla
 
 from blacksmith.datasets.torch.BOUNTIES.pubmed.pubmed_dataset import load_dataset
 from blacksmith.experiments.torch.BOUNTIES.gatv2_pubmed.configs import TrainingConfig
@@ -251,6 +252,13 @@ if __name__ == "__main__":
 
     # Checkpoint manager setup
     checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
+
+    if config.use_tt:
+        compile_options = {
+            "enable_trace": config.enable_trace,
+            "optimization_level": config.optimization_level,
+        }
+        torch_xla.set_custom_compile_options(compile_options)
 
     # Start training
     train(config, device_manager, logger, checkpoint_manager)

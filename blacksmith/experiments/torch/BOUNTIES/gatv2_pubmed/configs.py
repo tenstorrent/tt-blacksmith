@@ -60,6 +60,7 @@ class TrainingConfig(BaseModel):
 
     # Device settings
     use_tt: bool = Field(default=False)
+    optimization_level: int = Field(default=0, ge=0, le=2)
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     # Use the SpMM (matmul) GATv2 convolution instead of scatter-based GATv2Conv, so the

@@ -72,6 +72,7 @@ class TrainingConfig(BaseModel):
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
+    optimization_level: int = Field(default=0, ge=0, le=2)
     test_config: Optional[TestConfig] = Field(default=None)
 
     @computed_field

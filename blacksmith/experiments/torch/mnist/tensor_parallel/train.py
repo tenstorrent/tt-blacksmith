@@ -197,6 +197,7 @@ if __name__ == "__main__":
         "export_path": "model",
         "export_tensors": True,
         "enable_const_eval": False,
+        "optimization_level": config.optimization_level,
     }
     torch_xla.set_custom_compile_options(options)
 

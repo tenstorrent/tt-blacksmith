@@ -228,5 +228,12 @@ if __name__ == "__main__":
     # Set up the checkpoint manager.
     checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
+    if config.use_tt:
+        compile_options = {
+            "enable_trace": config.enable_trace,
+            "optimization_level": config.optimization_level,
+        }
+        torch_xla.set_custom_compile_options(compile_options)
+
     # Start the training.
     train(config, device_manager, logger, checkpoint_manager)

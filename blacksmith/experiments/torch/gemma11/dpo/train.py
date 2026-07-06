@@ -367,5 +367,12 @@ if __name__ == "__main__":
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
 
+    if config.use_tt:
+        compile_options = {
+            "enable_trace": config.enable_trace,
+            "optimization_level": config.optimization_level,
+        }
+        torch_xla.set_custom_compile_options(compile_options)
+
     # Start DPO training
     train_dpo(config, device_manager, logger, checkpoint_manager)

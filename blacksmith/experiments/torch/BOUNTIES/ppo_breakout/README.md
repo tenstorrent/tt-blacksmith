@@ -22,7 +22,7 @@ itself, along with the use of GAE for advantage estimation, is from Schulman et 
 ## Training
 
 ```bash
-python blacksmith/experiments/torch/BOUNTIES/ppo_breakout/test_breakout_ppo_training.py
+python blacksmith/experiments/torch/BOUNTIES/ppo_breakout/train.py
 ```
 
 ## Configuration

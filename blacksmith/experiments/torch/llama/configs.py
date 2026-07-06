@@ -102,3 +102,4 @@ class TrainingConfig(BaseModel):
     test_config: Optional[TestConfig] = Field(default=None)
     enable_trace: bool = Field(default=False)
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
+    optimization_level: int = Field(default=0, ge=0, le=2)
