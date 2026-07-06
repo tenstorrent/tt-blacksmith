@@ -95,3 +95,4 @@ class TrainingConfig(BaseModel):
             return dtypes[self.dtype]
         except KeyError as e:
             raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(dtypes)}") from e
+    enable_const_eval: bool = Field(default=True)
