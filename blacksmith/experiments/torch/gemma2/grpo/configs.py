@@ -33,7 +33,9 @@ class GRPOTrainingConfig(BaseModel):
     ignored_index: int = Field(default=-100)
 
     # GRPO / generation hyperparameters
-    num_generations: int = Field(default=4, gt=1, description="G: completions sampled per prompt (>=2 for advantage std)")
+    num_generations: int = Field(
+        default=4, gt=1, description="G: completions sampled per prompt (>=2 for advantage std)"
+    )
     max_prompt_length: int = Field(default=256, gt=0)
     max_completion_length: int = Field(default=200, gt=0)
     temperature: float = Field(default=0.5, ge=0.0, description="Sampling temperature (0 = greedy)")

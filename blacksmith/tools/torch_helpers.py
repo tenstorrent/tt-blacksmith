@@ -327,9 +327,7 @@ def generate_completions(
     )
     # Prefer the explicit head_dim (Gemma 2 sets head_dim != hidden_size / num_heads);
     # fall back to the derived value for models that omit it.
-    head_dim = getattr(model_config, "head_dim", None) or (
-        model_config.hidden_size // model_config.num_attention_heads
-    )
+    head_dim = getattr(model_config, "head_dim", None) or (model_config.hidden_size // model_config.num_attention_heads)
     static_cache.early_initialization(
         batch_size=batch_size,
         num_heads=model_config.num_key_value_heads,
@@ -420,9 +418,7 @@ def construct_inputs_for_decode(
     )
     # Prefer the explicit head_dim (Gemma 2 sets head_dim != hidden_size / num_heads);
     # fall back to the derived value for models that omit it.
-    head_dim = getattr(model_config, "head_dim", None) or (
-        model_config.hidden_size // model_config.num_attention_heads
-    )
+    head_dim = getattr(model_config, "head_dim", None) or (model_config.hidden_size // model_config.num_attention_heads)
     static_cache.early_initialization(
         batch_size=1,
         num_heads=model_config.num_key_value_heads,
