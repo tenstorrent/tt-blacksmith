@@ -174,7 +174,6 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
             torch.nn.utils.clip_grad_norm_(agent.parameters(), config.max_grad_norm)
             device_manager.optimizer_step(optimizer)
 
-    # Move all metrics to CPU for logging to avoid XLA sync issues.
     if config.use_tt:
         torch_xla.sync(wait=True)
 
@@ -287,7 +286,7 @@ def train(
             with torch.no_grad():
                 next_value = agent.get_value(obs).flatten()
             advantages, returns = buffer.compute_gae(next_value, done)
-            # Empirically faster on TT.
+
             if config.use_tt:
                 torch_xla.sync()
 
