@@ -18,6 +18,10 @@ python blacksmith/experiments/torch/mnist_cnn/train.py
 
 ## Configuration
 
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/mnist_cnn.yaml) | None      | None             | None               | MNIST        | Full Model                  |
+
 In `blacksmith/experiments/torch/mnist_cnn/single_chip/mnist_cnn.yaml` you can change values for following parameters.
 
 | Parameter | Description | Default Value |

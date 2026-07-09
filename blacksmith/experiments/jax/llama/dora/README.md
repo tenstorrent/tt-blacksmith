@@ -19,6 +19,12 @@ pip install git+https://github.com/patrick-kidger/equinox.git@367124071570194b5d
 pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
 ```
 
+### Configuration
+ 
+| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------ | --------------------------- |
+| [Single-Chip](llama_sst2.yaml) | None                      | None        | SST-2 | DoRA     |
+
 ### TT Device Training
 
 Run DoRA training on Tenstorrent device:

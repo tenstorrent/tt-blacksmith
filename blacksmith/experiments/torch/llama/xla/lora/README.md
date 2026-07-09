@@ -66,14 +66,14 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 
 #### Llama 3.2 1B Training Configurations
 
-| Architecture       | mesh_shape                   | mesh_axis_names                          | dataset | Method |
-| ------------------ | ---------------------------- | ---------------------------------------- | ------- | ------ |
-| [Single-Chip](single_chip/llama_3_2_1b_alpaca.yaml) | None                         | None                                     | Alpaca  | LoRA   |
-| [Single-Chip](single_chip/llama_3_2_1b_sst2.yaml) | None                         | None                                     | SST2    | LoRA   |
-| [N300](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 2]`, `[2, 1]`           | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
-| [Wormhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
-| [Blackhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`                      | SST2    | LoRA   |
-| [Galaxy](galaxy/llama_3_2_1b_sst2.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/llama_3_2_1b_alpaca.yaml) | None          | None            | None                     | Alpaca  | LoRA   |
+| [Single-Chip](single_chip/llama_3_2_1b_sst2.yaml) | None                         | None        | None                      | SST2    | LoRA   |
+| [N300](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 2]`, `[2, 1]`           | `["data", "model"]`, `["model", "data"]` | `["batch"]`  | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["data", "model"]`, `["model", "data"]` | `["batch"]`   | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_2_1b_sst2.yaml) | `[1, 4]`                     | `["data", "model"]`     | `["batch"]`            | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_2_1b_sst2.yaml) | `[8, 4]`                     | `["data", "model"]`, `["model", "data"]`| `["batch"]`   | SST2    | LoRA   |
 
 ### Llama 3.2 3B Training
 
@@ -92,10 +92,10 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 
 #### Llama 3.2 3B Training Configuration
 
-| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
-| ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
-| [P150](single_chip/llama_3_2_3b_fusechat.yaml) | None                         | None                                     | FuseChat  | LoRA   |
-| [Blackhole QuietBox](quietbox/llama_3_2_3b_fusechat.yaml) | `[1, 4]`                     | `["data", "model"]`  | FuseChat         | LoRA       |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [P150](single_chip/llama_3_2_3b_fusechat.yaml) | None                         | None          | None                   | FuseChat  | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_2_3b_fusechat.yaml) | `[1, 4]`          | `["data", "model"]`  | None      | FuseChat         | LoRA       |
 
 ### Llama 3.1 8B Training
 
@@ -121,14 +121,14 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 
 #### Llama 3.1 8B Training Configurations
 
-| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
-| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [P150](single_chip/llama_3_1_8b_sst2.yaml) | None     | None            | SST2  | LoRA   |
-| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 8]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[8, 1]`   | `["model", "data"]`                      | SST2    | LoRA   |
-| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[2, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Blackhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 4]`   | `["data", "model"]`                      | SST2    | LoRA   |
-| [Galaxy](galaxy/llama_3_1_8b_sst2.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [P150](single_chip/llama_3_1_8b_sst2.yaml)           | None     | None                            | None            | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 8]`   | `["data", "model"]`           | `["batch"]`     | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[8, 1]`   | `["model", "data"]`           | `["batch"]`     | SST2    | LoRA   |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[2, 4]`   | `["data", "model"]`           | `["batch"]`     | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/llama_3_1_8b_sst2.yaml) | `[1, 4]`   | `["data", "model"]`          | `["batch"]`     | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_1_8b_sst2.yaml) | `[8, 4]`   | `["data", "model"]`, `["model", "data"]`   | `["batch"]`     | SST2    | LoRA   |
 
 ### Llama 3.1 8B Instruct Training
 
@@ -139,9 +139,9 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 
 #### Llama 3.3 8B Instruct Training Configurations
 
-| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
-| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [Wormhole QuietBox](quietbox/llama_3_1_8b_instruct_metamathqa.yaml) | `[2, 4]`   | `["data", "model"]`                      | MetaMathQA    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Wormhole QuietBox](quietbox/llama_3_1_8b_instruct_metamathqa.yaml) | `[2, 4]`   | `["data", "model"]`  | `["data"]`  | MetaMathQA    | LoRA   |
 
 
 ### Llama 3.1 70B Training
@@ -159,11 +159,10 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 ```
 
 #### Llama 3.1 70B Training Configurations
-
-| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
-| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [Blackhole LoudBox](loudbox/llama_3_1_70b_sst2.yaml) | `[2, 4]`   | `["model", "batch"]`| SST2    | LoRA   |
-| [Galaxy](galaxy/llama_3_1_70b_sst2.yaml) | `[4, 8]`   | `["model", "batch"]` | SST2    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Blackhole LoudBox](loudbox/llama_3_1_70b_sst2.yaml) | `[2, 4]`   | `["model", "batch"]`| None | SST2    | LoRA   |
+| [Galaxy](galaxy/llama_3_1_70b_sst2.yaml) | `[4, 8]`   | `["model", "batch"]` |  None |  SST2    | LoRA   |
 
 
 ### Llama 3.3 70B Instruct Training
@@ -182,10 +181,10 @@ python3 blacksmith/experiments/torch/llama/xla/train.py --config blacksmith/expe
 
 #### Llama 3.3 70B Instruct Training Configurations
 
-| Architecture       | mesh_shape | mesh_axis_names                          | dataset | Method |
-| ------------------ | ---------- | ---------------------------------------- | ------- | ------ |
-| [Blackhole LoudBox](loudbox/llama_3_3_70b_instruct_alpaca.yaml) | `[2, 4]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
-| [Wormhole Galaxy](galaxy/llama_3_3_70b_instruct_alpaca.yaml) | `[4, 8]`   | `["model", "batch"]`                      | Alpaca    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Blackhole LoudBox](loudbox/llama_3_3_70b_instruct_alpaca.yaml) | `[2, 4]`   | `["model", "batch"]`    | None              | Alpaca    | LoRA   |
+| [Wormhole Galaxy](galaxy/llama_3_3_70b_instruct_alpaca.yaml) | `[4, 8]`   | `["model", "batch"]`       | None              | Alpaca    | LoRA   |
 
 ## Data
 

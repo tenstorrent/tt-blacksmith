@@ -49,9 +49,9 @@ python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experimen
 
 #### Qwen 2.5 0.5B Training Configuration
 
-| Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
-| ------------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](single_chip/qwen_text2sql.yaml)        | None       | None            | Text2SQL    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/qwen_text2sql.yaml)        | None       | None     | None       | Text2SQL    | LoRA   |
 
 ### Qwen 2.5 1.5B Training
 
@@ -64,9 +64,9 @@ python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experimen
 
 #### Qwen 2.5 1.5B Training Configuration
 
-| Architecture       | mesh_shape | mesh_axis_names | dataset | Method |
-| ------------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](single_chip/qwen_1-5b_text2sql.yaml)        | None       | None            | Text2SQL    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/qwen_1-5b_text2sql.yaml)        | None       | None      | None      | Text2SQL    | LoRA   |
 
 ### Qwen 3 4B Instruct 2507 Training
 
@@ -85,11 +85,11 @@ Working mesh shapes for Blackhole QuietBox: `[1, 4]` (data, model)
 
 #### Qwen 3 4B Instruct 2507 Training Configurations
 
-| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
-| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Single-Chip](single_chip/qwen_3_4b_instruct_2507_sst2.yaml)        | None               | None                                      | SST2    | LoRA   |
-| [N300](quietbox/qwen_3_4b_instruct_2507_sst2.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
-| [Blackhole QuietBox](quietbox/qwen_3_4b_instruct_2507_sst2.yaml) | `[1, 4]`           | `["data", "model"]`                       | SST2    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/qwen_3_4b_instruct_2507_sst2.yaml)        | None               | None        | None    | SST2    | LoRA   |
+| [N300](quietbox/qwen_3_4b_instruct_2507_sst2.yaml)             | `[1, 2]`, `[2, 1]` |  `["data", "model"]`, `["model", "data"]`| None | SST2    | LoRA   |
+| [Blackhole QuietBox](quietbox/qwen_3_4b_instruct_2507_sst2.yaml) | `[1, 4]`           | `["data", "model"]`            | None   | SST2    | LoRA   |
 
 ### Qwen 3 8B Base Training
 
@@ -102,9 +102,9 @@ python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experimen
 
 #### Qwen 3 8B Base Training Configurations
 
-| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
-| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole Galaxy](galaxy/qwen_3_8b_base_sst2.yaml)        | `[8, 4]`   | `["data", "model"]`, `["model", "data"]` | SST2    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Wormhole Galaxy](galaxy/qwen_3_8b_base_sst2.yaml)        | `[8, 4]`   | `["batch", "model"]`, `["model", "batch"]` |`"batch"` | SST2    | LoRA   |
 
 ### Qwen 3 8B Training
 
@@ -117,9 +117,9 @@ python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experimen
 
 #### Qwen 3 8B Training Configurations
 
-| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
-| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole QuietBox](quietbox/qwen_3_8b_alpaca.yaml)        | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["batch", "model"]`, `["model", "batch"]` | Alpaca    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Wormhole QuietBox](quietbox/qwen_3_8b_alpaca.yaml)  | `[1, 8]`, `[8, 1]`, `[2, 4]` | `["batch", "model"]`, `["model", "batch"]` | None   | Alpaca    | LoRA   |
 
 
 ### Qwen 3 32B Training
@@ -133,9 +133,9 @@ python3 blacksmith/experiments/torch/qwen/train.py --config blacksmith/experimen
 
 #### Qwen 3 32B Training Configurations
 
-| Architecture       | mesh_shape         | mesh_axis_names                           | dataset | Method |
-| ------------------ | -----------------  | ----------------------------------------- | ------- | ------ |
-| [Wormhole Galaxy](galaxy/qwen_3_32b_alpaca.yaml)        | `[8, 4]`   | `["model", "batch"]` | Alpaca    | LoRA   |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Wormhole Galaxy](galaxy/qwen_3_32b_alpaca.yaml)        | `[8, 4]`   | `["model", "batch"]` | None   | Alpaca    | LoRA   |
 
 
 ## Data

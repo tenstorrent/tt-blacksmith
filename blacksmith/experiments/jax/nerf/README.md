@@ -43,6 +43,10 @@ Check the dataset documentation mentioned above for more information.
 
 ## Configuration
 
+| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------ | --------------------------- |
+| [Single-Chip](nerf_blender.yaml) | None                         | None   | Blender  | Full Model     |
+
 The experiment is configured using the configuration file `nerf_blender.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the learning rate.
 
 Current `nerf_blender.yaml` has the recommended and tested hyperparameters for the experiment.
