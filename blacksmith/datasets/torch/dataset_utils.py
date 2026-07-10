@@ -19,7 +19,9 @@ from blacksmith.datasets.torch.stanfordcars.stanfordcars_dataset import (
     StanfordCarsDataset,
 )
 from blacksmith.datasets.torch.text2sql.text2sql_dataset import TextToSQLDataset
-from blacksmith.datasets.torch.wizardlm_evol.wizardlm_evol_dataset import WizardLMEvolDataset
+from blacksmith.datasets.torch.wizardlm_evol.wizardlm_evol_dataset import (
+    WizardLMEvolDataset,
+)
 from blacksmith.tools.templates.configs import TrainingConfig
 
 

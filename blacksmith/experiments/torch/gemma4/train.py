@@ -43,9 +43,7 @@ def validate(model, val_data_loader, loss_fn, logger, device, config, vocab_size
             logits = outputs.logits
             shift_logits = logits[:, :-1, :].contiguous()
 
-            expected_output_one_hot, labels_mask = transform_labels(
-                expected_output, config.ignored_index, vocab_size
-            )
+            expected_output_one_hot, labels_mask = transform_labels(expected_output, config.ignored_index, vocab_size)
 
             if config.use_tt:
                 loss = loss_fn(shift_logits, expected_output_one_hot, labels_mask)
@@ -146,9 +144,7 @@ def train(
                 if accumulation_step == 0:
                     optimizer.zero_grad()
 
-                expected_output, labels_mask = transform_labels(
-                    batch["labels"], config.ignored_index, vocab_size
-                )
+                expected_output, labels_mask = transform_labels(batch["labels"], config.ignored_index, vocab_size)
                 batch = {
                     "input_ids": batch["input_ids"],
                     "attention_mask": batch["attention_mask"],
@@ -159,9 +155,7 @@ def train(
                 batch = device_manager.prepare_batch(batch)
                 device_manager.shard_model(model)
 
-                loss_ = training_step_inner(
-                    batch, model, cross_entropy_loss, config.gradient_accumulation_steps
-                )
+                loss_ = training_step_inner(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
 
                 if config.use_tt:
                     torch_xla.sync(wait=True)

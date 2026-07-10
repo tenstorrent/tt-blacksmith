@@ -142,8 +142,7 @@ class WizardLMEvolDataset(BaseDataset):
             self.dataset = full_dataset.select(range(train_end, n))
         else:
             raise ValueError(
-                f"Invalid split '{self.split}' for WizardLMEvolDataset. "
-                "Only 'train' and 'validation' are supported."
+                f"Invalid split '{self.split}' for WizardLMEvolDataset. " "Only 'train' and 'validation' are supported."
             )
 
     def __len__(self):

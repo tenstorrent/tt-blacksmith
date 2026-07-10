@@ -27,9 +27,7 @@ def get_model(config, device_manager: DeviceManager, shard_model=False):
         )
         model = get_peft_model(model, lora_cfg)
     else:
-        raise ValueError(
-            f"Only training_type='lora' is supported for Gemma 4 E2B, got '{config.training_type}'."
-        )
+        raise ValueError(f"Only training_type='lora' is supported for Gemma 4 E2B, got '{config.training_type}'.")
 
     model.to(dtype)
     model.to(device_manager.device)
@@ -62,5 +60,3 @@ def _strip_multimodal_towers(model: Gemma4ForConditionalGeneration) -> None:
     for attr in ("vision_tower", "audio_tower", "embed_vision", "embed_audio"):
         if hasattr(inner, attr):
             delattr(inner, attr)
-
-
