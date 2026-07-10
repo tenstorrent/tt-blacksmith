@@ -107,7 +107,7 @@ experiment.
 | Parameter | Description | Default Value |
 | --- | --- | --- |
 | `dataset_id` | The dataset used for fine-tuning. | `"wizardlm_evol"` |
-| `prompt_format` | Prompt rendering path: `"alpaca"` (plain-text template) or `"chat"` (tokenizer chat template). | `"chat"` |
+| `prompt_format` | Prompt rendering path: `"default"` (plain-text instruction template) or `"chat"` (tokenizer chat template). | `"chat"` |
 | `chat_system_prompt` | Optional system message prepended in chat format. `null` skips the system turn. | `null` |
 | `model_name` | Name or path of the pre-trained model. | `"google/gemma-4-E2B-it"` |
 | `max_length` | Maximum token length for inputs. | `1024` |

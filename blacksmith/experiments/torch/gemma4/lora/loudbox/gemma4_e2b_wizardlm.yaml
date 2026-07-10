@@ -3,6 +3,8 @@ dataset_id: "wizardlm_evol"
 # Route rows through the Gemma-4 chat template so the prompt boundary tokens
 # match what the `-it` checkpoint was post-trained with.
 prompt_format: "chat"
+# WizardLM rows have no system turn; Gemma-4-it chat template works without one.
+# Set a string here to prepend a system message when desired.
 chat_system_prompt: null
 
 # Model settings

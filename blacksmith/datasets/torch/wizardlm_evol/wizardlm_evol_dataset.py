@@ -69,7 +69,7 @@ class WizardLMEvolDataset(BaseDataset):
         if self.config.prompt_format == "chat":
             prompt, full_text = self._render_chat(instruction, input_text, output)
         else:
-            prompt, full_text = self._render_alpaca(instruction, input_text, output)
+            prompt, full_text = self._render_default(instruction, input_text, output)
 
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
 
@@ -90,9 +90,9 @@ class WizardLMEvolDataset(BaseDataset):
 
         return example
 
-    # Plain-text Stanford-Alpaca template (`### Instruction / ### Input / ### Response`).
+    # Plain-text instruction template (`### Instruction / ### Input / ### Response`).
     # Use for base (non `-it`) checkpoints.
-    def _render_alpaca(self, instruction: str, input_text: str, output: str):
+    def _render_default(self, instruction: str, input_text: str, output: str):
         if input_text.strip():
             prompt = PROMPT_TEMPLATE.substitute(instruction=instruction, input=input_text)
         else:

@@ -74,7 +74,7 @@ class TrainingConfig(BaseModel):
     unfreeze_embeddings: bool = Field(default=False)
 
     # Prompt formatting for instruction datasets.
-    prompt_format: str = Field(default="alpaca")  # [alpaca, chat]
+    prompt_format: str = Field(default="default")  # [default, chat]
     chat_system_prompt: Optional[str] = Field(default=None)  # only used when prompt_format="chat"
 
     # Other settings
