@@ -143,18 +143,18 @@ def train(
     global_step = 0
 
     try:
-        # # Initial validation
-        # model.eval()
-        # val_loss = validate(
-        #     eval_model,
-        #     eval_dataloader,
-        #     cross_entropy_loss,
-        #     logger,
-        #     device_manager.device,
-        #     config,
-        #     tokenizer,
-        # )
-        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # Initial validation
+        model.eval()
+        val_loss = validate(
+            eval_model,
+            eval_dataloader,
+            cross_entropy_loss,
+            logger,
+            device_manager.device,
+            config,
+            tokenizer,
+        )
+        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
@@ -193,13 +193,12 @@ def train(
                 loss_ = compute_loss_fn(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
                 loss_.backward()
 
-                # Keep the whole step (forward + backward + optimizer) in a single graph.
-                # No sync is issued here on purpose: the forward and backward IR stays pending
-                # and lazily joins the optimizer update, so everything is compiled and executed
-                # together by the one sync inside `optimizer_step`. The detached micro-batch loss
-                # is accumulated lazily so it can be read afterwards without cutting the graph.
-                step_loss = loss_.detach() if step_loss is None else step_loss + loss_.detach()
-                accumulation_step += 1
+                if config.use_tt:
+                    tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
+                    devices = list({t.device.type for t in tensors_to_sync})
+                    torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
+                    # Optimizer will do unnecessary recompute if we don't clear the pending IRs after syncing the loss and grads.
+                    torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
 
                 # Only step the optimizer after accumulating gradients.
                 if accumulation_step == config.gradient_accumulation_steps:
