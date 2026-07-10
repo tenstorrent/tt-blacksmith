@@ -73,6 +73,10 @@ class TrainingConfig(BaseModel):
     # Embedding settings
     unfreeze_embeddings: bool = Field(default=False)
 
+    # Prompt formatting for instruction datasets.
+    prompt_format: str = Field(default="default")  # [default, chat]
+    chat_system_prompt: Optional[str] = Field(default=None)  # only used when prompt_format="chat"
+
     # Other settings
     framework: Framework = Field(default=Framework.PYTORCH.value)
     use_tt: bool = Field(default=True)
