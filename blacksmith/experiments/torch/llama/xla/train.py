@@ -143,19 +143,24 @@ def train(
     global_step = 0
 
     try:
-        # Initial validation
-        model.eval()
-        val_loss = validate(
-            eval_model,
-            eval_dataloader,
-            cross_entropy_loss,
-            logger,
-            device_manager.device,
-            config,
-            tokenizer,
-        )
-        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # # Initial validation
+        # model.eval()
+        # val_loss = validate(
+        #     eval_model,
+        #     eval_dataloader,
+        #     cross_entropy_loss,
+        #     logger,
+        #     device_manager.device,
+        #     config,
+        #     tokenizer,
+        # )
+        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
+
+        # Shard model once before training: sharding annotations persist on the
+        # parameter tensors across in-place optimizer updates, so re-marking every
+        # step only adds host overhead (module scan + a sync) with no benefit.
+        # device_manager.shard_model(model)
 
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
         train_start = None
@@ -166,6 +171,7 @@ def train(
         for epoch in range(config.num_epochs):
             accumulation_step = 0
             running_loss = 0.0
+            # step_loss = None
 
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients at the start of accumulation cycle
@@ -192,12 +198,14 @@ def train(
                 loss_ = compute_loss_fn(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
                 loss_.backward()
 
-                if config.use_tt:
-                    tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
-                    devices = list({t.device.type for t in tensors_to_sync})
-                    torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
-                    # Optimizer will do unnecessary recompute if we don't clear the pending IRs after syncing the loss and grads.
-                    torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
+                # if config.use_tt:
+                #     tensors_to_sync = [loss_] + [p.grad for p in trainable_params if p.grad is not None]
+                #     devices = list({t.device.type for t in tensors_to_sync})
+                #     torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
+                #     # Optimizer will do unnecessary recompute if we don't clear the pending IRs after syncing the loss and grads.
+                #     torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
+                step_loss = loss_.detach() if step_loss is None else step_loss + loss_.detach()
+                accumulation_step += 1
 
                 running_loss += loss_.item()
                 accumulation_step += 1
@@ -290,7 +298,12 @@ if __name__ == "__main__":
     # fp32_dest_acc_en: accumulate partial results in FP32 to avoid precision loss.
     # math_fidelity hifi4: use all 4 mantissa phases for full precision multiplications.
     if config.use_tt:
-        compile_options = {"fp32_dest_acc_en": True, "math_fidelity": "hifi4", "enable_trace": config.enable_trace}
+        compile_options = {
+            "fp32_dest_acc_en": True,
+            "math_fidelity": "hifi4",
+            "enable_trace": config.enable_trace,
+            "enable_const_eval": config.enable_const_eval,
+        }
         if config.experimental_weight_dtype:
             compile_options["experimental_weight_dtype"] = config.experimental_weight_dtype
         torch_xla.set_custom_compile_options(compile_options)
