@@ -32,20 +32,11 @@ If no config is provided, `single_chip/gemma11_math_preferences_dpo.yaml` is use
 python3 blacksmith/experiments/torch/gemma11/dpo/train.py --config blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml
 ```
 
-### Multi-Chip Training
-
-The multi-chip config spreads both the policy and reference models across a 4-chip 2D mesh
-(2-way data parallel x 2-way tensor parallel). Data parallelism shards the preference batch across
-the `batch` mesh axis; tensor parallelism shards the Q/O attention and MLP weights across the
-`model` axis (Gemma 1.1's multi-query K/V projections are left replicated).
-
-Run the [multi-chip SFT config](../lora/multi_chip/gemma11_math_preferences_sft.yaml) first, then
-point `sft_checkpoint_path` at the resulting checkpoint (or pass it on the command line via
-`--reference-model-checkpoint-path`, which overrides the config field):
+### QuietBox Training
 
 ```bash
 python3 blacksmith/experiments/torch/gemma11/dpo/train.py \
-  --config blacksmith/experiments/torch/gemma11/dpo/multi_chip/gemma11_math_preferences_dpo.yaml \
+  --config blacksmith/experiments/torch/gemma11/dpo/quietbox/gemma11_math_preferences_dpo.yaml \
   --reference-model-checkpoint-path blacksmith/experiments/torch/gemma11/lora/checkpoints/<SFT_CHECKPOINT>.pt
 ```
 
@@ -54,7 +45,7 @@ python3 blacksmith/experiments/torch/gemma11/dpo/train.py \
 | Architecture | mesh_shape | mesh_axis_names | dataset | Method |
 | ------------ | ---------- | --------------- | ------- | ------ |
 | [P150](single_chip/gemma11_math_preferences_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
-| [Multi-Chip](multi_chip/gemma11_math_preferences_dpo.yaml) | [2, 2] | ["batch", "model"] | Math Preference (DPO) | DPO + LoRA (DP + TP) |
+| [QuietBox](quietbox/gemma11_math_preferences_dpo.yaml) | [2, 2] | ["batch", "model"] | Math Preference (DPO) | DPO + LoRA (DP + TP) |
 
 ## Data
 

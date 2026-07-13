@@ -33,16 +33,10 @@ Math preference (SFT) dataset:
 python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/single_chip/gemma11_math_preferences_sft.yaml
 ```
 
-### Multi-Chip Training
-
-The math preference (SFT) config is also provided in a multi-chip variant that spreads the model
-across a 4-chip 2D mesh (2-way data parallel x 2-way tensor parallel). Data parallelism shards the
-input batch across the `batch` mesh axis, while tensor parallelism shards the Q/O attention and MLP
-weights across the `model` axis (Gemma 1.1's multi-query K/V projections are left replicated). This
-SFT run produces the reference/policy checkpoint consumed by the [DPO experiment](../dpo/README.md).
+### QuietBox Training
 
 ```bash
-python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/multi_chip/gemma11_math_preferences_sft.yaml
+python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/quietbox/gemma11_math_preferences_sft.yaml
 ```
 
 #### Training Configurations
@@ -52,7 +46,7 @@ python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/e
 | [Single-Chip](single_chip/gemma11_sst2.yaml) | None | None | SST2 | LoRA |
 | [Single-Chip](single_chip/gemma11_squadV2.yaml) | None | None | SQuAD V2 | LoRA |
 | [P150](single_chip/gemma11_math_preferences_sft.yaml) | None | None | Math Preference (SFT) | LoRA |
-| [Multi-Chip](multi_chip/gemma11_math_preferences_sft.yaml) | [2, 2] | ["batch", "model"] | Math Preference (SFT) | LoRA (DP + TP) |
+| [QuietBox](quietbox/gemma11_math_preferences_sft.yaml) | [2, 2] | ["batch", "model"] | Math Preference (SFT) | LoRA (DP + TP) |
 
 ## Data
 
