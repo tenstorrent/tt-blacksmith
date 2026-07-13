@@ -42,7 +42,7 @@ python blacksmith/experiments/torch/mnist/tensor_parallel/train.py
 | Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
 | ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
 | [Single-Chip](single_chip/mnist.yaml) | None      | None                 | None               | MNIST        | Full Model                  |
-| [N300](data_parallel/mnist_dp.yaml)   | `[1, 2]`  | `["model", "batch"]` | `["batch"]`        | MNIST        | Full Model, Data Parallel   |
+| [N300](data_parallel/mnist_dp.yaml)   | `[1, 2]`  | `["model", "batch"]` | `"batch"`          | MNIST        | Full Model, Data Parallel   |
 | [N300](tensor_parallel/mnist_tp.yaml) | `[1, 2]`  | `["batch", "model"]` | None               | MNIST        | Full Model, Tensor Parallel |
 
 For each training you can change default values in configuration files:

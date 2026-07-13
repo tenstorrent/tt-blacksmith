@@ -6,8 +6,8 @@ The connection to the Tenstorrent device is established in script ```blacksmith/
 | Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
 | ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
 | [Single-Chip](mnist.yaml) | None               | None      | MNIST         | Full Model       |
-| [N300](mnist.yaml) | `[2]`                     | `["dp"]`  | MNIST        | Full Model, Data Parallel       |
-| [N300](mnist.yaml) | `[2]`                     | `["tp"]`  | MNIST        | Full Model, Tensor Parallel   |
+| [N300](mnist.yaml) | `[2]`                     | `"dp"`  | MNIST        | Full Model, Data Parallel       |
+| [N300](mnist.yaml) | `[2]`                     | `"tp"`  | MNIST        | Full Model, Tensor Parallel   |
 
 To run the single chip training script in JAX, run the command
 ```

@@ -50,8 +50,8 @@ Within this repository, you'll find the following structure to help you navigate
 - `models/`: This directory is organized by framework. Within it, you'll find subdirectories (e.g., `jax/`, `torch/`) containing the model implementations or loader scripts specific to that framework. For instance, the PyTorch implementation of a model for MNIST training would be located in `models/torch/mnist/`.
 - `experiments/`: Experiments are organized first by the framework they utilize, and then by the specific model or task. For example, the PyTorch-based MNIST experiment can be found under `experiments/torch/mnist/`. Within each experiment directory, you will typically find the following subdirectories and files:
 
-    - Subdirectories named after fine-tuning methods used in experiments (e.g. `lora`, `dpo`, `adapters`). 
-    - Subdirectories specifying the compute environment (e.g. `single_chip`, `quietbox`, `loudbox`, `galaxy`) or sharding strategy (`data_parallel`, `tensor_parallel`). If sharding strategy isn't specified, the single chip configuration is assumed.
+    - Subdirectories named after fine-tuning methods used in experiments (e.g. `lora`, `dpo`, `adapters`).
+    - Subdirectories specifying the compute environment (e.g. `single_chip`, `quietbox`, `loudbox`, `galaxy`).
     - Within these subdirectories there are YAML files containing the specific configuration parameters, named after the model and dataset used (e.g. `gemma11_sst2.yaml` - the full path in the `experiments` directory for this file is `torch/gemma11/lora/single_chip/gemma11_sst2.yaml`).
     - A Python file defining the configuration structure for the experiment (e.g. `configs.py`).
     - A Python training script (`train.py`) responsible for running the experiment using the defined configurations.
