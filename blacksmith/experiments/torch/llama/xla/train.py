@@ -206,6 +206,7 @@ def train(
                 #     torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
                 step_loss = loss_.detach() if step_loss is None else step_loss + loss_.detach()
                 accumulation_step += 1
+                
 
                 running_loss += loss_.item()
                 accumulation_step += 1
