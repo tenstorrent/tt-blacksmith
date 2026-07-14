@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 import torch
 import torch.nn as nn
-from torch.distributions import Categorical
 
 
 def layer_init(layer, std=2.0**0.5, bias_const=0.0):
@@ -41,7 +40,19 @@ class BreakoutCNN(nn.Module):
     def get_action_and_value(self, x: torch.Tensor, action=None):
         hidden = self.network(x)
         logits = self.actor(hidden)
-        dist = Categorical(logits=logits, validate_args=False)
+        target_device = logits.device
+
+        log_probs = torch.log_softmax(logits, dim=-1)
+        probs = log_probs.exp()
+
         if action is None:
-            action = dist.sample()
-        return action, dist.log_prob(action), dist.entropy(), self.critic(hidden)
+            # Sample on device with the Gumbel-max trick, not torch.multinomial: multinomial
+            # adds a random node to the graph that re-draws each execution, desyncing the
+            # action from its log_prob.
+            u = torch.rand(log_probs.shape, device="cpu").to(target_device)
+            gumbel = -torch.log(-torch.log(u + 1e-20) + 1e-20)
+            action = (log_probs + gumbel).argmax(dim=-1)
+
+        log_prob = log_probs.gather(-1, action.long().unsqueeze(-1)).squeeze(-1)
+        entropy = -(probs * log_probs).sum(dim=-1)
+        return action, log_prob, entropy, self.critic(hidden)

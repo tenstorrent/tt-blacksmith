@@ -8,13 +8,13 @@ from pathlib import Path
 import ale_py
 import gymnasium as gym
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+import torch_xla
 
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import (
     RolloutBuffer,
 )
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.configs import TrainingConfig
-from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.model import BreakoutCNN
+from blacksmith.models.torch.BOUNTIES.breakout_cnn import BreakoutCNN
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
@@ -119,18 +119,24 @@ def make_vec_env(config: TrainingConfig):
 # ---------------------------------------------------------------------------
 
 
-def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingConfig):
+def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingConfig, device_manager: DeviceManager):
     b_obs, b_actions, b_log_probs, b_values = buffer.flatten()
     b_advantages = advantages.reshape(-1)
     b_returns = returns.reshape(-1)
 
     clip_fracs = []
 
-    dataset = TensorDataset(b_obs, b_actions, b_log_probs, b_values, b_advantages, b_returns)
-    loader = DataLoader(dataset, batch_size=config.minibatch_size, shuffle=True)
-
     for _ in range(config.update_epochs):
-        for mb_obs, mb_actions, mb_log_probs, mb_values, mb_adv, mb_returns in loader:
+        perm = torch.randperm(config.batch_size).to(device_manager.device)
+        for start in range(0, config.batch_size, config.minibatch_size):
+            mb_inds = perm[start : start + config.minibatch_size]
+            mb_obs = b_obs.index_select(0, mb_inds)
+            mb_actions = b_actions.index_select(0, mb_inds)
+            mb_log_probs = b_log_probs.index_select(0, mb_inds)
+            mb_values = b_values.index_select(0, mb_inds)
+            mb_adv = b_advantages.index_select(0, mb_inds)
+            mb_returns = b_returns.index_select(0, mb_inds)
+
             _, new_log_prob, entropy, new_value = agent.get_action_and_value(mb_obs, mb_actions)
             log_ratio = new_log_prob - mb_log_probs
             ratio = log_ratio.exp()
@@ -138,7 +144,7 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
             with torch.no_grad():
                 # calculate approx_kl http://joschu.net/blog/kl-approx.html
                 approx_kl = ((ratio - 1) - log_ratio).mean()
-                clip_fracs.append(((ratio - 1.0).abs() > config.clip_coef).float().mean().item())
+                clip_fracs.append(((ratio - 1.0).abs() > config.clip_coef).float().mean())
 
             if config.norm_adv:
                 mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + ADV_NORM_EPS)
@@ -163,11 +169,22 @@ def ppo_update(agent, optimizer, buffer, advantages, returns, config: TrainingCo
 
             optimizer.zero_grad()
             loss.backward()
+            if config.use_tt:
+                torch_xla.sync(wait=True)
             torch.nn.utils.clip_grad_norm_(agent.parameters(), config.max_grad_norm)
-            optimizer.step()
+            device_manager.optimizer_step(optimizer)
+
+    if config.use_tt:
+        torch_xla.sync(wait=True)
 
     mean_clip_frac = torch.tensor(clip_fracs).mean().item() if clip_fracs else 0.0
-    return pg_loss.item(), v_loss.item(), entropy_loss.item(), approx_kl.item(), mean_clip_frac
+    return (
+        pg_loss.item(),
+        v_loss.item(),
+        entropy_loss.item(),
+        approx_kl.item(),
+        mean_clip_frac,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -270,9 +287,12 @@ def train(
                 next_value = agent.get_value(obs).flatten()
             advantages, returns = buffer.compute_gae(next_value, done)
 
+            if config.use_tt:
+                torch_xla.sync()
+
             # PPO update.
             pg_loss, v_loss, ent_loss, approx_kl, clip_frac = ppo_update(
-                agent, optimizer, buffer, advantages, returns, config
+                agent, optimizer, buffer, advantages, returns, config, device_manager
             )
 
             # Logging.
@@ -327,7 +347,7 @@ def train(
 
 if __name__ == "__main__":
     # Config setup.
-    default_config = Path(__file__).parent / "test_breakout_ppo_training.yaml"
+    default_config = Path(__file__).parent / "single_chip" / "ppo_breakout.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config)
 
