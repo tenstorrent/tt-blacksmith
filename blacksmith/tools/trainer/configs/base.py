@@ -5,6 +5,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from blacksmith.tools.configs import CheckpointConfig, LoggingConfig, MetricsConfig
+
 
 class TrainerConfig(BaseModel):
     """
@@ -28,10 +30,15 @@ class TrainerConfig(BaseModel):
     weight_decay: float = Field(default=0.0, ge=0)
     gradient_accumulation_steps: int = Field(default=1, ge=1)
     gradient_checkpointing: bool = Field(default=False)
-    training_type: str = Field(default="lora")
+    training_model_type: str = Field(default="lora")  # [lora, adapters]
 
     # Validation settings
     val_steps_freq: int = Field(default=25, ge=1)
+
+    # Logging / metrics / checkpointing settings (nested sub-configs).
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    metrics: MetricsConfig = Field(default_factory=MetricsConfig)
+    checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
 
     # Reproducibility settings
     framework: str = Field(default="pytorch")
