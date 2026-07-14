@@ -37,6 +37,11 @@ Example
 
 ## Configuration
 
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/llama_3_2_1b_sst2.yaml) | None     | None      | None               |   SST2       | Adapters   |
+
+
 The experiment is configured using the configuration file `llama_3_2_1b_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
 Current `llama_3_2_1b_sst2.yaml` has the recommended and tested hyperparameters for the experiment.

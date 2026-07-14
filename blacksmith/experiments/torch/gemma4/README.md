@@ -70,9 +70,9 @@ python3 blacksmith/experiments/torch/gemma4/train.py --config blacksmith/experim
 
 #### Gemma 4 E2B Training Configurations
 
-| Architecture | mesh_shape | mesh_axis_names | Dataset | Method |
-| --- | --- | --- | --- | --- |
-| [BH LoudBox](lora/loudbox/gemma4_e2b_wizardlm.yaml) | `[1, 8]` | `["batch", "model"]` | WizardLM-Evol | LoRA |
+| Architecture | mesh_shape | mesh_axis_names | input_sharding_dim | Dataset | Method |
+| --- | --- | --- | --- | --- | --- |
+| [BH LoudBox](lora/loudbox/gemma4_e2b_wizardlm.yaml) | `[1, 8]` | `["batch", "model"]` | None | WizardLM-Evol | LoRA |
 
 ## Data
 

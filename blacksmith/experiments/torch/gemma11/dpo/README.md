@@ -42,10 +42,10 @@ python3 blacksmith/experiments/torch/gemma11/dpo/train.py \
 
 #### Training Configuration
 
-| Architecture | mesh_shape | mesh_axis_names | dataset | Method |
-| ------------ | ---------- | --------------- | ------- | ------ |
-| [P150](single_chip/gemma11_math_preferences_dpo.yaml) | None | None | Math Preference (DPO) | DPO + LoRA |
-| [QuietBox](quietbox/gemma11_math_preferences_dpo.yaml) | [2, 2] | ["batch", "model"] | Math Preference (DPO) | DPO + LoRA (DP + TP) |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [P150](single_chip/gemma11_math_preferences_dpo.yaml) | None | None | None | Math Preference (DPO) | DPO + LoRA |
+| [QuietBox](quietbox/gemma11_math_preferences_dpo.yaml) | `[2, 2]` | `["batch", "model"]` | `"batch"` | Math Preference (DPO) | DPO + LoRA (DP + TP) |
 
 ## Data
 

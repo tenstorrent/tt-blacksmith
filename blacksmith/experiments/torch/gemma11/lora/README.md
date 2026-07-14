@@ -41,12 +41,12 @@ python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/e
 
 #### Training Configurations
 
-| Architecture | mesh_shape | mesh_axis_names | dataset | Method |
-| ------------ | ---------- | --------------- | ------- | ------ |
-| [Single-Chip](single_chip/gemma11_sst2.yaml) | None | None | SST2 | LoRA |
-| [Single-Chip](single_chip/gemma11_squadV2.yaml) | None | None | SQuAD V2 | LoRA |
-| [P150](single_chip/gemma11_math_preferences_sft.yaml) | None | None | Math Preference (SFT) | LoRA |
-| [QuietBox](quietbox/gemma11_math_preferences_sft.yaml) | [2, 2] | ["batch", "model"] | Math Preference (SFT) | LoRA (DP + TP) |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/gemma11_sst2.yaml) | None | None | None | SST2 | LoRA |
+| [Single-Chip](single_chip/gemma11_squadV2.yaml) | None | None | None | SQuAD V2 | LoRA |
+| [P150](single_chip/gemma11_math_preferences_sft.yaml) | None | None | None | Math Preference (SFT) | LoRA |
+| [QuietBox](quietbox/gemma11_math_preferences_sft.yaml) | `[2, 2]` | `["batch", "model"]` | `"batch"` | Math Preference (SFT) | LoRA (DP + TP) |
 
 ## Data
 
