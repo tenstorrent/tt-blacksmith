@@ -21,6 +21,12 @@ pip install plum-dispatch==2.5.7 beartype==0.21.0 rich==14.1.0
 
 ## Usage
 
+### Configuration
+
+| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------ | --------------------------- |
+| [Single-Chip](llama_sst2.yaml) | None                         | None     | SST-2 | LoRA     |
+
 ### TT Device Training
 
 Run LoRA training on Tenstorrent device:
