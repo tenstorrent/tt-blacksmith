@@ -1,0 +1,82 @@
+# Dataset settings
+dataset_id: "wizardlm_evol"
+# Route rows through the Gemma-4 chat template so the prompt boundary tokens
+# match what the `-it` checkpoint was post-trained with.
+prompt_format: "chat"
+# WizardLM rows have no system turn; Gemma-4-it chat template works without one.
+# Set a string here to prepend a system message when desired.
+chat_system_prompt: null
+
+# Model settings
+model_name: "google/gemma-4-E2B-it"
+max_length: 1024
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+training_type: "lora"
+learning_rate: 2e-5
+batch_size: 1
+gradient_accumulation_steps: 8
+num_epochs: 3
+ignored_index: -100
+
+# LoRA setup
+lora_r: 32
+lora_alpha: 64
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Device settings
+mesh_shape: [1, 8]
+mesh_axis_names: ["batch", "model"]
+input_sharding_dim: null
+# Megatron-style 1D tensor parallelism.
+# Attention is MQA, so k_proj and v_proj are replicated.
+model_sharding_patterns:
+  # === Attention ===
+  - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
+  - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
+  - ['\.self_attn\.o_proj\.base_layer$',      [null, "model"]]
+  - ['\.self_attn\.o_proj\.lora_B\.default$', [null, "model"]]
+  # === MLP ===
+  - ['\.mlp\.gate_proj$', ["model", null]]
+  - ['\.mlp\.up_proj$',   ["model", null]]
+  - ['\.mlp\.down_proj$', [null, "model"]]
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "gemma4-e2b-multichip-lora-loudbox"
+wandb_run_name: "tt-gemma4-e2b-wizardlm-evol"
+wandb_tags: ["test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
+steps_freq: 1
+val_steps_freq: 30
+epoch_freq: 1
+
+# Checkpoint settings
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: ""  # path to checkpoint if resume_option is "path"
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+keep_last_n: 1
+keep_best_n: 1
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/gemma4/xla"
+save_optim: True
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
+
+# Other settings
+framework: "pytorch"
+print_examples: True
+use_tt: True

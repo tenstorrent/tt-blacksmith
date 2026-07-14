@@ -36,6 +36,10 @@ Example:
 
 ## Configuration
 
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/gemma_sst2.yaml) | None        | None          | None           | SST-2        | LoRA      |
+
 The experiment is configured using the configuration file `gemma_sst2.yaml`. The configuration file specifies the hyperparameters for the experiment, such as the number of epochs, the batch size, and the lora configuration.
 
 Current `gemma_sst2.yaml` has the recommended and tested hyperparameters for the experiment.
