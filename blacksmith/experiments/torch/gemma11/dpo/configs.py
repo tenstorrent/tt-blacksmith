@@ -12,12 +12,13 @@ Use `training_model_type` to specify the parameter-efficient fine-tuning approac
 """
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class DPOTrainingConfig(BaseModel):
+class DPOTrainingConfig(BaseTrainingConfig):
     """
     Configuration for DPO training.
 
@@ -34,8 +35,6 @@ class DPOTrainingConfig(BaseModel):
 
     # Model settings
     model_name: str = Field(default="google/gemma-1.1-2b-it")
-    max_length: int = Field(default=128, gt=0)  # Reduced for memory efficiency
-    dtype: str = Field(default="torch.bfloat16")
     ignored_index: int = Field(default=-100)
 
     # DPO-specific hyperparameters
@@ -53,47 +52,25 @@ class DPOTrainingConfig(BaseModel):
     learning_rate: float = Field(default=1e-5, gt=0)  # Lower LR typical for DPO
     batch_size: int = Field(default=1, gt=0)  # Small batch size for memory efficiency
     gradient_accumulation_steps: int = Field(default=8, gt=0)  # Effective batch size = 8
-    gradient_checkpointing: bool = Field(default=False)
     weight_decay: float = Field(default=0.0, ge=0)
     num_epochs: int = Field(default=2, gt=0)
     max_steps: int = Field(default=-1)  # -1 means use num_epochs
-    optim: str = Field(default="adamw_torch")
     warmup_steps: int = Field(default=100, ge=0)
 
     # Logging settings
-    log_level: str = Field(default="INFO")
-    use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="gemma11-dpo")
     wandb_run_name: str = Field(default="tt-gemma11-dpo-math")
     wandb_tags: list[str] = Field(default_factory=lambda: ["gemma11", "dpo", "math"])
-    wandb_watch_mode: str = Field(default="all")
-    wandb_log_freq: int = Field(default=1000)
-    model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=10)
-    epoch_freq: int = Field(default=1)
     val_steps_freq: int = Field(default=32)
     print_examples: bool = Field(default=False)
 
     # Checkpoint settings
-    resume_from_checkpoint: bool = Field(default=False)
-    resume_option: str = Field(default="last")
-    checkpoint_path: str = Field(default="")
     checkpoint_metric: str = Field(default="val/accuracy")
     checkpoint_metric_mode: str = Field(default="max")
-    keep_last_n: int = Field(default=3, ge=0)
-    keep_best_n: int = Field(default=3, ge=0)
     save_strategy: str = Field(default="step")
     save_steps: int = Field(default=20)
     project_dir: str = Field(default="blacksmith/experiments/torch/gemma11/dpo")
-    save_optim: bool = Field(default=False)
-    storage_backend: str = Field(default="local")
-    sync_to_storage: bool = Field(default=False)
-    load_from_storage: bool = Field(default=False)
-    remote_path: str = Field(default="")
-
-    # Reproducibility settings
-    seed: int = Field(default=23)
-    deterministic: bool = Field(default=False)
 
     # Device settings (mesh configuration for parallelism)
     mesh_shape: Optional[list[int]] = Field(default=None, description="Mesh shape for SPMD parallelism, e.g. [8, 1]")
@@ -114,8 +91,6 @@ class DPOTrainingConfig(BaseModel):
     adapter_layers: list[int] = Field(default_factory=lambda: [])
 
     # Other settings
-    framework: str = Field(default="pytorch")
-    use_tt: bool = Field(default=True)
     do_validation: bool = Field(default=True)
 
     # Testing utils (used to limit training duration during CI runs).

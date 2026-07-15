@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Dataset settings
     dataset_id: str = Field(default="stanfordcars")
     image_size: int = Field(default=224, gt=0)
@@ -17,7 +18,6 @@ class TrainingConfig(BaseModel):
 
     # Model settings
     model_name: str = Field(default="google/vit-base-patch16-224")
-    dtype: str = Field(default="torch.bfloat16")
     ignored_index: int = Field(default=-100)
 
     # Training hyperparameters
@@ -29,37 +29,13 @@ class TrainingConfig(BaseModel):
     loss_fn: str = Field(default="torch.nn.CrossEntropyLoss")
 
     # Logging settings
-    log_level: str = Field(default="INFO")
-    use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="vit-finetuning")
     wandb_run_name: str = Field(default="tt-vit-stanfordcars")
-    wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
-    wandb_watch_mode: str = Field(default="all")
-    wandb_log_freq: int = Field(default=1000)
-    model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=10)
-    epoch_freq: int = Field(default=1)
     val_steps_freq: int = Field(default=50)
 
     # Checkpoint settings
-    resume_from_checkpoint: bool = Field(default=False)
-    resume_option: str = Field(default="last")  # [last, best, path]
-    checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
-    checkpoint_metric: str = Field(default="eval/loss")
-    checkpoint_metric_mode: str = Field(default="min")  # [min, max]
-    keep_last_n: int = Field(default=3, ge=0)
-    keep_best_n: int = Field(default=3, ge=0)
-    save_strategy: str = Field(default="epoch")
     project_dir: str = Field(default="blacksmith/experiments/torch/vit")
-    save_optim: bool = Field(default=False)
-    storage_backend: str = Field(default="local")
-    sync_to_storage: bool = Field(default=False)
-    load_from_storage: bool = Field(default=False)
-    remote_path: str = Field(default="")
-
-    # Reproducibility settings
-    seed: int = Field(default=23)
-    deterministic: bool = Field(default=False)
 
     # Device settings
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
@@ -80,6 +56,4 @@ class TrainingConfig(BaseModel):
     lora_dropout: float = Field(default=0.1, ge=0, le=1)
 
     # Other settings
-    framework: str = Field(default="pytorch")
-    use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)

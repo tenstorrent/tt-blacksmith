@@ -38,5 +38,5 @@ class LoraLLMTrainer(Trainer):
         return F.cross_entropy(
             shift_logits.reshape(-1, shift_logits.size(-1)),
             labels.reshape(-1),
-            ignore_index=self.config.ignored_index,
+            ignore_index=-100,
         )

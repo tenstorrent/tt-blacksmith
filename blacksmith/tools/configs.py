@@ -13,14 +13,14 @@ class LoggingConfig(BaseModel):
     sub-config (e.g. ``TrainerConfig.logging``).
     """
 
-    log_level: str = Field(default="INFO")
-    use_wandb: bool = Field(default=True)
-    wandb_project: str = Field(default="model-finetuning")
-    wandb_run_name: str = Field(default="tt-model")
-    wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
-    wandb_watch_mode: str = Field(default="all")
-    wandb_log_freq: int = Field(default=1000)
-    model_to_wandb: bool = Field(default=False)
+    log_level: str
+    use_wandb: bool
+    wandb_project: str
+    wandb_run_name: str
+    wandb_tags: list[str]
+    wandb_watch_mode: str
+    wandb_log_freq: int
+    model_to_wandb: bool
 
 
 class MetricsConfig(BaseModel):
@@ -33,14 +33,14 @@ class MetricsConfig(BaseModel):
     """
 
     # Cadence at which train/validation metrics are logged.
-    steps_freq: int = Field(default=25, ge=1)
-    epoch_freq: int = Field(default=1, ge=1)
+    steps_freq: int = Field(ge=1)
+    epoch_freq: int = Field(ge=1)
 
     # Metric names to log, per phase. The callback logs each name it can resolve
     # (currently "loss"); names without a source yet are ignored, keeping the set
     # forward-compatible with metrics future trainers expose.
-    train_metrics: list[str] = Field(default_factory=lambda: ["loss"])
-    val_metrics: list[str] = Field(default_factory=lambda: ["loss"])
+    train_metrics: list[str]
+    val_metrics: list[str]
 
 
 class CheckpointConfig(BaseModel):
@@ -51,25 +51,25 @@ class CheckpointConfig(BaseModel):
     """
 
     # Cadence at which checkpoints are saved.
-    steps_freq: int = Field(default=25, ge=1)
-    epoch_freq: int = Field(default=1, ge=1)
-    save_strategy: str = Field(default="epoch")  # [epoch, step, none]
+    steps_freq: int = Field(ge=1)
+    epoch_freq: int = Field(ge=1)
+    save_strategy: str  # [epoch, step, none]
 
-    project_dir: str = Field(default="blacksmith/experiments/torch/model")
-    final_checkpoint_name: str = Field(default="final_model.pth")
-    save_optim: bool = Field(default=False)
-    keep_last_n: int = Field(default=3, ge=0)
-    keep_best_n: int = Field(default=3, ge=0)
-    checkpoint_metric: str = Field(default="eval/loss")
-    checkpoint_metric_mode: str = Field(default="min")  # [min, max]
+    project_dir: str
+    final_checkpoint_name: str
+    save_optim: bool
+    keep_last_n: int = Field(ge=0)
+    keep_best_n: int = Field(ge=0)
+    checkpoint_metric: str
+    checkpoint_metric_mode: str  # [min, max]
 
     # Storage backend settings.
-    storage_backend: str = Field(default="local")
-    sync_to_storage: bool = Field(default=False)
-    load_from_storage: bool = Field(default=False)
-    remote_path: str = Field(default="")
+    storage_backend: str
+    sync_to_storage: bool
+    load_from_storage: bool
+    remote_path: str
 
     # Resume settings.
-    resume_from_checkpoint: bool = Field(default=False)
-    resume_option: str = Field(default="last")  # [last, best, path]
-    checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
+    resume_from_checkpoint: bool
+    resume_option: str  # [last, best, path]
+    checkpoint_path: str  # path to checkpoint if resume_option is "path"

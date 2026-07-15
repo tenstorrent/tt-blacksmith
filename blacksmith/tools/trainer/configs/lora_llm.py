@@ -12,13 +12,10 @@ class LoraLLMConfig(TrainerConfig):
     """
 
     # Model settings
-    max_length: int = Field(default=128, gt=0)
-
-    # Training hyperparameters
-    ignored_index: int = Field(default=-100)  # Label id ignored by the cross-entropy loss.
+    max_length: int = Field(gt=0)
 
     # LoRA setup
-    lora_r: int = Field(default=8, gt=0)
-    lora_alpha: int = Field(default=16, gt=0)
-    lora_target_modules: list[str] = Field(default_factory=lambda: ["all-linear"])
-    lora_task_type: str = Field(default="CAUSAL_LM")
+    lora_r: int = Field(gt=0)
+    lora_alpha: int = Field(gt=0)
+    lora_target_modules: list[str]
+    lora_task_type: str

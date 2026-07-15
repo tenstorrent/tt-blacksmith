@@ -6,9 +6,9 @@ from typing import List, Optional, Tuple
 import torch
 from pydantic import BaseModel, Field, model_validator
 
-from blacksmith.tools.templates.configs import Framework
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
-_TORCH_DTYPES = {
+_VAE_TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
     "torch.float32": torch.float32,
     "torch.float16": torch.float16,
@@ -45,16 +45,15 @@ class InferenceConfig(BaseModel):
         return self
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Selects what train.py runs: "train" fine-tunes the LoRA on cached latents;
     # "infer" loads a checkpoint and generates a video (no training).
     mode: str = Field(default="train")
 
     # Model settings
     model_id: str = Field(default="Wan-AI/Wan2.2-TI2V-5B-Diffusers")
-    dtype: str = Field(default="torch.bfloat16")
+    model_name: str = Field(default="Wan-AI/Wan2.2-TI2V-5B-Diffusers")
     vae_precompute_dtype: str = Field(default="torch.bfloat16")
-    gradient_checkpointing: bool = Field(default=False)
 
     # Dataset / cache settings
     dataset_id: str = Field(default="jainr3/diffusiondb-pixelart")
@@ -93,53 +92,29 @@ class TrainingConfig(BaseModel):
     lognorm_std: float = Field(default=1.0)
 
     # Logging settings
-    log_level: str = Field(default="INFO")
-    use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="wan22-pixelart-lora")
     wandb_run_name: str = Field(default="tt-wan22-5b-pxa")
-    wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
-    wandb_watch_mode: str = Field(default="all")
-    wandb_log_freq: int = Field(default=1000)
-    model_to_wandb: bool = Field(default=False)
-    steps_freq: int = Field(default=25)
     val_steps_freq: int = Field(default=300)
-    epoch_freq: int = Field(default=1)
 
     # Checkpoint settings
-    resume_from_checkpoint: bool = Field(default=False)
-    resume_option: str = Field(default="last")
-    checkpoint_path: str = Field(default="")
     checkpoint_metric: str = Field(default="train/loss")
-    checkpoint_metric_mode: str = Field(default="min")
-    keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=1, ge=0)
     save_strategy: str = Field(default="step")
     project_dir: str = Field(default="blacksmith/experiments/torch/wan2_2")
     save_optim: bool = Field(default=True)
-    storage_backend: str = Field(default="local")
-    sync_to_storage: bool = Field(default=False)
-    load_from_storage: bool = Field(default=False)
-    remote_path: str = Field(default="")
 
     # Reproducibility settings
     seed: int = Field(default=42)
-    deterministic: bool = Field(default=False)
 
     # Device / sharding settings
-    use_tt: bool = Field(default=True)
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     input_sharding_dim: Optional[str] = Field(default=None)
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
     param_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
-    framework: Framework = Field(default=Framework.PYTORCH)
-
-    def torch_dtype(self) -> torch.dtype:
-        return _TORCH_DTYPES[self.dtype]
-
     def vae_precompute_torch_dtype(self) -> torch.dtype:
-        return _TORCH_DTYPES[self.vae_precompute_dtype]
+        return _VAE_TORCH_DTYPES[self.vae_precompute_dtype]
 
     @model_validator(mode="after")
     def _validate_shapes(self):
