@@ -187,7 +187,7 @@ class Trainer(ABC):
                 self.callback_handler("on_validation_batch_end", batch, loss)
 
         val_loss = total_loss / num_batches if num_batches else 0.0
-        self.callback_handler("on_validation_end", val_loss=val_loss)
+        self.callback_handler("on_validation_end", val_loss)
         self.model.train()
 
     @abstractmethod

@@ -34,7 +34,7 @@ class Callback(ABC):
     def on_validation_batch_end(self, trainer, batch, loss, *args, **kwargs):
         pass
 
-    def on_validation_end(self, trainer, *args, **kwargs):
+    def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         pass
 
     # Forward / Backward / Optimizer Step callbacks.

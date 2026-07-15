@@ -72,10 +72,9 @@ class MetricsCallback(Callback):
         # Flush the batched W&B logs so train and validation land on the same step.
         trainer.logger.log_metrics({}, commit=True, step=trainer.global_step)
 
-    def on_validation_end(self, trainer, *args, **kwargs):
+    def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         if trainer.logger is None:
             return
-        val_loss = kwargs["val_loss"]
         available = {"loss": val_loss}
         metrics = self._select(available, trainer.config.metrics.val_metrics, phase="val")
         if metrics:

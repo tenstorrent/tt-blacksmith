@@ -27,10 +27,10 @@ class CheckpointCallback(Callback):
         if trainer.config.checkpoint.resume_from_checkpoint:
             self.manager.load_checkpoint(trainer.model, trainer.optimizer)
 
-    def on_validation_end(self, trainer, *args, **kwargs):
+    def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         # Cache the freshest validation loss so saved checkpoints carry it as a
         # metric (used for best-N tracking). Runs before `on_train_batch_end`.
-        self._last_val_loss = kwargs["val_loss"]
+        self._last_val_loss = val_loss
 
     def on_train_batch_end(self, trainer, *args, **kwargs):
         if self.manager is None:
