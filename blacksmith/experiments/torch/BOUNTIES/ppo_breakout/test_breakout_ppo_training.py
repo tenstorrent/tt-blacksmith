@@ -249,7 +249,7 @@ def train(
 
     logger.info(f"Starting PPO training on {config.env_id}")
     logger.info(f"  Total timesteps : {config.total_timesteps:,}")
-    logger.info(f"  Batch size      : {config.batch_size}")
+    logger.info(f"  Batch size      : {config.computed_batch_size}")
     logger.info(f"  Minibatch size  : {config.minibatch_size}")
     logger.info(f"  Num updates     : {config.num_updates}")
 

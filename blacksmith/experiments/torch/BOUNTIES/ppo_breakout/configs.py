@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Optional
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field
 
 from blacksmith.tools.test_config import TestConfig
 from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
@@ -75,20 +75,17 @@ class TrainingConfig(BaseTrainingConfig):
     use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)
 
-    # Override template batch_size; kept in sync with num_envs * num_steps.
-    batch_size: int = Field(default=1024, gt=0)
-
-    @model_validator(mode="after")
-    def _sync_batch_size(self):
-        object.__setattr__(self, "batch_size", self.num_envs * self.num_steps)
-        return self
+    @computed_field
+    @property
+    def computed_batch_size(self) -> int:
+        return self.num_envs * self.num_steps
 
     @computed_field
     @property
     def minibatch_size(self) -> int:
-        return self.batch_size // self.num_minibatches
+        return self.computed_batch_size // self.num_minibatches
 
     @computed_field
     @property
     def num_updates(self) -> int:
-        return self.total_timesteps // self.batch_size
+        return self.total_timesteps // self.computed_batch_size
