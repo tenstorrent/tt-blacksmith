@@ -35,7 +35,7 @@ class TrainerConfig(BaseModel):
     optim: str
     weight_decay: float = Field(ge=0.0)
     gradient_accumulation_steps: int = Field(gt=0)
-    training_model_type: str # [lora, adapters]
+    training_model_type: str  # [lora, adapters]
 
     # Validation settings
     val_steps_freq: int = Field(gt=0)
@@ -61,6 +61,4 @@ class TrainerConfig(BaseModel):
         try:
             return TORCH_DTYPES[self.dtype]
         except KeyError as e:
-            raise ValueError(
-                f"Unsupported dtype {self.dtype!r}; expected one of {sorted(TORCH_DTYPES)}"
-            ) from e
+            raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(TORCH_DTYPES)}") from e
