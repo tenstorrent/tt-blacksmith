@@ -4,12 +4,13 @@
 
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Dataset settings
     dataset_id: str = Field(default="mnist")
     train_ratio: float = Field(default=0.8, gt=0, lt=1)

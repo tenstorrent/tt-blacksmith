@@ -4,6 +4,7 @@
 from enum import Enum
 from typing import Optional
 
+import torch
 from pydantic import BaseModel, Field
 
 
@@ -78,7 +79,19 @@ class TrainingConfig(BaseModel):
     chat_system_prompt: Optional[str] = Field(default=None)  # only used when prompt_format="chat"
 
     # Other settings
-    framework: Framework = Field(default=Framework.PYTORCH.value)
+    framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
     enable_trace: bool = Field(default=False)
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
+
+    def torch_dtype(self) -> torch.dtype:
+        # Broader than TrainerConfig: some experiment YAMLs still use float16.
+        dtypes = {
+            "torch.bfloat16": torch.bfloat16,
+            "torch.float32": torch.float32,
+            "torch.float16": torch.float16,
+        }
+        try:
+            return dtypes[self.dtype]
+        except KeyError as e:
+            raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(dtypes)}") from e

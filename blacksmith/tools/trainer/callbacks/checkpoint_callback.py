@@ -15,7 +15,7 @@ class CheckpointCallback(Callback):
         self._last_val_loss: float | None = None
         self._prev_global_step = 0
 
-    def on_train_start(self, trainer):
+    def on_train_start(self, trainer, *args, **kwargs):
         # `on_train_start` fires before the trainer validates its config, so guard.
         if trainer.config is None:
             return
@@ -27,12 +27,12 @@ class CheckpointCallback(Callback):
         if trainer.config.checkpoint.resume_from_checkpoint:
             self.manager.load_checkpoint(trainer.model, trainer.optimizer)
 
-    def on_validation_end(self, trainer, val_loss):
+    def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         # Cache the freshest validation loss so saved checkpoints carry it as a
         # metric (used for best-N tracking). Runs before `on_train_batch_end`.
         self._last_val_loss = val_loss
 
-    def on_train_batch_end(self, trainer):
+    def on_train_batch_end(self, trainer, *args, **kwargs):
         if self.manager is None:
             return
 
@@ -51,7 +51,7 @@ class CheckpointCallback(Callback):
                 metrics=self._metrics(trainer),
             )
 
-    def on_train_epoch_end(self, trainer):
+    def on_train_epoch_end(self, trainer, *args, **kwargs):
         if self.manager is None:
             return
 
@@ -64,7 +64,7 @@ class CheckpointCallback(Callback):
                 metrics=self._metrics(trainer),
             )
 
-    def on_train_end(self, trainer):
+    def on_train_end(self, trainer, *args, **kwargs):
         if self.manager is None:
             return
 

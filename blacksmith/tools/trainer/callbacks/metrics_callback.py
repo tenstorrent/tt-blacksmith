@@ -20,7 +20,7 @@ class MetricsCallback(Callback):
         self._step_running_loss = 0.0
         self._prev_global_step = 0
 
-    def on_train_start(self, trainer):
+    def on_train_start(self, trainer, *args, **kwargs):
         # `on_train_start` fires before the trainer validates its config, so guard.
         if trainer.config is None or trainer.logger is None:
             return
@@ -41,12 +41,12 @@ class MetricsCallback(Callback):
         if trainer.config.logging.model_to_wandb:
             trainer.logger.watch_model(trainer.model)
 
-    def on_forward_end(self, trainer, loss):
+    def on_forward_end(self, trainer, loss, *args, **kwargs):
         # Fires for every micro-batch; accumulate each one so the per-step loss is
         # the mean over the step's micro-batches.
         self._step_running_loss += loss.item()
 
-    def on_train_batch_end(self, trainer):
+    def on_train_batch_end(self, trainer, *args, **kwargs):
         if trainer.logger is None:
             return
 
@@ -72,7 +72,7 @@ class MetricsCallback(Callback):
         # Flush the batched W&B logs so train and validation land on the same step.
         trainer.logger.log_metrics({}, commit=True, step=trainer.global_step)
 
-    def on_validation_end(self, trainer, val_loss):
+    def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         if trainer.logger is None:
             return
         available = {"loss": val_loss}
@@ -80,7 +80,7 @@ class MetricsCallback(Callback):
         if metrics:
             trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)
 
-    def on_error(self, trainer, exception):
+    def on_error(self, trainer, exception, *args, **kwargs):
         if trainer.logger is not None:
             trainer.logger.error(f"Training failed with error: {exception}", traceback.format_exc())
 

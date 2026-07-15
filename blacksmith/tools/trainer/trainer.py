@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from typing import Any, Union
 
 import torch
@@ -86,6 +87,19 @@ class Trainer(ABC):
             capturable=self.config.use_tt,
         )
 
+    @contextmanager
+    def _train_lifecycle(self) -> Iterator[None]:
+        """Run error / cleanup hooks around the training loop body."""
+        try:
+            yield
+        except Exception as exception:
+            self.callback_handler("on_error", exception)
+        finally:
+            self.callback_handler("on_train_end")
+            # Finish the logger after `on_train_end` so callbacks can still use it.
+            if self.logger is not None:
+                self.logger.finish()
+
     def train(self) -> None:
         self.callback_handler("on_train_start")
         # `on_train_start` callbacks need to guard against having a config.
@@ -93,7 +107,7 @@ class Trainer(ABC):
             return
 
         grad_accumulation_steps = self.config.gradient_accumulation_steps
-        try:
+        with self._train_lifecycle():
             # Initial validation pass before any optimizer steps.
             if self.val_dataloader is not None:
                 self.validate()
@@ -150,13 +164,6 @@ class Trainer(ABC):
                     self.callback_handler("on_train_batch_end")
 
                 self.callback_handler("on_train_epoch_end")
-        except Exception as exception:
-            self.callback_handler("on_error", exception)
-        finally:
-            self.callback_handler("on_train_end")
-            # Finish the logger after `on_train_end` so callbacks can still use it.
-            if self.logger is not None:
-                self.logger.finish()
 
     def validate(self) -> None:
         self.model.eval()
