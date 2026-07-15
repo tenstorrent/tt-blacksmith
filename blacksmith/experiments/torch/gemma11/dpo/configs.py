@@ -14,8 +14,8 @@ from typing import Optional
 
 from pydantic import Field
 
-from blacksmith.tools.test_config import TestConfig
 from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
+from blacksmith.tools.test_config import TestConfig
 
 
 class DPOTrainingConfig(BaseTrainingConfig):

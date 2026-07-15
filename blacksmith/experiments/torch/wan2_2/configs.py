@@ -6,7 +6,8 @@ from typing import List, Optional, Tuple
 import torch
 from pydantic import BaseModel, Field, model_validator
 
-from blacksmith.tools.templates.configs import Framework, TrainingConfig as BaseTrainingConfig
+from blacksmith.tools.templates.configs import Framework
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
 _TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,

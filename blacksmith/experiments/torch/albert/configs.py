@@ -5,8 +5,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import Field
 
-from blacksmith.tools.test_config import TestConfig
 from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
+from blacksmith.tools.test_config import TestConfig
 
 
 class TrainingConfig(BaseTrainingConfig):
