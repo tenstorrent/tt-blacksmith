@@ -12,14 +12,14 @@ import pandas as pd
 import torch
 import wandb
 
-from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.configs import LoggingConfig
 
 TEST_LOGS_DIR = Path("tests/test_logs")
 GOLDEN_LOGS_DIR = Path("tests/golden_files")
 
 
 class TrainingLogger:
-    def __init__(self, config: TrainingConfig, test_log_filename_prefix: Optional[str] = None):
+    def __init__(self, config: LoggingConfig, test_log_filename_prefix: Optional[str] = None):
         self.config = config
         self.test_log_filename_prefix = test_log_filename_prefix
 
