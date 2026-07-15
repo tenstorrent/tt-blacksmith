@@ -6,14 +6,15 @@ from typing import List, Optional, Tuple
 
 from pydantic import Field
 
-from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
 
 class TrainingConfig(BaseTrainingConfig):
     # Dataset settings
     dataset_id: str = Field(default="mnist")
     train_ratio: float = Field(default=0.8, gt=0, lt=1)
+    dtype: str = Field(default="torch.bfloat16")
 
     # Model settings (for MNISTLinear)
     model_name: str = Field(default="MNISTLinear")
@@ -41,18 +42,37 @@ class TrainingConfig(BaseTrainingConfig):
     optim: str = Field(default="sgd")
 
     # Logging settings
+    log_level: str = Field(default="INFO")
+    use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="blacksmith-mnist")
     wandb_run_name: str = Field(default="mnist-linear")
     wandb_tags: list[str] = Field(default_factory=lambda: ["tt-xla", "model:torch", "plugin", "wandb"])
+    wandb_watch_mode: str = Field(default="all")
     wandb_log_freq: int = Field(default=100)
+    model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=100)
     val_steps_freq: int = Field(default=100)
     epoch_freq: int = Field(default=5)
 
     # Checkpoint settings
+    resume_from_checkpoint: bool = Field(default=False)
+    resume_option: str = Field(default="last")
+    checkpoint_path: str = Field(default="")
     checkpoint_metric: str = Field(default="val/loss")
+    checkpoint_metric_mode: str = Field(default="min")
+    keep_last_n: int = Field(default=3, ge=0)
     keep_best_n: int = Field(default=1, ge=0)
+    save_strategy: str = Field(default="epoch")
     project_dir: str = Field(default="blacksmith/experiments/torch/mnist")
+    save_optim: bool = Field(default=False)
+    storage_backend: str = Field(default="local")
+    sync_to_storage: bool = Field(default=False)
+    load_from_storage: bool = Field(default=False)
+    remote_path: str = Field(default="")
+
+    # Reproducibility settings
+    seed: int = Field(default=23)
+    deterministic: bool = Field(default=False)
 
     # Device settings
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
@@ -70,4 +90,6 @@ class TrainingConfig(BaseTrainingConfig):
     device: str = Field(default="TT")
     experiment_name: str = Field(default="torch-mnist")
     output_dir: str = Field(default="experiments/results/mnist")
+    framework: str = Field(default="pytorch")
+    use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)

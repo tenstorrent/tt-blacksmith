@@ -5,8 +5,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import Field
 
-from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
 
 class TrainingConfig(BaseTrainingConfig):
@@ -15,20 +15,51 @@ class TrainingConfig(BaseTrainingConfig):
 
     # Model settings
     model_name: str = Field(default="google/gemma-3-1b-it")
+    max_length: int = Field(default=128, gt=0)
+    dtype: str = Field(default="torch.bfloat16")
     ignored_index: int = Field(default=-100)
 
     # Training hyperparameters
     training_model_type: str = Field(default="lora")  # [lora, adapters]
+    learning_rate: float = Field(default=2e-5, gt=0)
+    batch_size: int = Field(default=32, gt=0)
+    gradient_checkpointing: bool = Field(default=False)
+    num_epochs: int = Field(default=1, gt=0)
+    optim: str = Field(default="adamw_torch")
 
     # Logging settings
+    log_level: str = Field(default="INFO")
+    use_wandb: bool = Field(default=True)
     wandb_project: str = Field(default="gemma-finetuning")
     wandb_run_name: str = Field(default="tt-gemma-test")
+    wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
+    wandb_watch_mode: str = Field(default="all")
+    wandb_log_freq: int = Field(default=1000)
+    model_to_wandb: bool = Field(default=False)
     steps_freq: int = Field(default=10)
+    epoch_freq: int = Field(default=1)
     val_steps_freq: int = Field(default=50)
     print_examples: bool = Field(default=True)
 
     # Checkpoint settings
+    resume_from_checkpoint: bool = Field(default=False)
+    resume_option: str = Field(default="last")  # [last, best, path]
+    checkpoint_path: str = Field(default="")  # path to checkpoint if resume_option is "path"
+    checkpoint_metric: str = Field(default="eval/loss")
+    checkpoint_metric_mode: str = Field(default="min")  # [min, max]
+    keep_last_n: int = Field(default=3, ge=0)
+    keep_best_n: int = Field(default=3, ge=0)
+    save_strategy: str = Field(default="epoch")
     project_dir: str = Field(default="blacksmith/experiments/torch/gemma")
+    save_optim: bool = Field(default=False)
+    storage_backend: str = Field(default="local")
+    sync_to_storage: bool = Field(default=False)
+    load_from_storage: bool = Field(default=False)
+    remote_path: str = Field(default="")
+
+    # Reproducibility settings
+    seed: int = Field(default=23)
+    deterministic: bool = Field(default=False)
 
     # Device settings
     mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
@@ -49,4 +80,6 @@ class TrainingConfig(BaseTrainingConfig):
     lora_task_type: str = Field(default="CAUSAL_LM")
 
     # Other settings
+    framework: str = Field(default="pytorch")
+    use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)
