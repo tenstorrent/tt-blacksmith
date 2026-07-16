@@ -4,6 +4,23 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_xla
+
+
+# Materialize AdamW state so the fused fwd+bwd+optimizer XLA graph compiles only once.
+# AdamW lazily allocates step/exp_avg/exp_avg_sq on the first step, which changes the graph's
+# input signature after step 0 and forces a second compilation. Pre-initializing to zero is a
+# numerical no-op (Adam's own lazy init also starts moments at zero) and keeps the signature stable.
+def materialize_adamw_state(optimizer: torch.optim.Optimizer) -> None:
+    for group in optimizer.param_groups:
+        for p in group["params"]:
+            if not p.requires_grad:
+                continue
+            state = optimizer.state[p]
+            state["step"] = torch.zeros((), dtype=torch.float32, device=p.device)
+            state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+            state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+    torch_xla.sync(wait=True)
 
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.

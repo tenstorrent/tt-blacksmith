@@ -22,7 +22,11 @@ from blacksmith.tools.torch_helpers import (
     collect_examples,
     show_examples,
 )
-from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
+from blacksmith.tools.workaround_utils import (
+    cross_entropy_loss,
+    materialize_adamw_state,
+    transform_labels,
+)
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -113,20 +117,9 @@ def train(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
 
-    # Materialize AdamW state up front so the first optimizer step has the same graph
-    # signature as every subsequent one. AdamW lazily creates exp_avg/exp_avg_sq/step on
-    # the first `.step()`, which changes the fused fwd+bwd+optimizer graph's inputs after
-    # step 0 and forces a second compilation. Pre-initializing to zero is numerically a
-    # no-op (Adam's own lazy init also starts moments at zero), it just stabilizes the
-    # input signature so a single binary is compiled and reused. Skipped on resume, where
-    # the checkpoint load below repopulates the state.
+    # Pre-create optimizer state so the fused step graph compiles only once.
     if config.use_tt and not config.resume_from_checkpoint:
-        for p in trainable_params:
-            state = optimizer.state[p]
-            state["step"] = torch.zeros((), dtype=torch.float32, device=p.device)
-            state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
-            state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
-        torch_xla.sync(wait=True)
+        materialize_adamw_state(optimizer)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
@@ -158,18 +151,18 @@ def train(
     global_step = 0
 
     try:
-        # # Initial validation
-        # model.eval()
-        # val_loss = validate(
-        #     eval_model,
-        #     eval_dataloader,
-        #     cross_entropy_loss,
-        #     logger,
-        #     device_manager.device,
-        #     config,
-        #     tokenizer,
-        # )
-        # logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
+        # Initial validation
+        model.eval()
+        val_loss = validate(
+            eval_model,
+            eval_dataloader,
+            cross_entropy_loss,
+            logger,
+            device_manager.device,
+            config,
+            tokenizer,
+        )
+        logger.log_metrics({"val/loss": val_loss}, commit=True, step=global_step)
         model.train()
 
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
