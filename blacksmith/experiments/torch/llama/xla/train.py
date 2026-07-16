@@ -166,7 +166,6 @@ def train(
         for epoch in range(config.num_epochs):
             accumulation_step = 0
             running_loss = 0.0
-            step_loss = None
 
             for batch in tqdm(train_dataloader, desc="Training"):
                 # Zero out gradients at the start of accumulation cycle

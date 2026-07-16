@@ -84,6 +84,9 @@ class TrainingConfig(BaseModel):
     enable_trace: bool = Field(default=False)
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> e7f3d8121 (Address comments)
     enable_const_eval: bool = Field(default=True)
 
 =======
