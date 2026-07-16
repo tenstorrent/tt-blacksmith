@@ -83,6 +83,7 @@ class TrainingConfig(BaseModel):
     use_tt: bool = Field(default=True)
     enable_trace: bool = Field(default=False)
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
+    enable_const_eval: bool = Field(default=True)
 
     def torch_dtype(self) -> torch.dtype:
         # Broader than TrainerConfig: some experiment YAMLs still use float16.
