@@ -22,7 +22,11 @@ from blacksmith.tools.torch_helpers import (
     collect_examples,
     show_examples,
 )
-from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
+from blacksmith.tools.workaround_utils import (
+    cross_entropy_loss,
+    materialize_adamw_state,
+    transform_labels,
+)
 
 
 def validate(model, val_data_loader, loss_fn, logger, device, config, tokenizer=None):
@@ -112,6 +116,10 @@ def train(
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
+
+    # Pre-create optimizer state so the fused step graph compiles only once.
+    if config.use_tt and not config.resume_from_checkpoint:
+        materialize_adamw_state(optimizer)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
