@@ -199,7 +199,7 @@ def train(
                     torch_xla._XLAC._xla_sync_multi(tensors_to_sync, devices, wait=True)
                     # Optimizer will do unnecessary recompute if we don't clear the pending IRs after syncing the loss and grads.
                     torch_xla._XLAC._clear_pending_irs(torch_xla._XLAC._xla_get_default_device())
-                
+
                 running_loss += loss_.item()
                 accumulation_step += 1
 
