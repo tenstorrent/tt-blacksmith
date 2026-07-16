@@ -88,8 +88,12 @@ class TrainingConfig(BaseModel):
 
 =======
     enable_const_eval: bool = Field(default=False)
+<<<<<<< HEAD
     
 >>>>>>> 9cc221d45 (Disable const eval for llama 3.1 8b single chip)
+=======
+
+>>>>>>> cb15b8aae (pre-commit)
     def torch_dtype(self) -> torch.dtype:
         # Broader than TrainerConfig: some experiment YAMLs still use float16.
         dtypes = {
@@ -101,4 +105,3 @@ class TrainingConfig(BaseModel):
             return dtypes[self.dtype]
         except KeyError as e:
             raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(dtypes)}") from e
-
