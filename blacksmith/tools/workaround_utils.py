@@ -11,7 +11,9 @@ import torch_xla
 # AdamW lazily allocates step/exp_avg/exp_avg_sq on the first step, which changes the graph's
 # input signature after step 0 and forces a second compilation. Pre-initializing to zero is a
 # numerical no-op (Adam's own lazy init also starts moments at zero) and keeps the signature stable.
-def materialize_adamw_state(optimizer: torch.optim.Optimizer) -> None:
+# Pass sync=False to leave the zero-fills pending so a later sync fuses them with other
+# pre-seeds (grads, loss) into a single one-time materialization graph.
+def materialize_adamw_state(optimizer: torch.optim.Optimizer, sync: bool = True) -> None:
     for group in optimizer.param_groups:
         for p in group["params"]:
             if not p.requires_grad:
@@ -20,7 +22,22 @@ def materialize_adamw_state(optimizer: torch.optim.Optimizer) -> None:
             state["step"] = torch.zeros((), dtype=torch.float32, device=p.device)
             state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
             state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
-    torch_xla.sync(wait=True)
+    if sync:
+        torch_xla.sync(wait=True)
+
+
+# Pre-seed zero .grad tensors (never None) so the first micro-batch of a gradient-
+# accumulation window accumulates (grad += g) like the rest instead of assigning fresh
+# grads, which would compile a second, distinct fwd+bwd graph. Paired with optimizer_step
+# re-zeroing grads in place (set_to_none=False) so they stay tensors across windows.
+def materialize_grads(optimizer: torch.optim.Optimizer, sync: bool = True) -> None:
+    for group in optimizer.param_groups:
+        for p in group["params"]:
+            if not p.requires_grad:
+                continue
+            p.grad = torch.zeros_like(p, memory_format=torch.preserve_format)
+    if sync:
+        torch_xla.sync(wait=True)
 
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.

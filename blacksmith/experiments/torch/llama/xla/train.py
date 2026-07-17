@@ -25,6 +25,7 @@ from blacksmith.tools.torch_helpers import (
 from blacksmith.tools.workaround_utils import (
     cross_entropy_loss,
     materialize_adamw_state,
+    materialize_grads,
     transform_labels,
 )
 
@@ -117,9 +118,16 @@ def train(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
 
-    # Pre-create optimizer state so the fused step graph compiles only once.
+    # Pre-create optimizer state so the fused step graph compiles only once. Defer its sync
+    # (sync=False) so it fuses with the grad/loss pre-seeds below into one materialization graph.
     if config.use_tt and not config.resume_from_checkpoint:
-        materialize_adamw_state(optimizer)
+        materialize_adamw_state(optimizer, sync=False)
+
+    # Pre-seed zero grads and the loss accumulator so every fwd+bwd graph is identical.
+    # materialize_grads' sync flushes all pre-seeds (adamw state, grads, step_loss) as one graph.
+    step_loss = torch.zeros((1, 1, 1), dtype=torch.float32, device=device_manager.device)
+    if config.use_tt:
+        materialize_grads(optimizer)
 
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
@@ -174,14 +182,12 @@ def train(
         for epoch in range(config.num_epochs):
             accumulation_step = 0
             running_loss = 0.0
-            step_loss = None
 
             for batch in tqdm(train_dataloader, desc="Training"):
-                # Zero out gradients at the start of accumulation cycle
-                if accumulation_step == 0:
-                    if config.measure_e2e_time:
-                        step_start = time.perf_counter()
-                    optimizer.zero_grad()
+                # No zero_grad() here: grads are pre-seeded to zero and re-zeroed in place
+                # inside the optimizer graph, so zeroing never enters the fwd+bwd graph.
+                if accumulation_step == 0 and config.measure_e2e_time:
+                    step_start = time.perf_counter()
 
                 # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/327 is resolved.
                 expected_output, labels_mask = transform_labels(
@@ -201,20 +207,27 @@ def train(
                 loss_ = compute_loss_fn(batch, model, cross_entropy_loss, config.gradient_accumulation_steps)
                 loss_.backward()
 
-                # Keep the whole step (forward + backward + optimizer) in a single graph.
-                # No sync is issued here on purpose: the forward and backward IR stays pending
-                # and lazily joins the optimizer update, so everything is compiled and executed
-                # together by the one sync inside `optimizer_step`. The detached micro-batch loss
-                # is accumulated lazily so it can be read afterwards without cutting the graph.
-                step_loss = loss_.detach() if step_loss is None else step_loss + loss_.detach()
+                # Accumulate the detached loss BEFORE the sync so the add lands in this
+                # micro-batch's own fwd+bwd graph (identical for every micro-batch) instead of
+                # leaking into the next one. step_loss stays a device tensor throughout.
                 accumulation_step += 1
+                step_loss = step_loss + loss_.detach()
+
+                if accumulation_step != config.gradient_accumulation_steps:
+                    # Non-final: cut here so this is the shared fwd+bwd graph. grads/step_loss
+                    # stay materialized device tensors for the next accumulation.
+                    torch_xla.sync(wait=True)
 
                 # Only step the optimizer after accumulating gradients.
-                if accumulation_step == config.gradient_accumulation_steps:
-                    device_manager.optimizer_step(optimizer)
+                else:
+                    # Last micro-batch: leave fwd+bwd pending so it fuses with the optimizer
+                    # update and the grad/loss re-zeroing into one graph. The sync inside
+                    # optimizer_step flushes it and materializes window_loss.
+                    window_loss = step_loss
+                    step_loss = torch.zeros_like(step_loss)  # reset; fused into the optimizer graph
+                    device_manager.optimizer_step(optimizer, zero_grad=True)
 
-                    running_loss += step_loss.item()
-                    step_loss = None
+                    running_loss += window_loss.item()
                     accumulation_step = 0
                     global_step += 1
 
