@@ -56,9 +56,9 @@ python3 blacksmith/experiments/torch/gemma2/grpo/train.py --config blacksmith/ex
 
 #### Training Configuration
 
-| Architecture | mesh_shape | mesh_axis_names | dataset | Method |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
 | ------------ | ---------- | --------------- | ------- | ------ |
-| [P150](single_chip/gemma2_gsm8k_grpo.yaml) | None | None | GSM8K | GRPO + LoRA |
+| [P150](single_chip/gemma2_gsm8k_grpo.yaml) | None | None | None | GSM8K | GRPO + LoRA |
 
 ## Data
 
