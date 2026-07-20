@@ -63,9 +63,8 @@ def validate_dpo(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(tqdm(val_dataloader, desc="Validation")):
-            # Move to device and shard the batch across the data-parallel mesh axis (if configured).
             batch = device_manager.prepare_batch(batch)
-            # Shard both models if tensor parallelism is used (re-applied each batch; no-op once marked).
+
             device_manager.shard_model(policy_model)
             device_manager.shard_model(reference_model)
             _, metrics = compute_dpo_loss_from_batch(
@@ -219,9 +218,8 @@ def train_dpo(
                     logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
                     break
 
-                # Move to device and shard the batch across the data-parallel mesh axis (if configured).
                 batch = device_manager.prepare_batch(batch)
-                # Shard both models if tensor parallelism is used (re-applied each step; no-op once marked).
+
                 device_manager.shard_model(policy_model)
                 device_manager.shard_model(reference_model)
 

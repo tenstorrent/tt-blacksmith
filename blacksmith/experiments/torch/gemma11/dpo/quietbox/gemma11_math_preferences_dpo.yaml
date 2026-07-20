@@ -1,9 +1,3 @@
-# Gemma 1.1 2B DPO (Direct Preference Optimization) - multi-chip configuration.
-# 4 chips arranged as a 2D mesh: 2-way data parallel x 2-way tensor parallel.
-# Paper: https://arxiv.org/pdf/2305.18290
-# Model: https://huggingface.co/google/gemma-1.1-2b-it
-# Dataset: argilla/distilabel-math-preference-dpo
-
 # Training type
 training_model_type: "lora"
 
@@ -21,11 +15,6 @@ dpo_beta: 0.2  # Temperature for DPO loss (higher = more conservative)
 dpo_label_smoothing: 0.0  # Label smoothing (0 = no smoothing)
 
 # Reference model settings
-# Standard DPO requires π_ref to be the SFT model trained on the chosen responses.
-# Run the multi-chip SFT config first, then set this to the resulting checkpoint, e.g.:
-#   blacksmith/experiments/torch/gemma11/lora/checkpoints/checkpoint_step<STEP>_epoch<EPOCH>_<TIMESTAMP>.pt
-# The SFT checkpoint filename is timestamped, so fill it in after SFT finishes (or pass it on the
-# command line via --reference-model-checkpoint-path, which overrides this field).
 sft_checkpoint_path: ""
 
 # Training hyperparameters
@@ -79,28 +68,24 @@ deterministic: True
 mesh_shape: [2, 2]
 mesh_axis_names: ["batch", "model"]  # "batch" = data parallel, "model" = tensor parallel
 input_sharding_dim: "batch"          # shard input batch dim across the data-parallel axis
-# Tensor-parallel sharding patterns (regex on module name -> partition spec per weight dim).
-# Gemma 1.1 2B uses multi-query attention (1 KV head, 8 query heads, head_dim=256), so K/V
-# projections are left REPLICATED; only Q/O and the MLP are sharded across the "model" axis.
+# Tensor-parallel sharding patterns
 model_sharding_patterns:
-  # === Attention: q_proj column-parallel (shard output), o_proj row-parallel (shard input) ===
   - ['\.self_attn\.q_proj\.base_layer$',      ["model", null]]
   - ['\.self_attn\.q_proj\.lora_B\.default$', ["model", null]]
   - ['\.self_attn\.o_proj\.base_layer$',      [null, "model"]]
   - ['\.self_attn\.o_proj\.lora_A\.default$', [null, "model"]]
-  # === MLP: gate/up column-parallel, down row-parallel (not LoRA-targeted -> plain Linear) ===
   - ['\.mlp\.gate_proj$', ["model", null]]
   - ['\.mlp\.up_proj$',   ["model", null]]
   - ['\.mlp\.down_proj$', [null, "model"]]
 
-# LoRA setup - larger rank for DPO to capture preference learning
+# LoRA setup
 lora_r: 16
 lora_alpha: 32
 lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
 lora_task_type: "CAUSAL_LM"
-lora_dropout: 0.0  # Disable dropout for stable DPO training
+lora_dropout: 0.0
 
-# Adapter setup (used when training_model_type is "adapters")
+# Adapter setup
 adapter_bottleneck_dim: 32
 adapter_non_linearity: "torch.nn.GELU"
 adapter_layers: []
