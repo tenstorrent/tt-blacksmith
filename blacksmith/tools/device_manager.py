@@ -185,7 +185,12 @@ class DeviceManager:
             if self.config.use_tt:
                 torch_xla.sync(wait=True)
         else:
-            # For multichip - xm.optimizer_step forces execution and ensures correct all-reduce operations
-            xm.optimizer_step(optimizer, barrier=True)
+            # For multichip - xm.optimizer_step forces execution and ensures correct all-reduce operations.
             if zero_grad:
+                # Drop the internal barrier so the in-place grad re-zero fuses into the optimizer
+                # graph; the explicit sync flushes the reduce + step + zeroing together.
+                xm.optimizer_step(optimizer, barrier=False)
                 optimizer.zero_grad(set_to_none=False)
+                torch_xla.sync(wait=True)
+            else:
+                xm.optimizer_step(optimizer, barrier=True)

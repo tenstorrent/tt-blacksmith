@@ -12,6 +12,7 @@ import torch
 from blacksmith.tools.configs import CheckpointConfig
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.storage_backends import StorageBackend
+from blacksmith.tools.workaround_utils import restore_capturable_optimizer_state
 
 
 class CheckpointManager:
@@ -252,6 +253,9 @@ class CheckpointManager:
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            # load_state_dict restores capturable=False and CPU state from the checkpoint, which
+            # breaks capturable AdamW and forces the fused step graph to recompile; repair it.
+            restore_capturable_optimizer_state(optimizer)
             self.logger.info("Loaded optimizer state")
 
         self.logger.info(f"Loaded checkpoint from {checkpoint_path}")

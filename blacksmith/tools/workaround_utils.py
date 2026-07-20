@@ -40,6 +40,25 @@ def materialize_grads(optimizer: torch.optim.Optimizer, sync: bool = True) -> No
         torch_xla.sync(wait=True)
 
 
+# After restoring an optimizer from a CPU checkpoint, re-enable capturable AdamW and move its
+# state (crucially `step`) back onto the parameter device. Old checkpoints store capturable=False
+# and CPU state; load_state_dict restores both, which makes AdamW compute the step-dependent bias
+# correction host-side and bake it into the fused step graph as a constant (recompile as the step
+# advances), and mismatches CPU state against device params. No-op off XLA.
+def restore_capturable_optimizer_state(optimizer: torch.optim.Optimizer) -> None:
+    params = [p for group in optimizer.param_groups for p in group["params"]]
+    if not params or params[0].device.type != "xla":
+        return
+    device = params[0].device
+    for group in optimizer.param_groups:
+        group["capturable"] = True
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor) and v.device != device:
+                state[k] = v.to(device)
+    torch_xla.sync(wait=True)
+
+
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
 def cross_entropy_loss(shift_logits, expected_output, labels_mask):
     log_probs = F.log_softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]

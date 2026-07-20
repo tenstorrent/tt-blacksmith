@@ -119,32 +119,26 @@ def train(
     optimizer = torch.optim.AdamW(trainable_params, capturable=config.use_tt, lr=config.learning_rate)
 
     # Pre-create optimizer state so the fused step graph compiles only once. Defer its sync
-    # (sync=False) so it fuses with the grad/loss pre-seeds below into one materialization graph.
+    # (sync=False) so it fuses with the grad pre-seed below into one materialization graph.
     if config.use_tt and not config.resume_from_checkpoint:
         materialize_adamw_state(optimizer, sync=False)
 
-    # Pre-seed zero grads and the loss accumulator so every fwd+bwd graph is identical.
-    # materialize_grads' sync flushes all pre-seeds (adamw state, grads, step_loss) as one graph.
-    step_loss = torch.zeros((1, 1, 1), dtype=torch.float32, device=device_manager.device)
+    # Pre-seed zero grads and the loss accumulator so every fwd+bwd graph is identical (accumulate,
+    # not assign/init) -- the first micro-batch reads an existing tensor just like the rest, so the
+    # step compiles a single fwd+bwd graph. Infer step_loss's shape/dtype by probing the loss fn on
+    # tiny CPU inputs (its output is a full reduction, so the probe's input sizes don't matter)
+    # instead of hardcoding them. materialize_grads' sync flushes all pending pre-seeds (adamw state
+    # when not resuming, grads, step_loss) as one materialization graph.
+    with torch.no_grad():
+        loss_probe = cross_entropy_loss(torch.zeros(1, 1, 1), torch.zeros(1, 1, 1), torch.zeros(1, 1))
+    step_loss = torch.zeros(loss_probe.shape, dtype=loss_probe.dtype, device=device_manager.device)
     if config.use_tt:
         materialize_grads(optimizer)
 
-    # Load checkpoint if needed.
+    # Load checkpoint if needed. The optimizer's capturable/device state is repaired inside
+    # load_checkpoint (see restore_capturable_optimizer_state) so the fused step graph stays stable.
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
-        # load_state_dict overwrites param-group hyperparams with the checkpoint's (which has
-        # capturable=False) and restores optimizer state on CPU. Both defeat capturable AdamW,
-        # which then computes the step-dependent bias correction host-side and bakes it into the
-        # fused step graph as a constant, forcing a recompile as the step advances. Re-enable
-        # capturable and move the state (crucially `step`) back onto the device.
-        if config.use_tt:
-            for group in optimizer.param_groups:
-                group["capturable"] = True
-            for state in optimizer.state.values():
-                for k, v in state.items():
-                    if isinstance(v, torch.Tensor) and v.device != device_manager.device:
-                        state[k] = v.to(device_manager.device)
-            torch_xla.sync(wait=True)
 
     # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
@@ -193,6 +187,10 @@ def train(
             train_start = time.perf_counter()
 
         for epoch in range(config.num_epochs):
+            # NOTE: grads and step_loss persist across epochs (reset only after an optimizer
+            # step). If len(train_dataloader) is not a multiple of gradient_accumulation_steps,
+            # a trailing partial window's grads/loss carry into the next epoch. Fine for the
+            # divisible configs used here; revisit if a non-divisible dataset is added.
             accumulation_step = 0
             running_loss = 0.0
 
@@ -222,14 +220,16 @@ def train(
 
                 # Accumulate the detached loss BEFORE the sync so the add lands in this
                 # micro-batch's own fwd+bwd graph (identical for every micro-batch) instead of
-                # leaking into the next one. step_loss stays a device tensor throughout.
+                # leaking into the next one. step_loss stays a device tensor throughout (pre-seeded
+                # above, reset via zeros_like after each optimizer step).
                 accumulation_step += 1
                 step_loss = step_loss + loss_.detach()
 
                 if accumulation_step != config.gradient_accumulation_steps:
                     # Non-final: cut here so this is the shared fwd+bwd graph. grads/step_loss
                     # stay materialized device tensors for the next accumulation.
-                    torch_xla.sync(wait=True)
+                    if config.use_tt:
+                        torch_xla.sync(wait=True)
 
                 # Only step the optimizer after accumulating gradients.
                 else:
