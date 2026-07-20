@@ -54,12 +54,6 @@ used by default.
 python3 blacksmith/experiments/torch/gemma2/grpo/train.py --config blacksmith/experiments/torch/gemma2/grpo/single_chip/gemma2_gsm8k_grpo.yaml
 ```
 
-### Smoke test (tiny open model, no gating)
-
-```bash
-python3 blacksmith/experiments/torch/gemma2/grpo/train.py --config blacksmith/experiments/torch/gemma2/grpo/single_chip/smoke_smollm_gsm8k_grpo.yaml
-```
-
 #### Training Configuration
 
 | Architecture | mesh_shape | mesh_axis_names | dataset | Method |
