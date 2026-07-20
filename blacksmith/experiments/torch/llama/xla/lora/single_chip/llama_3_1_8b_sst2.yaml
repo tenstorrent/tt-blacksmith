@@ -59,3 +59,4 @@ use_tt: True
 measure_e2e_time: False
 enable_trace: False
 trace_region_size: 1000000000 # DRAM region size (bytes) for runtime trace
+enable_const_eval: False
