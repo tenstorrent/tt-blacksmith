@@ -12,12 +12,13 @@ Use `training_model_type` to specify the parameter-efficient fine-tuning approac
 """
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class DPOTrainingConfig(BaseModel):
+class DPOTrainingConfig(BaseTrainingConfig):
     """
     Configuration for DPO training.
 

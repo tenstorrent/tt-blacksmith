@@ -64,10 +64,10 @@ python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experi
 
 #### GPT-OSS 20B Training Configurations
 
-| Architecture | mesh_shape | mesh_axis_names | Dataset | Method |
-| --- | --- | --- | --- | --- |
-| [BH LoudBox](lora/loudbox/gpt_oss_20b_sst2.yaml) | `[1, 8]` | `["batch", "model"]` | SST-2 | LoRA |
-| [WH Galaxy](lora/galaxy/gpt_oss_20b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` | Alpaca | LoRA |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [BH LoudBox](lora/loudbox/gpt_oss_20b_sst2.yaml) | `[1, 8]` | `["batch", "model"]` |None    | SST-2 | LoRA |
+| [WH Galaxy](lora/galaxy/gpt_oss_20b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` |None    | Alpaca | LoRA |
 
 
 ### GPT-OSS 120B Training
@@ -79,9 +79,9 @@ python3 blacksmith/experiments/torch/gpt_oss/train.py --config blacksmith/experi
 
 #### GPT-OSS 20B Training Configurations
 
-| Architecture | mesh_shape | mesh_axis_names | Dataset | Method |
-| --- | --- | --- | --- | --- |
-| [WH Galaxy](lora/galaxy/gpt_oss_120b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` | Alpaca | LoRA |
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [WH Galaxy](lora/galaxy/gpt_oss_120b_alpaca.yaml) | `[4, 8]` | `["batch", "model"]` |None    | Alpaca | LoRA |
 
 ## Data
 

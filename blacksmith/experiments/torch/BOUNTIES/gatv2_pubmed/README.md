@@ -58,6 +58,12 @@ A golden-loss regression case (`tt-gatv2_pubmed-pubmed-n150`, config under
 `tests/configs/BOUNTIES/`) is defined in `tests/training_test_cases.py` but kept
 commented out until the experiment dependency and a TT runner are wired into CI.
 
+## Configuration
+
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/gatv2_pubmed_tt.yaml) | None        | None        | None         | PubMed      | Full Model |
+
 ## Configuration Parameters
 
 | Parameter | Description | Default Value |

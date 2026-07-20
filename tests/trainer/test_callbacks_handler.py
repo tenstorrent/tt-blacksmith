@@ -13,10 +13,10 @@ class RecordingCallback(Callback):
         self.name = name
         self.events = events
 
-    def on_train_batch_start(self, trainer, batch):
+    def on_train_batch_start(self, trainer, batch, *args, **kwargs):
         self.events.append(f"{self.name}:on_train_batch_start")
 
-    def on_train_batch_end(self, trainer):
+    def on_train_batch_end(self, trainer, *args, **kwargs):
         self.events.append(f"{self.name}:on_train_batch_end")
 
 
@@ -53,7 +53,7 @@ def test_callback_handler_injects_trainer():
     received_trainers = []
 
     class TrainerCapturingCallback(Callback):
-        def on_train_start(self, trainer):
+        def on_train_start(self, trainer, *args, **kwargs):
             received_trainers.append(trainer)
 
     trainer = object()
@@ -68,7 +68,7 @@ def test_callback_handler_skips_missing_hooks():
     events = []
 
     class PartialCallback:
-        def on_train_start(self, trainer):
+        def on_train_start(self, trainer, *args, **kwargs):
             events.append("called")
 
     trainer = object()

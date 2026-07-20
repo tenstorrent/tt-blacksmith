@@ -49,6 +49,11 @@ Source: [Hugging Face Dataset Hub](https://huggingface.co/datasets/glue/viewer/s
 
 ## Configuration
 
+| Architecture       | mesh_shape                   | mesh_axis_names      | dataset      | Method     |
+| ------------------ | ---------------------------- | -------------------- | ------------ | ---------- |
+| [Single-Chip](distil_bert_sst2.yaml) | None                         | None   | SST-2 | Distillation     |
+| [N300](distil_bert_sst2.yaml) | '[2]'                         | "data"   | SST-2 | Distillation, data parallel     |
+
 The experiment parameters are defined in `distil_bert_sst2.yaml`.
 This configuration specifies dataset, model settings, training hyperparameters, and loss weighting used during distillation.
 
