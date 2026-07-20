@@ -12,6 +12,7 @@ _TORCH_COMPILE_OPTIONS = {
     "tt_enable_torch_fx_fusion_pass": False,
     "tt_legacy_compile": True,
     "tt_enable_composite_ops": True,
+    "tt_use_aot_autograd": False,
 }
 
 # XLA custom compile options. Values must be strings (the API does not coerce bool/int).
