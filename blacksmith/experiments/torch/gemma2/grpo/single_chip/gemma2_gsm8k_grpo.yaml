@@ -1,8 +1,3 @@
-# Gemma 2 2B-IT GRPO (Group Relative Policy Optimization) Training Configuration
-# Paper: https://arxiv.org/pdf/2402.03300 (DeepSeekMath / GRPO)
-# Model: https://huggingface.co/google/gemma-2-2b-it
-# Dataset: https://huggingface.co/datasets/openai/gsm8k
-
 # Training type
 training_model_type: "lora"
 
@@ -15,30 +10,26 @@ dtype: "torch.bfloat16"
 ignored_index: -100
 
 # GRPO / generation hyperparameters
-# num_generations * batch_size is the on-device batch for generation and the
-# training forward; the (batch, seq, 256k-vocab) logits dominate DRAM, so keep
-# these modest on a single chip. Raise num_generations for a stronger group
-# signal only if device memory allows.
-num_generations: 2          # G: completions sampled per prompt
-max_prompt_length: 192
-max_completion_length: 160
+num_generations: 2
+max_prompt_length: 256
+max_completion_length: 256
 temperature: 0.5
-top_k: 0                    # 0 disables top-k
-grpo_beta: 0.005           # KL penalty coefficient
-grpo_epsilon: 0.2          # PPO clip range (used when num_grpo_iterations > 1)
-num_grpo_iterations: 1     # mu: gradient updates per generated batch
+top_k: 0
+grpo_beta: 0.005
+grpo_epsilon: 0.2
+num_grpo_iterations: 1
 advantage_eps: 1.0e-4
 format_reward_weight: 1.0
 correct_reward_weight: 2.0
 
 # Training hyperparameters
-learning_rate: 1.0e-5      # batch_size is prompts-per-step (P); gen/train batch = P * num_generations
+learning_rate: 1.0e-5
 batch_size: 1
 gradient_accumulation_steps: 4
 gradient_checkpointing: False
 weight_decay: 0.1
 num_epochs: 2
-max_steps: -1              # -1 means use num_epochs
+max_steps: -1
 optim: "adamw_torch"
 warmup_steps: 10
 max_grad_norm: 0.1
@@ -76,20 +67,20 @@ remote_path: ""
 
 # Reproducibility settings
 seed: 23
-deterministic: False
+deterministic: True
 
-# Device settings (mesh configuration for parallelism)
+# Device settings
 mesh_shape: null
 mesh_axis_names: null
 
-# LoRA setup (blog uses r == alpha == 64, no dropout, all projections)
+# LoRA setup
 lora_r: 64
 lora_alpha: 64
 lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 lora_task_type: "CAUSAL_LM"
 lora_dropout: 0.0
 
-# Adapter setup (used when training_model_type is "adapters")
+# Adapter setup
 adapter_bottleneck_dim: 32
 adapter_non_linearity: "torch.nn.GELU"
 adapter_layers: []

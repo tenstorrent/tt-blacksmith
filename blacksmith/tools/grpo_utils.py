@@ -16,14 +16,6 @@ where:
     - A_i       = (r_i - mean(group)) / (std(group) + eps)     (group advantage)
     - KL_{i,t}  is the DeepSeekMath unbiased (k3) estimator of KL[pi_theta || pi_ref]:
                      pi_ref/pi_theta - log(pi_ref/pi_theta) - 1
-
-The training loss is the negative of the objective. With a single update per
-batch (num_grpo_iterations == 1), pi_old == pi_theta so rho == 1 in value while
-still carrying gradient, and the clip is inactive.
-
-Answer-extraction / prompt helpers live in
-``blacksmith/datasets/torch/gsm8k/gsm8k_utils.py`` and are reused here so the
-reward functions and the dataset share a single source of truth.
 """
 import re
 from typing import Dict, List, Tuple
@@ -73,7 +65,7 @@ def compute_group_advantages(
     num_generations: int,
     eps: float = 1e-4,
 ) -> torch.Tensor:
-    """Group-relative advantage normalization (DeepSeekMath A_i).
+    """Group-relative advantage normalization.
 
     ``rewards`` is a flat tensor of shape ``(num_prompts * num_generations,)``
     ordered so each consecutive ``num_generations`` block is one prompt's group.
@@ -91,9 +83,6 @@ def get_per_token_logps(logits: torch.Tensor, input_ids: torch.Tensor) -> torch.
 
     ``logits`` (B, T, V) predict ``input_ids`` shifted by one, so the returned
     tensor has shape (B, T-1): entry ``[b, t]`` is ``log pi(input_ids[b, t+1])``.
-
-    Uses ``F.cross_entropy(reduction="none")`` (an internal gather) rather than a
-    one-hot target, which tile-pads to multi-GB on TT and OOMs.
     """
     shift_logits = logits[:, :-1, :].contiguous()
     shift_targets = input_ids[:, 1:].contiguous()
@@ -104,6 +93,37 @@ def get_per_token_logps(logits: torch.Tensor, input_ids: torch.Tensor) -> torch.
         reduction="none",
     ).reshape(batch_size, seq_len)
     return per_token_logps
+
+
+def forward_logps(model, seq_ids: torch.Tensor, seq_attention_mask: torch.Tensor) -> torch.Tensor:
+    """Run one full-sequence forward and return per-token log-probs (B, T-1).
+
+    The (B, T, V) logits are dropped immediately after reduction to keep only the
+    small per-token tensor (avoids holding a vocab-sized activation).
+    """
+    logits = model(input_ids=seq_ids, attention_mask=seq_attention_mask).logits
+    return get_per_token_logps(logits, seq_ids)
+
+
+def compute_ref_logps(
+    policy_model,
+    seq_ids: torch.Tensor,
+    seq_attention_mask: torch.Tensor,
+    *,
+    use_shared_reference: bool = True,
+    reference_model=None,
+) -> torch.Tensor:
+    """Frozen reference-policy per-token log-probs (no grad).
+
+    For LoRA, ``use_shared_reference=True`` runs the policy with adapters disabled
+    (base weights = pi_ref) so a second full model copy is not needed. Otherwise
+    ``reference_model`` must be a separate frozen model.
+    """
+    with torch.no_grad():
+        if use_shared_reference:
+            with policy_model.disable_adapter():
+                return forward_logps(policy_model, seq_ids, seq_attention_mask)
+        return forward_logps(reference_model, seq_ids, seq_attention_mask)
 
 
 def compute_grpo_loss(

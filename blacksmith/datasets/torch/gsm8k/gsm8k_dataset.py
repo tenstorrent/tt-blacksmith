@@ -2,15 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-GSM8K dataset for GRPO reasoning training.
+GSM8K dataset for GRPO training.
 
 Unlike the supervised datasets, GRPO generates its own completions at train
 time, so this dataset is PROMPT-ONLY: each item is a chat-templated, R1-style
 prompt plus the gold integer answer used by the correctness reward. Prompts are
 left-padded at collate time so batched autoregressive generation shares a single
 generation frontier.
-
-Dataset: https://huggingface.co/datasets/openai/gsm8k
 """
 from typing import Dict, List
 
@@ -39,8 +37,6 @@ class GSM8KDataset(BaseDataset):
         super().__init__(config, split, collate_fn)
 
     def _build_prompt(self, question: str) -> str:
-        # Gemma chat templates do not support a system role, so the R1 instructions
-        # are folded into the user turn.
         messages = [{"role": "user", "content": f"{GSM8K_SYSTEM_PROMPT}\n\nQuestion: {question}"}]
         return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 

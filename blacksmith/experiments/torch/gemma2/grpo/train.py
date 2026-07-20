@@ -1,23 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""
-Gemma 2 2B-IT GRPO (Group Relative Policy Optimization) training script.
-
-Based on the paper: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning
-in Open Language Models" https://arxiv.org/pdf/2402.03300
-
-Trains google/gemma-2-2b-it to reason about GSM8K math problems using GRPO,
-implemented from scratch (no TRL). Each step is split into three explicit phases
-so the compiled model only ever sees two graph shapes (generation vs. training):
-
-    Phase A (generation): sample G completions per prompt with the policy model.
-    Phase B (rewards):     score each completion, then group-normalize into advantages.
-    Phase C (optimization): one policy fwd/bwd + one frozen-reference fwd, GRPO loss.
-
-Model: https://huggingface.co/google/gemma-2-2b-it
-Dataset: https://huggingface.co/datasets/openai/gsm8k
-"""
 import traceback
 from pathlib import Path
 from typing import Dict, Tuple
@@ -36,8 +19,9 @@ from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.grpo_utils import (
     compute_group_advantages,
     compute_grpo_loss,
+    compute_ref_logps,
     compute_rewards,
-    get_per_token_logps,
+    forward_logps,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
@@ -68,18 +52,6 @@ def build_training_batch(
     prompt_token_mask = torch.zeros_like(prompt_attention_mask, dtype=torch.bool)
     completion_token_mask = torch.cat([prompt_token_mask, completion_valid], dim=1)
     return seq_ids, seq_attention_mask, completion_token_mask
-
-
-def _forward_logps(model, seq_ids: torch.Tensor, seq_attention_mask: torch.Tensor) -> torch.Tensor:
-    """Run one full-sequence forward and return per-token log-probs (B, T-1).
-
-    The (B, T, V) logits are dropped immediately after reduction to keep only the
-    small per-token tensor (avoids holding a vocab-sized activation).
-    """
-    logits = model(input_ids=seq_ids, attention_mask=seq_attention_mask).logits
-    logps = get_per_token_logps(logits, seq_ids)
-    del logits
-    return logps
 
 
 def train_grpo(
@@ -129,13 +101,6 @@ def train_grpo(
         reference_model.eval()
         logger.info("Reference model loaded and frozen.")
 
-    def compute_ref_logps(seq_ids, seq_attention_mask):
-        with torch.no_grad():
-            if use_shared_reference:
-                with policy_model.disable_adapter():
-                    return _forward_logps(policy_model, seq_ids, seq_attention_mask)
-            return _forward_logps(reference_model, seq_ids, seq_attention_mask)
-
     logger.log_model_info(
         {
             "model_name": config.model_name,
@@ -147,7 +112,7 @@ def train_grpo(
         }
     )
 
-    # GSM8K prompts (prompt-only dataset).
+    # GSM8K prompts
     train_dataset = get_dataset(config=config, split="train")
     train_dataloader = train_dataset.get_dataloader()
     logger.info(f"Loaded {config.dataset_id} dataset. Train prompts: {len(train_dataset)}")
@@ -160,7 +125,7 @@ def train_grpo(
     )
     optimizer.zero_grad()
 
-    # Per-step device sync used to bound the generation graph (no host transfer).
+    # Per-step device sync used to bound the generation graph.
     generation_sync = (lambda: torch_xla.sync(wait=True)) if config.use_tt else None
 
     global_step = 0
@@ -236,8 +201,14 @@ def train_grpo(
                 # logits are freed immediately, so they don't coexist with the
                 # policy forward's activations that must stay resident for backward.
                 # This lowers peak device memory (the (B, T, vocab) logits dominate).
-                ref_logps = compute_ref_logps(seq_ids, seq_attention_mask)
-                logps = _forward_logps(policy_model, seq_ids, seq_attention_mask)
+                ref_logps = compute_ref_logps(
+                    policy_model,
+                    seq_ids,
+                    seq_attention_mask,
+                    use_shared_reference=use_shared_reference,
+                    reference_model=reference_model,
+                )
+                logps = forward_logps(policy_model, seq_ids, seq_attention_mask)
 
                 loss, loss_metrics = compute_grpo_loss(
                     logps=logps,
@@ -253,7 +224,7 @@ def train_grpo(
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
-                # Accumulate metrics (all reduced to scalar tensors).
+                # Accumulate metrics.
                 reward_std = rewards.view(num_prompts, num_generations).std(dim=1).mean()
                 accumulate_metric_tensors(
                     running_metrics,
@@ -275,11 +246,11 @@ def train_grpo(
                 # memory across the gradient-accumulation window. Placed before the
                 # early-continue below so it runs on every iteration. The metrics were
                 # already accumulated (as detached scalars) just above.
-                del prompt_ids, prompt_mask, golds
-                del completion_ids, completion_valid, completions_text
-                del rewards, format_flags, correct_flags, reward_std, advantages
-                del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
-                del ref_logps, logps, loss, loss_metrics
+                #TODO del prompt_ids, prompt_mask, golds
+                #del completion_ids, completion_valid, completions_text
+                #del rewards, format_flags, correct_flags, reward_std, advantages
+                #del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
+                #del ref_logps, logps, loss, loss_metrics
 
                 if accumulation_step < config.gradient_accumulation_steps:
                     continue
@@ -326,11 +297,6 @@ def train_grpo(
                     checkpoint_manager.save_checkpoint(
                         policy_model, global_step, epoch, optimizer, metrics=last_step_metrics
                     )
-
-            # Discard leftover gradients from a partial accumulation window at epoch end.
-            if accumulation_step > 0:
-                optimizer.zero_grad()
-                accumulation_step = 0
 
             if config.max_steps > 0 and global_step >= config.max_steps:
                 break

@@ -338,12 +338,6 @@ def generate_completions(
     for layer in static_cache.layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
-        # The layer also tracks its own ``device`` and a ``cumulative_length``
-        # tensor, both used to build ``cache_position`` inside ``update``
-        # (torch.arange(..., device=layer.device) + layer.cumulative_length).
-        # These stay on CPU after the manual keys/values move above, which would
-        # feed a CPU index tensor into index_copy_ on the XLA cache and raise
-        # "Input tensor is not an XLA tensor". Keep them on device too.
         layer.device = device
         if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
             layer.cumulative_length = layer.cumulative_length.to(device)

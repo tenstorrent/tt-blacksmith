@@ -42,7 +42,6 @@ The following table provides an overview of different model and method combinati
 | JAX | DistilBERT | Distillation | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/distil_bert/README.md) |
 | EasyDel | Qwen 3 0.6B | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/easydel/qwen/lora/README.md) |
 | Lightning | NeRF | Full-model | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/lightning/nerf/README.md) |
->>>>>>> 10afa56c9f5d1d861f08fb94cd1f3ec683a4dbcb
 
 
 ## Navigating the Experiment Structure

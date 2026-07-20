@@ -3,25 +3,19 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 Configuration for GRPO (Group Relative Policy Optimization) training.
-
-Based on the paper: "DeepSeekMath: Pushing the Limits of Mathematical Reasoning
-in Open Language Models" https://arxiv.org/pdf/2402.03300
-
-GRPO is a training objective (loss function), orthogonal to PEFT methods like
-LoRA/adapters. Use `training_model_type` to specify the parameter-efficient
-fine-tuning approach for the policy model.
 """
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class GRPOTrainingConfig(BaseModel):
+class GRPOTrainingConfig(BaseTrainingConfig):
     """Configuration for GRPO training on GSM8K."""
 
-    # Training type - PEFT approach for the policy model.
+    # Training type
     training_model_type: str = Field(default="lora")  # [lora, adapters, full]
 
     # Dataset settings
@@ -101,7 +95,7 @@ class GRPOTrainingConfig(BaseModel):
         default=None, description="Axis names for mesh, e.g. ['data', 'model']"
     )
 
-    # LoRA setup (blog uses r == alpha == 64, no dropout, all projections)
+    # LoRA setup
     lora_r: int = Field(default=64, gt=0)
     lora_alpha: int = Field(default=64, gt=0)
     lora_target_modules: list[str] = Field(
@@ -110,7 +104,7 @@ class GRPOTrainingConfig(BaseModel):
     lora_task_type: str = Field(default="CAUSAL_LM")
     lora_dropout: float = Field(default=0.0, ge=0, le=1)
 
-    # Adapter setup (used when training_model_type == "adapters")
+    # Adapter setup
     adapter_bottleneck_dim: int = Field(default=32, ge=0)
     adapter_non_linearity: str = Field(default="torch.nn.GELU")
     adapter_layers: list[int] = Field(default_factory=lambda: [])
