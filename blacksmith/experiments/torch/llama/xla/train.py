@@ -132,6 +132,19 @@ def train(
     # Load checkpoint if needed.
     if config.resume_from_checkpoint:
         checkpoint_manager.load_checkpoint(model, optimizer)
+        # load_state_dict overwrites param-group hyperparams with the checkpoint's (which has
+        # capturable=False) and restores optimizer state on CPU. Both defeat capturable AdamW,
+        # which then computes the step-dependent bias correction host-side and bakes it into the
+        # fused step graph as a constant, forcing a recompile as the step advances. Re-enable
+        # capturable and move the state (crucially `step`) back onto the device.
+        if config.use_tt:
+            for group in optimizer.param_groups:
+                group["capturable"] = True
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor) and v.device != device_manager.device:
+                        state[k] = v.to(device_manager.device)
+            torch_xla.sync(wait=True)
 
     # Load dataset.
     train_dataset = get_dataset(config=config, split="train", collate_fn=collate_fn_for_causal_lm)
