@@ -133,6 +133,7 @@ def train(
             "tt_enable_torch_fx_fusion_pass": False,
             "tt_legacy_compile": True,
             "tt_lazy_execution": True,
+            "tt_use_aot_autograd": False,
         }
         compute_loss_fn = torch.compile(compute_loss, backend="tt", options=compile_options)
         eval_model = torch.compile(model, backend="tt", options=compile_options)
