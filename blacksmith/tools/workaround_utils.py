@@ -4,6 +4,59 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch_xla
+
+
+# Materialize AdamW state so the fused fwd+bwd+optimizer XLA graph compiles only once.
+# AdamW lazily allocates step/exp_avg/exp_avg_sq on the first step, which changes the graph's
+# input signature after step 0 and forces a second compilation. Pre-initializing to zero is a
+# numerical no-op (Adam's own lazy init also starts moments at zero) and keeps the signature stable.
+# Pass sync=False to leave the zero-fills pending so a later sync fuses them with other
+# pre-seeds (grads, loss) into a single one-time materialization graph.
+def materialize_adamw_state(optimizer: torch.optim.Optimizer, sync: bool = True) -> None:
+    for group in optimizer.param_groups:
+        for p in group["params"]:
+            if not p.requires_grad:
+                continue
+            state = optimizer.state[p]
+            state["step"] = torch.zeros((), dtype=torch.float32, device=p.device)
+            state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+            state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+    if sync:
+        torch_xla.sync(wait=True)
+
+
+# Pre-seed zero .grad tensors (never None) so the first micro-batch of a gradient-
+# accumulation window accumulates (grad += g) like the rest instead of assigning fresh
+# grads, which would compile a second, distinct fwd+bwd graph. Paired with optimizer_step
+# re-zeroing grads in place (set_to_none=False) so they stay tensors across windows.
+def materialize_grads(optimizer: torch.optim.Optimizer, sync: bool = True) -> None:
+    for group in optimizer.param_groups:
+        for p in group["params"]:
+            if not p.requires_grad:
+                continue
+            p.grad = torch.zeros_like(p, memory_format=torch.preserve_format)
+    if sync:
+        torch_xla.sync(wait=True)
+
+
+# After restoring an optimizer from a CPU checkpoint, re-enable capturable AdamW and move its
+# state (crucially `step`) back onto the parameter device. Old checkpoints store capturable=False
+# and CPU state; load_state_dict restores both, which makes AdamW compute the step-dependent bias
+# correction host-side and bake it into the fused step graph as a constant (recompile as the step
+# advances), and mismatches CPU state against device params. No-op off XLA.
+def restore_capturable_optimizer_state(optimizer: torch.optim.Optimizer) -> None:
+    params = [p for group in optimizer.param_groups for p in group["params"]]
+    if not params or params[0].device.type != "xla":
+        return
+    device = params[0].device
+    for group in optimizer.param_groups:
+        group["capturable"] = True
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor) and v.device != device:
+                state[k] = v.to(device)
+    torch_xla.sync(wait=True)
 
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
