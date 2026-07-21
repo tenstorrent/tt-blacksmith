@@ -170,13 +170,27 @@ class DeviceManager:
 
         return batch
 
-    def optimizer_step(self, optimizer: torch.optim.Optimizer):
-        """Perform optimizer step with appropriate synchronization."""
+    def optimizer_step(self, optimizer: torch.optim.Optimizer, zero_grad: bool = False):
+        """Perform optimizer step with appropriate synchronization.
+
+        When ``zero_grad`` is set, grads are re-zeroed in place (kept as tensors) after the
+        step so the zeroing fuses into this optimizer graph and the next window's grads stay
+        non-None for accumulation. Off by default to preserve existing models' behavior.
+        """
         if self.mesh is None:
             # Single device
             optimizer.step()
+            if zero_grad:
+                optimizer.zero_grad(set_to_none=False)
             if self.config.use_tt:
                 torch_xla.sync(wait=True)
         else:
-            # For multichip - xm.optimizer_step forces execution and ensures correct all-reduce operations
-            xm.optimizer_step(optimizer, barrier=True)
+            # For multichip - xm.optimizer_step forces execution and ensures correct all-reduce operations.
+            if zero_grad:
+                # Drop the internal barrier so the in-place grad re-zero fuses into the optimizer
+                # graph; the explicit sync flushes the reduce + step + zeroing together.
+                xm.optimizer_step(optimizer, barrier=False)
+                optimizer.zero_grad(set_to_none=False)
+                torch_xla.sync(wait=True)
+            else:
+                xm.optimizer_step(optimizer, barrier=True)
