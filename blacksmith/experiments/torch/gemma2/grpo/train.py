@@ -11,6 +11,7 @@ from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
+from blacksmith.datasets.torch.gsm8k.gsm8k_utils import compute_rewards
 from blacksmith.experiments.torch.gemma2.grpo.configs import GRPOTrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -20,7 +21,6 @@ from blacksmith.tools.grpo_utils import (
     compute_group_advantages,
     compute_grpo_loss,
     compute_ref_logps,
-    compute_rewards,
     forward_logps,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -246,11 +246,11 @@ def train_grpo(
                 # memory across the gradient-accumulation window. Placed before the
                 # early-continue below so it runs on every iteration. The metrics were
                 # already accumulated (as detached scalars) just above.
-                #TODO del prompt_ids, prompt_mask, golds
-                #del completion_ids, completion_valid, completions_text
-                #del rewards, format_flags, correct_flags, reward_std, advantages
-                #del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
-                #del ref_logps, logps, loss, loss_metrics
+                # TODO del prompt_ids, prompt_mask, golds
+                # del completion_ids, completion_valid, completions_text
+                # del rewards, format_flags, correct_flags, reward_std, advantages
+                # del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
+                # del ref_logps, logps, loss, loss_metrics
 
                 if accumulation_step < config.gradient_accumulation_steps:
                     continue

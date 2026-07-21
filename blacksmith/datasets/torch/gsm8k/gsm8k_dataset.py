@@ -3,12 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 GSM8K dataset for GRPO training.
-
-Unlike the supervised datasets, GRPO generates its own completions at train
-time, so this dataset is PROMPT-ONLY: each item is a chat-templated, R1-style
-prompt plus the gold integer answer used by the correctness reward. Prompts are
-left-padded at collate time so batched autoregressive generation shares a single
-generation frontier.
 """
 from typing import Dict, List
 
