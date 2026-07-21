@@ -246,11 +246,11 @@ def train_grpo(
                 # memory across the gradient-accumulation window. Placed before the
                 # early-continue below so it runs on every iteration. The metrics were
                 # already accumulated (as detached scalars) just above.
-                #TODO del prompt_ids, prompt_mask, golds
-                #del completion_ids, completion_valid, completions_text
-                #del rewards, format_flags, correct_flags, reward_std, advantages
-                #del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
-                #del ref_logps, logps, loss, loss_metrics
+                # TODO del prompt_ids, prompt_mask, golds
+                # del completion_ids, completion_valid, completions_text
+                # del rewards, format_flags, correct_flags, reward_std, advantages
+                # del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
+                # del ref_logps, logps, loss, loss_metrics
 
                 if accumulation_step < config.gradient_accumulation_steps:
                     continue
