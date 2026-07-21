@@ -11,6 +11,7 @@ from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
+from blacksmith.datasets.torch.gsm8k.gsm8k_utils import compute_rewards
 from blacksmith.experiments.torch.gemma2.grpo.configs import GRPOTrainingConfig
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -20,7 +21,6 @@ from blacksmith.tools.grpo_utils import (
     compute_group_advantages,
     compute_grpo_loss,
     compute_ref_logps,
-    compute_rewards,
     forward_logps,
 )
 from blacksmith.tools.logging_manager import TrainingLogger

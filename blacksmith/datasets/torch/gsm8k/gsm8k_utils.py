@@ -2,9 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Constants and parsing helpers for the GSM8K dataset used in GRPO training.
+Constants, parsing helpers, and GRPO reward scoring for GSM8K.
 """
 import re
+from typing import List, Tuple
+
+import torch
 
 # Dataset source
 DATASET_PATH = "openai/gsm8k"
@@ -23,6 +26,10 @@ GSM8K_SYSTEM_PROMPT = (
 )
 
 _NUMBER_PATTERN = re.compile(r"-?\d+")
+
+# A completion is well-formatted when a reasoning block is immediately followed
+# by an answer block (matches the tags required by ``GSM8K_SYSTEM_PROMPT``).
+_FORMAT_PATTERN = re.compile(r"<reasoning>.*?</reasoning>\s*<answer>.*?</answer>", re.DOTALL)
 
 
 def _last_number(text: str) -> str:
@@ -57,3 +64,34 @@ def extract_predicted_answer(text: str) -> str:
         if num:
             return num
     return _last_number(text)
+
+
+def format_reward(completion: str) -> float:
+    """1.0 if the completion matches the reasoning/answer tag format, else 0.0."""
+    return 1.0 if _FORMAT_PATTERN.search(completion) else 0.0
+
+
+def correctness_reward(completion: str, gold: str) -> float:
+    """1.0 if the extracted answer equals the gold answer, else 0.0."""
+    pred = extract_predicted_answer(completion)
+    return 1.0 if pred != "" and pred == gold else 0.0
+
+
+def compute_rewards(
+    completions: List[str],
+    golds: List[str],
+    format_weight: float = 1.0,
+    correct_weight: float = 2.0,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Score a list of completions.
+
+    Returns ``(total_rewards, format_flags, correct_flags)`` as CPU float tensors
+    of shape ``(len(completions),)``. Weights follow the referenced blog (format
+    up to 1.0, correctness up to 2.0), so total rewards lie in [0, 3].
+    """
+    format_flags = torch.tensor([format_reward(c) for c in completions], dtype=torch.float32)
+    correct_flags = torch.tensor(
+        [correctness_reward(c, g) for c, g in zip(completions, golds)], dtype=torch.float32
+    )
+    total = format_weight * format_flags + correct_weight * correct_flags
+    return total, format_flags, correct_flags
