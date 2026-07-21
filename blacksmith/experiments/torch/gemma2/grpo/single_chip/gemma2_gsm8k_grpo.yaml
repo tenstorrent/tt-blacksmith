@@ -17,7 +17,6 @@ temperature: 0.5
 top_k: 0
 grpo_beta: 0.005
 grpo_epsilon: 0.2
-num_grpo_iterations: 1
 advantage_eps: 1.0e-4
 format_reward_weight: 1.0
 correct_reward_weight: 2.0

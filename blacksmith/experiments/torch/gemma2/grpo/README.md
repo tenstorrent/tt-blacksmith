@@ -39,8 +39,8 @@ loss_{i,t} = -( rho_{i,t} * A_i  -  beta * KL[ pi_theta || pi_ref ]_{i,t} )
 KL[ pi_theta || pi_ref ] = ( pi_ref / pi_theta ) - log( pi_ref / pi_theta ) - 1
 ```
 
-With `num_grpo_iterations = 1` (default), the behavior policy equals the current
-policy, so the ratio is 1 in value (still differentiable) and the clip is inactive.
+With a single policy update per generated batch, the behavior policy equals the
+current policy, so the ratio is 1 in value (still differentiable) and the clip is inactive.
 
 ## Training
 
@@ -97,8 +97,7 @@ The experiment is configured using `single_chip/gemma2_gsm8k_grpo.yaml`.
 | `temperature` | Sampling temperature (0 = greedy). | 0.5 |
 | `top_k` | Top-k sampling cutoff (0 = disabled). | 0 |
 | `grpo_beta` | KL penalty coefficient. | 0.005 |
-| `grpo_epsilon` | PPO clip range (used when num_grpo_iterations > 1). | 0.2 |
-| `num_grpo_iterations` | mu: gradient updates per generated batch. | 1 |
+| `grpo_epsilon` | PPO clip range. | 0.2 |
 | `advantage_eps` | Stabilizer in advantage normalization. | 1e-4 |
 | `format_reward_weight` | Weight of the format reward. | 1.0 |
 | `correct_reward_weight` | Weight of the correctness reward. | 2.0 |

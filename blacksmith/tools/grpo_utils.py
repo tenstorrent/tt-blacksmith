@@ -143,7 +143,7 @@ def compute_grpo_loss(
         completion_mask: (B, T-1) float/bool mask, 1 for completion tokens.
         advantages: (B,) per-sample group advantages.
         beta: KL penalty coefficient.
-        epsilon: PPO clip range (inactive when num_grpo_iterations == 1).
+        epsilon: PPO clip range.
         old_logps: (B, T-1) behavior-policy log-probs. Defaults to logps.detach()
             (single-update case), which makes the ratio 1 in value.
 
