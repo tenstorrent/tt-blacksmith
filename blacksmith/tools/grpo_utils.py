@@ -16,8 +16,14 @@ where:
     - A_i       = (r_i - mean(group)) / (std(group) + eps)     (group advantage)
     - KL_{i,t}  is the DeepSeekMath unbiased (k3) estimator of KL[pi_theta || pi_ref]:
                      pi_ref/pi_theta - log(pi_ref/pi_theta) - 1
+
+``pi_old`` is a frozen weight copy of the policy used to sample completions. It is
+synced from ``pi_theta`` once per batch; ``num_iterations`` (μ) policy updates then
+reuse the same rollouts, rewards, and ``pi_old`` log-probs so only the importance
+ratio changes. ``pi_ref`` is a separate frozen reference (base model for LoRA) used
+only for KL.
 """
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -69,6 +75,11 @@ def forward_logps(model, seq_ids: torch.Tensor, seq_attention_mask: torch.Tensor
     return get_per_token_logps(logits, seq_ids)
 
 
+def sync_old_policy(policy_model: torch.nn.Module, old_policy_model: torch.nn.Module) -> None:
+    """Copy ``pi_theta`` weights into the frozen ``pi_old`` behavior policy."""
+    old_policy_model.load_state_dict(policy_model.state_dict())
+
+
 def compute_ref_logps(
     policy_model,
     seq_ids: torch.Tensor,
@@ -90,6 +101,21 @@ def compute_ref_logps(
         return forward_logps(reference_model, seq_ids, seq_attention_mask)
 
 
+def compute_old_logps(
+    old_policy_model,
+    seq_ids: torch.Tensor,
+    seq_attention_mask: torch.Tensor,
+) -> torch.Tensor:
+    """Frozen behavior-policy (pi_old) per-token log-probs (no grad).
+
+    ``old_policy_model`` is the weight copy used to sample the completions, so these
+    log-probs match the sampling distribution in the importance ratio
+    ``pi_theta / pi_old``.
+    """
+    with torch.no_grad():
+        return forward_logps(old_policy_model, seq_ids, seq_attention_mask)
+
+
 def compute_grpo_loss(
     logps: torch.Tensor,
     ref_logps: torch.Tensor,
@@ -97,28 +123,30 @@ def compute_grpo_loss(
     advantages: torch.Tensor,
     beta: float = 0.005,
     epsilon: float = 0.2,
-    old_logps: torch.Tensor = None,
+    old_logps: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     """Compute the token-averaged GRPO loss (negative of the objective).
 
     Args:
-        logps: Policy per-token log-probs (B, T-1), gradient-enabled.
-        ref_logps: Reference per-token log-probs (B, T-1), detached.
+        logps: Policy (pi_theta) per-token log-probs (B, T-1), gradient-enabled.
+        ref_logps: Reference (pi_ref) per-token log-probs (B, T-1), detached.
         completion_mask: (B, T-1) float/bool mask, 1 for completion tokens.
         advantages: (B,) per-sample group advantages.
         beta: KL penalty coefficient.
         epsilon: PPO clip range.
-        old_logps: (B, T-1) behavior-policy log-probs. Defaults to logps.detach()
-            (single-update case), which makes the ratio 1 in value.
+        old_logps: (B, T-1) behavior-policy (pi_old) log-probs from the frozen
+            weight copy that sampled the completions. If omitted, falls back to
+            ``logps.detach()`` (ratio is 1 in value, clip inactive).
 
     Returns:
-        (loss, metrics) where metrics holds detached ``loss`` and ``kl``.
+        (loss, metrics) where metrics holds detached ``loss``, ``kl``, and
+        ``clip_frac`` (fraction of completion tokens where clipping is active).
     """
     completion_mask = completion_mask.to(logps.dtype)
     if old_logps is None:
         old_logps = logps.detach()
 
-    # Importance ratio (== 1 in value when old_logps == logps.detach()).
+    # Importance ratio pi_theta / pi_old.
     ratio = torch.exp(logps - old_logps)
     advantages = advantages.unsqueeze(1)
     unclipped = ratio * advantages
@@ -135,4 +163,7 @@ def compute_grpo_loss(
     loss = ((per_token_loss * completion_mask).sum(dim=1) / token_counts).mean()
     kl = ((per_token_kl.detach() * completion_mask).sum(dim=1) / token_counts).mean()
 
-    return loss, {"loss": loss.detach(), "kl": kl}
+    clipped_mask = (ratio < (1.0 - epsilon)) | (ratio > (1.0 + epsilon))
+    clip_frac = (clipped_mask.to(logps.dtype) * completion_mask).sum() / completion_mask.sum().clamp(min=1.0)
+
+    return loss, {"loss": loss.detach(), "kl": kl, "clip_frac": clip_frac.detach()}

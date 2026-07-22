@@ -20,8 +20,10 @@ from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.grpo_utils import (
     compute_group_advantages,
     compute_grpo_loss,
+    compute_old_logps,
     compute_ref_logps,
     forward_logps,
+    sync_old_policy,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
@@ -63,9 +65,13 @@ def train_grpo(
     """Main GRPO training loop for Gemma 2 2B-IT on GSM8K."""
     device = device_manager.device
     num_generations = config.num_generations
+    num_iterations = config.num_iterations
 
     logger.info("Starting Gemma 2 2B-IT GRPO training...")
-    logger.info(f"GRPO beta (KL coeff): {config.grpo_beta} | num_generations: {num_generations}")
+    logger.info(
+        f"GRPO beta (KL coeff): {config.grpo_beta} | num_generations: {num_generations} | "
+        f"num_iterations: {num_iterations}"
+    )
     logger.info(f"temperature: {config.temperature} | max_completion_length: {config.max_completion_length}")
 
     # Tokenizer + raw model config (used to size the generation StaticCache).
@@ -84,6 +90,16 @@ def train_grpo(
     if config.resume_from_checkpoint:
         logger.info("Loading policy model from resume checkpoint.")
         checkpoint_manager.load_checkpoint(policy_model)
+
+    # Old policy (pi_old): frozen weight copy used to sample completions. Synced
+    # from pi_theta once per batch; then num_iterations policy updates reuse the
+    # same rollouts / rewards / old_logps while only pi_theta (and thus the ratio) changes.
+    old_policy_model = get_model(config, device)
+    for param in old_policy_model.parameters():
+        param.requires_grad_(False)
+    old_policy_model.eval()
+    sync_old_policy(policy_model, old_policy_model)
+    logger.info("Old policy (pi_old) initialized as a frozen copy of the policy.")
 
     # Reference model (pi_ref) for the KL penalty. For LoRA we reuse the policy
     # model with its adapters temporarily disabled, which IS the frozen base model
@@ -108,6 +124,7 @@ def train_grpo(
             "trainable_parameters": trainable_params,
             "grpo_beta": config.grpo_beta,
             "num_generations": num_generations,
+            "num_iterations": num_iterations,
             "temperature": config.temperature,
         }
     )
@@ -133,6 +150,7 @@ def train_grpo(
     running_metrics: Dict[str, torch.Tensor] = {
         "loss": None,
         "kl": None,
+        "clip_frac": None,
         "reward_mean": None,
         "reward_std": None,
         "format_frac": None,
@@ -150,17 +168,20 @@ def train_grpo(
                     logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
                     break
 
-                num_prompts = batch["prompt_input_ids"].shape[0]
+                # Freeze pi_old <- pi, sample once, then run num_iterations updates
+                # on those fixed rollouts (only the pi/pi_old ratio changes).
+                sync_old_policy(policy_model, old_policy_model)
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
-                # Repeat each prompt G times so consecutive rows form one group.
+                num_prompts = batch["prompt_input_ids"].shape[0]
                 prompt_ids = batch["prompt_input_ids"].repeat_interleave(num_generations, dim=0)
                 prompt_mask = batch["prompt_attention_mask"].repeat_interleave(num_generations, dim=0)
                 golds = [g for g in batch["gold_answers"] for _ in range(num_generations)]
 
-                # ---- Phase A: generation (no grad) ----
-                policy_model.eval()
+                # ---- Phase A: generation with frozen pi_old (no grad) ----
                 completion_ids, completion_valid = generate_completions(
-                    model=policy_model,
+                    model=old_policy_model,
                     model_config=model_config,
                     prompt_input_ids=prompt_ids,
                     prompt_attention_mask=prompt_mask,
@@ -174,7 +195,6 @@ def train_grpo(
                     dtype=eval(config.dtype),
                     sync_fn=generation_sync,
                 )
-                policy_model.train()
 
                 # ---- Phase B: rewards + group-relative advantages ----
                 completions_text = tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
@@ -187,8 +207,9 @@ def train_grpo(
                 advantages = compute_group_advantages(
                     rewards, num_prompts, num_generations, eps=config.advantage_eps
                 ).to(device)
+                reward_std = rewards.view(num_prompts, num_generations).std(dim=1).mean()
+                sample_completion = completions_text[0] if completions_text else ""
 
-                # ---- Phase C: policy optimization ----
                 seq_ids, seq_attention_mask, completion_token_mask = build_training_batch(
                     prompt_ids, prompt_mask, completion_ids, completion_valid
                 )
@@ -197,10 +218,10 @@ def train_grpo(
                 # Shift completion mask to align with per-token log-probs (targets are seq[:, 1:]).
                 completion_mask = completion_token_mask[:, 1:].to(device)
 
-                # Run the frozen reference forward first (no_grad): its full-vocab
-                # logits are freed immediately, so they don't coexist with the
-                # policy forward's activations that must stay resident for backward.
-                # This lowers peak device memory (the (B, T, vocab) logits dominate).
+                # Frozen pi_old / pi_ref log-probs once for this rollout. Full-vocab
+                # logits are freed immediately so they don't coexist with the policy
+                # forward's activations that must stay resident for backward.
+                old_logps = compute_old_logps(old_policy_model, seq_ids, seq_attention_mask)
                 ref_logps = compute_ref_logps(
                     policy_model,
                     seq_ids,
@@ -208,95 +229,93 @@ def train_grpo(
                     use_shared_reference=use_shared_reference,
                     reference_model=reference_model,
                 )
-                logps = forward_logps(policy_model, seq_ids, seq_attention_mask)
 
-                loss, loss_metrics = compute_grpo_loss(
-                    logps=logps,
-                    ref_logps=ref_logps,
-                    completion_mask=completion_mask,
-                    advantages=advantages,
-                    beta=config.grpo_beta,
-                    epsilon=config.grpo_epsilon,
-                )
+                # ---- Phase C: μ policy updates on the same rollouts ----
+                for _grpo_iter in range(num_iterations):
+                    logps = forward_logps(policy_model, seq_ids, seq_attention_mask)
 
-                (loss / config.gradient_accumulation_steps).backward()
-                accumulation_step += 1
-                if config.use_tt:
-                    torch_xla.sync(wait=True)
-
-                # Accumulate metrics.
-                reward_std = rewards.view(num_prompts, num_generations).std(dim=1).mean()
-                accumulate_metric_tensors(
-                    running_metrics,
-                    {
-                        "loss": loss_metrics["loss"],
-                        "kl": loss_metrics["kl"],
-                        "reward_mean": rewards.mean(),
-                        "reward_std": reward_std,
-                        "format_frac": format_flags.mean(),
-                        "correct_frac": correct_flags.mean(),
-                    },
-                )
-
-                # Keep one decoded completion (a plain string) for logging before the
-                # underlying tensors are freed below.
-                sample_completion = completions_text[0] if completions_text else ""
-
-                # Explicitly drop per-iteration tensors so they don't pin device/host
-                # memory across the gradient-accumulation window. Placed before the
-                # early-continue below so it runs on every iteration. The metrics were
-                # already accumulated (as detached scalars) just above.
-                # TODO del prompt_ids, prompt_mask, golds
-                # del completion_ids, completion_valid, completions_text
-                # del rewards, format_flags, correct_flags, reward_std, advantages
-                # del seq_ids, seq_attention_mask, completion_token_mask, completion_mask
-                # del ref_logps, logps, loss, loss_metrics
-
-                if accumulation_step < config.gradient_accumulation_steps:
-                    continue
-
-                # Optimizer step after accumulating gradients.
-                torch.nn.utils.clip_grad_norm_(
-                    [p for p in policy_model.parameters() if p.requires_grad], max_norm=config.max_grad_norm
-                )
-                device_manager.optimizer_step(optimizer)
-                optimizer.zero_grad()
-                accumulation_step = 0
-                global_step += 1
-
-                step_metrics = {}
-                if global_step % config.steps_freq == 0:
-                    divisor = config.steps_freq * config.gradient_accumulation_steps
-                    avg = {f"train/{k}": v for k, v in average_metric_tensors(running_metrics, divisor).items()}
-                    avg["train/learning_rate"] = config.learning_rate
-                    avg["train/epoch"] = epoch + 1
-                    last_step_metrics = avg
-                    step_metrics.update(avg)
-
-                    logger.info(
-                        f"[Step {global_step}] loss: {avg['train/loss']:.4f} | kl: {avg['train/kl']:.4f} | "
-                        f"reward: {avg['train/reward_mean']:.3f} | correct: {avg['train/correct_frac']:.3f}"
+                    # Ratio uses pi_theta / pi_old; KL uses pi_theta vs pi_ref.
+                    loss, loss_metrics = compute_grpo_loss(
+                        logps=logps,
+                        ref_logps=ref_logps,
+                        completion_mask=completion_mask,
+                        advantages=advantages,
+                        beta=config.grpo_beta,
+                        epsilon=config.grpo_epsilon,
+                        old_logps=old_logps,
                     )
-                    progress_bar.set_postfix(
+
+                    (loss / config.gradient_accumulation_steps).backward()
+                    accumulation_step += 1
+                    if config.use_tt:
+                        torch_xla.sync(wait=True)
+
+                    accumulate_metric_tensors(
+                        running_metrics,
                         {
-                            "loss": f"{avg['train/loss']:.3f}",
-                            "reward": f"{avg['train/reward_mean']:.3f}",
-                            "correct": f"{avg['train/correct_frac']:.3f}",
-                        }
+                            "loss": loss_metrics["loss"],
+                            "kl": loss_metrics["kl"],
+                            "clip_frac": loss_metrics["clip_frac"],
+                            "reward_mean": rewards.mean(),
+                            "reward_std": reward_std,
+                            "format_frac": format_flags.mean(),
+                            "correct_frac": correct_flags.mean(),
+                        },
                     )
-                    if config.print_examples and sample_completion:
-                        logger.info(f"Sample completion: {sample_completion!r}")
 
-                    for key in running_metrics:
-                        running_metrics[key] = None
+                    if accumulation_step < config.gradient_accumulation_steps:
+                        continue
 
-                if step_metrics:
-                    logger.log_metrics(step_metrics, commit=True, step=global_step)
-
-                if global_step % config.save_steps == 0 and checkpoint_manager.should_save_checkpoint(global_step):
-                    checkpoint_manager.save_checkpoint(
-                        policy_model, global_step, epoch, optimizer, metrics=last_step_metrics
+                    # Optimizer step after accumulating gradients.
+                    torch.nn.utils.clip_grad_norm_(
+                        [p for p in policy_model.parameters() if p.requires_grad], max_norm=config.max_grad_norm
                     )
+                    device_manager.optimizer_step(optimizer)
+                    optimizer.zero_grad()
+                    accumulation_step = 0
+                    global_step += 1
+
+                    step_metrics = {}
+                    if global_step % config.steps_freq == 0:
+                        divisor = config.steps_freq * config.gradient_accumulation_steps
+                        avg = {f"train/{k}": v for k, v in average_metric_tensors(running_metrics, divisor).items()}
+                        avg["train/learning_rate"] = config.learning_rate
+                        avg["train/epoch"] = epoch + 1
+                        last_step_metrics = avg
+                        step_metrics.update(avg)
+
+                        logger.info(
+                            f"[Step {global_step}] loss: {avg['train/loss']:.4f} | kl: {avg['train/kl']:.4f} | "
+                            f"clip: {avg['train/clip_frac']:.3f} | "
+                            f"reward: {avg['train/reward_mean']:.3f} | correct: {avg['train/correct_frac']:.3f}"
+                        )
+                        progress_bar.set_postfix(
+                            {
+                                "loss": f"{avg['train/loss']:.3f}",
+                                "reward": f"{avg['train/reward_mean']:.3f}",
+                                "correct": f"{avg['train/correct_frac']:.3f}",
+                            }
+                        )
+                        if config.print_examples and sample_completion:
+                            logger.info(f"Sample completion: {sample_completion!r}")
+
+                        for key in running_metrics:
+                            running_metrics[key] = None
+
+                    if step_metrics:
+                        logger.log_metrics(step_metrics, commit=True, step=global_step)
+
+                    if global_step % config.save_steps == 0 and checkpoint_manager.should_save_checkpoint(global_step):
+                        checkpoint_manager.save_checkpoint(
+                            policy_model, global_step, epoch, optimizer, metrics=last_step_metrics
+                        )
+
+                    if config.max_steps > 0 and global_step >= config.max_steps:
+                        break
+
+                if config.max_steps > 0 and global_step >= config.max_steps:
+                    logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
+                    break
 
             if config.max_steps > 0 and global_step >= config.max_steps:
                 break
