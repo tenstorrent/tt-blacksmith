@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
-from typing import Optional
+from typing import Dict, Literal, Optional
 
 import torch
 from pydantic import BaseModel, Field
@@ -15,8 +15,19 @@ class Framework(Enum):
 
 
 class TrainingConfig(BaseModel):
+    # File settings
+    file_type: Literal["json", "jsonl"] = Field(default="json")
+
     # Dataset settings
-    dataset_id: str = Field(default="path/to/dataset")
+    dataset_id: str = Field(default="path/to/dataset")  # dataset name / "custom"
+    dataset_path: str = Field(default="path/to/dataset")  # to be used for custom datasets
+    column_mapping: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "instruction": "instruction",
+            "input": "input",
+            "output": "output",
+        }
+    )
 
     # Model settings
     model_name: str = Field(default="path/to/model")
@@ -36,6 +47,7 @@ class TrainingConfig(BaseModel):
     gradient_checkpointing: bool = Field(default=False)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
+    drop_last: bool = Field(default=False)
 
     # Logging settings
     log_level: str = Field(default="INFO")
