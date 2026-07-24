@@ -90,8 +90,6 @@ def compute_rewards(
     up to 1.0, correctness up to 2.0), so total rewards lie in [0, 3].
     """
     format_flags = torch.tensor([format_reward(c) for c in completions], dtype=torch.float32)
-    correct_flags = torch.tensor(
-        [correctness_reward(c, g) for c, g in zip(completions, golds)], dtype=torch.float32
-    )
+    correct_flags = torch.tensor([correctness_reward(c, g) for c, g in zip(completions, golds)], dtype=torch.float32)
     total = format_weight * format_flags + correct_weight * correct_flags
     return total, format_flags, correct_flags
