@@ -117,7 +117,6 @@ class GRPOTrainingConfig(BaseTrainingConfig):
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
     do_validation: bool = Field(default=False)
-    val_max_batches: int = Field(default=8, gt=0, description="Batches used per GRPO validation pass")
 
     # Testing utils (used to limit training duration during CI runs).
     test_config: Optional[TestConfig] = Field(default=None)

@@ -13,7 +13,7 @@ ignored_index: -100
 num_generations: 2
 num_iterations: 2  # μ: policy updates on the same rollouts before refreshing pi_old
 max_prompt_length: 256
-max_completion_length: 256
+max_completion_length: 512
 temperature: 0.5
 top_k: 0
 grpo_beta: 0.005
@@ -84,4 +84,3 @@ lora_dropout: 0.0
 framework: "pytorch"
 use_tt: True
 do_validation: False
-val_max_batches: 8
