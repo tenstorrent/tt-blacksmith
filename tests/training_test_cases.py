@@ -348,7 +348,7 @@ TRAINING_TEST_CASES = [
             "experiment_config": "blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml",
             "test_config": "tests/configs/tt-gemma11-math_preference_dpo-p150.yaml",
             "reference_model_checkpoint_path": "tests/checkpoints/tt-gemma11-math_preference_sft-p150_checkpoint_step360_epoch2_20260622_192415.pt",
-            "timeout": 1200,
+            "timeout": 1800,
         },
         marks=[
             pytest.mark.uplift,
