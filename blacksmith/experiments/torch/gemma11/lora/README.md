@@ -33,6 +33,12 @@ Math preference (SFT) dataset:
 python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/single_chip/gemma11_math_preferences_sft.yaml
 ```
 
+### QuietBox Training
+
+```bash
+python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/experiments/torch/gemma11/lora/quietbox/gemma11_math_preferences_sft.yaml
+```
+
 #### Training Configurations
 
 | Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
@@ -40,6 +46,7 @@ python3 blacksmith/experiments/torch/gemma11/lora/train.py --config blacksmith/e
 | [Single-Chip](single_chip/gemma11_sst2.yaml) | None | None | None | SST2 | LoRA |
 | [Single-Chip](single_chip/gemma11_squadV2.yaml) | None | None | None | SQuAD V2 | LoRA |
 | [P150](single_chip/gemma11_math_preferences_sft.yaml) | None | None | None | Math Preference (SFT) | LoRA |
+| [QuietBox](quietbox/gemma11_math_preferences_sft.yaml) | `[2, 2]` | `["batch", "model"]` | `"batch"` | Math Preference (SFT) | LoRA (DP + TP) |
 
 ## Data
 
@@ -150,8 +157,10 @@ The experiment is configured using the configuration files in `single_chip/`. Th
 | `remote_path` | Remote storage path (if applicable). | "" |
 | `seed` | Random seed for reproducibility. | 23 |
 | `deterministic` | Whether to enforce deterministic behavior. | False |
-| `mesh_shape` | Mesh shape for distributed training. | None |
-| `mesh_axis_names` | Axis names for the mesh. | None |
+| `mesh_shape` | Mesh shape for distributed training (e.g. `[2, 2]` for 4 chips). | None |
+| `mesh_axis_names` | Axis names for the mesh (e.g. `["batch", "model"]`). | None |
+| `input_sharding_dim` | Mesh axis along which input batches are sharded (data parallelism). | None |
+| `model_sharding_patterns` | Tensor-parallel sharding rules: list of `(regex, partition_spec)` matched against module names. | None |
 | `lora_r` | Rank of LoRA adaptation matrices. | 4 |
 | `lora_alpha` | Scaling factor for LoRA updates. | 8 |
 | `lora_target_modules` | Target modules for LoRA adaptation. | ["all-linear"] |

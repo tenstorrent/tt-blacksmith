@@ -34,6 +34,8 @@ def validate(model, val_data_loader, loss_fn, device_manager, config, logger, to
     with torch.no_grad():
         for batch in tqdm(val_data_loader, desc="Validation"):
             batch = device_manager.prepare_batch(batch)
+            # Shard model if tensor parallelism is used (re-applied each batch; no-op once marked).
+            device_manager.shard_model(model)
 
             # Forward pass + loss
             outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
@@ -135,6 +137,8 @@ def train(
                 optimizer.zero_grad()
 
                 batch = device_manager.prepare_batch(batch)
+                # Shard model if tensor parallelism is used (re-applied each step; no-op once marked).
+                device_manager.shard_model(model)
 
                 # Forward pass
                 outputs = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
