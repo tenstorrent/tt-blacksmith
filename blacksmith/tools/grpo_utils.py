@@ -12,16 +12,17 @@ The GRPO objective (eq. 20) maximized here is, per completion token t of sample 
     min( rho_{i,t} * A_i, clip(rho_{i,t}, 1-eps, 1+eps) * A_i ) - beta * KL_{i,t}
 
 where:
-    - rho_{i,t} = pi_theta(o_{i,t}|.) / pi_old(o_{i,t}|.)      (importance ratio)
-    - A_i       = (r_i - mean(group)) / (std(group) + eps)     (group advantage)
-    - KL_{i,t}  is the DeepSeekMath unbiased (k3) estimator of KL[pi_theta || pi_ref]:
-                     pi_ref/pi_theta - log(pi_ref/pi_theta) - 1
+    - rho_{i,t} = new_policy(o_{i,t}|.) / old_policy(o_{i,t}|.)   (importance ratio)
+    - A_i       = (r_i - mean(group)) / (std(group) + eps)        (group advantage)
+    - KL_{i,t}  is the DeepSeekMath unbiased (k3) estimator of
+      KL[new_policy || reference]:
+                     reference/new_policy - log(reference/new_policy) - 1
 
-``pi_old`` is a frozen weight copy of the policy used to sample completions. It is
-synced from ``pi_theta`` once per batch; ``num_iterations`` (μ) policy updates then
-reuse the same rollouts, rewards, and ``pi_old`` log-probs so only the importance
-ratio changes. ``pi_ref`` is a separate frozen reference (base model for LoRA) used
-only for KL.
+The old policy is a frozen weight copy used to sample completions. It is synced
+from the (trainable) new policy once per batch; ``num_iterations`` (μ) policy
+updates then reuse the same rollouts, rewards, and old-policy log-probs so only
+the importance ratio changes. The reference model is a separate frozen model
+(base weights for LoRA) used only for the KL penalty.
 """
 from typing import Dict, Optional, Tuple
 
@@ -76,7 +77,7 @@ def forward_logps(model, seq_ids: torch.Tensor, seq_attention_mask: torch.Tensor
 
 
 def sync_old_policy(policy_model: torch.nn.Module, old_policy_model: torch.nn.Module) -> None:
-    """Copy ``pi_theta`` weights into the frozen ``pi_old`` behavior policy."""
+    """Copy new-policy weights into the frozen old-policy model."""
     old_policy_model.load_state_dict(policy_model.state_dict())
 
 
@@ -88,10 +89,10 @@ def compute_ref_logps(
     use_shared_reference: bool = True,
     reference_model=None,
 ) -> torch.Tensor:
-    """Frozen reference-policy per-token log-probs (no grad).
+    """Frozen reference-model per-token log-probs (no grad).
 
     For LoRA, ``use_shared_reference=True`` runs the policy with adapters disabled
-    (base weights = pi_ref) so a second full model copy is not needed. Otherwise
+    (base weights = reference) so a second full model copy is not needed. Otherwise
     ``reference_model`` must be a separate frozen model.
     """
     with torch.no_grad():
@@ -106,11 +107,11 @@ def compute_old_logps(
     seq_ids: torch.Tensor,
     seq_attention_mask: torch.Tensor,
 ) -> torch.Tensor:
-    """Frozen behavior-policy (pi_old) per-token log-probs (no grad).
+    """Frozen old-policy per-token log-probs (no grad).
 
     ``old_policy_model`` is the weight copy used to sample the completions, so these
     log-probs match the sampling distribution in the importance ratio
-    ``pi_theta / pi_old``.
+    ``new_policy / old_policy``.
     """
     with torch.no_grad():
         return forward_logps(old_policy_model, seq_ids, seq_attention_mask)
@@ -128,15 +129,15 @@ def compute_grpo_loss(
     """Compute the token-averaged GRPO loss (negative of the objective).
 
     Args:
-        logps: Policy (pi_theta) per-token log-probs (B, T-1), gradient-enabled.
-        ref_logps: Reference (pi_ref) per-token log-probs (B, T-1), detached.
+        logps: New-policy per-token log-probs (B, T-1), gradient-enabled.
+        ref_logps: Reference-model per-token log-probs (B, T-1), detached.
         completion_mask: (B, T-1) float/bool mask, 1 for completion tokens.
         advantages: (B,) per-sample group advantages.
         beta: KL penalty coefficient.
         epsilon: PPO clip range.
-        old_logps: (B, T-1) behavior-policy (pi_old) log-probs from the frozen
-            weight copy that sampled the completions. If omitted, falls back to
-            ``logps.detach()`` (ratio is 1 in value, clip inactive).
+        old_logps: (B, T-1) old-policy log-probs from the frozen weight copy that
+            sampled the completions. If omitted, falls back to ``logps.detach()``
+            (ratio is 1 in value, clip inactive).
 
     Returns:
         (loss, metrics) where metrics holds detached ``loss``, ``kl``, and
@@ -146,14 +147,14 @@ def compute_grpo_loss(
     if old_logps is None:
         old_logps = logps.detach()
 
-    # Importance ratio pi_theta / pi_old.
+    # Importance ratio new_policy / old_policy.
     ratio = torch.exp(logps - old_logps)
     advantages = advantages.unsqueeze(1)
     unclipped = ratio * advantages
     clipped = torch.clamp(ratio, 1.0 - epsilon, 1.0 + epsilon) * advantages
     policy_term = torch.min(unclipped, clipped)
 
-    # DeepSeekMath k3 KL estimator: KL[pi_theta || pi_ref].
+    # DeepSeekMath k3 KL estimator: KL[new_policy || reference].
     log_ratio_ref = ref_logps - logps
     per_token_kl = torch.exp(log_ratio_ref) - log_ratio_ref - 1.0
 

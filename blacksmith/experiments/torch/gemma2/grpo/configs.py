@@ -33,7 +33,7 @@ class GRPOTrainingConfig(BaseTrainingConfig):
     num_iterations: int = Field(
         default=1,
         ge=1,
-        description="μ: policy updates on the same rollouts before refreshing pi_old",
+        description="μ: policy updates on the same rollouts before refreshing the old policy",
     )
     max_prompt_length: int = Field(default=256, gt=0)
     max_completion_length: int = Field(default=200, gt=0)

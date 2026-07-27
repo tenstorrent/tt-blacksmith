@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torch_xla
 from transformers import StaticCache
 
 
@@ -289,7 +290,7 @@ def generate_completions(
     temperature: float = 0.0,
     top_k: int = 0,
     dtype=torch.bfloat16,
-    sync_fn=None,
+    use_tt: bool = False,
 ):
     """Batched autoregressive generation over left-padded prompts, fully on device.
 
@@ -298,9 +299,8 @@ def generate_completions(
     StaticCache all run on device. Unlike a typical decode helper, no per-step
     logits are copied to host and no host-side sampling/early-stop is performed;
     only the final id / validity tensors are moved to CPU once (for the host-side
-    reward computation). To keep the lazy graph bounded, ``sync_fn`` (e.g.
-    ``torch_xla.sync``) is invoked once per step to materialize that step's work
-    on device without a host transfer.
+    reward computation). When ``use_tt`` is True, ``torch_xla.sync`` is invoked
+    once per step to keep the lazy graph bounded without a host transfer.
 
     Returns ``(completion_ids, completion_valid)``:
       - ``completion_ids`` (B, max_completion_length) LongTensor on CPU; positions
@@ -380,8 +380,8 @@ def generate_completions(
 
             input_ids = next_tokens.unsqueeze(-1)
             cache_position = cache_position[-1:] + 1
-            if sync_fn is not None:
-                sync_fn()
+            if use_tt:
+                torch_xla.sync(wait=True)
 
     # Single device -> host transfer at the very end.
     completion_ids = torch.stack(token_steps, dim=1).to("cpu")

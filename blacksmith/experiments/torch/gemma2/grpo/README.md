@@ -20,18 +20,19 @@ a frozen reference model. The underlying fine-tuning approach for the policy mod
 
 Each training step is split into three explicit phases so the compiled model only
 ever sees two graph shapes (generation vs. training), avoiding repeated recompiles.
-A frozen weight copy `pi_old` is synced from `pi_theta` at the start of each batch:
+A frozen old-policy weight copy is synced from the new (trainable) policy at the
+start of each batch:
 
 1. Phase A - Generation: sample `num_generations` (G) completions per prompt with
-   the frozen `pi_old` (batched autoregressive decode with a `StaticCache`,
+   the frozen old policy (batched autoregressive decode with a `StaticCache`,
    temperature sampling). Completions are kept as token ids.
 2. Phase B - Rewards: score every completion on host (`format_reward + correctness_reward`),
    then group-normalize into advantages `A_i = (r_i - mean) / (std + eps)`. Also
-   cache frozen `pi_old` and `pi_ref` per-token log-probs for this rollout.
+   cache frozen old-policy and reference-model per-token log-probs for this rollout.
 3. Phase C - Optimization: for `num_iterations` (μ) updates, recompute only
-   `pi_theta` log-probs on the same sequences, form the GRPO loss with the fixed
-   samples / advantages / `pi_old` log-probs (so only the `pi_theta / pi_old` ratio
-   changes), and step `pi_theta`.
+   new-policy log-probs on the same sequences, form the GRPO loss with the fixed
+   samples / advantages / old-policy log-probs (so only the new/old policy ratio
+   changes), and step the new policy.
 
 ### GRPO loss
 
@@ -39,14 +40,16 @@ Per completion token, the loss maximizes the clipped advantage-weighted ratio an
 subtracts a KL penalty using the DeepSeekMath unbiased (k3) estimator:
 
 ```text
-rho_{i,t} = pi_theta(o_{i,t}|.) / pi_old(o_{i,t}|.)
+rho_{i,t} = new_policy(o_{i,t}|.) / old_policy(o_{i,t}|.)
 loss_{i,t} = -( min(rho_{i,t} * A_i, clip(rho_{i,t}, 1-eps, 1+eps) * A_i)
-                - beta * KL[ pi_theta || pi_ref ]_{i,t} )
-KL[ pi_theta || pi_ref ] = ( pi_ref / pi_theta ) - log( pi_ref / pi_theta ) - 1
+                - beta * KL[ new_policy || reference ]_{i,t} )
+KL[ new_policy || reference ] = ( reference / new_policy )
+                              - log( reference / new_policy ) - 1
 ```
 
-With `num_iterations>1`, later updates reuse the same rollouts against frozen
-`pi_old`, so the importance ratio and PPO clipping become active as `pi_theta` drifts.
+With `num_iterations>1`, later updates reuse the same rollouts against the frozen
+old policy, so the importance ratio and PPO clipping become active as the new
+policy drifts.
 
 ## Training
 
@@ -98,7 +101,7 @@ The experiment is configured using `single_chip/gemma2_gsm8k_grpo.yaml`.
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `ignored_index` | Label id used to mask prompt tokens. | -100 |
 | `num_generations` | G: completions sampled per prompt (>=2). | 4 |
-| `num_iterations` | μ: policy updates on the same rollouts before refreshing `pi_old`. | 1 |
+| `num_iterations` | μ: policy updates on the same rollouts before refreshing the old policy. | 1 |
 | `max_prompt_length` | Max prompt tokens (left-padded). | 256 |
 | `max_completion_length` | Max generated tokens per completion. | 200 |
 | `temperature` | Sampling temperature (0 = greedy). | 0.5 |

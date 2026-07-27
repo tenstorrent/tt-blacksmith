@@ -73,8 +73,7 @@ def format_reward(completion: str) -> float:
 
 def correctness_reward(completion: str, gold: str) -> float:
     """1.0 if the extracted answer equals the gold answer, else 0.0."""
-    pred = extract_predicted_answer(completion)
-    return 1.0 if pred != "" and pred == gold else 0.0
+    return 1.0 * (extract_predicted_answer(completion) == gold)
 
 
 def compute_rewards(

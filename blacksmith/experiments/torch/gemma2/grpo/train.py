@@ -91,21 +91,22 @@ def train_grpo(
         logger.info("Loading policy model from resume checkpoint.")
         checkpoint_manager.load_checkpoint(policy_model)
 
-    # Old policy (pi_old): frozen weight copy used to sample completions. Synced
-    # from pi_theta once per batch; then num_iterations policy updates reuse the
-    # same rollouts / rewards / old_logps while only pi_theta (and thus the ratio) changes.
+    # Old policy: frozen weight copy used to sample completions. Synced from the
+    # new (trainable) policy once per batch; then num_iterations updates reuse the
+    # same rollouts / rewards / old_logps while only the new policy (and thus the
+    # ratio) changes.
     old_policy_model = get_model(config, device)
     for param in old_policy_model.parameters():
         param.requires_grad_(False)
     old_policy_model.eval()
     sync_old_policy(policy_model, old_policy_model)
-    logger.info("Old policy (pi_old) initialized as a frozen copy of the policy.")
+    logger.info("Old policy model initialized as a frozen copy of the policy.")
 
-    # Reference model (pi_ref) for the KL penalty. For LoRA we reuse the policy
-    # model with its adapters temporarily disabled, which IS the frozen base model
-    # and avoids holding a second full copy of the weights on device (halves the
-    # model memory - important for the 2B model + 256k-vocab logits). For other
-    # fine-tuning modes we fall back to a separate frozen copy.
+    # Reference model for the KL penalty. For LoRA we reuse the policy model with
+    # its adapters temporarily disabled, which IS the frozen base model and avoids
+    # holding a second full copy of the weights on device (halves the model memory
+    # - important for the 2B model + 256k-vocab logits). For other fine-tuning
+    # modes we fall back to a separate frozen copy.
     use_shared_reference = config.training_model_type == "lora"
     reference_model = None
     if use_shared_reference:
@@ -142,9 +143,6 @@ def train_grpo(
     )
     optimizer.zero_grad()
 
-    # Per-step device sync used to bound the generation graph.
-    generation_sync = (lambda: torch_xla.sync(wait=True)) if config.use_tt else None
-
     global_step = 0
     accumulation_step = 0
     running_metrics: Dict[str, torch.Tensor] = {
@@ -168,8 +166,9 @@ def train_grpo(
                     logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
                     break
 
-                # Freeze pi_old <- pi, sample once, then run num_iterations updates
-                # on those fixed rollouts (only the pi/pi_old ratio changes).
+                # Sync old policy <- new policy, sample once, then run
+                # num_iterations updates on those fixed rollouts (only the
+                # new/old policy ratio changes).
                 sync_old_policy(policy_model, old_policy_model)
                 if config.use_tt:
                     torch_xla.sync(wait=True)
@@ -179,7 +178,7 @@ def train_grpo(
                 prompt_mask = batch["prompt_attention_mask"].repeat_interleave(num_generations, dim=0)
                 golds = [g for g in batch["gold_answers"] for _ in range(num_generations)]
 
-                # ---- Phase A: generation with frozen pi_old (no grad) ----
+                # ---- Phase A: generation with frozen old policy (no grad) ----
                 completion_ids, completion_valid = generate_completions(
                     model=old_policy_model,
                     model_config=model_config,
@@ -193,7 +192,7 @@ def train_grpo(
                     temperature=config.temperature,
                     top_k=config.top_k,
                     dtype=eval(config.dtype),
-                    sync_fn=generation_sync,
+                    use_tt=config.use_tt,
                 )
 
                 # ---- Phase B: rewards + group-relative advantages ----
@@ -218,9 +217,10 @@ def train_grpo(
                 # Shift completion mask to align with per-token log-probs (targets are seq[:, 1:]).
                 completion_mask = completion_token_mask[:, 1:].to(device)
 
-                # Frozen pi_old / pi_ref log-probs once for this rollout. Full-vocab
-                # logits are freed immediately so they don't coexist with the policy
-                # forward's activations that must stay resident for backward.
+                # Frozen old-policy / reference log-probs once for this rollout.
+                # Full-vocab logits are freed immediately so they don't coexist with
+                # the new-policy forward's activations that must stay resident for
+                # backward.
                 old_logps = compute_old_logps(old_policy_model, seq_ids, seq_attention_mask)
                 ref_logps = compute_ref_logps(
                     policy_model,
@@ -234,7 +234,7 @@ def train_grpo(
                 for _grpo_iter in range(num_iterations):
                     logps = forward_logps(policy_model, seq_ids, seq_attention_mask)
 
-                    # Ratio uses pi_theta / pi_old; KL uses pi_theta vs pi_ref.
+                    # Ratio uses new/old policy; KL uses new policy vs reference.
                     loss, loss_metrics = compute_grpo_loss(
                         logps=logps,
                         ref_logps=ref_logps,
