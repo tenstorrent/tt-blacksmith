@@ -23,6 +23,7 @@ class CustomLLMDataset(BaseDataset):
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
+        self.file_type = config.dataset.file_type
         self.dataset_path = config.dataset.dataset_path
         self.column_mapping = config.dataset.column_mapping
 
@@ -60,7 +61,7 @@ class CustomLLMDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(self.config.file_type, data_files=self.dataset_path, split="train")
+        raw_dataset = load_dataset(self.file_type, data_files=self.dataset_path, split="train")
         tokenized_dataset = raw_dataset.map(self._tokenize)
         filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
         filtered_dataset = filtered_dataset.remove_columns(
@@ -89,5 +90,5 @@ class CustomLLMDataset(BaseDataset):
             batch_size=self.config.batch_size,
             collate_fn=total_collate_fn,
             shuffle=self.split == "train",
-            drop_last=self.config.drop_last,
+            drop_last=self.config.dataset.drop_last,
         )

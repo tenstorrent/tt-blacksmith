@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, Optional
+from typing import Dict, Optional, Literal
 
 from pydantic import BaseModel, Field
 
@@ -81,6 +81,8 @@ class CustomDatasetConfig(BaseModel):
     """
     Additional config in case of custom datasets.
     """
+    # File type settings
+    file_type: Literal["json", "jsonl"] = Field(default="json")
 
     # Specify path to the custom dataset.
     dataset_path: str = Field(default="path/to/dataset")
@@ -93,3 +95,6 @@ class CustomDatasetConfig(BaseModel):
             "output": "output",
         }
     )
+
+    # Whether to drop the last batch
+    drop_last: bool = Field(default=True)

@@ -15,9 +15,6 @@ class Framework(Enum):
 
 
 class TrainingConfig(BaseModel):
-    # File settings
-    file_type: Literal["json", "jsonl"] = Field(default="json")
-
     # Dataset settings
     dataset_id: str = Field(default="path/to/dataset")
 
@@ -39,7 +36,6 @@ class TrainingConfig(BaseModel):
     gradient_checkpointing: bool = Field(default=False)
     num_epochs: int = Field(default=1, gt=0)
     optim: str = Field(default="adamw_torch")
-    drop_last: bool = Field(default=False)
 
     # Logging settings
     log_level: str = Field(default="INFO")

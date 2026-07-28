@@ -1,12 +1,14 @@
 # Dataset settings
 dataset_id: "custom"
 dataset:
-  dataset_path: "databricks-dolly-15k.json"
+  file_type: "json"
+  dataset_path: "blacksmith/tools/trainer/examples/lora_llm/custom_datasets/databricks-dolly-15k.json"
   column_mapping: {
     "instruction": "instruction",
     "input": "context",
     "output": "response"
   }
+  drop_last: True
 
 # Model settings
 model_name: "meta-llama/Llama-3.2-1B"
@@ -75,4 +77,4 @@ seed: 23
 deterministic: False
 
 # Device settings - single chip (no mesh).
-use_tt: False
+use_tt: True
