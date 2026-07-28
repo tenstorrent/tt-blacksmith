@@ -4,7 +4,7 @@
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.datasets.torch.custom_dataset_utils import build_alpaca_prompt
+from blacksmith.datasets.torch.custom.custom_dataset_utils import build_alpaca_prompt
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
