@@ -6,7 +6,12 @@ from typing import List, Optional, Tuple
 import torch
 from pydantic import BaseModel, Field
 
-from blacksmith.tools.configs import CheckpointConfig, LoggingConfig, MetricsConfig
+from blacksmith.tools.configs import (
+    CheckpointConfig,
+    CustomDatasetConfig,
+    LoggingConfig,
+    MetricsConfig,
+)
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
@@ -40,10 +45,11 @@ class TrainerConfig(BaseModel):
     # Validation settings
     val_steps_freq: int = Field(gt=0)
 
-    # Logging / metrics / checkpointing settings (nested sub-configs).
+    # Logging / metrics / checkpointing / custom dataset settings (nested sub-configs).
     logging: LoggingConfig
     metrics: MetricsConfig
     checkpoint: CheckpointConfig
+    dataset: CustomDatasetConfig
 
     # Reproducibility settings
     framework: str

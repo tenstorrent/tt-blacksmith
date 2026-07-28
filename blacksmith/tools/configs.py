@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Dict, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -73,3 +75,21 @@ class CheckpointConfig(BaseModel):
     resume_from_checkpoint: bool
     resume_option: str  # [last, best, path]
     checkpoint_path: str  # path to checkpoint if resume_option is "path"
+
+
+class CustomDatasetConfig(BaseModel):
+    """
+    Additional config in case of custom datasets.
+    """
+
+    # Specify path to the custom dataset.
+    dataset_path: str = Field(default="path/to/dataset")
+
+    # Define column mapping (optional).
+    column_mapping: Optional[Dict[str, str]] = Field(
+        default_factory=lambda: {
+            "instruction": "instruction",
+            "input": "input",
+            "output": "output",
+        }
+    )

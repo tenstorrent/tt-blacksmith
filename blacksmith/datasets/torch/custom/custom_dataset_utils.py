@@ -4,7 +4,8 @@
 from string import Template
 
 ALPACA_PROMPT_INTRO = (
-    "Below is an instruction that describes a task. Write a response that appropriately completes the request."
+    "Below is an instruction that describes a task, paired with an optional input that provides further context. "
+    "Write a response that appropriately completes the request."
 )
 ALPACA_PROMPT_TEMPLATE = Template(
     f"""

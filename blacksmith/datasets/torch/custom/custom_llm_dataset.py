@@ -23,8 +23,8 @@ class CustomLLMDataset(BaseDataset):
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
-        self.dataset_path = config.dataset_path
-        self.column_mapping = config.column_mapping
+        self.dataset_path = config.dataset.dataset_path
+        self.column_mapping = config.dataset.column_mapping
 
         super().__init__(config, split, collate_fn)
 

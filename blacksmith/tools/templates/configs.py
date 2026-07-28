@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 
 import torch
 from pydantic import BaseModel, Field
@@ -19,15 +19,7 @@ class TrainingConfig(BaseModel):
     file_type: Literal["json", "jsonl"] = Field(default="json")
 
     # Dataset settings
-    dataset_id: str = Field(default="path/to/dataset")  # dataset name / "custom"
-    dataset_path: str = Field(default="path/to/dataset")  # to be used for custom datasets
-    column_mapping: Dict[str, str] = Field(
-        default_factory=lambda: {
-            "instruction": "instruction",
-            "input": "input",
-            "output": "output",
-        }
-    )
+    dataset_id: str = Field(default="path/to/dataset")
 
     # Model settings
     model_name: str = Field(default="path/to/model")
