@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
-from typing import Literal, Optional
+from typing import Optional
 
 import torch
 from pydantic import BaseModel, Field
