@@ -4,7 +4,7 @@
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.datasets.torch.custom.custom_dataset_utils import build_alpaca_prompt
+from blacksmith.datasets.torch.custom.custom_dataset_utils import build_prompt
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
@@ -24,7 +24,8 @@ class CustomLLMDataset(BaseDataset):
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
         self.file_type = config.dataset.file_type
-        self.dataset_path = config.dataset.dataset_path
+        self.dataset_path = config.dataset.train_dataset_path if split == "train" else config.dataset.val_dataset_path
+        self.format = config.dataset.format
         self.column_mapping = config.dataset.column_mapping
 
         super().__init__(config, split, collate_fn)
@@ -36,7 +37,7 @@ class CustomLLMDataset(BaseDataset):
         input_text = example[input_col] if input_col else ""
         output = example[self.column_mapping["output"]]
 
-        prompt = build_alpaca_prompt(instruction, input_text)
+        prompt = build_prompt(self.format, instruction, input_text)
         full_text = prompt + output
 
         return prompt, output, full_text
@@ -61,34 +62,41 @@ class CustomLLMDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        raw_dataset = load_dataset(self.file_type, data_files=self.dataset_path, split="train")
-        tokenized_dataset = raw_dataset.map(self._tokenize)
-        filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
-        filtered_dataset = filtered_dataset.remove_columns(
-            [col for col in filtered_dataset.column_names if col not in self.required_columns]
-        )
-        if self.split == "train":
-            filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
+        if self.dataset_path is not None:
+            # split="train" is the HF split label for the loaded file, does not mean the file contains training data
+            raw_dataset = load_dataset(self.file_type, data_files=self.dataset_path, split="train")
+            tokenized_dataset = raw_dataset.map(self._tokenize)
+            filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
+            filtered_dataset = filtered_dataset.remove_columns(
+                [col for col in filtered_dataset.column_names if col not in self.required_columns]
+            )
+            if self.split == "train":
+                filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
 
-        self.dataset = filtered_dataset
+            self.dataset = filtered_dataset
+        else:
+            self.dataset = None
 
     def __len__(self):
         return len(self.dataset)
 
     def _get_dataloader(self):
-        data_collator = DataCollatorForSeq2Seq(
-            tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
-        )
+        if self.dataset is not None:
+            data_collator = DataCollatorForSeq2Seq(
+                tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
+            )
 
-        if self.collate_fn is not None:
-            total_collate_fn = lambda batch: self.collate_fn(data_collator(batch))
+            if self.collate_fn is not None:
+                total_collate_fn = lambda batch: self.collate_fn(data_collator(batch))
+            else:
+                total_collate_fn = data_collator
+
+            return DataLoader(
+                self.dataset,
+                batch_size=self.config.batch_size,
+                collate_fn=total_collate_fn,
+                shuffle=self.split == "train",
+                drop_last=self.config.dataset.drop_last,
+            )
         else:
-            total_collate_fn = data_collator
-
-        return DataLoader(
-            self.dataset,
-            batch_size=self.config.batch_size,
-            collate_fn=total_collate_fn,
-            shuffle=self.split == "train",
-            drop_last=self.config.dataset.drop_last,
-        )
+            return None

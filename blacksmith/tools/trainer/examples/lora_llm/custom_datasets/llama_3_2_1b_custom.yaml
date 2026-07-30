@@ -2,8 +2,10 @@
 dataset_id: "custom"
 dataset:
   file_type: "json"
-  dataset_path: "blacksmith/tools/trainer/examples/lora_llm/custom_datasets/databricks-dolly-15k.json"
-  column_mapping: {
+  train_dataset_path: "/path/to/local/train.json"
+  val_dataset_path: "/path/to/local/val.json"
+  format: "alpaca"
+  column_mapping: { # change accordingly
     "instruction": "instruction",
     "input": "context",
     "output": "response"

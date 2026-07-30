@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, Optional, Literal
+from typing import Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -80,14 +80,17 @@ class CheckpointConfig(BaseModel):
 class CustomDatasetConfig(BaseModel):
     """
     Additional config in case of custom datasets.
+    Train and validation sets should be loaded from separate files.
+    The validation set is optional.
     """
-    # File type settings
+
     file_type: Literal["json", "jsonl"] = Field(default="json")
+    train_dataset_path: str = Field(default="path/to/dataset")
+    val_dataset_path: Optional[str] = Field(default=None)
 
-    # Specify path to the custom dataset.
-    dataset_path: str = Field(default="path/to/dataset")
+    # Define format type (Alpaca-style, chat, etc)
+    format: str = Field(default="alpaca")
 
-    # Define column mapping (optional).
     column_mapping: Optional[Dict[str, str]] = Field(
         default_factory=lambda: {
             "instruction": "instruction",
