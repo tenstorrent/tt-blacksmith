@@ -24,3 +24,11 @@ ALPACA_INPUT_BLOCK_TEMPLATE = Template(
 $input
 """
 )
+
+
+def build_alpaca_prompt(instruction: str, input_text: str = "") -> str:
+    input_section = ALPACA_INPUT_BLOCK_TEMPLATE.substitute(input=input_text) if input_text.strip() else ""
+    return ALPACA_PROMPT_TEMPLATE.substitute(
+        instruction=instruction,
+        input_section=input_section,
+    )
