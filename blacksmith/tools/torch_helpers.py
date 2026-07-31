@@ -382,9 +382,7 @@ def generate_completions(
             next_logits = output.logits[:, -1, :]
             # A row's token this step is valid iff it had not already finished.
             valid_this = ~finished
-            next_tokens = _sample_next_tokens(
-                next_logits, temperature, top_k, sample_rng_on_cpu=sample_rng_on_cpu
-            )
+            next_tokens = _sample_next_tokens(next_logits, temperature, top_k, sample_rng_on_cpu=sample_rng_on_cpu)
             # Force already-finished rows to pad so generation stays batched.
             next_tokens = torch.where(finished, pad_id.expand_as(next_tokens), next_tokens)
             finished = finished | (next_tokens == eos_id)
@@ -401,6 +399,7 @@ def generate_completions(
     completion_ids = torch.stack(token_steps, dim=1).to("cpu")
     completion_valid = torch.stack(valid_steps, dim=1).to("cpu")
     return completion_ids, completion_valid
+
 
 def construct_inputs_for_decode(
     prompt_ids,  # 1D LongTensor, len <= max_prompt_length

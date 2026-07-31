@@ -28,7 +28,6 @@ class TestConfig(BaseModel):
     cpu_sample_rng: bool = Field(
         default=False,
         description=(
-            "TT RNG is not reliably seedable."
-            "Randomness in tests needs to be reproducible on CPU at least."
+            "TT RNG is not reliably seedable." "Randomness in tests needs to be reproducible on CPU at least."
         ),
     )

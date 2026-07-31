@@ -216,19 +216,11 @@ class TrainingLogger:
                 self.std_logger.warning(f"Failed to finish W&B run: {e}")
 
         if self.test_log_filename_prefix is not None:
-            train_df = (
-                pd.DataFrame(self.train_log)
-                if self.train_log
-                else pd.DataFrame(columns=["_step", "train/loss"])
-            )
+            train_df = pd.DataFrame(self.train_log) if self.train_log else pd.DataFrame(columns=["_step", "train/loss"])
             train_df.to_csv(self.csv_path_train, index=False, float_format="%.10g")
             # Skip val CSV when validation is disabled.
             if getattr(self.config, "do_validation", True):
-                val_df = (
-                    pd.DataFrame(self.val_log)
-                    if self.val_log
-                    else pd.DataFrame(columns=["_step", "val/loss"])
-                )
+                val_df = pd.DataFrame(self.val_log) if self.val_log else pd.DataFrame(columns=["_step", "val/loss"])
                 val_df.to_csv(self.csv_path_val, index=False, float_format="%.10g")
                 self.std_logger.info(
                     f"Training and validation logs saved to {self.csv_path_train} and {self.csv_path_val}"
