@@ -254,15 +254,17 @@ def _sample_next_tokens(
     logits: torch.Tensor,
     temperature: float,
     top_k: int,
+    sample_rng_on_cpu: bool = False,
 ) -> torch.Tensor:
-    """Pick the next token id per row from last-position logits, entirely on device.
+    """Pick the next token id per row from last-position logits.
 
     ``logits`` is (B, V) on the compute device. Greedy (``argmax``) when
     ``temperature <= 0``; otherwise temperature (+ optional top-k) sampling via the
-    Gumbel-max trick: ``argmax(logits/T + g)`` with ``g = -log(-log(u))`` and
-    ``u ~ Uniform(0, 1)``. This draws from the tempered softmax using only
-    elementwise ops, ``torch.rand_like`` and ``argmax``, so no host-side
-    ``torch.multinomial`` (and no logits copy to CPU) is needed.
+    Gumbel-max trick.     By default Uniform noise is ``rand_like`` on the logits
+    device. When ``sample_rng_on_cpu`` is True (test/CI), noise is drawn on CPU
+    then moved to device — TT device RNG is not reliably seedable. Seeding is
+    handled by ``ReproducibilityManager``. Temperature scale, top-k, Gumbel
+    transform and ``argmax`` always stay on device.
     """
     if not temperature or temperature <= 0:
         return logits.argmax(dim=-1)
@@ -272,7 +274,12 @@ def _sample_next_tokens(
         k = min(top_k, logits.size(-1))
         kth = torch.topk(logits, k, dim=-1).values[:, -1, None]
         logits = torch.where(logits < kth, torch.full_like(logits, float("-inf")), logits)
-    u = torch.rand_like(logits).clamp_(1e-10, 1.0 - 1e-10)
+
+    if sample_rng_on_cpu:
+        u = torch.rand(logits.shape, dtype=torch.float32).clamp_(1e-10, 1.0 - 1e-10)
+        u = u.to(device=logits.device, dtype=logits.dtype)
+    else:
+        u = torch.rand_like(logits).clamp_(1e-10, 1.0 - 1e-10)
     gumbel = -torch.log(-torch.log(u))
     return torch.argmax(logits + gumbel, dim=-1)
 
@@ -291,6 +298,7 @@ def generate_completions(
     top_k: int = 0,
     dtype=torch.bfloat16,
     use_tt: bool = False,
+    sample_rng_on_cpu: bool = False,
 ):
     """Batched autoregressive generation over left-padded prompts, fully on device.
 
@@ -301,6 +309,10 @@ def generate_completions(
     only the final id / validity tensors are moved to CPU once (for the host-side
     reward computation). When ``use_tt`` is True, ``torch_xla.sync`` is invoked
     once per step to keep the lazy graph bounded without a host transfer.
+
+    When ``sample_rng_on_cpu`` is True (intended for tests/CI), Uniform noise for
+    Gumbel sampling is drawn on CPU then moved to device (TT RNG is not reliably
+    seedable). Seeding is left to ``ReproducibilityManager``.
 
     Returns ``(completion_ids, completion_valid)``:
       - ``completion_ids`` (B, max_completion_length) LongTensor on CPU; positions
@@ -370,7 +382,9 @@ def generate_completions(
             next_logits = output.logits[:, -1, :]
             # A row's token this step is valid iff it had not already finished.
             valid_this = ~finished
-            next_tokens = _sample_next_tokens(next_logits, temperature, top_k)
+            next_tokens = _sample_next_tokens(
+                next_logits, temperature, top_k, sample_rng_on_cpu=sample_rng_on_cpu
+            )
             # Force already-finished rows to pad so generation stays batched.
             next_tokens = torch.where(finished, pad_id.expand_as(next_tokens), next_tokens)
             finished = finished | (next_tokens == eos_id)
@@ -387,7 +401,6 @@ def generate_completions(
     completion_ids = torch.stack(token_steps, dim=1).to("cpu")
     completion_valid = torch.stack(valid_steps, dim=1).to("cpu")
     return completion_ids, completion_valid
-
 
 def construct_inputs_for_decode(
     prompt_ids,  # 1D LongTensor, len <= max_prompt_length

@@ -107,8 +107,13 @@ class TrainingLogger:
                 self.std_logger.warning(f"Failed to log to W&B: {e}")
 
         if self.test_log_filename_prefix is not None:
+            row = {"_step": step}
             if "train/loss" in metrics:
-                self.train_log.append({"_step": step, "train/loss": metrics["train/loss"]})
+                row["train/loss"] = metrics["train/loss"]
+            if "train/reward_mean" in metrics:
+                row["train/reward_mean"] = metrics["train/reward_mean"]
+            if len(row) > 1:
+                self.train_log.append(row)
             if "val/loss" in metrics:
                 self.val_log.append({"_step": step, "val/loss": metrics["val/loss"]})
 
@@ -211,6 +216,22 @@ class TrainingLogger:
                 self.std_logger.warning(f"Failed to finish W&B run: {e}")
 
         if self.test_log_filename_prefix is not None:
-            pd.DataFrame(self.train_log).to_csv(self.csv_path_train, index=False)
-            pd.DataFrame(self.val_log).to_csv(self.csv_path_val, index=False)
-            self.std_logger.info(f"Training and validation logs saved to {self.csv_path_train} and {self.csv_path_val}")
+            train_df = (
+                pd.DataFrame(self.train_log)
+                if self.train_log
+                else pd.DataFrame(columns=["_step", "train/loss"])
+            )
+            train_df.to_csv(self.csv_path_train, index=False, float_format="%.10g")
+            # Skip val CSV when validation is disabled.
+            if getattr(self.config, "do_validation", True):
+                val_df = (
+                    pd.DataFrame(self.val_log)
+                    if self.val_log
+                    else pd.DataFrame(columns=["_step", "val/loss"])
+                )
+                val_df.to_csv(self.csv_path_val, index=False, float_format="%.10g")
+                self.std_logger.info(
+                    f"Training and validation logs saved to {self.csv_path_train} and {self.csv_path_val}"
+                )
+            else:
+                self.std_logger.info(f"Training log saved to {self.csv_path_train}")

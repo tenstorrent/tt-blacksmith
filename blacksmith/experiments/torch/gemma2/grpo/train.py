@@ -179,6 +179,9 @@ def train_grpo(
                 golds = [g for g in batch["gold_answers"] for _ in range(num_generations)]
 
                 # ---- Phase A: generation with frozen old policy (no grad) ----
+                sample_rng_on_cpu = bool(
+                    config.test_config is not None and getattr(config.test_config, "cpu_sample_rng", False)
+                )
                 completion_ids, completion_valid = generate_completions(
                     model=old_policy_model,
                     model_config=model_config,
@@ -193,6 +196,7 @@ def train_grpo(
                     top_k=config.top_k,
                     dtype=eval(config.dtype),
                     use_tt=config.use_tt,
+                    sample_rng_on_cpu=sample_rng_on_cpu,
                 )
 
                 # ---- Phase B: rewards + group-relative advantages ----
@@ -285,15 +289,15 @@ def train_grpo(
                         step_metrics.update(avg)
 
                         logger.info(
-                            f"[Step {global_step}] loss: {avg['train/loss']:.4f} | kl: {avg['train/kl']:.4f} | "
-                            f"clip: {avg['train/clip_frac']:.3f} | "
-                            f"reward: {avg['train/reward_mean']:.3f} | correct: {avg['train/correct_frac']:.3f}"
+                            f"[Step {global_step}] loss: {avg['train/loss']:.8f} | kl: {avg['train/kl']:.8f} | "
+                            f"clip: {avg['train/clip_frac']:.6f} | "
+                            f"reward: {avg['train/reward_mean']:.6f} | correct: {avg['train/correct_frac']:.6f}"
                         )
                         progress_bar.set_postfix(
                             {
-                                "loss": f"{avg['train/loss']:.3f}",
-                                "reward": f"{avg['train/reward_mean']:.3f}",
-                                "correct": f"{avg['train/correct_frac']:.3f}",
+                                "loss": f"{avg['train/loss']:.6f}",
+                                "reward": f"{avg['train/reward_mean']:.4f}",
+                                "correct": f"{avg['train/correct_frac']:.4f}",
                             }
                         )
                         if config.print_examples and sample_completion:

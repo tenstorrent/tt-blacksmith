@@ -30,9 +30,16 @@ def config(request):
     return request.config
 
 
-def assert_loss_with_tolerance(log_file: str, golden_file: str, tolerance: float, atol: float):
-    log_df = pd.read_csv(log_file)
-    golden_df = pd.read_csv(golden_file)
+def assert_metric_with_tolerance(
+    log_file: Path,
+    golden_file: Path,
+    value_column: str,
+    tolerance: float,
+    atol: float,
+):
+    """Compare a single metric column between log and golden CSVs."""
+    log_df = pd.read_csv(log_file)[[value_column]]
+    golden_df = pd.read_csv(golden_file)[[value_column]]
     pd.testing.assert_frame_equal(golden_df, log_df, rtol=tolerance, atol=atol)
 
 
@@ -95,19 +102,38 @@ def run_cmd(cmd: list[str], test_id: str, setup_dict: dict, debug: bool):
         pytest.fail(f"Training script timed out after {setup_dict['timeout']} seconds")
 
 
-def check_losses(train_log_file: Path, val_log_file: Path, setup_dict: dict):
-    assert_loss_with_tolerance(
-        TEST_LOGS_DIR / train_log_file,
-        GOLDEN_LOGS_DIR / train_log_file,
+def check_metrics(train_log_file: Path, val_log_file: Path, setup_dict: dict):
+    train_log = TEST_LOGS_DIR / train_log_file
+    train_golden = GOLDEN_LOGS_DIR / train_log_file
+    assert_metric_with_tolerance(
+        train_log,
+        train_golden,
+        "train/loss",
         tolerance=setup_dict["tolerance"],
         atol=setup_dict["atol"],
     )
-    assert_loss_with_tolerance(
-        TEST_LOGS_DIR / val_log_file,
-        GOLDEN_LOGS_DIR / val_log_file,
-        tolerance=setup_dict["tolerance"],
-        atol=setup_dict["atol"],
-    )
+    train_cols = pd.read_csv(train_log, nrows=0).columns
+    golden_cols = pd.read_csv(train_golden, nrows=0).columns
+    if "train/reward_mean" in train_cols and "train/reward_mean" in golden_cols:
+        assert_metric_with_tolerance(
+            train_log,
+            train_golden,
+            "train/reward_mean",
+            tolerance=setup_dict["tolerance"],
+            atol=setup_dict["atol"],
+        )
+    # Experiments with do_validation=False do not write a val CSV; only compare
+    # when both the golden and the just-produced test val logs exist.
+    val_log = TEST_LOGS_DIR / val_log_file
+    val_golden = GOLDEN_LOGS_DIR / val_log_file
+    if val_golden.exists() and val_log.exists():
+        assert_metric_with_tolerance(
+            val_log,
+            val_golden,
+            "val/loss",
+            tolerance=setup_dict["tolerance"],
+            atol=setup_dict["atol"],
+        )
 
 
 def fetch_checkpoint(checkpoint_path: str):
@@ -160,8 +186,11 @@ def test_training_script(
     if request.config.getoption("--generate-golden-files"):
         # Reference run, move the log files to golden_files.
         (TEST_LOGS_DIR / train_log_file).rename(GOLDEN_LOGS_DIR / train_log_file)
-        (TEST_LOGS_DIR / val_log_file).rename(GOLDEN_LOGS_DIR / val_log_file)
+        val_src = TEST_LOGS_DIR / val_log_file
+        golden_val = GOLDEN_LOGS_DIR / val_log_file
+        if val_src.exists():
+            val_src.rename(golden_val)
         return
 
     # Test run, compare the train and val log files in training_logs with those in golden_files.
-    check_losses(train_log_file, val_log_file, setup_dict)
+    check_metrics(train_log_file, val_log_file, setup_dict)

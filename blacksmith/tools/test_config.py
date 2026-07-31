@@ -25,3 +25,10 @@ class TestConfig(BaseModel):
         default=None,
         description="Maximum number of batches to process per epoch.",
     )
+    cpu_sample_rng: bool = Field(
+        default=False,
+        description=(
+            "TT RNG is not reliably seedable."
+            "Randomness in tests needs to be reproducible on CPU at least."
+        ),
+    )
