@@ -4,7 +4,7 @@
 from typing import List, Optional, Tuple
 
 import torch
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from blacksmith.tools.configs import (
     CheckpointConfig,
@@ -45,11 +45,21 @@ class TrainerConfig(BaseModel):
     # Validation settings
     val_steps_freq: int = Field(gt=0)
 
-    # Logging / metrics / checkpointing / custom dataset settings (nested sub-configs).
+    # Logging / metrics / checkpointing settings (nested sub-configs).
     logging: LoggingConfig
     metrics: MetricsConfig
     checkpoint: CheckpointConfig
-    dataset: CustomDatasetConfig
+
+    # Custom dataset settings.
+    custom_dataset: Optional[CustomDatasetConfig] = Field(default=None)
+
+    @model_validator(mode="after")
+    def check_custom_dataset(self) -> "TrainerConfig":
+        if self.dataset_id == "custom" and self.custom_dataset is None:
+            raise ValueError("`custom_dataset` is required when dataset_id='custom'")
+        if self.dataset_id != "custom" and self.custom_dataset is not None:
+            raise ValueError("`custom_dataset` is not available when dataset_id!='custom'")
+        return self
 
     # Reproducibility settings
     framework: str

@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, Literal, Optional
+from typing import Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class LoggingConfig(BaseModel):
@@ -81,12 +81,22 @@ class CustomDatasetConfig(BaseModel):
     """
     Additional config in case of custom datasets.
     Train and validation sets should be loaded from separate files.
-    The validation set is optional.
     """
 
-    file_type: Literal["json", "jsonl"] = Field(default="json")
-    train_dataset_path: str = Field(default="path/to/dataset")
+    file_type: str = Field(default="json")
+    train_dataset_path: Optional[str] = Field(default=None)
     val_dataset_path: Optional[str] = Field(default=None)
+
+    data_files: Dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def build_data_files(self) -> "CustomDatasetConfig":
+        if self.train_dataset_path is None or self.train_dataset_path == "":
+            raise ValueError("train_dataset_path is required and was not provided.")
+        self.data_files = {"train": self.train_dataset_path}
+        if self.val_dataset_path:
+            self.data_files["validation"] = self.val_dataset_path
+        return self
 
     # Define format type (Alpaca-style, chat, etc)
     format: str = Field(default="alpaca")
@@ -98,6 +108,3 @@ class CustomDatasetConfig(BaseModel):
             "output": "output",
         }
     )
-
-    # Whether to drop the last batch
-    drop_last: bool = Field(default=True)

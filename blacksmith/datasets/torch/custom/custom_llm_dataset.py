@@ -4,14 +4,18 @@
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.datasets.torch.custom.custom_dataset_utils import build_prompt
+from blacksmith.datasets.torch.custom.custom_dataset_utils import (
+    build_prompt,
+    normalize_file_type,
+    validate_column_mapping,
+)
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.trainer.configs import TrainerConfig
 from datasets import load_dataset
 
 
 class CustomLLMDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
             config: TrainingConfig
@@ -23,24 +27,15 @@ class CustomLLMDataset(BaseDataset):
             self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
-        self.file_type = config.dataset.file_type
-        self.dataset_path = config.dataset.train_dataset_path if split == "train" else config.dataset.val_dataset_path
-        self.format = config.dataset.format
-        self.column_mapping = config.dataset.column_mapping
+        self.file_type = normalize_file_type(config.custom_dataset.file_type)
+        self.data_files = config.custom_dataset.data_files
+        self.format = config.custom_dataset.format
+        self.column_mapping = config.custom_dataset.column_mapping
 
         super().__init__(config, split, collate_fn)
 
     def _format_example(self, example):
-        # TODO(tstepanovicTT): Make it work for any prompt format, not just Alpaca.
-        instruction = example[self.column_mapping["instruction"]]
-        input_col = self.column_mapping.get("input", "")
-        input_text = example[input_col] if input_col else ""
-        output = example[self.column_mapping["output"]]
-
-        prompt = build_prompt(self.format, instruction, input_text)
-        full_text = prompt + output
-
-        return prompt, output, full_text
+        return build_prompt(self.format, self.column_mapping, example)
 
     def _tokenize(self, example):
         prompt, _, full_text = self._format_example(example)
@@ -62,41 +57,44 @@ class CustomLLMDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        if self.dataset_path is not None:
-            # split="train" is the HF split label for the loaded file, does not mean the file contains training data
-            raw_dataset = load_dataset(self.file_type, data_files=self.dataset_path, split="train")
-            tokenized_dataset = raw_dataset.map(self._tokenize)
-            filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
-            filtered_dataset = filtered_dataset.remove_columns(
-                [col for col in filtered_dataset.column_names if col not in self.required_columns]
-            )
-            if self.split == "train":
-                filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
-
-            self.dataset = filtered_dataset
-        else:
+        if self.split not in self.data_files:
             self.dataset = None
+            return
+
+        raw_dataset = load_dataset(self.file_type, data_files=self.data_files, split=self.split)
+        dataset_columns = set(raw_dataset[0].keys())
+        validate_column_mapping(self.format, self.column_mapping, dataset_columns)
+
+        tokenized_dataset = raw_dataset.map(self._tokenize)
+        filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)
+        filtered_dataset = filtered_dataset.remove_columns(
+            [col for col in filtered_dataset.column_names if col not in self.required_columns]
+        )
+        if self.split == "train":
+            filtered_dataset = filtered_dataset.shuffle(seed=self.config.seed)
+
+        self.dataset = filtered_dataset
 
     def __len__(self):
         return len(self.dataset)
 
     def _get_dataloader(self):
-        if self.dataset is not None:
-            data_collator = DataCollatorForSeq2Seq(
-                tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
-            )
-
-            if self.collate_fn is not None:
-                total_collate_fn = lambda batch: self.collate_fn(data_collator(batch))
-            else:
-                total_collate_fn = data_collator
-
-            return DataLoader(
-                self.dataset,
-                batch_size=self.config.batch_size,
-                collate_fn=total_collate_fn,
-                shuffle=self.split == "train",
-                drop_last=self.config.dataset.drop_last,
-            )
-        else:
+        if self.dataset is None:
             return None
+
+        data_collator = DataCollatorForSeq2Seq(
+            tokenizer=self.tokenizer, padding="max_length", max_length=self.config.max_length
+        )
+
+        if self.collate_fn is not None:
+            total_collate_fn = lambda batch: self.collate_fn(data_collator(batch))
+        else:
+            total_collate_fn = data_collator
+
+        return DataLoader(
+            self.dataset,
+            batch_size=self.config.batch_size,
+            collate_fn=total_collate_fn,
+            shuffle=self.split == "train",
+            drop_last=True,
+        )
