@@ -274,7 +274,6 @@ if __name__ == "__main__":
             {
                 "fp32_dest_acc_en": True,
                 "math_fidelity": "hifi4",
-                "optimization_level": config.optimization_level,
             }
         )
 

@@ -9,7 +9,6 @@ import ale_py
 import gymnasium as gym
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-import torch_xla
 
 from blacksmith.experiments.torch.BOUNTIES.ppo_breakout.breakout_rollout import (
     RolloutBuffer,
@@ -341,13 +340,6 @@ if __name__ == "__main__":
 
     # Checkpoint manager setup.
     checkpoint_manager = CheckpointManager(config, logger)
-
-    if config.use_tt:
-        compile_options = {
-            "enable_trace": config.enable_trace,
-            "optimization_level": config.optimization_level,
-        }
-        torch_xla.set_custom_compile_options(compile_options)
 
     # Device setup.
     device_manager = DeviceManager(config)
