@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Dataset settings
     dataset_id: str = Field(default="sst2")
 
@@ -103,3 +104,4 @@ class TrainingConfig(BaseModel):
     enable_trace: bool = Field(default=False)
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
     optimization_level: int = Field(default=0, ge=0, le=2)
+    enable_const_eval: bool = Field(default=True)

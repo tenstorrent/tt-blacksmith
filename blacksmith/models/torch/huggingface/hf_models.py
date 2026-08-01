@@ -36,7 +36,7 @@ def get_model(config: TrainingConfig, device: torch.device, compile_model: bool 
 
     # Load a model
     load_kwargs = {
-        "use_cache": config.gradient_checkpointing,
+        "use_cache": False,
         "low_cpu_mem_usage": True,
     }
     if device.type == "cuda":
@@ -59,7 +59,7 @@ def get_model(config: TrainingConfig, device: torch.device, compile_model: bool 
         for param in model.parameters():
             param.requires_grad = True
 
-    model.to(eval(config.dtype))
+    model.to(config.torch_dtype())
     if config.use_tt:
         model.to(device)
 
@@ -85,7 +85,11 @@ def get_model(config: TrainingConfig, device: torch.device, compile_model: bool 
             )
 
     if config.use_tt and compile_model:
-        compile_options = {"tt_enable_torch_fx_fusion_pass": False, "tt_legacy_compile": True}
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_use_aot_autograd": False,
+        }
         model = torch.compile(model, backend="tt", options=compile_options)
 
     return model

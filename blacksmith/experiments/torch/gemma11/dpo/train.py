@@ -63,7 +63,10 @@ def validate_dpo(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(tqdm(val_dataloader, desc="Validation")):
-            batch = {k: v.to(device_manager.device) for k, v in batch.items()}
+            batch = device_manager.prepare_batch(batch)
+
+            device_manager.shard_model(policy_model)
+            device_manager.shard_model(reference_model)
             _, metrics = compute_dpo_loss_from_batch(
                 policy_model=policy_model,
                 reference_model=reference_model,
@@ -215,8 +218,10 @@ def train_dpo(
                     logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
                     break
 
-                # Move batch to device
-                batch = {k: v.to(device_manager.device) for k, v in batch.items()}
+                batch = device_manager.prepare_batch(batch)
+
+                device_manager.shard_model(policy_model)
+                device_manager.shard_model(reference_model)
 
                 # Compute DPO loss
                 loss, metrics = compute_dpo_loss_from_batch(

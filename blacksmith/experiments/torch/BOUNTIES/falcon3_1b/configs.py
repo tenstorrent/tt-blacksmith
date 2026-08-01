@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Dataset settings
     dataset_id: str = Field(default="wikitext")
 

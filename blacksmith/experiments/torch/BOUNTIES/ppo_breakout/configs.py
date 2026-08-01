@@ -3,12 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Optional
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import Field, computed_field
 
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Environment settings
     env_id: str = Field(default="ALE/Breakout-v5")
     num_envs: int = Field(default=8, gt=0)
@@ -77,15 +78,15 @@ class TrainingConfig(BaseModel):
 
     @computed_field
     @property
-    def batch_size(self) -> int:
+    def computed_batch_size(self) -> int:
         return self.num_envs * self.num_steps
 
     @computed_field
     @property
     def minibatch_size(self) -> int:
-        return self.batch_size // self.num_minibatches
+        return self.computed_batch_size // self.num_minibatches
 
     @computed_field
     @property
     def num_updates(self) -> int:
-        return self.total_timesteps // self.batch_size
+        return self.total_timesteps // self.computed_batch_size

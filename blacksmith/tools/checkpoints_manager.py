@@ -2,21 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import torch
 
-from blacksmith.experiments.torch.qwen.configs import TrainingConfig
+from blacksmith.tools.configs import CheckpointConfig
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.storage_backends import StorageBackend
+from blacksmith.tools.workaround_utils import restore_capturable_optimizer_state
 
 
 class CheckpointManager:
-    def __init__(self, config: TrainingConfig, logger: TrainingLogger, device: Optional[torch.device] = None):
+    def __init__(
+        self,
+        config: CheckpointConfig,
+        logger: Optional[TrainingLogger] = None,
+        device: Optional[torch.device] = None,
+    ):
         self.config = config
-        self.logger = logger
+        # Fall back to a plain module logger when no TrainingLogger is provided
+        # (e.g. when used standalone via the checkpoint callback). Both expose
+        # the .info/.warning methods used below.
+        self.logger = logger if logger is not None else logging.getLogger(__name__)
         self.device = device
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
@@ -243,6 +253,9 @@ class CheckpointManager:
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            # load_state_dict restores capturable=False and CPU state from the checkpoint, which
+            # breaks capturable AdamW and forces the fused step graph to recompile; repair it.
+            restore_capturable_optimizer_state(optimizer)
             self.logger.info("Loaded optimizer state")
 
         self.logger.info(f"Loaded checkpoint from {checkpoint_path}")

@@ -38,9 +38,10 @@ the output / FFN-down projections are row-parallel (`["batch", "model"]`), and L
 adapters keep the rank dim replicated so the fused AdamW step stays element-wise. The mesh is
 driven by `mesh_shape`/`mesh_axis_names`.
 
-| Hardware | mesh_shape | mesh_axis_names |
-| --- | --- | --- |
-| [WH QuietBox](lora/quietbox/wan2_2_ti2v_5b_diffusiondb.yaml) | `[2, 4]` | `["batch", "model"]` |
+
+| Architecture | mesh_shape | mesh_axis_names |input_sharding_dim | Dataset | Method |
+| --- | --- | --- | --- | --- | --- |
+ [BH LoudBox](lora/quietbox/wan2_2_ti2v_5b_diffusiondb.yaml) | `[2, 4]` | `["batch", "model"]` | None | PixelArt | LoRA |
 
 ## Running
 

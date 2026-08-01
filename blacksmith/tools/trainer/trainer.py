@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from typing import Any, Union
 
 import torch
@@ -11,6 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from blacksmith.tools.device_manager import DeviceManager
+from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.trainer.callback import Callback
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
@@ -26,6 +28,9 @@ class Trainer(ABC):
         self.callback_handler = CallbackHandler(self, normalize_callbacks(callbacks))
         self.config: TrainerConfig | None = None
         self.reproducibility_manager: ReproducibilityManager | None = None
+        # The trainer owns the logger; callbacks (and other consumers) use it via
+        # `trainer.logger`. It is created in `setup` and finished in `train`.
+        self.logger: TrainingLogger | None = None
         self.global_step: int = 0
         self.epoch: int = 0
 
@@ -41,6 +46,8 @@ class Trainer(ABC):
             self.cleanup()
 
         self.config = config
+        if config is not None:
+            self.logger = TrainingLogger(config.logging)
         if self.reproducibility_manager is None:
             self.reproducibility_manager = ReproducibilityManager(config)
         self.reproducibility_manager.setup()
@@ -80,6 +87,19 @@ class Trainer(ABC):
             capturable=self.config.use_tt,
         )
 
+    @contextmanager
+    def _train_lifecycle(self) -> Iterator[None]:
+        """Run error / cleanup hooks around the training loop body."""
+        try:
+            yield
+        except Exception as exception:
+            self.callback_handler("on_error", exception)
+        finally:
+            self.callback_handler("on_train_end")
+            # Finish the logger after `on_train_end` so callbacks can still use it.
+            if self.logger is not None:
+                self.logger.finish()
+
     def train(self) -> None:
         self.callback_handler("on_train_start")
         # `on_train_start` callbacks need to guard against having a config.
@@ -87,11 +107,7 @@ class Trainer(ABC):
             return
 
         grad_accumulation_steps = self.config.gradient_accumulation_steps
-        # TODO(mmilosevicTT): Temporary running loss for debug prints; remove once
-        # default logging callback lands. See https://github.com/tenstorrent/tt-blacksmith/issues/621
-        running_loss = 0.0
-        running_count = 0
-        try:
+        with self._train_lifecycle():
             # Initial validation pass before any optimizer steps.
             if self.val_dataloader is not None:
                 self.validate()
@@ -136,14 +152,6 @@ class Trainer(ABC):
                         accumulation_step = 0
                         self.global_step += 1
                         progress.set_postfix(loss=loss.item())
-                        # TODO(mmilosevicTT): Temporary debug print (avg over 10 steps); remove once
-                        # default logging callback lands. See https://github.com/tenstorrent/tt-blacksmith/issues/621
-                        running_loss += loss.item()
-                        running_count += 1
-                        if self.global_step % 10 == 0:
-                            print(f"[step {self.global_step}] loss={running_loss / running_count:.4f}")
-                            running_loss = 0.0
-                            running_count = 0
 
                         # Periodic inline validation.
                         if (
@@ -156,10 +164,6 @@ class Trainer(ABC):
                     self.callback_handler("on_train_batch_end")
 
                 self.callback_handler("on_train_epoch_end")
-        except Exception as exception:
-            self.callback_handler("on_error", trainer=self, exception=exception)
-        finally:
-            self.callback_handler("on_train_end")
 
     def validate(self) -> None:
         self.model.eval()
@@ -183,9 +187,6 @@ class Trainer(ABC):
                 self.callback_handler("on_validation_batch_end", batch, loss)
 
         val_loss = total_loss / num_batches if num_batches else 0.0
-        # TODO(mmilosevicTT): Temporary debug print; remove once default logging
-        # callback lands. See https://github.com/tenstorrent/tt-blacksmith/issues/621
-        print(f"[step {self.global_step}] val_loss={val_loss:.4f}")
         self.callback_handler("on_validation_end", val_loss)
         self.model.train()
 
@@ -225,5 +226,6 @@ class Trainer(ABC):
                 delattr(self, attr)
         self.config = None
         self.reproducibility_manager = None
+        self.logger = None
         self.global_step = 0
         self.epoch = 0

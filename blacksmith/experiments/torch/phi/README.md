@@ -57,13 +57,23 @@ Example:
 
 ## Configuration
 
-### Phi=1
+### Phi-1
+
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/phi1_sst2.yaml) | None        | None           | None           | SST-2    | LoRA      |
+| [Single-Chip](single_chip/phi1_squadV2.yaml) | None        | None           | None        | Squad-V2 | LoRA |
 
 The Phi-1 model to be trained on SST2 dataset is configured using the configuration file `phi1_sst2.yaml`. This is the default setting.
 
 The Phi-1 model to be trained on Squad-V2 dataset is configured using the configuration file `phi1_squadV2.yaml`.
 
 ### Phi-1.5
+
+| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
+| ------------------ | ---------------------------- | -------------------- | ------------------ | ------------ | --------------------------- |
+| [Single-Chip](single_chip/phi15_sst2.yaml) | None        | None         | None             | SST-2    | LoRA      |
+| [Single-Chip](single_chip/phi15_squadV2.yaml) | None        | None      | None               | Squad-V2       | LoRA |
 
 The Phi-1.5 model to be trained on SST2 dataset is configured using the configuration file `phi15_sst2.yaml`. This is the default setting.
 

@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Model settings
     model_name: str = Field(default="GATv2")
     dataset_id: str = Field(default="pubmed")

@@ -7,6 +7,7 @@ import torch
 from pydantic import BaseModel, Field, model_validator
 
 from blacksmith.tools.templates.configs import Framework
+from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 
 _TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
@@ -45,7 +46,7 @@ class InferenceConfig(BaseModel):
         return self
 
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(BaseTrainingConfig):
     # Selects what train.py runs: "train" fine-tunes the LoRA on cached latents;
     # "infer" loads a checkpoint and generates a video (no training).
     mode: str = Field(default="train")
