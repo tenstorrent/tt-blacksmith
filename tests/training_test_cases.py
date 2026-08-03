@@ -360,6 +360,27 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
+            "test_script": "blacksmith/experiments/torch/gemma2/grpo/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma2/grpo/single_chip/gemma2_gsm8k_grpo.yaml",
+            "test_config": "tests/configs/tt-gemma2-gsm8k_grpo-p150.yaml",
+            "timeout": 3600,
+        },
+        marks=[
+            # Non-AOT StaticCache decode in tt-xla returns USER_INPUT_MUTATION
+            # tensors as logits; needs backend output finalization (or AOT on).
+            pytest.mark.xfail(
+                reason="tt-xla: non-AOT StaticCache decode packs KV mutations as logits.",
+                strict=False,
+            ),
+            pytest.mark.uplift,
+            pytest.mark.p150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-gemma2-gsm8k_grpo-p150",
+    ),
+    pytest.param(
+        {
             "test_script": "blacksmith/experiments/torch/albert/train.py",
             "experiment_config": "blacksmith/experiments/torch/albert/single_chip/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
