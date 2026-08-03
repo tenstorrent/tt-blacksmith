@@ -112,8 +112,7 @@ class TrainingLogger:
                 row["train/loss"] = metrics["train/loss"]
             if "train/reward_mean" in metrics:
                 row["train/reward_mean"] = metrics["train/reward_mean"]
-            if len(row) > 1:
-                self.train_log.append(row)
+            self.train_log.append(row)
             if "val/loss" in metrics:
                 self.val_log.append({"_step": step, "val/loss": metrics["val/loss"]})
 
