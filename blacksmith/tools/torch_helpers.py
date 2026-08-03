@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Sequence, Union
+
 import torch
 import torch_xla
 from transformers import StaticCache
@@ -232,6 +234,13 @@ def run_decode_example(
     input_args["cache_position"] = input_args["cache_position"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
     # Run generation loop.
+    generation_config = getattr(model, "generation_config", None)
+    eos_token_id = (
+        generation_config.eos_token_id
+        if generation_config is not None and generation_config.eos_token_id is not None
+        else tokenizer.eos_token_id
+    )
+    stop_token_ids = {eos_token_id} if isinstance(eos_token_id, int) else set(eos_token_id)
     output_tokens = []
     with torch.no_grad():
         for step in range(max_new_tokens):
@@ -240,7 +249,7 @@ def run_decode_example(
             output = model(**input_args)
             next_token_id = output.logits[:, -1].argmax(dim=-1).to("cpu")  # shape (1,)
             output_tokens.append(tokenizer.decode(next_token_id))
-            if next_token_id.item() == tokenizer.eos_token_id:
+            if next_token_id.item() in stop_token_ids:
                 break
             # Advance inputs for next step.
             input_args["input_ids"] = next_token_id.unsqueeze(-1).to(device)
@@ -290,7 +299,7 @@ def generate_completions(
     prompt_input_ids: torch.Tensor,  # (B, max_prompt_length), left-padded
     prompt_attention_mask: torch.Tensor,  # (B, max_prompt_length), 0 over left-pad
     pad_token_id: int,
-    eos_token_id: int,
+    eos_token_id: Union[int, Sequence[int]],
     max_prompt_length: int,
     max_completion_length: int,
     device,
@@ -314,17 +323,28 @@ def generate_completions(
     Gumbel sampling is drawn on CPU then moved to device (TT RNG is not reliably
     seedable). Seeding is left to ``ReproducibilityManager``.
 
+    ``eos_token_id`` may be a single id or a sequence of stop ids (e.g. from
+    ``generation_config.eos_token_id``); any match marks the row finished.
+
     Returns ``(completion_ids, completion_valid)``:
       - ``completion_ids`` (B, max_completion_length) LongTensor on CPU; positions
-        after a row emits EOS are ``pad_token_id``.
+        after a row emits a stop token are ``pad_token_id``.
       - ``completion_valid`` (B, max_completion_length) bool mask on CPU; True for
-        real generated tokens up to and including EOS, False for trailing pad.
+        real generated tokens up to and including the stop token, False for
+        trailing pad.
 
     Left padding aligns the generation frontier across rows (last real token sits
     at index ``max_prompt_length - 1`` for every row), so a single ``cache_position``
     advances all rows together. Adapted from the single-example decode helper /
     https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/llama.py
     """
+    if isinstance(eos_token_id, int):
+        stop_token_ids = [eos_token_id]
+    else:
+        stop_token_ids = list(eos_token_id)
+    if not stop_token_ids:
+        raise ValueError("eos_token_id must contain at least one stop token id")
+
     batch_size = prompt_input_ids.shape[0]
     max_cache_len = max_prompt_length + max_completion_length
 
@@ -364,7 +384,7 @@ def generate_completions(
     cache_position = torch.arange(0, max_prompt_length, device=device)
 
     # All decode state lives on device (no host reads inside the loop).
-    eos_id = torch.tensor(eos_token_id, device=device)
+    stop_ids = torch.tensor(stop_token_ids, device=device, dtype=torch.long)
     pad_id = torch.tensor(pad_token_id, device=device)
     finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
     token_steps = []
@@ -385,7 +405,8 @@ def generate_completions(
             next_tokens = _sample_next_tokens(next_logits, temperature, top_k, sample_rng_on_cpu=sample_rng_on_cpu)
             # Force already-finished rows to pad so generation stays batched.
             next_tokens = torch.where(finished, pad_id.expand_as(next_tokens), next_tokens)
-            finished = finished | (next_tokens == eos_id)
+            # Broadcast equality so this stays XLA/TT-friendly (no torch.isin).
+            finished = finished | (next_tokens.unsqueeze(-1) == stop_ids).any(dim=-1)
 
             token_steps.append(next_tokens)
             valid_steps.append(valid_this)

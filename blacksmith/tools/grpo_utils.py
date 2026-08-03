@@ -24,10 +24,16 @@ updates then reuse the same rollouts, rewards, and old-policy log-probs so only
 the importance ratio changes. The reference model is a separate frozen model
 (base weights for LoRA) used only for the KL penalty.
 """
+from copy import deepcopy
 from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
+
+# LoRA GRPO keeps one shared backbone and a second frozen adapter for the old
+# policy, instead of a second full model copy (which OOMs on single-chip DRAM).
+POLICY_ADAPTER = "default"
+OLD_POLICY_ADAPTER = "old_policy"
 
 
 def compute_group_advantages(
@@ -67,18 +73,45 @@ def get_per_token_logps(logits: torch.Tensor, input_ids: torch.Tensor) -> torch.
 
 
 def forward_logps(model, seq_ids: torch.Tensor, seq_attention_mask: torch.Tensor) -> torch.Tensor:
-    """Run one full-sequence forward and return per-token log-probs (B, T-1).
-
-    The (B, T, V) logits are dropped immediately after reduction to keep only the
-    small per-token tensor (avoids holding a vocab-sized activation).
-    """
+    """Run one full-sequence forward and return per-token log-probs (B, T-1)."""
     logits = model(input_ids=seq_ids, attention_mask=seq_attention_mask).logits
     return get_per_token_logps(logits, seq_ids)
 
 
-def sync_old_policy(policy_model: torch.nn.Module, old_policy_model: torch.nn.Module) -> None:
-    """Copy new-policy weights into the frozen old-policy model."""
-    old_policy_model.load_state_dict(policy_model.state_dict())
+def attach_old_policy_adapter(policy_model: torch.nn.Module) -> None:
+    """Add a frozen ``old_policy`` LoRA adapter that shares the policy backbone."""
+    if OLD_POLICY_ADAPTER in getattr(policy_model, "peft_config", {}):
+        return
+    peft_config = deepcopy(policy_model.peft_config[POLICY_ADAPTER])
+    policy_model.add_adapter(OLD_POLICY_ADAPTER, peft_config)
+    for name, param in policy_model.named_parameters():
+        if f".{OLD_POLICY_ADAPTER}." in name or name.endswith(f".{OLD_POLICY_ADAPTER}"):
+            param.requires_grad_(False)
+    sync_old_policy(policy_model)
+    policy_model.set_adapter(POLICY_ADAPTER)
+
+
+def sync_old_policy(policy_model: torch.nn.Module, old_policy_model: Optional[torch.nn.Module] = None) -> None:
+    """Sync old-policy weights from the trainable policy.
+
+    For LoRA with a shared backbone, copies the active policy adapter into the
+    frozen ``old_policy`` adapter. Otherwise copies ``requires_grad`` params into
+    a separate ``old_policy_model``.
+    """
+    shared = old_policy_model is None or old_policy_model is policy_model
+    if shared:
+        from peft import get_peft_model_state_dict, set_peft_model_state_dict
+
+        with torch.no_grad():
+            state = get_peft_model_state_dict(policy_model, adapter_name=POLICY_ADAPTER)
+            set_peft_model_state_dict(policy_model, state, adapter_name=OLD_POLICY_ADAPTER)
+        return
+
+    old_params = dict(old_policy_model.named_parameters())
+    with torch.no_grad():
+        for name, param in policy_model.named_parameters():
+            if param.requires_grad:
+                old_params[name].copy_(param)
 
 
 def compute_ref_logps(

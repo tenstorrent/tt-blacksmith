@@ -23,8 +23,9 @@ class GSM8KDataset(BaseDataset):
     """Prompt-only GSM8K dataset yielding ``{"prompt", "gold"}`` items."""
 
     def __init__(self, config, split: str = "train", collate_fn=None):
-        # Left padding is required for batched generation: it aligns the last real
-        # prompt token to a common index across the batch.
+        # Left padding aligns the last real prompt token across the batch for
+        # decode. Overlong prompts are filtered out (not truncated) so context
+        # and the chat generation suffix stay intact.
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="left", use_fast=True)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
@@ -40,12 +41,18 @@ class GSM8KDataset(BaseDataset):
         raw = load_dataset(DATASET_PATH, DATASET_CONFIG, split=hf_split)
 
         def _map(example):
+            prompt = self._build_prompt(example["question"])
             return {
-                "prompt": self._build_prompt(example["question"]),
+                "prompt": prompt,
                 "gold": extract_gsm8k_gold(example["answer"]),
+                "len": len(self.tokenizer.encode(prompt, add_special_tokens=False)),
             }
 
-        self.dataset = raw.map(_map, remove_columns=raw.column_names, desc="Building GSM8K prompts")
+        mapped = raw.map(_map, remove_columns=raw.column_names, desc="Building GSM8K prompts")
+        self.dataset = mapped.filter(
+            lambda example: example["len"] <= self.config.max_prompt_length,
+            desc=f"Filtering prompts longer than {self.config.max_prompt_length}",
+        ).remove_columns(["len"])
 
     def __len__(self) -> int:
         return len(self.dataset)
@@ -59,7 +66,7 @@ class GSM8KDataset(BaseDataset):
         encoded = self.tokenizer(
             prompts,
             padding="max_length",
-            truncation=True,
+            truncation=False,
             max_length=self.config.max_prompt_length,
             return_tensors="pt",
             add_special_tokens=False,  # apply_chat_template already added them

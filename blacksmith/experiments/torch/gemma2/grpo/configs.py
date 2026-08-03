@@ -28,15 +28,15 @@ class GRPOTrainingConfig(BaseTrainingConfig):
 
     # GRPO / generation hyperparameters
     num_generations: int = Field(
-        default=4, gt=1, description="G: completions sampled per prompt (>=2 for advantage std)"
+        default=2, gt=1, description="G: completions sampled per prompt (>=2 for advantage std)"
     )
     num_iterations: int = Field(
-        default=1,
+        default=2,
         ge=1,
         description="μ: policy updates on the same rollouts before refreshing the old policy",
     )
     max_prompt_length: int = Field(default=256, gt=0)
-    max_completion_length: int = Field(default=200, gt=0)
+    max_completion_length: int = Field(default=256, gt=0)
     temperature: float = Field(default=0.5, ge=0.0, description="Sampling temperature (0 = greedy)")
     top_k: int = Field(default=0, ge=0, description="Top-k sampling cutoff (0 = disabled)")
     grpo_beta: float = Field(default=0.005, ge=0.0, description="KL penalty coefficient")
@@ -52,7 +52,7 @@ class GRPOTrainingConfig(BaseTrainingConfig):
     gradient_accumulation_steps: int = Field(default=4, gt=0)
     gradient_checkpointing: bool = Field(default=False)
     weight_decay: float = Field(default=0.1, ge=0)
-    num_epochs: int = Field(default=1, gt=0)
+    num_epochs: int = Field(default=2, gt=0)
     max_steps: int = Field(default=-1)  # -1 means use num_epochs
     optim: str = Field(default="adamw_torch")
     warmup_steps: int = Field(default=10, ge=0)
@@ -91,7 +91,7 @@ class GRPOTrainingConfig(BaseTrainingConfig):
 
     # Reproducibility settings
     seed: int = Field(default=23)
-    deterministic: bool = Field(default=False)
+    deterministic: bool = Field(default=True)
 
     # Device settings (mesh configuration for parallelism)
     mesh_shape: Optional[list[int]] = Field(default=None, description="Mesh shape for SPMD parallelism, e.g. [8, 1]")

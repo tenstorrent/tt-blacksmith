@@ -65,9 +65,9 @@ python3 blacksmith/experiments/torch/gemma2/grpo/train.py --config blacksmith/ex
 
 #### Training Configuration
 
-| Architecture       | mesh_shape                   | mesh_axis_names      | input_sharding_dim | dataset      | Method                      |
-| ------------ | ---------- | --------------- | ------- | ------ |
-| [P150](single_chip/gemma2_gsm8k_grpo.yaml) | None | None | None | GSM8K | GRPO + LoRA |
+| Architecture       | dataset | Method      |
+| ------------------ | ------- | ----------- |
+| [P150](single_chip/gemma2_gsm8k_grpo.yaml) | GSM8K | GRPO + LoRA |
 
 ## Data
 
@@ -100,10 +100,10 @@ The experiment is configured using `single_chip/gemma2_gsm8k_grpo.yaml`.
 | `model_name` | Name or path of the pre-trained Gemma 2 2B model. | "google/gemma-2-2b-it" |
 | `dtype` | Data type used during training. | "torch.bfloat16" |
 | `ignored_index` | Label id used to mask prompt tokens. | -100 |
-| `num_generations` | G: completions sampled per prompt (>=2). | 4 |
-| `num_iterations` | μ: policy updates on the same rollouts before refreshing the old policy. | 1 |
+| `num_generations` | G: completions sampled per prompt (>=2). | 2 |
+| `num_iterations` | μ: policy updates on the same rollouts before refreshing the old policy. | 2 |
 | `max_prompt_length` | Max prompt tokens (left-padded). | 256 |
-| `max_completion_length` | Max generated tokens per completion. | 200 |
+| `max_completion_length` | Max generated tokens per completion. | 256 |
 | `temperature` | Sampling temperature (0 = greedy). | 0.5 |
 | `top_k` | Top-k sampling cutoff (0 = disabled). | 0 |
 | `grpo_beta` | KL penalty coefficient. | 0.005 |
@@ -140,9 +140,7 @@ The experiment is configured using `single_chip/gemma2_gsm8k_grpo.yaml`.
 | `save_steps` | Frequency (in steps) for saving checkpoints. | 50 |
 | `project_dir` | Directory for experiment outputs. | "blacksmith/experiments/torch/gemma2/grpo" |
 | `seed` | Random seed for reproducibility. | 23 |
-| `deterministic` | Whether to enforce deterministic behavior. | False |
-| `mesh_shape` | Mesh shape for distributed training. | None |
-| `mesh_axis_names` | Axis names for the mesh. | None |
+| `deterministic` | Whether to enforce deterministic behavior. | True |
 | `lora_r` | Rank of LoRA adaptation matrices. | 64 |
 | `lora_alpha` | Scaling factor for LoRA updates. | 64 |
 | `lora_target_modules` | Target modules for LoRA adaptation. | ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"] |

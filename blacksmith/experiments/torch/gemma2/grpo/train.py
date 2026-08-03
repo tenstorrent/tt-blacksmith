@@ -8,7 +8,7 @@ from typing import Dict, Tuple
 import torch
 import torch_xla
 from tqdm import tqdm
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer, GenerationConfig
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.datasets.torch.gsm8k.gsm8k_utils import compute_rewards
@@ -18,6 +18,9 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.grpo_utils import (
+    OLD_POLICY_ADAPTER,
+    POLICY_ADAPTER,
+    attach_old_policy_adapter,
     compute_group_advantages,
     compute_grpo_loss,
     compute_old_logps,
@@ -79,9 +82,16 @@ def train_grpo(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     model_config = AutoConfig.from_pretrained(config.model_name)
+    generation_config = GenerationConfig.from_pretrained(config.model_name)
+    eos_token_id = (
+        generation_config.eos_token_id
+        if generation_config.eos_token_id is not None
+        else tokenizer.eos_token_id
+    )
 
-    # Policy model (trainable, with PEFT + torch.compile).
-    policy_model = get_model(config, device)
+    # Policy model (trainable, with PEFT). Compile after old-policy adapter is
+    # attached so both adapters exist in the traced module.
+    policy_model = get_model(config, device, compile_model=False)
     total_params = sum(p.numel() for p in policy_model.parameters())
     trainable_params = sum(p.numel() for p in policy_model.parameters() if p.requires_grad)
     logger.info(f"Loaded {config.model_name} as policy model.")
@@ -91,16 +101,33 @@ def train_grpo(
         logger.info("Loading policy model from resume checkpoint.")
         checkpoint_manager.load_checkpoint(policy_model)
 
-    # Old policy: frozen weight copy used to sample completions. Synced from the
-    # new (trainable) policy once per batch; then num_iterations updates reuse the
-    # same rollouts / rewards / old_logps while only the new policy (and thus the
-    # ratio) changes.
-    old_policy_model = get_model(config, device)
-    for param in old_policy_model.parameters():
-        param.requires_grad_(False)
-    old_policy_model.eval()
-    sync_old_policy(policy_model, old_policy_model)
-    logger.info("Old policy model initialized as a frozen copy of the policy.")
+    # Old policy used to sample completions / importance ratio. For LoRA we keep
+    # a second frozen adapter on the same backbone (avoids a second full model on
+    # device). Other fine-tuning modes still use a separate frozen weight copy.
+    use_shared_old_policy = config.training_model_type == "lora"
+    if use_shared_old_policy:
+        attach_old_policy_adapter(policy_model)
+        old_policy_model = policy_model
+        logger.info(f"Old policy uses shared backbone + frozen '{OLD_POLICY_ADAPTER}' LoRA adapter.")
+    else:
+        old_policy_model = get_model(config, device, compile_model=False)
+        for param in old_policy_model.parameters():
+            param.requires_grad_(False)
+        old_policy_model.eval()
+        sync_old_policy(policy_model, old_policy_model)
+        logger.info("Old policy model initialized as a frozen copy of the policy.")
+
+    if config.use_tt:
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_use_aot_autograd": False,
+        }
+        policy_model = torch.compile(policy_model, backend="tt", options=compile_options)
+        if use_shared_old_policy:
+            old_policy_model = policy_model
+        else:
+            old_policy_model = torch.compile(old_policy_model, backend="tt", options=compile_options)
 
     # Reference model for the KL penalty. For LoRA we reuse the policy model with
     # its adapters temporarily disabled, which IS the frozen base model and avoids
@@ -169,7 +196,10 @@ def train_grpo(
                 # Sync old policy <- new policy, sample once, then run
                 # num_iterations updates on those fixed rollouts (only the
                 # new/old policy ratio changes).
-                sync_old_policy(policy_model, old_policy_model)
+                if use_shared_old_policy:
+                    sync_old_policy(policy_model)
+                else:
+                    sync_old_policy(policy_model, old_policy_model)
                 if config.use_tt:
                     torch_xla.sync(wait=True)
 
@@ -182,13 +212,16 @@ def train_grpo(
                 sample_rng_on_cpu = bool(
                     config.test_config is not None and getattr(config.test_config, "cpu_sample_rng", False)
                 )
+                if use_shared_old_policy:
+                    policy_model.eval()
+                    policy_model.set_adapter(OLD_POLICY_ADAPTER)
                 completion_ids, completion_valid = generate_completions(
                     model=old_policy_model,
                     model_config=model_config,
                     prompt_input_ids=prompt_ids,
                     prompt_attention_mask=prompt_mask,
                     pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
+                    eos_token_id=eos_token_id,
                     max_prompt_length=config.max_prompt_length,
                     max_completion_length=config.max_completion_length,
                     device=device,
@@ -221,11 +254,13 @@ def train_grpo(
                 # Shift completion mask to align with per-token log-probs (targets are seq[:, 1:]).
                 completion_mask = completion_token_mask[:, 1:].to(device)
 
-                # Frozen old-policy / reference log-probs once for this rollout.
-                # Full-vocab logits are freed immediately so they don't coexist with
-                # the new-policy forward's activations that must stay resident for
-                # backward.
+                # Old-policy log-probs while the old adapter is still active.
                 old_logps = compute_old_logps(old_policy_model, seq_ids, seq_attention_mask)
+
+                if use_shared_old_policy:
+                    policy_model.train()
+                    policy_model.set_adapter(POLICY_ADAPTER)
+
                 ref_logps = compute_ref_logps(
                     policy_model,
                     seq_ids,
@@ -233,7 +268,6 @@ def train_grpo(
                     use_shared_reference=use_shared_reference,
                     reference_model=reference_model,
                 )
-
                 # ---- Phase C: μ policy updates on the same rollouts ----
                 for _grpo_iter in range(num_iterations):
                     logps = forward_logps(policy_model, seq_ids, seq_attention_mask)
