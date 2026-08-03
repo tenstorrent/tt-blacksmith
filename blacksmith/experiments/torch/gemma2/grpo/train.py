@@ -84,9 +84,7 @@ def train_grpo(
     model_config = AutoConfig.from_pretrained(config.model_name)
     generation_config = GenerationConfig.from_pretrained(config.model_name)
     eos_token_id = (
-        generation_config.eos_token_id
-        if generation_config.eos_token_id is not None
-        else tokenizer.eos_token_id
+        generation_config.eos_token_id if generation_config.eos_token_id is not None else tokenizer.eos_token_id
     )
 
     # Policy model (trainable, with PEFT). Compile after old-policy adapter is
