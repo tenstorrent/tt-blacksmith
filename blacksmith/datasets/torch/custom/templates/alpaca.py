@@ -29,7 +29,7 @@ $input_section
 )
 
 
-def build_alpaca_prompt(column_mapping: Dict, example: Dict) -> str:
+def build_alpaca_prompt(example: Dict, column_mapping: Dict) -> str:
     instruction = example[column_mapping["instruction"]]
     input_col = column_mapping.get("input", "")
     input_text = example[input_col] if input_col else ""

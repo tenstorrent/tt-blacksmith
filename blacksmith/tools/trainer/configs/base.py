@@ -57,8 +57,6 @@ class TrainerConfig(BaseModel):
     def check_custom_dataset(self) -> "TrainerConfig":
         if self.dataset_id == "custom" and self.custom_dataset is None:
             raise ValueError("`custom_dataset` is required when dataset_id='custom'")
-        if self.dataset_id != "custom" and self.custom_dataset is not None:
-            raise ValueError("`custom_dataset` is not available when dataset_id!='custom'")
         return self
 
     # Reproducibility settings

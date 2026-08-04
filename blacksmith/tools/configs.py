@@ -87,24 +87,7 @@ class CustomDatasetConfig(BaseModel):
     train_dataset_path: Optional[str] = Field(default=None)
     val_dataset_path: Optional[str] = Field(default=None)
 
-    data_files: Dict[str, str] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def build_data_files(self) -> "CustomDatasetConfig":
-        if self.train_dataset_path is None or self.train_dataset_path == "":
-            raise ValueError("train_dataset_path is required and was not provided.")
-        self.data_files = {"train": self.train_dataset_path}
-        if self.val_dataset_path:
-            self.data_files["validation"] = self.val_dataset_path
-        return self
-
     # Define format type (Alpaca-style, chat, etc)
     format: str = Field(default="alpaca")
 
-    column_mapping: Optional[Dict[str, str]] = Field(
-        default_factory=lambda: {
-            "instruction": "instruction",
-            "input": "input",
-            "output": "output",
-        }
-    )
+    column_mapping: Optional[Dict[str, str]] = Field(default=None)

@@ -7,7 +7,7 @@ from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 from blacksmith.datasets.torch.custom.custom_dataset_utils import (
     build_prompt,
     normalize_file_type,
-    validate_column_mapping,
+    resolve_column_mapping,
 )
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
 from blacksmith.tools.trainer.configs import TrainerConfig
@@ -18,7 +18,7 @@ class CustomLLMDataset(BaseDataset):
     def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: TrainingConfig
+            config: TrainerConfig
             split: Dataset split to use ("train" or "validation")
             collate_fn: Collate function to use for the dataset
         """
@@ -28,17 +28,20 @@ class CustomLLMDataset(BaseDataset):
         self.required_columns = ["input_ids", "attention_mask", "labels"]
 
         self.file_type = normalize_file_type(config.custom_dataset.file_type)
-        self.data_files = config.custom_dataset.data_files
+        self.data_path = (
+            config.custom_dataset.train_dataset_path if split == "train" else config.custom_dataset.val_dataset_path
+        )
         self.format = config.custom_dataset.format
         self.column_mapping = config.custom_dataset.column_mapping
 
         super().__init__(config, split, collate_fn)
 
-    def _format_example(self, example):
-        return build_prompt(self.format, self.column_mapping, example)
-
     def _tokenize(self, example):
-        prompt, _, full_text = self._format_example(example)
+        prompt, output, full_text = build_prompt(
+            example,
+            format=self.format,
+            column_mapping=self.column_mapping,
+        )
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
 
         input_ids = encoding["input_ids"].squeeze(0)
@@ -57,13 +60,17 @@ class CustomLLMDataset(BaseDataset):
         return example
 
     def _prepare_dataset(self):
-        if self.split not in self.data_files:
+        if self.data_path is None or self.data_path == "":
+            if self.split == "train":
+                raise ValueError("train_dataset_path is required and was not provided.")
             self.dataset = None
             return
 
-        raw_dataset = load_dataset(self.file_type, data_files=self.data_files, split=self.split)
+        data_file = {self.split: self.data_path}
+        raw_dataset = load_dataset(self.file_type, data_files=data_file, split=self.split)
         dataset_columns = set(raw_dataset[0].keys())
-        validate_column_mapping(self.format, self.column_mapping, dataset_columns)
+
+        self.column_mapping = resolve_column_mapping(self.format, self.column_mapping, dataset_columns)
 
         tokenized_dataset = raw_dataset.map(self._tokenize)
         filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)

@@ -1,15 +1,16 @@
 # Dataset settings
 dataset_id: "custom"
 custom_dataset:
-  file_type: "jsonl"
+  file_type: "json"
   train_dataset_path: "path/to/local/train.json"
-  val_dataset_path: "/path/to/local/val.json"
+  val_dataset_path: "path/to/local/val.json"
   format: "alpaca"
   column_mapping: {
     "instruction": "instruction",
     "input": "context",
     "output": "response"
   }
+
 
 # Model settings
 model_name: "meta-llama/Llama-3.2-1B"

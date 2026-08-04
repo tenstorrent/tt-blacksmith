@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
-from typing import Dict
+from typing import Dict, Optional
 
 from blacksmith.datasets.torch.custom.templates.alpaca import build_alpaca_prompt
 
@@ -11,16 +11,14 @@ class AvailableFormats(Enum):
     ALPACA = "alpaca"
 
 
-FORMAT_REQUIRED_KEYS = {
-    AvailableFormats.ALPACA.value: {"instruction", "output"},
-}
+FORMAT_KEYS = {AvailableFormats.ALPACA.value: {"required": {"instruction", "output"}, "optional": {"input"}}}
 
 
-def build_prompt(format: str, column_mapping: Dict, example: Dict):
+def build_prompt(example: Dict, format: str, column_mapping: Dict) -> tuple[str, str, str]:
     format = format.strip().lower()
 
     if format == AvailableFormats.ALPACA.value:
-        return build_alpaca_prompt(column_mapping, example)
+        return build_alpaca_prompt(example, column_mapping)
     else:
         available_formats = [f.value for f in AvailableFormats]
         raise ValueError(
@@ -29,32 +27,60 @@ def build_prompt(format: str, column_mapping: Dict, example: Dict):
 
 
 def normalize_file_type(file_type: str) -> str:
-    file_type = file_type.strip().lower()
-    mapping = {
-        "json": "json",
-        "jsonl": "json",
-    }
-    if file_type not in mapping:
+    if file_type == "jsonl":
+        file_type = "json"
+    return file_type
+
+
+def resolve_column_mapping(
+    format_name: str, column_mapping: Optional[Dict[str, str]], dataset_columns: set[str]
+) -> Dict[str, str]:
+    if format_name not in FORMAT_KEYS:
+        available_formats = [f.value for f in AvailableFormats]
         raise ValueError(
-            f"Selected file type is unsupported: {file_type}. "
-            f"Please select one of the supported types: {list(mapping)}"
+            f"Selected format is unsupported: {format_name}. "
+            f"You should use one of the available formats: {available_formats}"
         )
-    return mapping[file_type]
 
+    required_keys = FORMAT_KEYS[format_name]["required"]
+    optional_keys = FORMAT_KEYS[format_name]["optional"]
+    all_possible_keys = required_keys.union(optional_keys)
 
-def validate_column_mapping(format: str, column_mapping: Dict, dataset_columns: set):
-    # 1. Required keys must be present and non-empty
-    required_keys = FORMAT_REQUIRED_KEYS[format]
-    missing_keys = required_keys - column_mapping.keys()
-    if missing_keys:
+    resolved = column_mapping.copy() if column_mapping else {}
+
+    if resolved:
+        # Check provided mapping values exist in dataset columns
+        missing_keys = set(resolved.values()) - dataset_columns
+        if missing_keys:
+            raise ValueError(
+                f"Column mapping refers to non-existent dataset columns: {sorted(missing_keys)}. "
+                f"Dataset columns: {sorted(dataset_columns)}."
+            )
+
+        # Check provided mapping keys are supported
+        extra_keys = set(resolved.keys()) - all_possible_keys
+        if extra_keys:
+            raise ValueError(
+                f"Column mapping contains unsupported keys: {sorted(extra_keys)}. "
+                f"Supported keys for format '{format_name}': {sorted(all_possible_keys)}."
+            )
+
+    # Fill required keys by identity if possible
+    for key in required_keys:
+        if key in dataset_columns and key not in resolved:
+            resolved[key] = key
+
+    # Fill optional keys by identity if present
+    for key in optional_keys:
+        if key in dataset_columns and key not in resolved:
+            resolved[key] = key
+
+    # Final required check
+    still_missing_required = required_keys - set(resolved.keys())
+    if still_missing_required:
         raise ValueError(
-            f"column_mapping is missing required key(s): {sorted(missing_keys)}. " f"Required: {sorted(required_keys)}."
+            f"Column mapping is missing required keys: {sorted(still_missing_required)}. "
+            f"Required keys for format '{format_name}': {sorted(required_keys)}."
         )
-    empty_required = [k for k in required_keys if not column_mapping.get(k)]
-    if empty_required:
-        raise ValueError(f"Required key(s) have empty mapping: {sorted(empty_required)}.")
 
-    # 2. Every non-empty mapped value must exist as an actual dataset column
-    for col in column_mapping.values():
-        if col and col not in dataset_columns:
-            raise ValueError(f"Column '{col}' not found in dataset columns: {sorted(dataset_columns)}.")
+    return resolved
