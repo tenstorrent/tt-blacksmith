@@ -92,5 +92,4 @@ class TrainingConfig(BaseTrainingConfig):
     output_dir: str = Field(default="experiments/results/mnist")
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-    optimization_level: int = Field(default=0, ge=0, le=2)
     test_config: Optional[TestConfig] = Field(default=None)

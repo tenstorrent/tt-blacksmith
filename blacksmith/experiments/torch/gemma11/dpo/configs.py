@@ -121,7 +121,6 @@ class DPOTrainingConfig(BaseTrainingConfig):
     # Other settings
     framework: str = Field(default="pytorch")
     use_tt: bool = Field(default=True)
-    optimization_level: int = Field(default=0, ge=0, le=2)
     do_validation: bool = Field(default=True)
 
     # Testing utils (used to limit training duration during CI runs).
