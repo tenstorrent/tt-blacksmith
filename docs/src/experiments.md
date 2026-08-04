@@ -28,6 +28,7 @@ The following table provides an overview of different model and method combinati
 | PyTorch | Gemma 3 1B | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma/README.md) |
 | PyTorch | Gemma 1.1 2B | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/lora/README.md) |
 | PyTorch | Gemma 1.1 2B | LoRA, DPO | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma11/dpo/README.md) |
+| PyTorch | Gemma 2 2B | LoRA, GRPO | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma2/grpo/README.md) |
 | PyTorch | Gemma 4 E2B Instruct | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/gemma4/README.md) |
 | PyTorch | ALBERT | Adapters | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/albert/README.md) |
 | PyTorch | Phi-1 | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md#phi1) |

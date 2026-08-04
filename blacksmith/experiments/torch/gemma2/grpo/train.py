@@ -1,0 +1,400 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+import traceback
+from pathlib import Path
+from typing import Dict, Tuple
+
+import torch
+import torch_xla
+from tqdm import tqdm
+from transformers import AutoConfig, AutoTokenizer, GenerationConfig
+
+from blacksmith.datasets.torch.dataset_utils import get_dataset
+from blacksmith.datasets.torch.gsm8k.gsm8k_utils import compute_rewards
+from blacksmith.experiments.torch.gemma2.grpo.configs import GRPOTrainingConfig
+from blacksmith.models.torch.huggingface.hf_models import get_model
+from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.device_manager import DeviceManager
+from blacksmith.tools.grpo_utils import (
+    OLD_POLICY_ADAPTER,
+    POLICY_ADAPTER,
+    attach_old_policy_adapter,
+    compute_group_advantages,
+    compute_grpo_loss,
+    compute_old_logps,
+    compute_ref_logps,
+    forward_logps,
+    sync_old_policy,
+)
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.torch_helpers import (
+    accumulate_metric_tensors,
+    average_metric_tensors,
+    generate_completions,
+)
+
+
+def build_training_batch(
+    prompt_input_ids: torch.Tensor,
+    prompt_attention_mask: torch.Tensor,
+    completion_ids: torch.Tensor,
+    completion_valid: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Assemble the fixed-shape (prompt + completion) batch for Phase C.
+
+    Returns ``(seq_ids, seq_attention_mask, completion_token_mask)``:
+      - ``seq_ids`` (B, Lp+Lc): left-padded prompt followed by the completion.
+      - ``seq_attention_mask`` (B, Lp+Lc): prompt padding mask + completion validity.
+      - ``completion_token_mask`` (B, Lp+Lc): True only on real completion tokens
+        (prompt and trailing pad are False). Shift by one in the loss to align
+        with per-token log-probs.
+    """
+    seq_ids = torch.cat([prompt_input_ids, completion_ids], dim=1)
+    seq_attention_mask = torch.cat([prompt_attention_mask, completion_valid.long()], dim=1)
+    prompt_token_mask = torch.zeros_like(prompt_attention_mask, dtype=torch.bool)
+    completion_token_mask = torch.cat([prompt_token_mask, completion_valid], dim=1)
+    return seq_ids, seq_attention_mask, completion_token_mask
+
+
+def train_grpo(
+    config: GRPOTrainingConfig,
+    device_manager: DeviceManager,
+    logger: TrainingLogger,
+    checkpoint_manager: CheckpointManager,
+):
+    """Main GRPO training loop for Gemma 2 2B-IT on GSM8K."""
+    device = device_manager.device
+    num_generations = config.num_generations
+    num_iterations = config.num_iterations
+
+    logger.info("Starting Gemma 2 2B-IT GRPO training...")
+    logger.info(
+        f"GRPO beta (KL coeff): {config.grpo_beta} | num_generations: {num_generations} | "
+        f"num_iterations: {num_iterations}"
+    )
+    logger.info(f"temperature: {config.temperature} | max_completion_length: {config.max_completion_length}")
+
+    # Tokenizer + raw model config (used to size the generation StaticCache).
+    tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="left", use_fast=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    model_config = AutoConfig.from_pretrained(config.model_name)
+    generation_config = GenerationConfig.from_pretrained(config.model_name)
+    eos_token_id = (
+        generation_config.eos_token_id if generation_config.eos_token_id is not None else tokenizer.eos_token_id
+    )
+
+    # Policy model (trainable, with PEFT). Compile after old-policy adapter is
+    # attached so both adapters exist in the traced module.
+    policy_model = get_model(config, device, compile_model=False)
+    total_params = sum(p.numel() for p in policy_model.parameters())
+    trainable_params = sum(p.numel() for p in policy_model.parameters() if p.requires_grad)
+    logger.info(f"Loaded {config.model_name} as policy model.")
+    logger.info(f"Policy parameters: {total_params} | trainable: {trainable_params}")
+
+    if config.resume_from_checkpoint:
+        logger.info("Loading policy model from resume checkpoint.")
+        checkpoint_manager.load_checkpoint(policy_model)
+
+    # Old policy used to sample completions / importance ratio. For LoRA we keep
+    # a second frozen adapter on the same backbone (avoids a second full model on
+    # device). Other fine-tuning modes still use a separate frozen weight copy.
+    use_shared_old_policy = config.training_model_type == "lora"
+    if use_shared_old_policy:
+        attach_old_policy_adapter(policy_model)
+        old_policy_model = policy_model
+        logger.info(f"Old policy uses shared backbone + frozen '{OLD_POLICY_ADAPTER}' LoRA adapter.")
+    else:
+        old_policy_model = get_model(config, device, compile_model=False)
+        for param in old_policy_model.parameters():
+            param.requires_grad_(False)
+        old_policy_model.eval()
+        sync_old_policy(policy_model, old_policy_model)
+        logger.info("Old policy model initialized as a frozen copy of the policy.")
+
+    if config.use_tt:
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_use_aot_autograd": False,
+        }
+        policy_model = torch.compile(policy_model, backend="tt", options=compile_options)
+        if use_shared_old_policy:
+            old_policy_model = policy_model
+        else:
+            old_policy_model = torch.compile(old_policy_model, backend="tt", options=compile_options)
+
+    # Reference model for the KL penalty. For LoRA we reuse the policy model with
+    # its adapters temporarily disabled, which IS the frozen base model and avoids
+    # holding a second full copy of the weights on device (halves the model memory
+    # - important for the 2B model + 256k-vocab logits). For other fine-tuning
+    # modes we fall back to a separate frozen copy.
+    use_shared_reference = config.training_model_type == "lora"
+    reference_model = None
+    if use_shared_reference:
+        logger.info("Using policy model with adapters disabled as the reference (shared weights).")
+    else:
+        reference_model = get_model(config, device)
+        for param in reference_model.parameters():
+            param.requires_grad_(False)
+        reference_model.eval()
+        logger.info("Reference model loaded and frozen.")
+
+    logger.log_model_info(
+        {
+            "model_name": config.model_name,
+            "total_parameters": total_params,
+            "trainable_parameters": trainable_params,
+            "grpo_beta": config.grpo_beta,
+            "num_generations": num_generations,
+            "num_iterations": num_iterations,
+            "temperature": config.temperature,
+        }
+    )
+
+    # GSM8K prompts
+    train_dataset = get_dataset(config=config, split="train")
+    train_dataloader = train_dataset.get_dataloader()
+    logger.info(f"Loaded {config.dataset_id} dataset. Train prompts: {len(train_dataset)}")
+
+    optimizer = torch.optim.AdamW(
+        [p for p in policy_model.parameters() if p.requires_grad],
+        lr=config.learning_rate,
+        weight_decay=config.weight_decay,
+        capturable=config.use_tt,
+    )
+    optimizer.zero_grad()
+
+    global_step = 0
+    accumulation_step = 0
+    running_metrics: Dict[str, torch.Tensor] = {
+        "loss": None,
+        "kl": None,
+        "clip_frac": None,
+        "reward_mean": None,
+        "reward_std": None,
+        "format_frac": None,
+        "correct_frac": None,
+    }
+    last_step_metrics: Dict[str, float] = {}
+
+    try:
+        for epoch in range(config.num_epochs):
+            logger.info(f"\n=== Epoch {epoch + 1}/{config.num_epochs} ===")
+            progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}")
+
+            for batch in progress_bar:
+                if config.max_steps > 0 and global_step >= config.max_steps:
+                    logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
+                    break
+
+                # Sync old policy <- new policy, sample once, then run
+                # num_iterations updates on those fixed rollouts (only the
+                # new/old policy ratio changes).
+                if use_shared_old_policy:
+                    sync_old_policy(policy_model)
+                else:
+                    sync_old_policy(policy_model, old_policy_model)
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
+
+                num_prompts = batch["prompt_input_ids"].shape[0]
+                prompt_ids = batch["prompt_input_ids"].repeat_interleave(num_generations, dim=0)
+                prompt_mask = batch["prompt_attention_mask"].repeat_interleave(num_generations, dim=0)
+                golds = [g for g in batch["gold_answers"] for _ in range(num_generations)]
+
+                # ---- Phase A: generation with frozen old policy (no grad) ----
+                sample_rng_on_cpu = bool(
+                    config.test_config is not None and getattr(config.test_config, "cpu_sample_rng", False)
+                )
+                if use_shared_old_policy:
+                    policy_model.eval()
+                    policy_model.set_adapter(OLD_POLICY_ADAPTER)
+                completion_ids, completion_valid = generate_completions(
+                    model=old_policy_model,
+                    model_config=model_config,
+                    prompt_input_ids=prompt_ids,
+                    prompt_attention_mask=prompt_mask,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=eos_token_id,
+                    max_prompt_length=config.max_prompt_length,
+                    max_completion_length=config.max_completion_length,
+                    device=device,
+                    temperature=config.temperature,
+                    top_k=config.top_k,
+                    dtype=eval(config.dtype),
+                    use_tt=config.use_tt,
+                    sample_rng_on_cpu=sample_rng_on_cpu,
+                )
+
+                # ---- Phase B: rewards + group-relative advantages ----
+                completions_text = tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
+                rewards, format_flags, correct_flags = compute_rewards(
+                    completions_text,
+                    golds,
+                    format_weight=config.format_reward_weight,
+                    correct_weight=config.correct_reward_weight,
+                )
+                advantages = compute_group_advantages(
+                    rewards, num_prompts, num_generations, eps=config.advantage_eps
+                ).to(device)
+                reward_std = rewards.view(num_prompts, num_generations).std(dim=1).mean()
+                sample_completion = completions_text[0] if completions_text else ""
+
+                seq_ids, seq_attention_mask, completion_token_mask = build_training_batch(
+                    prompt_ids, prompt_mask, completion_ids, completion_valid
+                )
+                seq_ids = seq_ids.to(device)
+                seq_attention_mask = seq_attention_mask.to(device)
+                # Shift completion mask to align with per-token log-probs (targets are seq[:, 1:]).
+                completion_mask = completion_token_mask[:, 1:].to(device)
+
+                # Old-policy log-probs while the old adapter is still active.
+                old_logps = compute_old_logps(old_policy_model, seq_ids, seq_attention_mask)
+
+                if use_shared_old_policy:
+                    policy_model.train()
+                    policy_model.set_adapter(POLICY_ADAPTER)
+
+                ref_logps = compute_ref_logps(
+                    policy_model,
+                    seq_ids,
+                    seq_attention_mask,
+                    use_shared_reference=use_shared_reference,
+                    reference_model=reference_model,
+                )
+                # ---- Phase C: μ policy updates on the same rollouts ----
+                for _grpo_iter in range(num_iterations):
+                    logps = forward_logps(policy_model, seq_ids, seq_attention_mask)
+
+                    # Ratio uses new/old policy; KL uses new policy vs reference.
+                    loss, loss_metrics = compute_grpo_loss(
+                        logps=logps,
+                        ref_logps=ref_logps,
+                        completion_mask=completion_mask,
+                        advantages=advantages,
+                        beta=config.grpo_beta,
+                        epsilon=config.grpo_epsilon,
+                        old_logps=old_logps,
+                    )
+
+                    (loss / config.gradient_accumulation_steps).backward()
+                    accumulation_step += 1
+                    if config.use_tt:
+                        torch_xla.sync(wait=True)
+
+                    accumulate_metric_tensors(
+                        running_metrics,
+                        {
+                            "loss": loss_metrics["loss"],
+                            "kl": loss_metrics["kl"],
+                            "clip_frac": loss_metrics["clip_frac"],
+                            "reward_mean": rewards.mean(),
+                            "reward_std": reward_std,
+                            "format_frac": format_flags.mean(),
+                            "correct_frac": correct_flags.mean(),
+                        },
+                    )
+
+                    if accumulation_step < config.gradient_accumulation_steps:
+                        continue
+
+                    # Optimizer step after accumulating gradients.
+                    torch.nn.utils.clip_grad_norm_(
+                        [p for p in policy_model.parameters() if p.requires_grad], max_norm=config.max_grad_norm
+                    )
+                    device_manager.optimizer_step(optimizer)
+                    optimizer.zero_grad()
+                    accumulation_step = 0
+                    global_step += 1
+
+                    step_metrics = {}
+                    if global_step % config.steps_freq == 0:
+                        divisor = config.steps_freq * config.gradient_accumulation_steps
+                        avg = {f"train/{k}": v for k, v in average_metric_tensors(running_metrics, divisor).items()}
+                        avg["train/learning_rate"] = config.learning_rate
+                        avg["train/epoch"] = epoch + 1
+                        last_step_metrics = avg
+                        step_metrics.update(avg)
+
+                        logger.info(
+                            f"[Step {global_step}] loss: {avg['train/loss']:.8f} | kl: {avg['train/kl']:.8f} | "
+                            f"clip: {avg['train/clip_frac']:.6f} | "
+                            f"reward: {avg['train/reward_mean']:.6f} | correct: {avg['train/correct_frac']:.6f}"
+                        )
+                        progress_bar.set_postfix(
+                            {
+                                "loss": f"{avg['train/loss']:.6f}",
+                                "reward": f"{avg['train/reward_mean']:.4f}",
+                                "correct": f"{avg['train/correct_frac']:.4f}",
+                            }
+                        )
+                        if config.print_examples and sample_completion:
+                            logger.info(f"Sample completion: {sample_completion!r}")
+
+                        for key in running_metrics:
+                            running_metrics[key] = None
+
+                    if step_metrics:
+                        logger.log_metrics(step_metrics, commit=True, step=global_step)
+
+                    if global_step % config.save_steps == 0 and checkpoint_manager.should_save_checkpoint(global_step):
+                        checkpoint_manager.save_checkpoint(
+                            policy_model, global_step, epoch, optimizer, metrics=last_step_metrics
+                        )
+
+                    if config.max_steps > 0 and global_step >= config.max_steps:
+                        break
+
+                if config.max_steps > 0 and global_step >= config.max_steps:
+                    logger.info(f"Reached max_steps ({config.max_steps}). Stopping training.")
+                    break
+
+            if config.max_steps > 0 and global_step >= config.max_steps:
+                break
+
+            if checkpoint_manager.should_save_checkpoint(global_step, epoch):
+                checkpoint_manager.save_checkpoint(
+                    policy_model, global_step, epoch, optimizer, metrics=last_step_metrics
+                )
+
+        logger.info("Training complete. Saving final model...")
+        final_model_path = checkpoint_manager.save_checkpoint(
+            policy_model,
+            global_step,
+            epoch,
+            optimizer,
+            metrics=last_step_metrics,
+            checkpoint_name="final_model.pth",
+        )
+        logger.log_artifact(final_model_path, artifact_type="model", name="final_model.pth")
+        logger.log_summary({"total_steps": global_step, "final_epoch": epoch + 1, **last_step_metrics})
+        logger.info(f"GRPO training completed. Total steps: {global_step}")
+
+    except Exception as e:
+        traceback_str = traceback.format_exc()
+        logger.error(f"Training failed with error: {str(e)}", traceback_str)
+        raise
+    finally:
+        logger.finish()
+
+
+if __name__ == "__main__":
+    default_config = Path(__file__).parent / "single_chip" / "gemma2_gsm8k_grpo.yaml"
+    args = parse_cli_options(default_config=default_config)
+    config = generate_config(GRPOTrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
+
+    repro_manager = ReproducibilityManager(config)
+    repro_manager.setup()
+
+    logger = TrainingLogger(config, args.test_log_filename_prefix)
+
+    device_manager = DeviceManager(config)
+    logger.info(f"Using device: {device_manager.device}")
+
+    checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
+
+    train_grpo(config, device_manager, logger, checkpoint_manager)

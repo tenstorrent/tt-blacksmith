@@ -1,0 +1,23 @@
+# CI overrides for the Gemma 2 2B GRPO experiment
+# (base config: blacksmith/experiments/torch/gemma2/grpo/single_chip/gemma2_gsm8k_grpo.yaml).
+# temperature > 0 keeps the G completions per prompt different (needed for advantages).
+# cpu_sample_rng draws Gumbel noise on CPU (TT RNG is not seedable); seed comes
+# from ReproducibilityManager.
+num_epochs: 1
+use_wandb: False
+num_generations: 2
+num_iterations: 1
+max_prompt_length: 256
+max_completion_length: 256
+gradient_accumulation_steps: 1
+max_steps: 4
+temperature: 0.5
+seed: 23
+deterministic: True
+
+test_config:
+  max_steps_per_epoch: 4
+  cpu_sample_rng: True
+
+steps_freq: 1
+print_examples: False

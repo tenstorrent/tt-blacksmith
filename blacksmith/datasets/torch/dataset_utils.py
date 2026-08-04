@@ -7,6 +7,7 @@ from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
 from blacksmith.datasets.torch.BOUNTIES.wikitext.wikitext_dataset import WikitextDataset
 from blacksmith.datasets.torch.fusechat.fusechat_dataset import FuseChatDataset
+from blacksmith.datasets.torch.gsm8k.gsm8k_dataset import GSM8KDataset
 from blacksmith.datasets.torch.mathpreference.math_preference_dataset import (
     MathDPODataset,
     MathSFTDataset,
@@ -39,6 +40,7 @@ class AvailableDataset(Enum):
     FUSECHAT = "fusechat"
     ALPACA = "alpaca"
     METAMATHQA = "metamathqa"
+    GSM8K = "gsm8k"
     WIZARDLM_EVOL = "wizardlm_evol"
 
 
@@ -71,6 +73,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return AlpacaDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.METAMATHQA.value:
         return MetaMathQADataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.GSM8K.value:
+        return GSM8KDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.MATH_PREFERENCE_DPO.value:
         return MathDPODataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.MATH_PREFERENCE_SFT.value:
