@@ -87,7 +87,7 @@ class CustomDatasetConfig(BaseModel):
     train_dataset_path: Optional[str] = Field(default=None)
     val_dataset_path: Optional[str] = Field(default=None)
 
-    # Define format type (Alpaca-style, chat, etc)
-    format: str = Field(default="alpaca")
+    # Define template type (Alpaca-style, chat, etc)
+    template: str = Field(default="alpaca")
 
     column_mapping: Optional[Dict[str, str]] = Field(default=None)

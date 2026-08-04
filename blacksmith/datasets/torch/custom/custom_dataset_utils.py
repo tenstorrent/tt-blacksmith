@@ -7,22 +7,22 @@ from typing import Dict, Optional
 from blacksmith.datasets.torch.custom.templates.alpaca import build_alpaca_prompt
 
 
-class AvailableFormats(Enum):
+class AvailableTemplates(Enum):
     ALPACA = "alpaca"
 
 
-FORMAT_KEYS = {AvailableFormats.ALPACA.value: {"required": {"instruction", "output"}, "optional": {"input"}}}
+TEMPLATE_KEYS = {AvailableTemplates.ALPACA.value: {"required": {"instruction", "output"}, "optional": {"input"}}}
 
 
-def build_prompt(example: Dict, format: str, column_mapping: Dict) -> tuple[str, str, str]:
-    format = format.strip().lower()
+def build_prompt(example: Dict, template: str, column_mapping: Dict) -> tuple[str, str, str]:
+    template = template.strip().lower()
 
-    if format == AvailableFormats.ALPACA.value:
+    if template == AvailableTemplates.ALPACA.value:
         return build_alpaca_prompt(example, column_mapping)
     else:
-        available_formats = [f.value for f in AvailableFormats]
+        available_templates = [f.value for f in AvailableTemplates]
         raise ValueError(
-            f"Selected format is unsupported: {format}. You should use one of the available formats: {available_formats}"
+            f"Selected template is unsupported:  {template}. You should use one of the available templates: {available_templates}"
         )
 
 
@@ -33,18 +33,18 @@ def normalize_file_type(file_type: str) -> str:
 
 
 def resolve_column_mapping(
-    format_name: str, column_mapping: Optional[Dict[str, str]], dataset_columns: set[str]
+    template_name: str, column_mapping: Optional[Dict[str, str]], dataset_columns: set[str]
 ) -> Dict[str, str]:
-    if format_name not in FORMAT_KEYS:
-        available_formats = [f.value for f in AvailableFormats]
+    if template_name not in TEMPLATE_KEYS:
+        available_templates = [f.value for f in AvailableTemplates]
         raise ValueError(
-            f"Selected format is unsupported: {format_name}. "
-            f"You should use one of the available formats: {available_formats}"
+            f"Selected template is unsupported:  {template_name}. "
+            f"You should use one of the available templates: {available_templates}"
         )
 
-    required_keys = FORMAT_KEYS[format_name]["required"]
-    optional_keys = FORMAT_KEYS[format_name]["optional"]
-    all_possible_keys = required_keys.union(optional_keys)
+    required_keys = TEMPLATE_KEYS[template_name]["required"]
+    optional_keys = TEMPLATE_KEYS[template_name]["optional"]
+    all_keys = required_keys.union(optional_keys)
 
     resolved = column_mapping.copy() if column_mapping else {}
 
@@ -58,11 +58,11 @@ def resolve_column_mapping(
             )
 
         # Check provided mapping keys are supported
-        extra_keys = set(resolved.keys()) - all_possible_keys
+        extra_keys = set(resolved.keys()) - all_keys
         if extra_keys:
             raise ValueError(
                 f"Column mapping contains unsupported keys: {sorted(extra_keys)}. "
-                f"Supported keys for format '{format_name}': {sorted(all_possible_keys)}."
+                f"Supported keys for template '{template_name}': {sorted(all_keys)}."
             )
 
     # Fill required keys by identity if possible
@@ -70,7 +70,7 @@ def resolve_column_mapping(
         if key in dataset_columns and key not in resolved:
             resolved[key] = key
 
-    # Fill optional keys by identity if present
+    # Fill optional keys by identity if present in dataset columns
     for key in optional_keys:
         if key in dataset_columns and key not in resolved:
             resolved[key] = key
@@ -80,7 +80,7 @@ def resolve_column_mapping(
     if still_missing_required:
         raise ValueError(
             f"Column mapping is missing required keys: {sorted(still_missing_required)}. "
-            f"Required keys for format '{format_name}': {sorted(required_keys)}."
+            f"Required keys for template '{template_name}': {sorted(required_keys)}."
         )
 
     return resolved

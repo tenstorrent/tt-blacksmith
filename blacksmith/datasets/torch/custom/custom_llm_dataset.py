@@ -31,7 +31,7 @@ class CustomLLMDataset(BaseDataset):
         self.data_path = (
             config.custom_dataset.train_dataset_path if split == "train" else config.custom_dataset.val_dataset_path
         )
-        self.format = config.custom_dataset.format
+        self.template = config.custom_dataset.template
         self.column_mapping = config.custom_dataset.column_mapping
 
         super().__init__(config, split, collate_fn)
@@ -39,7 +39,7 @@ class CustomLLMDataset(BaseDataset):
     def _tokenize(self, example):
         prompt, output, full_text = build_prompt(
             example,
-            format=self.format,
+            template=self.template,
             column_mapping=self.column_mapping,
         )
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
@@ -70,7 +70,7 @@ class CustomLLMDataset(BaseDataset):
         raw_dataset = load_dataset(self.file_type, data_files=data_file, split=self.split)
         dataset_columns = set(raw_dataset[0].keys())
 
-        self.column_mapping = resolve_column_mapping(self.format, self.column_mapping, dataset_columns)
+        self.column_mapping = resolve_column_mapping(self.template, self.column_mapping, dataset_columns)
 
         tokenized_dataset = raw_dataset.map(self._tokenize)
         filtered_dataset = tokenized_dataset.filter(lambda x: x["len"] <= self.config.max_length)

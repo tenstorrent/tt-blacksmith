@@ -4,7 +4,7 @@ custom_dataset:
   file_type: "json"
   train_dataset_path: "path/to/local/train.json"
   val_dataset_path: "path/to/local/val.json"
-  format: "alpaca"
+  template: "alpaca"
   column_mapping: {
     "instruction": "instruction",
     "input": "context",
