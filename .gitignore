@@ -19,3 +19,7 @@ env/*
 !env/ffe_requirements.txt
 !env/xla_requirements.txt
 !env/requirements.txt
+
+# Local custom datasets
+blacksmith/datasets/torch/custom/*.json
+blacksmith/datasets/torch/custom/*.jsonl

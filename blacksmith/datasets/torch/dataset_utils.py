@@ -6,6 +6,7 @@ from enum import Enum
 from blacksmith.datasets.torch.alpaca.alpaca_dataset import AlpacaDataset
 from blacksmith.datasets.torch.banking77.banking77_dataset import Banking77Dataset
 from blacksmith.datasets.torch.BOUNTIES.wikitext.wikitext_dataset import WikitextDataset
+from blacksmith.datasets.torch.custom.custom_llm_dataset import CustomLLMDataset
 from blacksmith.datasets.torch.fusechat.fusechat_dataset import FuseChatDataset
 from blacksmith.datasets.torch.gsm8k.gsm8k_dataset import GSM8KDataset
 from blacksmith.datasets.torch.mathpreference.math_preference_dataset import (
@@ -42,6 +43,7 @@ class AvailableDataset(Enum):
     METAMATHQA = "metamathqa"
     GSM8K = "gsm8k"
     WIZARDLM_EVOL = "wizardlm_evol"
+    CUSTOM = "custom"
 
 
 def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
@@ -81,6 +83,8 @@ def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
         return MathSFTDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.WIZARDLM_EVOL.value:
         return WizardLMEvolDataset(config, split, collate_fn=collate_fn)
+    elif dataset_id == AvailableDataset.CUSTOM.value:
+        return CustomLLMDataset(config, split, collate_fn=collate_fn)
     else:
         available_datasets = [ds.value for ds in AvailableDataset]
         raise ValueError(f"Unsupported dataset: {dataset_id}. Available options are: {available_datasets}")

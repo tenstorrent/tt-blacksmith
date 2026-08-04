@@ -4,9 +4,14 @@
 from typing import List, Optional, Tuple
 
 import torch
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from blacksmith.tools.configs import CheckpointConfig, LoggingConfig, MetricsConfig
+from blacksmith.tools.configs import (
+    CheckpointConfig,
+    CustomDatasetConfig,
+    LoggingConfig,
+    MetricsConfig,
+)
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
@@ -44,6 +49,15 @@ class TrainerConfig(BaseModel):
     logging: LoggingConfig
     metrics: MetricsConfig
     checkpoint: CheckpointConfig
+
+    # Custom dataset settings.
+    custom_dataset: Optional[CustomDatasetConfig] = Field(default=None)
+
+    @model_validator(mode="after")
+    def check_custom_dataset(self) -> "TrainerConfig":
+        if self.dataset_id == "custom" and self.custom_dataset is None:
+            raise ValueError("`custom_dataset` is required when dataset_id='custom'")
+        return self
 
     # Reproducibility settings
     framework: str
