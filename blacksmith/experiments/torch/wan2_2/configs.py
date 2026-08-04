@@ -128,6 +128,7 @@ class TrainingConfig(BaseTrainingConfig):
 
     # Device / sharding settings
     use_tt: bool = Field(default=True)
+    optimization_level: int = Field(default=0, ge=0, le=2)
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     input_sharding_dim: Optional[str] = Field(default=None)

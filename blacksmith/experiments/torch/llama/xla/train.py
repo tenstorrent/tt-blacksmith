@@ -330,6 +330,7 @@ if __name__ == "__main__":
             "fp32_dest_acc_en": True,
             "math_fidelity": "hifi4",
             "enable_trace": config.enable_trace,
+            "optimization_level": config.optimization_level,
             "enable_const_eval": config.enable_const_eval,
         }
         if config.experimental_weight_dtype:
