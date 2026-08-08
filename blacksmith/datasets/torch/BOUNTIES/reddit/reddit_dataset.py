@@ -1,11 +1,43 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
+from pickle import UnpicklingError
+from zipfile import BadZipFile, ZipFile
+from zlib import error as ZlibError
+
+from filelock import FileLock
 from torch_geometric.datasets import Reddit
 from torch_geometric.loader import NeighborLoader
 
 from blacksmith.datasets.torch.torch_dataset import BaseDataset, TestDataLoaderWrapper
 from blacksmith.tools.templates.configs import TrainingConfig
+
+REDDIT_ARCHIVE_SIZE = 1_397_962_821
+REDDIT_ARCHIVE_MEMBERS = ("reddit_graph.npz", "reddit_data.npz")
+
+
+def _valid_reddit_archive(path: Path) -> bool:
+    """Return whether a cached DGL Reddit download is complete and intact."""
+    try:
+        if path.stat().st_size != REDDIT_ARCHIVE_SIZE:
+            return False
+        with ZipFile(path) as archive:
+            if tuple(archive.namelist()) != REDDIT_ARCHIVE_MEMBERS:
+                return False
+            return archive.testzip() is None
+    except (BadZipFile, OSError, ZlibError):
+        return False
+
+
+def _recoverable_processed_error(error: Exception) -> bool:
+    """Identify load failures caused by an interrupted processed-file write."""
+    if isinstance(error, (EOFError, UnpicklingError)):
+        return True
+    message = str(error)
+    return isinstance(error, RuntimeError) and (
+        "PytorchStreamReader" in message or "failed finding central directory" in message
+    )
 
 
 class RedditDataset(BaseDataset):
@@ -14,8 +46,32 @@ class RedditDataset(BaseDataset):
         super().__init__(config=config, split=split)
 
     def _prepare_dataset(self) -> None:
-        self.dataset = Reddit(root=self.config.dataset_root)
-        self.data = self.dataset[0]
+        root = Path(self.config.dataset_root)
+        root.parent.mkdir(parents=True, exist_ok=True)
+
+        # PyG reuses a same-named ZIP without validating it. Serialize shared
+        # cache initialization and remove an interrupted/corrupt download before
+        # handing control to PyG, which downloads, extracts, and processes it.
+        with FileLock(f"{root}.lock"):
+            archive_path = root / "raw" / "reddit.zip"
+            if archive_path.exists():
+                archive_is_valid = _valid_reddit_archive(archive_path)
+                # PyG deletes the ZIP only after extracting both members. A
+                # leftover archive therefore means extraction may have been
+                # interrupted; clear both raw targets and retry atomically.
+                for member in REDDIT_ARCHIVE_MEMBERS:
+                    (archive_path.parent / member).unlink(missing_ok=True)
+                if not archive_is_valid:
+                    archive_path.unlink(missing_ok=True)
+            try:
+                self.dataset = Reddit(root=str(root))
+            except (EOFError, RuntimeError, UnpicklingError) as error:
+                processed_path = root / "processed" / "data.pt"
+                if not processed_path.exists() or not _recoverable_processed_error(error):
+                    raise
+                processed_path.unlink()
+                self.dataset = Reddit(root=str(root))
+            self.data = self.dataset[0]
 
     def _get_dataloader(self) -> NeighborLoader:
         return self._get_neighbour_loader(self.split)

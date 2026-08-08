@@ -8,6 +8,14 @@ from blacksmith.experiments.torch.BOUNTIES.graphsage_reddit.configs import (
     GraphSAGEConfig,
 )
 
+pytestmark = [
+    pytest.mark.push,
+    pytest.mark.n300,
+    pytest.mark.torch,
+    pytest.mark.single_chip,
+    pytest.mark.pyg,
+]
+
 
 def test_tt_execution_requires_spmm_and_static_shapes() -> None:
     with pytest.raises(ValidationError, match="TT execution requires"):

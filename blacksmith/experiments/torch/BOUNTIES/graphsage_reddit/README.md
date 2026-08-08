@@ -92,6 +92,35 @@ These commands are wiring and execution smoke checks. Their losses, accuracy,
 and timings are not convergence, correctness-parity, or performance evidence;
 the first compiled step and tiny sample dominate the measurements.
 
+### Bounded CPU/TT timing run
+
+After both smoke checks pass, use the shared 100-step overlay for an
+intermediate CPU/TT execution and model-step timing check:
+
+```bash
+# CPU bounded timing run
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
+  --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300-benchmark.yaml
+
+# N300 bounded timing run
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
+  --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300-benchmark.yaml
+```
+
+The overlay runs one epoch and caps every loader iteration at 100 batches. It
+therefore permits at most 100 initial-validation, 100 training, 100 post-epoch
+validation, and 100 test batches. Initial validation may compile the forward
+path before training begins. The separate `compile_and_first_step_time_s`
+metric covers the first training forward/backward/optimizer step, not all
+compilation. The first reported timing window averages steps 2--10 (nine
+steps); later windows contain ten steps. These model-step metrics exclude
+neighbor sampling and batch preparation. Keep the raw metrics, but summarize
+step-20 through step-100 windows for the warm CPU/TT comparison. This bounded
+run is useful for catching execution failures and comparing model-step timing,
+but it is not a correctness-parity or convergence result.
+
 ## Configuration
 
 | Setting | CPU baseline | CPU parity | TT |

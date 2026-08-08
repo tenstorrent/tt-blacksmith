@@ -20,6 +20,14 @@ except ModuleNotFoundError as error:
         pytest.skip("GraphSAGE tests require torch_geometric", allow_module_level=True)
     raise
 
+pytestmark = [
+    pytest.mark.push,
+    pytest.mark.n300,
+    pytest.mark.torch,
+    pytest.mark.single_chip,
+    pytest.mark.pyg,
+]
+
 
 def test_sampled_graph_capacity_is_conservative() -> None:
     assert sampled_graph_capacity(2, [2, 1]) == (13, 10)
