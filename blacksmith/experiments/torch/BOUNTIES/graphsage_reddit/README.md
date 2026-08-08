@@ -46,23 +46,51 @@ pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requiremen
 
 ## Run
 
+### Full runs
+
 ```bash
-# CPU baseline
+# Stock PyG CPU accuracy baseline
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
 
-# CPU SpMM run matched to the TT workload
+# CPU side of the matched SpMM/static-shape workload
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml
 
-# Wormhole N300, single chip
+# TT side of the same workload: Wormhole N300, single chip
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml
+```
 
-# Two-batches-per-split N300 smoke run
+The CPU parity and TT configurations intentionally differ only in device
+selection and run metadata. Their model, sampling, optimizer, static-shape,
+epoch, seed, and determinism settings are identical.
+
+### Bounded smoke checks
+
+Use the same CI smoke overlay on both sides of the parity pair. The CPU command
+can be run without Tenstorrent hardware.
+
+```bash
+# CPU-only smoke check
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
+  --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml
+
+# N300 smoke check
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml
 ```
+
+The overlay runs one epoch and caps every loader iteration at two batches. A
+successful run therefore performs at most two initial-validation batches, two
+training batches, two post-epoch validation batches, and two test batches. It
+also disables W&B and checkpoint writes. The cap does not shorten the initial
+Reddit download or preprocessing.
+
+These commands are wiring and execution smoke checks. Their losses, accuracy,
+and timings are not convergence, correctness-parity, or performance evidence;
+the first compiled step and tiny sample dominate the measurements.
 
 ## Configuration
 
@@ -71,10 +99,14 @@ python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
 | Hidden channels | 256 | 256 | 256 |
 | Dropout | 0.5 | 0.0 | 0.0 |
 | Learning rate | 0.001 | 0.001 | 0.001 |
+| Weight decay | 0.0005 | 0.0005 | 0.0005 |
 | Batch size | 512 | 32 | 32 |
+| Validation batch size | 4096 | 32 | 32 |
 | Neighbor fanouts | [25, 10] | [5, 3] | [5, 3] |
+| Epochs | 30 | 5 | 5 |
 | Convolution | stock `SAGEConv` | scatter-free SpMM | scatter-free SpMM |
 | Static sampled-graph shapes | no | yes | yes |
+| Seed / deterministic | 42 / yes | 42 / yes | 42 / yes |
 
 Training logs include first-step compile time, steady model-step time, and seed
 node throughput. These metrics use the synchronized optimizer step on TT. Use
@@ -83,9 +115,10 @@ larger stock CPU configuration remains the accuracy baseline.
 
 The matched CPU/TT runs disable dropout so model execution does not advance a
 different CPU-versus-XLA random stream between stochastic neighbor-sampling
-steps. The shared seed then produces the same sampled workload in both runs.
-Download and process Reddit before collecting timings; dataset setup time is not
-part of the benchmark.
+steps. With the same software and dataset, the shared seed makes each run
+repeatable and is intended to keep their sampled workloads aligned. Download
+and process Reddit before collecting timings; dataset setup time is not part of
+the benchmark.
 
 ## Validation status
 

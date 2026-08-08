@@ -1,3 +1,6 @@
+# TT side of the CPU/TT backend-parity pair. Keep execution-affecting fields
+# matched with graphsage_reddit_spmm_cpu.yaml; only device and run metadata may differ.
+
 # Dataset
 dataset_id: "Reddit"
 dataset_root: "/tmp/Reddit"
