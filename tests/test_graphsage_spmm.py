@@ -38,7 +38,7 @@ def _edge_index_with_duplicates_and_isolated_targets() -> torch.Tensor:
     )
 
 
-def _assert_parameter_gradients_match(reference, actual) -> None:
+def _assert_parameter_gradients_match(reference: torch.nn.Module, actual: torch.nn.Module) -> None:
     reference_parameters = dict(reference.named_parameters())
     actual_parameters = dict(actual.named_parameters())
     assert reference_parameters.keys() == actual_parameters.keys()

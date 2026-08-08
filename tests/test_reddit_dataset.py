@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
@@ -26,7 +27,7 @@ pytestmark = [
 ]
 
 
-def test_reddit_archive_validation_checks_size_and_members(tmp_path, monkeypatch) -> None:
+def test_reddit_archive_validation_checks_size_and_members(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     archive_path = tmp_path / "reddit.zip"
     with ZipFile(archive_path, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr("reddit_graph.npz", b"graph-data")
@@ -41,7 +42,7 @@ def test_reddit_archive_validation_checks_size_and_members(tmp_path, monkeypatch
     assert not _valid_reddit_archive(archive_path)
 
 
-def test_reddit_archive_validation_checks_crc(tmp_path, monkeypatch) -> None:
+def test_reddit_archive_validation_checks_crc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     archive_path = tmp_path / "reddit.zip"
     with ZipFile(archive_path, "w", compression=ZIP_STORED) as archive:
         archive.writestr("reddit_graph.npz", b"graph-data")
@@ -59,7 +60,7 @@ def test_reddit_archive_validation_checks_crc(tmp_path, monkeypatch) -> None:
     assert not _valid_reddit_archive(archive_path)
 
 
-def test_reddit_dataset_discards_interrupted_download(tmp_path, monkeypatch) -> None:
+def test_reddit_dataset_discards_interrupted_download(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "Reddit"
     raw_dir = root / "raw"
     raw_dir.mkdir(parents=True)
@@ -84,7 +85,9 @@ def test_reddit_dataset_discards_interrupted_download(tmp_path, monkeypatch) -> 
     assert not interrupted_archive.exists()
 
 
-def test_reddit_dataset_reextracts_after_interrupted_extraction(tmp_path, monkeypatch) -> None:
+def test_reddit_dataset_reextracts_after_interrupted_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / "Reddit"
     raw_dir = root / "raw"
     raw_dir.mkdir(parents=True)
@@ -115,7 +118,7 @@ def test_reddit_dataset_reextracts_after_interrupted_extraction(tmp_path, monkey
     assert dataset.data is graph
 
 
-def test_reddit_dataset_reprocesses_interrupted_processed_file(tmp_path, monkeypatch) -> None:
+def test_reddit_dataset_reprocesses_interrupted_processed_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     root = tmp_path / "Reddit"
     processed_dir = root / "processed"
     processed_dir.mkdir(parents=True)
