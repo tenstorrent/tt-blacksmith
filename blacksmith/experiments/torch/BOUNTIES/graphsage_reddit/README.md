@@ -1,29 +1,41 @@
-# GraphSAGE on Reddit — CPU Baseline (Bounty #529, PR-1)
+# GraphSAGE Node Classification on Reddit
 
-GraphSAGE node classification on the Reddit dataset.
+This experiment trains a two-layer [GraphSAGE](https://arxiv.org/abs/1706.02216)
+model for inductive node classification on the
+[Reddit dataset](https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.Reddit.html).
+It is the workload proposed in [bounty #529](https://github.com/tenstorrent/tt-blacksmith/issues/529).
 
 ## Dataset
 
 | Property | Value |
-|---|---|
+|---|---:|
 | Nodes | 232,965 |
 | Edges | 114,615,892 |
 | Node features | 602 |
 | Classes | 41 |
-| Train / Val / Test | 153,431 / 23,831 / 55,703 |
+| Train / validation / test nodes | 153,431 / 23,831 / 55,703 |
 
-Too large for full-graph training — mini-batch via `NeighborLoader` with `[25, 10]` neighbours per hop.
+The graph is too large for full-graph training on the target device. The
+experiment therefore uses `NeighborLoader` mini-batches with configurable
+per-hop fanouts.
 
-## Model
+## Model and TT path
 
-2-layer GraphSAGE with mean aggregation:
+The model uses two mean-aggregation GraphSAGE layers:
 
+```text
+602 features -> SAGEConv -> ReLU -> Dropout -> SAGEConv -> 41 logits
 ```
-Input (602) → SAGEConv → ReLU → Dropout(0.5) → SAGEConv → 41 classes (raw logits, F.cross_entropy loss)
-```
 
-**Parameters:** ~330K
-**Optimizer:** Adam, lr=0.001, weight_decay=5e-4
+CPU runs use the stock PyTorch Geometric `SAGEConv`. TT runs select the
+scatter-free `SpMMGraphSAGEConv`, which preserves the same weights and mean
+aggregation but expresses node-to-edge and edge-to-node operations with
+matmuls. Both backends use the same `GraphSAGE` class and `train.py` path.
+
+NeighborLoader normally produces different graph shapes for each step. The TT
+configuration pads sampled graphs, seed labels, and masks to fixed capacities
+so XLA can reuse one compiled graph. Padded edges are isolated on a reserved
+sentinel node and cannot affect real-node outputs.
 
 ## Setup
 
@@ -36,26 +48,49 @@ pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requiremen
 
 ```bash
 # CPU baseline
-python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
 
-# TT single chip
-python blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
-    --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/tt_single_chip/graphsage_reddit_tt.yaml
+# CPU SpMM run matched to the TT workload
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml
+
+# Wormhole N300, single chip
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml
+
+# Two-batches-per-split N300 smoke run
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
+  --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml
 ```
 
-## Results (CPU Baseline)
+## Configuration
 
-| Metric | Value |
-|---|---|
-| Best val accuracy | 96.05% (epoch 25) |
-| Final test accuracy | 95.79% |
-| Epochs trained | 30 |
-| Training time | ~2 h (CPU) |
-| Per-epoch time | ~4 min (300 batches @ batch_size=512) |
-| Throughput | ~3.5K seed-nodes/s (batch_size=1024, inference) |
+| Setting | CPU baseline | CPU parity | TT |
+|---|---:|---:|---:|
+| Hidden channels | 256 | 256 | 256 |
+| Dropout | 0.5 | 0.0 | 0.0 |
+| Learning rate | 0.001 | 0.001 | 0.001 |
+| Batch size | 512 | 32 | 32 |
+| Neighbor fanouts | [25, 10] | [5, 3] | [5, 3] |
+| Convolution | stock `SAGEConv` | scatter-free SpMM | scatter-free SpMM |
+| Static sampled-graph shapes | no | yes | yes |
 
-The model converges by epoch 4–5 and plateaus at 95.7–96.1% val accuracy through epoch 30 with no signs of overfitting (val loss tracks train loss closely, test accuracy matches val accuracy).
+Training logs include first-step compile time, steady model-step time, and seed
+node throughput. These metrics use the synchronized optimizer step on TT. Use
+the matched CPU parity configuration for CPU-versus-TT timing comparisons; the
+larger stock CPU configuration remains the accuracy baseline.
 
-## Results (TT)
+The matched CPU/TT runs disable dropout so model execution does not advance a
+different CPU-versus-XLA random stream between stochastic neighbor-sampling
+steps. The shared seed then produces the same sampled workload in both runs.
+Download and process Reddit before collecting timings; dataset setup time is not
+part of the benchmark.
 
-<!-- TODO(sarthakmangla1): Add TT results after PR-2. See https://github.com/tenstorrent/tt-blacksmith/issues/529 -->
+## Validation status
+
+The CPU figures from the closed draft [PR #570](https://github.com/tenstorrent/tt-blacksmith/pull/570)
+are intentionally not copied as current results because that branch used an
+older stack and reported inconsistent final metrics. Fresh CPU and N300 runs,
+including correctness parity and step-time measurements, must be recorded from
+this branch before the workload is submitted.

@@ -4,41 +4,49 @@
 from torch_geometric.datasets import Reddit
 from torch_geometric.loader import NeighborLoader
 
-from blacksmith.datasets.torch.torch_dataset import BaseDataset
+from blacksmith.datasets.torch.torch_dataset import BaseDataset, TestDataLoaderWrapper
 from blacksmith.tools.templates.configs import TrainingConfig
 
 
 class RedditDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig):
-        self.config = config
-        self.split = None
-        self.collate_fn = None
-        self._prepare_dataset()
+    def __init__(self, config: TrainingConfig, split: str = "train") -> None:
+        self._loaders: dict[str, NeighborLoader] = {}
+        super().__init__(config=config, split=split)
 
-    def _prepare_dataset(self):
+    def _prepare_dataset(self) -> None:
         self.dataset = Reddit(root=self.config.dataset_root)
         self.data = self.dataset[0]
 
     def _get_dataloader(self) -> NeighborLoader:
-        # BaseDataset.get_dataloader() is unused for this dataset; train.py calls
-        # get_neighbour_loader() directly for split-specific loaders. Implemented
-        # only to satisfy BaseDataset's abstract method contract.
-        return self.get_neighbour_loader("train")
+        return self._get_neighbour_loader(self.split)
 
-    def get_neighbour_loader(self, split: str = "train") -> NeighborLoader:
+    def _get_neighbour_loader(self, split: str) -> NeighborLoader:
         masks = {
             "train": self.data.train_mask,
             "val": self.data.val_mask,
             "test": self.data.test_mask,
         }
+        if split not in masks:
+            valid_splits = ", ".join(masks)
+            raise ValueError(f"Unknown Reddit split '{split}'. Expected one of: {valid_splits}.")
+
+        if split in self._loaders:
+            return self._loaders[split]
+
         batch_size = self.config.batch_size if split == "train" else self.config.val_batch_size
-        loader = NeighborLoader(
+        self._loaders[split] = NeighborLoader(
             self.data,
             num_neighbors=self.config.num_neighbors,
             batch_size=batch_size,
             input_nodes=masks[split],
             shuffle=(split == "train"),
+            subgraph_type="directional",
         )
+        return self._loaders[split]
+
+    def get_neighbour_loader(self, split: str | None = None) -> NeighborLoader | TestDataLoaderWrapper:
+        requested_split = self.split if split is None else split
+        loader = self._get_neighbour_loader(requested_split)
         # Applies the shared CI test-mode step limit (config.test_config.max_steps_per_epoch)
         # to every split, since BaseDataset.get_dataloader() is bypassed here.
         return self._prepare_test_dataloader(loader)

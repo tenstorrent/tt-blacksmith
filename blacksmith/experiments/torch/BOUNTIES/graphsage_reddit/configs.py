@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Optional
+from typing import Optional, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from blacksmith.tools.templates.configs import TrainingConfig
 from blacksmith.tools.test_config import TestConfig
@@ -30,23 +30,29 @@ class GraphSAGEConfig(TrainingConfig):
     use_wandb: bool = Field(default=False)
     wandb_project: str = Field(default="graphsage-reddit")
     wandb_run_name: str = Field(default="graphsage-reddit-cpu")
-    wandb_tags: list[str] = Field(
-        default_factory=lambda: ["graphsage", "reddit", "cpu"]
-    )
+    wandb_tags: list[str] = Field(default_factory=lambda: ["graphsage", "reddit", "cpu"])
 
     # Checkpoint
     checkpoint_metric: str = Field(default="val/acc")
     checkpoint_metric_mode: str = Field(default="max")
     epoch_freq: int = Field(default=5)
-    project_dir: str = Field(
-        default="blacksmith/experiments/torch/BOUNTIES/graphsage_reddit"
-    )
+    project_dir: str = Field(default="blacksmith/experiments/torch/BOUNTIES/graphsage_reddit")
 
     # Device
     use_tt: bool = Field(default=False)
-
-    # Feasibility / debugging — limit training to N steps (-1 = unlimited)
-    max_steps: int = Field(default=-1)
+    use_spmm: bool = Field(default=False)
+    static_shapes: bool = Field(default=False)
 
     # Testing
     test_config: Optional[TestConfig] = Field(default=None)
+
+    @model_validator(mode="after")
+    def validate_graphsage_execution(self) -> Self:
+        """Validate sampling depth and the fixed-shape TT execution contract."""
+        if len(self.num_neighbors) != 2:
+            raise ValueError("two-layer GraphSAGE requires exactly two neighbor fanouts")
+        if self.static_shapes and any(fanout < 0 for fanout in self.num_neighbors):
+            raise ValueError("static shapes require finite non-negative fanouts")
+        if self.use_tt and (not self.use_spmm or not self.static_shapes):
+            raise ValueError("TT execution requires use_spmm=true and static_shapes=true")
+        return self

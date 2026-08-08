@@ -5,35 +5,35 @@ dataset_root: "/tmp/Reddit"
 # Model
 model_name: "GraphSAGE"
 hidden_channels: 256
-dropout: 0.5
-use_spmm: false
+dropout: 0.0
+use_spmm: true
 
 # Training
 learning_rate: 0.001
 weight_decay: 5.0e-4
-batch_size: 512
-num_epochs: 30
-num_neighbors: [25, 10]
-val_batch_size: 4096
-static_shapes: false
+batch_size: 32
+num_epochs: 5
+num_neighbors: [5, 3]
+val_batch_size: 32
+static_shapes: true
 
 # Logging
 steps_freq: 50
 use_wandb: false
 wandb_project: "graphsage-reddit"
-wandb_run_name: "graphsage-reddit-cpu"
-wandb_tags: ["graphsage", "reddit", "cpu"]
+wandb_run_name: "graphsage-reddit-tt"
+wandb_tags: ["graphsage", "reddit", "tt", "spmm"]
 
 # Checkpoint
 checkpoint_metric: "val/acc"
 checkpoint_metric_mode: "max"
-epoch_freq: 5
-keep_last_n: 5
-keep_best_n: 5
+epoch_freq: 1
+keep_last_n: 2
+keep_best_n: 2
 
 # Reproducibility
 seed: 42
 deterministic: true
 
 # Device
-use_tt: false
+use_tt: true

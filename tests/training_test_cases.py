@@ -67,6 +67,25 @@ TRAINING_TEST_CASES = [
     #     ],
     #     id="tt-gatv2_pubmed-pubmed-n150",
     # ),
+    # Bounty #529 (GraphSAGE/Reddit). Disabled in CI until the PyG/pyg-lib
+    # experiment dependencies and an N300 runner are wired into the regression
+    # pipeline. The smoke overlay limits every split phase to two sampled batches.
+    # pytest.param(
+    #     {
+    #         "test_script": "blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py",
+    #         "experiment_config": "blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml",
+    #         "test_config": "tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml",
+    #         "timeout": 3600,
+    #         "skip_loss_checks": True,
+    #     },
+    #     marks=[
+    #         pytest.mark.uplift,
+    #         pytest.mark.n300,
+    #         pytest.mark.torch,
+    #         pytest.mark.single_chip,
+    #     ],
+    #     id="tt-graphsage_reddit-reddit-n300",
+    # ),
     pytest.param(
         {
             "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/train.py",
