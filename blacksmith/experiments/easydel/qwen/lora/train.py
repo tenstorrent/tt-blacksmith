@@ -25,7 +25,7 @@ from blacksmith.tools.jax.easydel.train_steps import (
     evaluate,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+from blacksmith.tools.jax.reproducibility_manager import JaxReproducibilityManager
 
 
 def validate(
@@ -319,7 +319,7 @@ if __name__ == "__main__":
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
 
     # Reproducibility setup.
-    ReproducibilityManager(config).setup()
+    JaxReproducibilityManager(config).setup()
 
     # Logger setup.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
