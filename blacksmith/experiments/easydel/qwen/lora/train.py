@@ -24,8 +24,8 @@ from blacksmith.tools.jax.easydel.train_steps import (
     create_fused_train_step_fn,
     evaluate,
 )
-from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.jax.reproducibility_manager import JaxReproducibilityManager
+from blacksmith.tools.logging_manager import TrainingLogger
 
 
 def validate(
