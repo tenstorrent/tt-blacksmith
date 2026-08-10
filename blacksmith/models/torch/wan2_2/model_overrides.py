@@ -5,11 +5,18 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
+from typing import TYPE_CHECKING
+
 import torch
 import torch.nn as nn
 
 from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
-from blacksmith.models.torch.wan2_2.device import WanDeviceManager
+
+if TYPE_CHECKING:
+    # Type-only: the concrete manager depends on the backend (`models/torch/wan2_2/device.py`
+    # for tt-xla, `experiments/torch/wan2_2/kurbla/device_manager.py` for tt-kurbla). Importing
+    # it eagerly would drag `torch_xla` into the pure-torch path.
+    from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 
 # --- Generality patches (correctness; the model will not run on TT without these) ---
 
@@ -217,6 +224,82 @@ def _patch_wan_resample_avoid_4d_fold() -> None:
     akw.WanResample.forward = forward
 
 
+def _patch_wan_avgdown_avoid_8d_permute() -> None:
+    # Replace AvgDown3D's 8D view+permute with per-sub-lattice slicing + stack.
+    #
+    # The original views [B,C,T,H,W] as [B,C,T//ft,ft,H//fs,fs,W//fs,fs] before
+    # permuting, which parks the size-`fs` factor axis in the last dimension. Tile
+    # layout pads the trailing dim to a multiple of 32, so an fs=2 axis pads 2->32
+    # and the buffer is 16x the logical tensor: the first encoder down block asks
+    # for 511 MB to hold a 32 MB activation, and the device OOMs.
+    #
+    # Slicing the (t,h,w) sub-lattices instead keeps (H', W') as the trailing dims
+    # of every intermediate. Bit-equivalent: the original's view splits index
+    # `t = t'*ft + t_off`, which is exactly `x[:, :, t_off::ft]`, and the folded
+    # channel index is `c*factor + (t_off*fs*fs + h_off*fs + w_off)` either way.
+    try:
+        from diffusers.models.autoencoders import autoencoder_kl_wan as akw
+    except ImportError:
+        return
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        ft, fs = self.factor_t, self.factor_s
+        pad_t = (ft - x.shape[2] % ft) % ft
+        x = torch.nn.functional.pad(x, (0, 0, 0, 0, pad_t, 0))
+        b, c, t, h, w = x.shape
+        parts = [
+            x[:, :, t_off::ft, h_off::fs, w_off::fs]
+            for t_off in range(ft)
+            for h_off in range(fs)
+            for w_off in range(fs)
+        ]
+        x = torch.stack(parts, dim=2)
+        x = x.reshape(b, c * self.factor, t // ft, h // fs, w // fs)
+        x = x.reshape(b, self.out_channels, self.group_size, t // ft, h // fs, w // fs)
+        return x.mean(dim=2)
+
+    akw.AvgDown3D.forward = forward
+
+
+def _patch_umt5_relative_bias_dtensor() -> None:
+    # Promote UMT5Attention's relative-position bucket to a replicated DTensor before
+    # the embedding lookup.
+    #
+    # compute_bias derives the bucket from torch.arange, so it is a plain tensor, while
+    # relative_attention_bias.weight is a DTensor once the encoder is sharded. DTensor
+    # refuses mixed operands ("got mixed torch.Tensor and DTensor"), and this is the only
+    # place in the encoder where a locally-constructed index tensor meets a distributed
+    # weight. The bucket is identical on every device, so Replicate() on each mesh dim is
+    # the correct placement and the lookup needs no collective.
+    try:
+        from transformers.models.umt5 import modeling_umt5 as umt5
+    except ImportError:
+        return
+
+    from torch.distributed.tensor import DTensor, Replicate
+
+    def compute_bias(self, query_length, key_length, device=None, past_seen_tokens=0):
+        weight = self.relative_attention_bias.weight
+        if device is None:
+            device = weight.device
+        context_position = torch.arange(query_length, dtype=torch.long, device=device)[:, None] + past_seen_tokens
+        memory_position = torch.arange(key_length, dtype=torch.long, device=device)[None, :]
+        relative_position = memory_position - context_position  # (query_length, key_length)
+        relative_position_bucket = self._relative_position_bucket(relative_position)
+        if isinstance(weight, DTensor) and not isinstance(relative_position_bucket, DTensor):
+            mesh = weight.device_mesh
+            relative_position_bucket = DTensor.from_local(
+                relative_position_bucket,
+                device_mesh=mesh,
+                placements=[Replicate()] * mesh.ndim,
+                run_check=False,
+            )
+        values = self.relative_attention_bias(relative_position_bucket)  # (q_len, k_len, num_heads)
+        return values.permute([2, 0, 1]).unsqueeze(0)  # (1, num_heads, q_len, k_len)
+
+    umt5.UMT5Attention.compute_bias = compute_bias
+
+
 # --- Perf patches (graph-break removals; no correctness impact) ---
 
 
@@ -287,6 +370,8 @@ def _disable_tt_torch_function_override() -> None:
 def apply_generality_overrides() -> None:
     _patch_wan_resample_rep_sentinel()
     _patch_wan_resample_avoid_4d_fold()
+    _patch_wan_avgdown_avoid_8d_permute()
+    _patch_umt5_relative_bias_dtensor()
 
 
 def apply_perf_overrides() -> None:
@@ -313,6 +398,7 @@ class VAEEncoderWrapper(nn.Module):
         self.vae = vae
 
     def forward(self, x):
+        # 
         return self.vae.encode(x).latent_dist.mode()
 
 
@@ -342,12 +428,15 @@ def _make_lora_config(config: TrainingConfig):
     )
 
 
-def build_lora_transformer(config: TrainingConfig, device_manager: WanDeviceManager):
+def build_lora_transformer(config: TrainingConfig, device_manager: "WanDeviceManager"):
     from diffusers import WanTransformer3DModel
 
     transformer = WanTransformer3DModel.from_pretrained(
         config.model_id, subfolder="transformer", torch_dtype=config.torch_dtype(), low_cpu_mem_usage=True
     )
+    # Backend-specific per-instance rewrites (a no-op on tt-xla); must precede the move
+    # so the device only ever sees modules the backend can lower.
+    transformer = device_manager.prepare_model(transformer)
     transformer = device_manager.to_device(transformer)
     for p in transformer.parameters():
         p.requires_grad_(False)

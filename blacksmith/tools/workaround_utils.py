@@ -4,7 +4,22 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla
+
+
+def _sync_xla(params) -> None:
+    """Flush pending XLA work; a no-op on any other backend.
+
+    `torch_xla` is imported lazily (the same way `models/torch/wan2_2/device.py` does it)
+    because a module-scope import makes every importer of this module require the XLA
+    runtime -- including CheckpointManager, which imports
+    `restore_capturable_optimizer_state`. The pure-torch tt-kurbla backend executes
+    eagerly and has nothing to flush.
+    """
+    if not params or params[0].device.type != "xla":
+        return
+    import torch_xla
+
+    torch_xla.sync(wait=True)
 
 
 # Materialize AdamW state so the fused fwd+bwd+optimizer XLA graph compiles only once.
@@ -23,7 +38,7 @@ def materialize_adamw_state(optimizer: torch.optim.Optimizer, sync: bool = True)
             state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
             state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
     if sync:
-        torch_xla.sync(wait=True)
+        _sync_xla([p for group in optimizer.param_groups for p in group["params"]])
 
 
 # Pre-seed zero .grad tensors (never None) so the first micro-batch of a gradient-
@@ -37,7 +52,7 @@ def materialize_grads(optimizer: torch.optim.Optimizer, sync: bool = True) -> No
                 continue
             p.grad = torch.zeros_like(p, memory_format=torch.preserve_format)
     if sync:
-        torch_xla.sync(wait=True)
+        _sync_xla([p for group in optimizer.param_groups for p in group["params"]])
 
 
 # After restoring an optimizer from a CPU checkpoint, re-enable capturable AdamW and move its
@@ -56,7 +71,7 @@ def restore_capturable_optimizer_state(optimizer: torch.optim.Optimizer) -> None
         for k, v in state.items():
             if isinstance(v, torch.Tensor) and v.device != device:
                 state[k] = v.to(device)
-    torch_xla.sync(wait=True)
+    _sync_xla(params)
 
 
 # Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.

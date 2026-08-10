@@ -14,6 +14,7 @@ import torch
 from huggingface_hub import HfApi, hf_hub_download
 from PIL import Image
 from torch.utils.data import Dataset
+from torch.distributed.tensor import distribute_tensor
 
 from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
 
@@ -108,10 +109,13 @@ def pil_to_video_tensor(img: Image.Image, h: int, w: int) -> torch.Tensor:
     return t.unsqueeze(0).unsqueeze(2)
 
 
-def wan_latents_normalize(latents: torch.Tensor, vae) -> torch.Tensor:
+def wan_latents_normalize(mesh, latents: torch.Tensor, vae) -> torch.Tensor:
     # Match the per-channel mean/std normalization WanPipeline applies.
     mean = torch.tensor(vae.config.latents_mean, dtype=latents.dtype, device=latents.device).view(1, -1, 1, 1, 1)
     std = torch.tensor(vae.config.latents_std, dtype=latents.dtype, device=latents.device).view(1, -1, 1, 1, 1)
+    # convert to dtensors
+    mean = distribute_tensor(mean, mesh, latents.placements)
+    std = distribute_tensor(std, mesh, latents.placements)
     return (latents - mean) * 1.0 / std
 
 

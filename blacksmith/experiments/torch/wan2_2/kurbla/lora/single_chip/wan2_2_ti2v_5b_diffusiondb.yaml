@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Wan 2.2 TI2V-5B LoRA on ONE tt-kurbla chip.
+#
+# Differs from ../../../lora/quietbox/ (the tt-xla, 8-chip config) in three ways:
+#   * mesh_shape / sharding patterns are null -- one chip, so no DTensor and no
+#     collectives. A non-null mesh_shape asserts in WanDeviceManager._create_mesh.
+#   * small resolution and step counts, so a run finishes in minutes.
+#   * enable_trace is absent: it has no tt-kurbla equivalent.
+mode: train
+
+model_id: "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+dtype: "torch.bfloat16"
+vae_precompute_dtype: "torch.bfloat16"
+gradient_checkpointing: false
+
+dataset_id: "jainr3/diffusiondb-pixelart"
+cache_dir: "cache/wan22_5b_kurbla"
+subset_size: 8
+val_holdout: 2
+
+# Multiples of 32 (VAE spatial stride 16 * DiT patch size 2); validated at config load.
+train_h: 256
+train_w: 256
+
+inference:
+  infer_h: 256
+  infer_w: 256
+  infer_frames: 1       # must be 4k+1; 1 = a single image
+  infer_fps: 16
+  infer_steps: 4
+  infer_guidance: 5.0
+  infer_flow_shift: 5.0
+  infer_output: "cache/wan22_5b_kurbla/pixelart_video.mp4"
+  val_prompt: "a car driving through the desert with sunset in background"
+  val_img_steps: 4
+  val_img_frames: 1
+  neg_prompt: ""
+
+trigger: "pxa, "
+text_drop_prob: 0.10
+
+lora_rank: 32
+lora_alpha: 32
+# NOTE: "ff.net.0.proj"/"ff.net.2" do not match Wan's "blocks.N.ffn.net.*" module names,
+# so LoRA lands on attention only. Kept identical to the tt-xla config on purpose -- fix
+# it in both or neither.
+lora_targets: ["to_q", "to_k", "to_v", "to_out.0", "ff.net.0.proj", "ff.net.2"]
+
+learning_rate: 1.0e-4
+weight_decay: 0.01
+batch_size: 1
+gradient_accumulation_steps: 2
+max_steps: 20
+
+train_flow_shift: 3.0
+lognorm_mean: 0.0
+lognorm_std: 1.0
+
+log_level: "INFO"
+use_wandb: false
+wandb_project: "wan22-pixelart-lora"
+steps_freq: 1
+val_steps_freq: 10
+
+resume_from_checkpoint: false
+resume_option: "last"
+checkpoint_path: ""
+save_strategy: "step"
+project_dir: "blacksmith/experiments/torch/wan2_2/kurbla"
+save_optim: true
+
+seed: 42
+
+use_tt: true
+optimization_level: 0
+# One chip: no mesh, no sharding. See kurbla/README.md.
+mesh_shape: null
+mesh_axis_names: null
+input_sharding_dim: null
+model_sharding_patterns: null
+param_sharding_patterns: null

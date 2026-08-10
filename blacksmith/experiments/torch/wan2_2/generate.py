@@ -6,16 +6,22 @@ from __future__ import annotations
 import gc
 from contextlib import nullcontext
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import torch
 
 from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
-from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 from blacksmith.models.torch.wan2_2.model_overrides import (
     UMT5Wrapper,
     VAEDecoderWrapper,
     safe_xla_slicing,
 )
+
+if TYPE_CHECKING:
+    # Type-only: the concrete manager is backend-specific and importing the tt-xla one
+    # eagerly would drag `torch_xla` into the pure-torch (tt-kurbla) path.
+    from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 
 
 def _cache_ctx(model, name: str):
@@ -28,12 +34,15 @@ def _cache_ctx(model, name: str):
     return nullcontext()
 
 
-def build_pipeline_for_validation(transformer, config: TrainingConfig, device_manager: WanDeviceManager):
+def build_pipeline_for_validation(transformer, config: TrainingConfig, device_manager: "WanDeviceManager"):
     from diffusers import AutoencoderKLWan, UniPCMultistepScheduler, WanPipeline
 
     vae = AutoencoderKLWan.from_pretrained(
         config.model_id, subfolder="vae", torch_dtype=config.torch_dtype(), low_cpu_mem_usage=True
     )
+    # Backend-specific graph rewrites (a no-op on tt-xla). The VAE is constructed here,
+    # so this is the only place a backend can get at it.
+    vae = device_manager.prepare_model(vae)
     pipe = WanPipeline.from_pretrained(
         config.model_id, transformer=transformer, vae=vae, torch_dtype=config.torch_dtype()
     )
@@ -57,7 +66,7 @@ def generate_wan_video(
     pipe,
     compiled_transformer,
     config: TrainingConfig,
-    device_manager: WanDeviceManager,
+    device_manager: "WanDeviceManager",
     *,
     prompt: str,
     negative_prompt: str | None,
@@ -111,10 +120,10 @@ def generate_wan_video(
 
     prompt_embeds = _encode(prompt)
     negative_prompt_embeds = _encode(negative_prompt or "") if do_cfg else None
-    if device_manager.config.use_tt:
-        import torch_xla.core.xla_model as xm
-
-        xm.mark_step()
+    # Flush the text-encoder graph before the denoise loop. On tt-xla this is the
+    # `xm.mark_step()` that keeps UMT5 out of the DiT's graph; on tt-kurbla execution is
+    # eager and `sync()` is a no-op.
+    device_manager.sync()
 
     pipe.scheduler.set_timesteps(num_inference_steps, device="cpu")
     timesteps = pipe.scheduler.timesteps
@@ -192,7 +201,7 @@ def generate_wan_video(
 
 
 @torch.no_grad()
-def generate_validation_sample(transformer, config: TrainingConfig, device_manager: WanDeviceManager, step: int):
+def generate_validation_sample(transformer, config: TrainingConfig, device_manager: "WanDeviceManager", step: int):
     # Returns (first_frame_PIL, all_frames_uint8_np_or_None).
     transformer.eval()
     pipe = build_pipeline_for_validation(transformer, config, device_manager)

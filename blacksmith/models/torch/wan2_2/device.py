@@ -40,6 +40,16 @@ class WanDeviceManager(DeviceManager):
     def to_device(self, module_or_tensor):
         return module_or_tensor.to(self.device)
 
+    def prepare_model(self, model: nn.Module) -> nn.Module:
+        """Backend-specific graph rewrites before a model is moved/sharded.
+
+        Nothing to do on tt-xla: the patches this backend needs are class-level and are
+        applied by `model_overrides.apply_generality_overrides()` at start-up. The hook
+        exists so the shared code (`generate.py`) can support backends that must rewrite
+        module instances -- tt-kurbla retypes the VAE's Conv3d/ZeroPad2d here.
+        """
+        return model
+
     def compile(self, module: nn.Module):
         # Cached on id(module); callers must keep wrappers alive across calls.
         if not self.config.use_tt:

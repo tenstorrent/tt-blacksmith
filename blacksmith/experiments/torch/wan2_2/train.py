@@ -7,10 +7,11 @@ import json
 import traceback
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch_xla
 from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.diffusiondb_pixelart.diffusiondb_pixelart_dataset import (
@@ -23,7 +24,6 @@ from blacksmith.experiments.torch.wan2_2.generate import (
     generate_validation_sample,
     generate_wan_video,
 )
-from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 from blacksmith.models.torch.wan2_2.model_overrides import (
     apply_generality_overrides,
     apply_perf_overrides,
@@ -33,6 +33,12 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
+
+if TYPE_CHECKING:
+    # Type-only: the concrete manager is backend-specific. `train`/`infer` below only use
+    # the shared manager surface (to_device/compile/shard_model/sync/optimizer_step), so
+    # the tt-kurbla entry point (`kurbla/train.py`) reuses them as-is.
+    from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 
 
 def _sample_timesteps(batch_size: int, config: TrainingConfig, generator: torch.Generator | None = None):
@@ -50,7 +56,7 @@ def flow_matching_step(
     transformer,
     batch: dict,
     config: TrainingConfig,
-    device_manager: WanDeviceManager,
+    device_manager: "WanDeviceManager",
     *,
     fixed_t=None,
     fixed_noise=None,
@@ -77,7 +83,7 @@ def flow_matching_step(
     return F.mse_loss(pred.float(), target.float())
 
 
-def validate(transformer, config: TrainingConfig, device_manager: WanDeviceManager, logger: TrainingLogger, step: int):
+def validate(transformer, config: TrainingConfig, device_manager: "WanDeviceManager", logger: TrainingLogger, step: int):
     logger.info(f"Generating validation sample at step {step} ...")
     img, video_np = generate_validation_sample(transformer, config, device_manager, step)
     caption = f"step={step} prompt={config.trigger + config.inference.val_prompt!r}"
@@ -88,7 +94,7 @@ def validate(transformer, config: TrainingConfig, device_manager: WanDeviceManag
 
 def train(
     config: TrainingConfig,
-    device_manager: WanDeviceManager,
+    device_manager: "WanDeviceManager",
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
@@ -210,7 +216,7 @@ def train(
 @torch.no_grad()
 def infer(
     config: TrainingConfig,
-    device_manager: WanDeviceManager,
+    device_manager: "WanDeviceManager",
     logger: TrainingLogger,
     checkpoint_manager: CheckpointManager,
 ):
@@ -255,6 +261,10 @@ def infer(
 
 
 if __name__ == "__main__":
+    import torch_xla
+
+    from blacksmith.models.torch.wan2_2.device import WanDeviceManager
+
     default_config = Path(__file__).parent / "lora" / "quietbox" / "wan2_2_ti2v_5b_diffusiondb.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
