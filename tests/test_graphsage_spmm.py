@@ -9,9 +9,7 @@ try:
     from torch_geometric.nn import SAGEConv
 
     from blacksmith.models.torch.graphsage.graphsage import GraphSAGE
-    from blacksmith.models.torch.graphsage.spmm_graphsage import (
-        SpMMGraphSAGEConv,
-    )
+    from blacksmith.models.torch.graphsage.spmm_graphsage import SpMMGraphSAGEConv
 except ModuleNotFoundError as error:
     if error.name and error.name.startswith("torch_geometric"):
         pytest.skip("GraphSAGE tests require torch_geometric", allow_module_level=True)
