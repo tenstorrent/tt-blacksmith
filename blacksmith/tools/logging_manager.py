@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 import torch
-import wandb
 
 from blacksmith.tools.configs import LoggingConfig
 
@@ -18,10 +17,27 @@ TEST_LOGS_DIR = Path("tests/test_logs")
 GOLDEN_LOGS_DIR = Path("tests/golden_files")
 
 
+def _import_wandb():
+    """Import wandb only when W&B logging is enabled.
+
+    Keeps wandb an optional dependency for stdout-only consumers
+    (e.g. tt-media-server sets use_wandb=False).
+    """
+    try:
+        import wandb
+    except ImportError as e:
+        raise ImportError(
+            "wandb is required when use_wandb=True. "
+            "Install it with `pip install wandb`."
+        ) from e
+    return wandb
+
+
 class TrainingLogger:
     def __init__(self, config: LoggingConfig, test_log_filename_prefix: Optional[str] = None):
         self.config = config
         self.test_log_filename_prefix = test_log_filename_prefix
+        self._wandb = None
 
         self._setup_std_logger()
 
@@ -56,7 +72,8 @@ class TrainingLogger:
     def _setup_wandb(self):
         self.std_logger.info("Initializing Weights & Biases (W&B)...")
         try:
-            self.wandb_run = wandb.init(
+            self._wandb = _import_wandb()
+            self.wandb_run = self._wandb.init(
                 project=self.config.wandb_project,
                 name=self.config.wandb_run_name,
                 tags=self.config.wandb_tags,
@@ -66,6 +83,7 @@ class TrainingLogger:
         except Exception as e:
             self.std_logger.error(f"Failed to initialize W&B: {e}")
             self.config.use_wandb = False
+            self._wandb = None
 
     def info(self, message: str):
         """Log info message to stdout"""
@@ -80,7 +98,11 @@ class TrainingLogger:
         self.std_logger.error(message)
 
         if self.config.use_wandb:
-            self.wandb_run.alert(title="Training Failed", text=message, level=wandb.AlertLevel.ERROR)
+            self.wandb_run.alert(
+                title="Training Failed",
+                text=message,
+                level=self._wandb.AlertLevel.ERROR,
+            )
             self.wandb_run.log({"error": message, "traceback": traceback_str})
 
     def debug(self, message: str):
@@ -121,7 +143,8 @@ class TrainingLogger:
         """Log a PIL image to W&B (no-op on stdout-only runs besides a log line)."""
         if self.config.use_wandb:
             try:
-                self.wandb_run.log({key: wandb.Image(image, caption=caption)}, step=step, commit=commit)
+                image_payload = {key: self._wandb.Image(image, caption=caption)}
+                self.wandb_run.log(image_payload, step=step, commit=commit)
             except Exception as e:
                 self.std_logger.warning(f"Failed to log image to W&B: {e}")
         else:
@@ -134,7 +157,8 @@ class TrainingLogger:
         if self.config.use_wandb:
             try:
                 arr = np.transpose(frames_uint8, (0, 3, 1, 2))
-                self.wandb_run.log({key: wandb.Video(arr, fps=fps, format="mp4")}, step=step, commit=commit)
+                video_payload = {key: self._wandb.Video(arr, fps=fps, format="mp4")}
+                self.wandb_run.log(video_payload, step=step, commit=commit)
             except Exception as e:
                 self.std_logger.warning(f"Failed to log video to W&B: {e}")
 
@@ -181,7 +205,7 @@ class TrainingLogger:
         if self.config.use_wandb:
             try:
                 artifact_name = name or os.path.basename(artifact_path)
-                artifact = wandb.Artifact(artifact_name, type=artifact_type)
+                artifact = self._wandb.Artifact(artifact_name, type=artifact_type)
                 artifact.add_file(artifact_path)
 
                 self.wandb_run.log_artifact(artifact)
@@ -210,7 +234,7 @@ class TrainingLogger:
     def finish(self):
         if self.config.use_wandb:
             try:
-                wandb.finish()
+                self._wandb.finish()
                 self.std_logger.info("W&B run finished")
             except Exception as e:
                 self.std_logger.warning(f"Failed to finish W&B run: {e}")
