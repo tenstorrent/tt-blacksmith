@@ -26,10 +26,7 @@ def _import_wandb():
     try:
         import wandb
     except ImportError as e:
-        raise ImportError(
-            "wandb is required when use_wandb=True. "
-            "Install it with `pip install wandb`."
-        ) from e
+        raise ImportError("wandb is required when use_wandb=True. " "Install it with `pip install wandb`.") from e
     return wandb
 
 
