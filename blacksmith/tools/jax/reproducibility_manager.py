@@ -17,12 +17,12 @@ class JaxReproducibilityManager:
         self.config = config
 
     def setup(self):
-        self._setup_python()
+        self._seed_python_rngs()
 
         if self.config.deterministic:
             jax.config.update("jax_default_matmul_precision", "highest")
 
-    def _setup_python(self):
+    def _seed_python_rngs(self):
         random.seed(self.config.seed)
         np.random.seed(self.config.seed)
 

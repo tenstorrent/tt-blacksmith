@@ -15,7 +15,7 @@ class ReproducibilityManager:
         self.config = config
 
     def setup(self):
-        self._setup_python()
+        self._seed_python_rngs()
 
         torch.manual_seed(self.config.seed)
         torch.cuda.manual_seed(self.config.seed)
@@ -25,6 +25,6 @@ class ReproducibilityManager:
             torch.backends.cudnn.deterministic = True
             torch.backends.cudnn.benchmark = False
 
-    def _setup_python(self):
+    def _seed_python_rngs(self):
         random.seed(self.config.seed)
         np.random.seed(self.config.seed)
