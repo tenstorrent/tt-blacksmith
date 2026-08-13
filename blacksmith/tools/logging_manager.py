@@ -20,13 +20,16 @@ GOLDEN_LOGS_DIR = Path("tests/golden_files")
 def _import_wandb():
     """Import wandb only when W&B logging is enabled.
 
-    Keeps wandb an optional dependency for stdout-only consumers
-    (e.g. tt-media-server sets use_wandb=False).
+    Keeps wandb an optional dependency for stdout-only consumers.
     """
     try:
         import wandb
     except ImportError as e:
-        raise ImportError("wandb is required when use_wandb=True. " "Install it with `pip install wandb`.") from e
+        raise ImportError(
+            "wandb is required when use_wandb=True. "
+            "Please activate the project environment with `source env/activate` "
+            "so dependencies are installed from requirements."
+        ) from e
     return wandb
 
 
