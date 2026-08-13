@@ -47,7 +47,7 @@ class Callback(ABC):
     def on_backward_start(self, trainer, loss, *args, **kwargs):
         pass
 
-    def on_backward_end(self, trainer, *args, **kwargs):
+    def on_backward_end(self, trainer, loss, *args, **kwargs):
         pass
 
     def on_optimizer_step_start(self, trainer, *args, **kwargs):
