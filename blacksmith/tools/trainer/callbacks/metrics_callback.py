@@ -41,7 +41,9 @@ class MetricsCallback(Callback):
         if trainer.config.logging.model_to_wandb:
             trainer.logger.watch_model(trainer.model)
 
-    def on_forward_end(self, trainer, loss, *args, **kwargs):
+    def on_backward_end(self, trainer, loss, *args, **kwargs):
+        # After the trainer's post-backward sync so ``loss.item()`` does not force
+        # a forward-only XLA execute before backward is attached to the graph.
         # Fires for every micro-batch; accumulate each one so the per-step loss is
         # the mean over the step's micro-batches.
         self._step_running_loss += loss.item()
