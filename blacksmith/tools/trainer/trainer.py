@@ -210,7 +210,7 @@ class Trainer(ABC):
         """
         Step the optimizer and reset gradients. Override for custom behaviour.
         """
-        self.device_manager.optimizer_step(self.optimizer)
+        self.device_manager.optimizer_step(self.optimizer, zero_grad=True)
 
     def cleanup(self) -> None:
         """
