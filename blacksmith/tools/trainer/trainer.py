@@ -210,7 +210,9 @@ class Trainer(ABC):
         """
         Step the optimizer and reset gradients. Override for custom behaviour.
         """
-        self.device_manager.optimizer_step(self.optimizer)
+        # Re-zero in place so leftover grads do not accumulate across windows
+        # and the next window's .grad tensors stay non-None.
+        self.device_manager.optimizer_step(self.optimizer, zero_grad=True)
 
     def cleanup(self) -> None:
         """
