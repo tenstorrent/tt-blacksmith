@@ -5,6 +5,7 @@ import gc
 import json
 import os
 from pathlib import Path
+import time
 
 import torch
 
@@ -43,10 +44,12 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
     vae = AutoencoderKLWan.from_pretrained(
         config.model_id, subfolder="vae", torch_dtype=vae_dtype, low_cpu_mem_usage=True
     ).eval()
+    # import pdb; pdb.set_trace()
     vae = device_manager.prepare_model(vae)
     vae = device_manager.to_device(vae)
     device_manager.shard_model(vae)
     vae_enc_compiled = VAEEncoderWrapper(vae)
+    vae_enc_compiled = device_manager.compile(vae_enc_compiled)
 
     metadata: list[dict] = []
 
@@ -59,23 +62,26 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
         print(f"[precompute] no metadata.json found, starting from scratch")
 
 
-
-
-    print(f"[precompute] VAE-encoding {len(samples)} images at {config.train_h}x{config.train_w} ...")
+    print(f"[precompute] VAE-encoding {len(samples)} images at {config.train_h}x{config.train_w} ...", flush=True)
     if not metadata:
         for i, (img, caption) in enumerate(samples):
-            print(f"[precompute] VAE-encoding sample {i+1}/{len(samples)}: caption={caption}")
+            start = time.perf_counter()
             video_cpu = pil_to_video_tensor(img, config.train_h, config.train_w).to(vae_dtype)
+            print(f"[precompute] VAE-encoding sample {i+1}/{len(samples)}: caption={caption}", flush=True)
             latent = vae_enc_compiled(device_manager.to_device(video_cpu))
+            print(f"[precompute] done vae in {time.perf_counter() - start} seconds")
             latent = wan_latents_normalize(device_manager.mesh, latent, vae)
             latent = latent.squeeze(0).contiguous().to("cpu")
+            print(f"[precompute] done latents in {time.perf_counter() - start} seconds")
             triggered = config.trigger + caption
             torch.save({"latent": latent, "caption": triggered}, samples_dir / f"sample_{i:04d}.pt")
             metadata.append({"idx": i, "caption": triggered})
             # del everything and gc
             del video_cpu, latent
             gc.collect()
-            print(f"[precompute] done sample {i+1}/{len(samples)}")
+            end = time.perf_counter()
+            dur = end - start
+            print(f"[precompute] done sample {i+1}/{len(samples)} in {dur:.6f} seconds", flush=True)
 
         with open(cache / "metadata.json", "w") as f:
             json.dump(metadata, f, indent=2)
@@ -95,7 +101,8 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
     text_encoder = device_manager.to_device(text_encoder)
     text_encoder.encoder.embed_tokens.weight = text_encoder.shared.weight
     device_manager.shard_model(text_encoder)
-    umt5_compiled = device_manager.compile(UMT5Wrapper(text_encoder))
+    # umt5_compiled = device_manager.compile(UMT5Wrapper(text_encoder))
+    umt5_compiled = UMT5Wrapper(text_encoder)
 
     unique_captions = sorted({m["caption"] for m in metadata})
     if "" not in unique_captions:

@@ -261,6 +261,43 @@ def _patch_wan_avgdown_avoid_8d_permute() -> None:
     akw.AvgDown3D.forward = forward
 
 
+def _patch_umt5_layer_norm_dtensor() -> None:
+    # UmT5LayerNorm computes variance = hidden_states.pow(2).mean(-1).  When the
+    # row-parallel `o`/`wo` linears shard the hidden-size dimension across the batch
+    # mesh axis, that mean(-1) becomes a partial reduction and DTensor emits an
+    # all_reduce avg collective.  The TT compile backend cannot lower that op.
+    #
+    # Fix: all-gather the hidden-size shards before the RMS computation so mean(-1) is
+    # purely local.  The weight multiply that follows is unaffected because layer_norm
+    # weights are already sharded on hidden-size (Shard(0) on batch), so DTensor sees a
+    # consistent placement and emits no extra collectives.
+    try:
+        from transformers.models.umt5 import modeling_umt5 as umt5
+    except ImportError:
+        return
+
+    from torch.distributed.tensor import DTensor, Replicate
+    from torch.distributed.tensor.placement_types import Shard as DTShard
+
+    _orig_forward = umt5.UMT5LayerNorm.forward
+
+    def forward(self, hidden_states):
+        if isinstance(hidden_states, DTensor):
+            mesh = hidden_states.device_mesh
+            # Replace any Shard placement on the hidden-size (last) dim with Replicate
+            # so mean(-1) sees a full, local tensor.
+            last_dim = hidden_states.dim() - 1
+            new_placements = [
+                Replicate() if isinstance(p, DTShard) and p.dim == last_dim else p
+                for p in hidden_states.placements
+            ]
+            if new_placements != list(hidden_states.placements):
+                hidden_states = hidden_states.redistribute(mesh, new_placements)
+        return _orig_forward(self, hidden_states)
+
+    umt5.UMT5LayerNorm.forward = forward
+
+
 def _patch_umt5_relative_bias_dtensor() -> None:
     # Promote UMT5Attention's relative-position bucket to a replicated DTensor before
     # the embedding lookup.
@@ -371,6 +408,7 @@ def apply_generality_overrides() -> None:
     _patch_wan_resample_rep_sentinel()
     _patch_wan_resample_avoid_4d_fold()
     _patch_wan_avgdown_avoid_8d_permute()
+    _patch_umt5_layer_norm_dtensor()
     _patch_umt5_relative_bias_dtensor()
 
 

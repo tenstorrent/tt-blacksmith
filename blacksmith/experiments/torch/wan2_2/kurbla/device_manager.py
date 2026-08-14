@@ -220,13 +220,8 @@ class WanDeviceManager:
         return prepared
 
     def compile(self, module: nn.Module):
-        # Cached on id(module); callers must keep wrappers alive across calls.
-        if not self.config.use_tt:
-            return module
-        cached = self._compile_cache.get(id(module))
-        if cached is None:
-            cached = torch.compile(module, backend="tt", options=self.compile_options)
-            self._compile_cache[id(module)] = cached
+        print(f"[precompute] compiling with {self.compile_options}")
+        cached = torch.compile(module, backend="tt", options=self.compile_options)
         return cached
 
     def optimizer_step(self, optimizer: torch.optim.Optimizer, zero_grad: bool = False):
