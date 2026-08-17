@@ -9,6 +9,20 @@ dtype: "torch.bfloat16"
 vae_precompute_dtype: "torch.bfloat16"
 gradient_checkpointing: false
 
+# --- BRING-UP SETTINGS (restore before any real training run) ---
+# Keep only the first 2 of the DiT's 30 blocks. The blocks are identical to each other,
+# so every op, shape and sharding pattern still runs -- at roughly a fifteenth of the
+# compile and step time. Loss, checkpoints and validation output are meaningless while
+# this is set. `null` restores the full model.
+dit_layers: 30
+# Same trade for UMT5: 4 of its 24 encoder blocks. Only matters when validation actually
+# has to run the text encoder -- once `val_prompt_embeds.pt` exists in cache_dir the
+# encoder is not loaded at all. Embeddings produced at this depth are meaningless, and
+# are cached under a key that records the depth, so they can never be served to a
+# full-depth run. `null` restores the full encoder.
+text_encoder_layers: 24
+# --- end bring-up settings ---
+
 dataset_id: "jainr3/diffusiondb-pixelart"
 cache_dir: "cache/wan22_5b_kurbla"
 subset_size: 64
@@ -23,11 +37,16 @@ inference:
   infer_frames: 65
   infer_fps: 16
   infer_steps: 40
+  # BRING-UP: 1.0 (was 5.0) turns CFG off -- `do_cfg = guidance_scale > 1.0` in
+  # generate.py -- which skips the negative-prompt encode and halves the DiT calls per
+  # denoise step. Restore to 5.0 for output worth looking at.
   infer_guidance: 5.0
   infer_flow_shift: 5.0
   infer_output: "cache/wan22_5b/pixelart_video.mp4"
   val_prompt: "a train speeding through snowy fields, distant forest in background"
-  val_img_steps: 40
+  # BRING-UP: 1 (was 40). Validation still exercises encode -> denoise -> decode end to
+  # end; one step is enough to prove the path runs.
+  val_img_steps: 1
   val_img_frames: 1
   neg_prompt: ""
 
@@ -43,7 +62,9 @@ learning_rate: 1.0e-4
 weight_decay: 0.01
 batch_size: 1
 gradient_accumulation_steps: 2
-max_steps: 20
+max_steps: 3000
+# BRING-UP: the step-0 validation costs ~12 min and is not what we are measuring.
+validate_at_start: false
 
 train_flow_shift: 3.0
 lognorm_mean: 0.0
@@ -65,7 +86,10 @@ save_optim: true
 seed: 42
 
 use_tt: true
-optimization_level: 0
+# Capture the AdamW step as one graph instead of ~120 eager dispatches. Requires
+# capturable=True + foreach=False, which train.py applies only when this is set.
+compile_optimizer: true
+optimization_level: 1
 
 mesh_shape: [4, 8]
 mesh_axis_names: ["batch", "model"]
@@ -98,7 +122,15 @@ model_sharding_patterns:
   - ['^proj_out$',                                [null, "batch"]]
   - ['^condition_embedder\.time_embedder\.linear_1$', ["model", "batch"]]
   - ['^condition_embedder\.time_embedder\.linear_2$', ["batch", "model"]]
-  - ['^condition_embedder\.time_proj$',           ["batch", null]]
+  # Replicated on purpose. time_proj is Linear(3072, 6*3072) and the DiT reads its
+  # output as 6 groups of 3072 (`timestep_proj.unflatten(2, (6, -1))`, the AdaLN
+  # shift/scale/gate pairs). Splitting the flat 18432 over "batch" gives contiguous
+  # 4608-column shards -- 1.5 groups each -- so the shard boundaries cut through the
+  # groups and the unflatten is unrepresentable ("Attempted to split the sharded
+  # dimension 2 into multiple subdimensions"). Replicating costs ~85 MB/chip and one
+  # extra copy of a matmul worth ~1% of the DiT's FLOPs; the chunks it feeds are then
+  # sliced to Shard(last)/"batch" for free when they meet scale_shift_table.
+  - ['^condition_embedder\.time_proj$',           [null, null]]
   - ['^condition_embedder\.text_embedder\.linear_1$', ["model", "batch"]]
   - ['^condition_embedder\.text_embedder\.linear_2$', ["batch", "model"]]
   - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer$',      ["model", "batch"]]
@@ -117,7 +149,13 @@ model_sharding_patterns:
   - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.lora_B\.default$', ["batch", null]]
   - ['\bblocks\.\d+\.ffn\.net\.0\.proj$',         ["model", "batch"]]
   - ['\bblocks\.\d+\.ffn\.net\.2$',               ["batch", "model"]]
-  - ['\bblocks\.\d+\.norm2$',                     ["batch"]]
+  # Replicated on purpose. norm2 is `FP32LayerNorm(dim, eps, elementwise_affine=True)`,
+  # and LayerNorm's normalized dim is the hidden dim -- mean and variance need the whole
+  # vector, so DTensor keeps the *input* replicated along it. A sharded weight then does
+  # not match: native_layer_norm_backward's decomposition runs on local tensors and
+  # multiplies a [1, tokens, 3072] grad by a [768] weight ("Attempting to broadcast a
+  # dimension of length 768 at -1"). The weight is 3072 values; sharding it saves nothing.
+  - ['\bblocks\.\d+\.norm2$',                     [null]]
 param_sharding_patterns:
   # === DiT biases + scale/shift tables (top-level and per-block) ===
   - ['scale_shift_table$',                        [null, null, "batch"]]
@@ -125,7 +163,9 @@ param_sharding_patterns:
   - ['^proj_out\.bias$',                          [null]]
   - ['^condition_embedder\.time_embedder\.linear_1\.bias$', ["model"]]
   - ['^condition_embedder\.time_embedder\.linear_2\.bias$', ["batch"]]
-  - ['^condition_embedder\.time_proj\.bias$',     ["batch"]]
+  # Must follow the weight above: a sharded bias on a replicated weight's output would
+  # be added to the wrong columns.
+  - ['^condition_embedder\.time_proj\.bias$',     [null]]
   - ['^condition_embedder\.text_embedder\.linear_1\.bias$', ["model"]]
   - ['^condition_embedder\.text_embedder\.linear_2\.bias$', ["batch"]]
   - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer\.bias$',      ["model"]]
@@ -134,7 +174,8 @@ param_sharding_patterns:
   - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.base_layer\.bias$', ["batch"]]
   - ['\bblocks\.\d+\.ffn\.net\.0\.proj\.bias$',   ["model"]]
   - ['\bblocks\.\d+\.ffn\.net\.2\.bias$',         ["batch"]]
-  - ['\bblocks\.\d+\.norm2\.bias$',               ["batch"]]
+  # Must follow the weight above.
+  - ['\bblocks\.\d+\.norm2\.bias$',               [null]]
   # # === VAE conv biases ===
   # - ['^quant_conv\.bias$',                        ["batch"]]
   # - ['^post_quant_conv\.bias$',                   ["batch"]]

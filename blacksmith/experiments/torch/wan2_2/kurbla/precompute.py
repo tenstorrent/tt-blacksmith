@@ -41,15 +41,6 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
     samples = download_and_subset_dataset(config)
 
     vae_dtype = config.vae_precompute_torch_dtype()
-    vae = AutoencoderKLWan.from_pretrained(
-        config.model_id, subfolder="vae", torch_dtype=vae_dtype, low_cpu_mem_usage=True
-    ).eval()
-    # import pdb; pdb.set_trace()
-    vae = device_manager.prepare_model(vae)
-    vae = device_manager.to_device(vae)
-    device_manager.shard_model(vae)
-    vae_enc_compiled = VAEEncoderWrapper(vae)
-    vae_enc_compiled = device_manager.compile(vae_enc_compiled)
 
     metadata: list[dict] = []
 
@@ -59,6 +50,15 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
             metadata = json.load(f)
         print(f"[precompute] loaded {len(metadata)} samples from metadata.json")
     else:
+        vae = AutoencoderKLWan.from_pretrained(
+            config.model_id, subfolder="vae", torch_dtype=vae_dtype, low_cpu_mem_usage=True
+        ).eval()
+        # import pdb; pdb.set_trace()
+        vae = device_manager.prepare_model(vae)
+        vae = device_manager.to_device(vae)
+        device_manager.shard_model(vae)
+        vae_enc_compiled = VAEEncoderWrapper(vae)
+        vae_enc_compiled = device_manager.compile(vae_enc_compiled)
         print(f"[precompute] no metadata.json found, starting from scratch")
 
 
@@ -86,8 +86,8 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
         with open(cache / "metadata.json", "w") as f:
             json.dump(metadata, f, indent=2)
 
-    del vae_enc_compiled, vae
-    gc.collect()
+        del vae_enc_compiled, vae
+        gc.collect()
 
     tokenizer = AutoTokenizer.from_pretrained(config.model_id, subfolder="tokenizer")
     text_encoder = UMT5EncoderModel.from_pretrained(
@@ -101,8 +101,8 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
     text_encoder = device_manager.to_device(text_encoder)
     text_encoder.encoder.embed_tokens.weight = text_encoder.shared.weight
     device_manager.shard_model(text_encoder)
-    # umt5_compiled = device_manager.compile(UMT5Wrapper(text_encoder))
-    umt5_compiled = UMT5Wrapper(text_encoder)
+    umt5_compiled = device_manager.compile(UMT5Wrapper(text_encoder))
+    # umt5_compiled = UMT5Wrapper(text_encoder)
 
     unique_captions = sorted({m["caption"] for m in metadata})
     if "" not in unique_captions:
@@ -111,6 +111,8 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
     print(f"[precompute] T5-encoding {len(unique_captions)} unique captions ...")
     max_seq = 512
     for cap in unique_captions:
+        start = time.perf_counter()
+        print(f"[precompute] T5-encoding caption: {cap}")
         tok = tokenizer(cap, padding="max_length", truncation=True, max_length=max_seq, return_tensors="pt")
         input_ids = device_manager.to_device(tok.input_ids)
         attn_mask = device_manager.to_device(tok.attention_mask)
@@ -118,6 +120,9 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: WanDev
         # Match WanPipeline.encode_prompt: zero out padding then keep full length.
         out = out * attn_mask.unsqueeze(-1).to(out.dtype)
         embeds[cap] = out.squeeze(0).to("cpu")
+        end = time.perf_counter()
+        dur = end - start
+        print(f"[precompute] done T5-encoding caption: {cap} in {dur:.6f} seconds")
 
     torch.save(embeds, cache / "embeds.pt")
     del umt5_compiled, text_encoder, tokenizer

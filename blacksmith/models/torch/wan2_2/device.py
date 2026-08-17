@@ -40,6 +40,15 @@ class WanDeviceManager(DeviceManager):
     def to_device(self, module_or_tensor):
         return module_or_tensor.to(self.device)
 
+    def gather(self, tensor: torch.Tensor) -> torch.Tensor:
+        """Identity: sharding here is GSPMD-inferred, so values are never DTensors.
+
+        The counterpart of tt-kurbla's `gather`, which fires a collective to turn a
+        distributed tensor back into a full one. The hook exists so the shared code
+        (`generate.py`) can hand device results to CPU-side math on either backend.
+        """
+        return tensor
+
     def prepare_model(self, model: nn.Module) -> nn.Module:
         """Backend-specific graph rewrites before a model is moved/sharded.
 

@@ -57,6 +57,46 @@ class TrainingConfig(BaseTrainingConfig):
     vae_precompute_dtype: str = Field(default="torch.bfloat16")
     gradient_checkpointing: bool = Field(default=False)
 
+    # Bring-up knob: keep only the first N of the DiT's 30 blocks. Every op, shape and
+    # sharding pattern in the graph is unchanged -- the blocks are identical to each
+    # other -- so a truncated run exercises the same code path at a fraction of the
+    # compile and step time. `null` (the default) keeps the full model. Anything a
+    # truncated run produces (loss, validation video) is meaningless; this is for
+    # plumbing, not for training.
+    dit_layers: Optional[int] = Field(default=None, gt=0)
+
+    # Bring-up knob: keep only the first N of UMT5's 24 encoder blocks when validation
+    # has to run the text encoder. Cuts the device move, the sharding and the compile
+    # roughly in proportion. The embeddings are then meaningless, so they are cached
+    # under a key that records this setting and can never be confused with real ones.
+    text_encoder_layers: Optional[int] = Field(default=None, gt=0)
+
+    # Cache the validation prompt's embedding under `cache_dir`. `val_prompt` and
+    # `neg_prompt` are constants, so their embeddings are identical on every validation
+    # of every run -- and computing them costs a text-encoder load, shard and compile.
+    # With a cache hit the text encoder is never loaded at all.
+    cache_val_prompt_embeds: bool = Field(default=True)
+
+    # Capture the optimizer step as one compiled graph instead of running it eagerly.
+    # Eager, an AdamW step is one program submit per parameter per op -- the IR from a
+    # two-block run shows 120 dispatches for 540 ops, more dispatches than the forward
+    # and backward combined. Compiling `optimizer.step` collapses the update into a
+    # single graph.
+    #
+    # It also changes how the optimizer is built: `capturable=True` (so the step counter
+    # is a device tensor rather than a CPU scalar the backend cannot bind) and
+    # `foreach=False` (no `_foreach_*` lowerings exist). Both only apply when this is on,
+    # so the tt-xla path keeps its current behaviour -- see the collective_permute note
+    # in train.py.
+    compile_optimizer: bool = Field(default=False)
+
+    # Bring-up knob: run the step-0 validation before training starts. That validation
+    # loads and shards a second copy of the VAE and the 4.6B text encoder and compiles
+    # both, which is the single most expensive thing in a short run — dead weight when
+    # the thing being iterated on is the training step. `val_steps_freq` still governs
+    # validations during training.
+    validate_at_start: bool = Field(default=True)
+
     # Dataset / cache settings
     dataset_id: str = Field(default="jainr3/diffusiondb-pixelart")
     cache_dir: str = Field(default="cache/wan22_5b")

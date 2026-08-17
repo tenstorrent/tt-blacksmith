@@ -56,6 +56,9 @@ lognorm_std: 1.0
 
 # Device / sharding settings (32 devices -> 4x8 mesh)
 use_tt: True
+# Capture the AdamW step as one graph instead of ~120 eager dispatches. Requires
+# capturable=True + foreach=False, which train.py applies only when this is set.
+compile_optimizer: true
 optimization_level: 0
 enable_trace: False
 enable_const_eval: True
@@ -86,7 +89,10 @@ model_sharding_patterns:
   - ['^proj_out$',                                [null, "batch"]]
   - ['^condition_embedder\.time_embedder\.linear_1$', ["model", "batch"]]
   - ['^condition_embedder\.time_embedder\.linear_2$', ["batch", "model"]]
-  - ['^condition_embedder\.time_proj$',           ["batch", null]]
+  # Replicated on purpose -- see the note in ../multi_chip/: the DiT reads time_proj's
+  # 18432 outputs as 6 groups of 3072 (`timestep_proj.unflatten(2, (6, -1))`), and a
+  # contiguous 4-way split of the flat dim cuts through those groups.
+  - ['^condition_embedder\.time_proj$',           [null, null]]
   - ['^condition_embedder\.text_embedder\.linear_1$', ["model", "batch"]]
   - ['^condition_embedder\.text_embedder\.linear_2$', ["batch", "model"]]
   - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer$',      ["model", "batch"]]
@@ -105,7 +111,13 @@ model_sharding_patterns:
   - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.lora_B\.default$', ["batch", null]]
   - ['\bblocks\.\d+\.ffn\.net\.0\.proj$',         ["model", "batch"]]
   - ['\bblocks\.\d+\.ffn\.net\.2$',               ["batch", "model"]]
-  - ['\bblocks\.\d+\.norm2$',                     ["batch"]]
+  # Replicated on purpose. norm2 is `FP32LayerNorm(dim, eps, elementwise_affine=True)`,
+  # and LayerNorm's normalized dim is the hidden dim -- mean and variance need the whole
+  # vector, so DTensor keeps the *input* replicated along it. A sharded weight then does
+  # not match: native_layer_norm_backward's decomposition runs on local tensors and
+  # multiplies a [1, tokens, 3072] grad by a [768] weight ("Attempting to broadcast a
+  # dimension of length 768 at -1"). The weight is 3072 values; sharding it saves nothing.
+  - ['\bblocks\.\d+\.norm2$',                     [null]]
 param_sharding_patterns:
   # === DiT biases + scale/shift tables (top-level and per-block) ===
   - ['scale_shift_table$',                        [null, null, "batch"]]
@@ -113,7 +125,8 @@ param_sharding_patterns:
   - ['^proj_out\.bias$',                          [null]]
   - ['^condition_embedder\.time_embedder\.linear_1\.bias$', ["model"]]
   - ['^condition_embedder\.time_embedder\.linear_2\.bias$', ["batch"]]
-  - ['^condition_embedder\.time_proj\.bias$',     ["batch"]]
+  # Must follow the weight above.
+  - ['^condition_embedder\.time_proj\.bias$',     [null]]
   - ['^condition_embedder\.text_embedder\.linear_1\.bias$', ["model"]]
   - ['^condition_embedder\.text_embedder\.linear_2\.bias$', ["batch"]]
   - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer\.bias$',      ["model"]]
@@ -122,7 +135,8 @@ param_sharding_patterns:
   - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.base_layer\.bias$', ["batch"]]
   - ['\bblocks\.\d+\.ffn\.net\.0\.proj\.bias$',   ["model"]]
   - ['\bblocks\.\d+\.ffn\.net\.2\.bias$',         ["batch"]]
-  - ['\bblocks\.\d+\.norm2\.bias$',               ["batch"]]
+  # Must follow the weight above.
+  - ['\bblocks\.\d+\.norm2\.bias$',               [null]]
 
 # Reproducibility settings
 seed: 42

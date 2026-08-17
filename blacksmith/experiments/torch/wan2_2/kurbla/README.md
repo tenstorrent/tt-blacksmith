@@ -23,6 +23,7 @@ this directory's per-instance graph rewrites on tt-kurbla.
 | `precompute.py` | VAE-encode latents + UMT5-encode captions into `cache_dir`. |
 | `train.py` | Entry point for `mode: train` / `mode: infer`; wires the kurbla manager into the shared training loop. |
 | `bringup.py` | Single-device bring-up ladder — runs one component and reports pcc vs a CPU reference. |
+| `mesh_dryrun.py` | CPU dry run of a config's DTensor sharding — every component's forward under the real mesh, no chips, ~12 s. The rung below `mesh_ladder.py`. |
 | `lora/single_chip/*.yaml` | Single-chip config (`mesh_shape: null`, small resolution and step counts). |
 
 ## Running
@@ -35,6 +36,39 @@ CFG=blacksmith/experiments/torch/wan2_2/kurbla/lora/single_chip/wan2_2_ti2v_5b_d
 $KPY -m blacksmith.experiments.torch.wan2_2.kurbla.precompute --config $CFG   # once, ~34 GB download
 $KPY -m blacksmith.experiments.torch.wan2_2.kurbla.train      --config $CFG
 ```
+
+### Sharding dry run (no chips)
+
+Before spending a real run on a mesh config, check its sharding on CPU. `mesh_dryrun.py`
+builds every component on `meta` (from `bringup.py`'s inlined configs — no download, no
+allocation), gives itself the config's full mesh through torch's `fake` process-group
+backend, and runs each forward eager:
+
+```bash
+P=blacksmith.experiments.torch.wan2_2.kurbla.mesh_dryrun
+CFG=blacksmith/experiments/torch/wan2_2/kurbla/lora/multi_chip/wan2_2_ti2v_5b_diffusiondb.yaml
+
+python -m $P --config $CFG                 # all four stages, ~12 s, any interpreter
+python -m $P --config $CFG --stage dit     # one stage
+python -m $P --config $CFG --no-overrides  # A/B whether an override still earns its place
+```
+
+```
+  dit          PASS  (2.4s)  390 tokens, 30 blocks -> (1, 48, 1, 30, 52) ('P(sum)', 'R')
+  umt5         PASS  (0.8s)  512 tokens, 24 layers -> (1, 512, 4096) ('S(2)', 'R')
+  vae-encode   PASS  (0.4s)  1x480x832 -> (1, 48, 1, 30, 52) ('R', 'R')
+  vae-decode   PASS  (0.4s)  1x30x52 latents -> (1, 3, 1, 480, 832) ('R', 'R')
+```
+
+It proves **placement propagation**: mixed plain-tensor/DTensor operands, reshapes that would
+need a redistribution, in-place ops on a `Partial`, and the divisibility asserts in a sharding
+spec. It proves nothing about values (meta tensors have none) or about the tt backend — a
+missing lowering or an unlowerable collective still surfaces only on hardware. Exit status is
+non-zero if any stage fails, so it works as a pre-flight check in a script.
+
+Sharding is mirrored from `WanDeviceManager.shard_model` / `_placements` /
+`_patch_dtensor_conv` rather than imported, so the tool runs without `tt_kurbla` present; keep
+them in step.
 
 ### Bring-up ladder
 

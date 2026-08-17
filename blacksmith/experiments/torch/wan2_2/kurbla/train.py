@@ -24,7 +24,7 @@ if __name__ == "__main__":
     ReproducibilityManager(config).setup()
 
     apply_generality_overrides()
-    apply_perf_overrides()
+    # apply_perf_overrides()
 
     logger = TrainingLogger(config, args.test_log_filename_prefix)
     device_manager = WanDeviceManager(config)

@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 
 from typing import TYPE_CHECKING
@@ -315,11 +316,16 @@ def _patch_umt5_relative_bias_dtensor() -> None:
 
     from torch.distributed.tensor import DTensor, Replicate
 
-    def compute_bias(self, query_length, key_length, device=None, past_seen_tokens=0):
+    # Signature mirrors upstream compute_bias (query_length, key_length, device, cache_position);
+    # past_seen_tokens is kept for older transformers releases that pass an offset instead.
+    def compute_bias(self, query_length, key_length, device=None, cache_position=None, past_seen_tokens=0):
         weight = self.relative_attention_bias.weight
         if device is None:
             device = weight.device
-        context_position = torch.arange(query_length, dtype=torch.long, device=device)[:, None] + past_seen_tokens
+        if cache_position is None:
+            context_position = torch.arange(query_length, dtype=torch.long, device=device)[:, None] + past_seen_tokens
+        else:
+            context_position = cache_position[:, None]
         memory_position = torch.arange(key_length, dtype=torch.long, device=device)[None, :]
         relative_position = memory_position - context_position  # (query_length, key_length)
         relative_position_bucket = self._relative_position_bucket(relative_position)
@@ -335,6 +341,184 @@ def _patch_umt5_relative_bias_dtensor() -> None:
         return values.permute([2, 0, 1]).unsqueeze(0)  # (1, num_heads, q_len, k_len)
 
     umt5.UMT5Attention.compute_bias = compute_bias
+
+
+def _patch_timestep_embedding_dtensor() -> None:
+    # Build the sinusoidal timestep embedding from the local timesteps, then re-wrap.
+    #
+    # get_timestep_embedding derives its frequency table from torch.arange, so it is a
+    # plain tensor, and line 63 multiplies it by `timesteps` -- a DTensor once the DiT
+    # is sharded, because generate.py hands the timestep over with to_device. DTensor
+    # refuses mixed operands, and unlike the rope's freqs_cos/freqs_sin (registered
+    # buffers, which distribute_module already replicated) this table is constructed
+    # fresh on every call, so there is nothing for shard_model to have converted.
+    #
+    # The timestep is replicated, so every chip computes the identical embedding from
+    # identical inputs: a local computation re-labelled Replicate, no collective. Same
+    # shape as the UMT5 relative-bias patch above.
+    try:
+        from diffusers.models import embeddings as diffusers_embeddings
+    except ImportError:
+        return
+
+    from torch.distributed.tensor import DTensor, Replicate
+
+    _orig_get_timestep_embedding = diffusers_embeddings.get_timestep_embedding
+
+    def get_timestep_embedding(timesteps, *args, **kwargs):
+        if not isinstance(timesteps, DTensor):
+            return _orig_get_timestep_embedding(timesteps, *args, **kwargs)
+        mesh = timesteps.device_mesh
+        replicated = [Replicate()] * mesh.ndim
+        if not all(isinstance(p, Replicate) for p in timesteps.placements):
+            # A sharded timestep would make each chip embed a different slice; gather
+            # first so the local result is the whole answer.
+            timesteps = timesteps.redistribute(mesh, replicated)
+        emb = _orig_get_timestep_embedding(timesteps.to_local(), *args, **kwargs)
+        return DTensor.from_local(emb, device_mesh=mesh, placements=replicated, run_check=False)
+
+    diffusers_embeddings.get_timestep_embedding = get_timestep_embedding
+
+
+def _patch_rms_norm_dtensor() -> None:
+    # Recompute nn.RMSNorm out-of-place, with a sum instead of a mean.
+    #
+    # The DiT's attn.norm_q/norm_k normalize over the hidden dim, which is sharded on
+    # "model" (["model"] in the YAML), and their input arrives from the column-parallel
+    # to_q/to_k as Partial(sum) over "batch". torch.rms_norm's decomposition ends with an
+    # in-place `add_(eps)` on the variance, and completing that variance needs a
+    # collective, so DTensor refuses: "in-place operations that require placement changes
+    # are not supported".
+    #
+    # Two things this does differently. It writes the same formula out-of-place, so the
+    # redistribution DTensor already wanted is allowed to happen. And it reduces with sum
+    # rather than mean: a reduction over the sharded last dim leaves Partial(sum), which
+    # `+ eps` completes with an all_reduce(sum) of a single scalar per token, where mean
+    # would leave Partial(avg) -- the collective the tt backend cannot lower (see
+    # _patch_umt5_layer_norm_dtensor). The hidden shard is never gathered.
+    from torch.distributed.tensor import DTensor, Replicate
+    from torch.distributed.tensor.placement_types import Partial as DTPartial
+
+    _orig_forward = nn.RMSNorm.forward
+
+    def forward(self, x):
+        if not isinstance(x, DTensor) or len(self.normalized_shape) != 1:
+            return _orig_forward(self, x)
+
+        # Resolve Partial before squaring: x currently holds each shard's contribution to
+        # a sum, and the square of a partial sum is not the partial sum of squares. Doing
+        # it here rather than leaving it to the pointwise op keeps the collective visible.
+        if any(isinstance(p, DTPartial) for p in x.placements):
+            x = x.redistribute(
+                x.device_mesh,
+                [Replicate() if isinstance(p, DTPartial) else p for p in x.placements],
+            )
+
+        dtype = x.dtype
+        x_f32 = x.float()
+        # .shape is the global shape, so this is the full normalized width even though
+        # each chip holds a slice of it.
+        width = x_f32.shape[-1]
+        eps = self.eps if self.eps is not None else torch.finfo(torch.float32).eps
+        sum_sq = x_f32.pow(2).sum(-1, keepdim=True)
+        out = (x_f32 * torch.rsqrt(sum_sq / width + eps)).to(dtype)
+        if self.weight is not None:
+            out = out * self.weight
+        return out
+
+    nn.RMSNorm.forward = forward
+
+
+def _patch_sdpa_partial_dtensor() -> None:
+    # Materialize any Partial operand before attention.
+    #
+    # A Partial tensor holds one chip's contribution to a sum, so it is only valid input
+    # to linear ops. Attention is not linear -- softmax(sum_i x_i) != sum_i softmax(x_i)
+    # -- so q/k/v have to be summed first. The column-parallel to_q/to_k/to_v contract
+    # over a "batch"-sharded input dim, which leaves all three Partial(sum) over "batch".
+    # Wan's qk-norm resolves q and k on the way through (_patch_rms_norm_dtensor), but
+    # nothing touches v between to_v and the attention call.
+    #
+    # Left alone, DTensor reconciles the mismatched operands itself and picks a
+    # reduce-scatter of the sequence dim, which tt-kurbla implements as a collective
+    # needing an even split -- and 390 tokens do not divide by 4:
+    #   ValueError: tt_kurbla.reduce_scatter: dim 2 (size 390) is not divisible by 4
+    # Resolving Partial -> Replicate here is the all-reduce the arithmetic required
+    # anyway, and it leaves the head shard over "model" untouched, so attention still
+    # runs distributed over heads.
+    import torch.nn.functional as F
+    from torch.distributed.tensor import DTensor, Replicate
+    from torch.distributed.tensor.placement_types import Partial as DTPartial
+
+    _orig_sdpa = F.scaled_dot_product_attention
+
+    def _materialize(tensor):
+        if isinstance(tensor, DTensor) and any(isinstance(p, DTPartial) for p in tensor.placements):
+            return tensor.redistribute(
+                tensor.device_mesh,
+                [Replicate() if isinstance(p, DTPartial) else p for p in tensor.placements],
+            )
+        return tensor
+
+    def scaled_dot_product_attention(query, key, value, *args, **kwargs):
+        return _orig_sdpa(_materialize(query), _materialize(key), _materialize(value), *args, **kwargs)
+
+    F.scaled_dot_product_attention = scaled_dot_product_attention
+
+
+def _patch_conv3d_out_channel_sharded_weight() -> None:
+    # Compute a Conv3d locally when its weight is sharded on out-channels.
+    #
+    # DTensor has no convolution sharding rule for that layout: with
+    # `_tp_conv._is_supported` forced to True (WanDeviceManager._patch_dtensor_conv) it
+    # copies the input's spec onto the output, so the DiT's patch_embedding
+    # (["batch", null, null, null, null] -> local (768, 48, 1, 2, 2) of a 3072-channel
+    # weight) returns a Replicate() result whose global shape still says 3072 channels
+    # while the local tensor holds 768. The next `hidden_states.flatten(2)` then asks
+    # for [1, 3072, 390] from 299520 local elements and raises.
+    #
+    # With a replicated input, an out-channel shard of the weight produces exactly that
+    # chip's slice of the output channels -- no data from other shards is involved -- so
+    # the local convolution is the whole answer and Shard(1) is its true placement. That
+    # is also the placement the column-parallel blocks downstream expect, so this emits
+    # no collective at all. Anything else (sharded input, weight sharded on another dim,
+    # bias not sharded to match) falls through to the stock forward.
+    from torch.distributed.tensor import DTensor, Replicate
+    from torch.distributed.tensor.placement_types import Shard as DTShard
+
+    _orig_forward = nn.Conv3d.forward
+
+    def forward(self, input):
+        weight = self.weight
+        if not isinstance(weight, DTensor):
+            return _orig_forward(self, input)
+
+        shards = [(mesh_dim, p.dim) for mesh_dim, p in enumerate(weight.placements) if isinstance(p, DTShard)]
+        if len(shards) != 1 or shards[0][1] != 0:
+            return _orig_forward(self, input)
+        mesh_dim = shards[0][0]
+
+        if isinstance(input, DTensor) and not all(isinstance(p, Replicate) for p in input.placements):
+            return _orig_forward(self, input)
+
+        bias = self.bias
+        if isinstance(bias, DTensor):
+            # The bias must be split the same way, or the local conv would add the full
+            # bias vector to a channel slice.
+            bias_shards = [(md, p.dim) for md, p in enumerate(bias.placements) if isinstance(p, DTShard)]
+            if bias_shards != [(mesh_dim, 0)]:
+                return _orig_forward(self, input)
+            bias = bias.to_local()
+        elif bias is not None:
+            return _orig_forward(self, input)
+
+        mesh = weight.device_mesh
+        local_input = input.to_local() if isinstance(input, DTensor) else input
+        local_out = self._conv_forward(local_input, weight.to_local(), bias)
+        placements = [DTShard(1) if d == mesh_dim else Replicate() for d in range(mesh.ndim)]
+        return DTensor.from_local(local_out, device_mesh=mesh, placements=placements, run_check=False)
+
+    nn.Conv3d.forward = forward
 
 
 # --- Perf patches (graph-break removals; no correctness impact) ---
@@ -410,6 +594,10 @@ def apply_generality_overrides() -> None:
     _patch_wan_avgdown_avoid_8d_permute()
     _patch_umt5_layer_norm_dtensor()
     _patch_umt5_relative_bias_dtensor()
+    _patch_timestep_embedding_dtensor()
+    # _patch_rms_norm_dtensor()
+    # _patch_sdpa_partial_dtensor()
+    # _patch_conv3d_out_channel_sharded_weight()
 
 
 def apply_perf_overrides() -> None:
@@ -469,20 +657,36 @@ def _make_lora_config(config: TrainingConfig):
 def build_lora_transformer(config: TrainingConfig, device_manager: "WanDeviceManager"):
     from diffusers import WanTransformer3DModel
 
+    # Phase timings: "why is a run slow" is otherwise guesswork between a 10 GB checkpoint
+    # read, the per-parameter device move, and sharding thousands of tensors.
+    t0 = time.perf_counter()
     transformer = WanTransformer3DModel.from_pretrained(
         config.model_id, subfolder="transformer", torch_dtype=config.torch_dtype(), low_cpu_mem_usage=True
     )
+    print(f"[build] DiT checkpoint loaded in {time.perf_counter() - t0:.1f}s", flush=True)
+    if config.dit_layers is not None and config.dit_layers < len(transformer.blocks):
+        # Drop the tail blocks before anything moves to device or gets sharded, so the
+        # run pays for neither. Slicing an nn.ModuleList returns a new ModuleList, and
+        # the forward iterates `self.blocks`, so nothing else has to change. The model's
+        # own config still reports 30 layers -- a checkpoint saved from a truncated run
+        # would be wrong, which is why this is a bring-up knob only.
+        print(f"[dit] truncating to the first {config.dit_layers} of {len(transformer.blocks)} blocks")
+        transformer.blocks = transformer.blocks[: config.dit_layers]
     # Backend-specific per-instance rewrites (a no-op on tt-xla); must precede the move
     # so the device only ever sees modules the backend can lower.
+    t0 = time.perf_counter()
     transformer = device_manager.prepare_model(transformer)
     transformer = device_manager.to_device(transformer)
+    print(f"[build] DiT moved to device in {time.perf_counter() - t0:.1f}s", flush=True)
     for p in transformer.parameters():
         p.requires_grad_(False)
     if config.gradient_checkpointing and hasattr(transformer, "enable_gradient_checkpointing"):
         transformer.enable_gradient_checkpointing()
 
+    t0 = time.perf_counter()
     transformer.add_adapter(_make_lora_config(config))
     device_manager.shard_model(transformer)
+    print(f"[build] LoRA + sharding in {time.perf_counter() - t0:.1f}s", flush=True)
 
     total = sum(p.numel() for p in transformer.parameters())
     trainable = sum(p.numel() for p in transformer.parameters() if p.requires_grad)

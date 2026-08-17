@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
+import os
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -129,8 +130,14 @@ def train(
     trainable = [p for p in transformer.parameters() if p.requires_grad]
     # Note: we don't use capturable = True, as it results in collective_permute op
     # which we don't support yet. (https://github.com/tenstorrent/tt-mlir/issues/3370)
+    #
+    # `compile_optimizer` needs the opposite: capturable keeps the step counter on the
+    # device, and a compiled step cannot bind a CPU scalar. foreach stays off either way
+    # -- there are no `_foreach_*` lowerings. The kwargs are only passed when the flag is
+    # set, so the tt-xla path is unchanged.
+    step_kwargs = {"capturable": True, "foreach": False} if config.compile_optimizer else {}
     optimizer = torch.optim.AdamW(
-        trainable, lr=config.learning_rate, weight_decay=config.weight_decay, betas=(0.9, 0.999)
+        trainable, lr=config.learning_rate, weight_decay=config.weight_decay, betas=(0.9, 0.999), **step_kwargs
     )
 
     if config.resume_from_checkpoint:
@@ -147,29 +154,120 @@ def train(
     optimizer.zero_grad(set_to_none=True)
 
     device_manager.sync()
-    validate(transformer, config, device_manager, logger, 0)
+    if config.validate_at_start:
+        validate(transformer, config, device_manager, logger, 0)
+    else:
+        logger.info("Skipping the step-0 validation (validate_at_start: false)")
     logger.log_metrics({}, commit=True, step=0)
+    import time
+
+    # --- Tracy/wall-clock benchmarking, inert unless TT_BENCH_STEPS is set ---
+    # Set TT_BENCH_STEPS=N to stop after N optimizer steps and print a phase breakdown.
+    # Signposts bracket each phase so `tt-perf-report --start-signpost/--end-signpost`
+    # can isolate one steady-state step from the device trace.
+    bench_steps = int(os.environ.get("TT_BENCH_STEPS", "0"))
+    # Phase totals per *optimizer* step. `forward`/`backward`/`data` run once per
+    # micro-step, so they are summed across the accumulation window rather than sampled
+    # -- reading one micro-step hides the rest, and with gradient accumulation the
+    # micro-steps differ by an order of magnitude.
+    bench: dict[str, list[float]] = {"data": [], "forward": [], "backward": [], "optimizer": []}
+    micro: dict[str, float] = {"data": 0.0, "forward": 0.0, "backward": 0.0}
+
+    def _signpost(name: str) -> None:
+        if not bench_steps:
+            return
+        try:
+            import tracy
+
+            tracy.signpost(name)
+        except Exception:  # noqa: BLE001 - profiling must never break training
+            pass
+
+    def _bench_summary() -> None:
+        """Steady-state phase means, one row per phase, all per optimizer step.
+
+        Step 1 is dropped: it carries the graph compiles.
+        """
+        if not bench_steps or len(bench["optimizer"]) <= 1:
+            return
+        n = len(bench["optimizer"]) - 1
+        print(f"\n{'=' * 62}")
+        print(f"[TIMER] steady state over {n} optimizer step(s), step 1 excluded (compile)")
+        totals = 0.0
+        for phase in ("data", "forward", "backward", "optimizer"):
+            steady = bench[phase][1:]
+            mean = sum(steady) / len(steady)
+            totals += mean
+            print(f"  {phase:10s} mean={mean:7.3f} s   min={min(steady):7.3f}   max={max(steady):7.3f}")
+        print(f"  {'step':10s} mean={totals:7.3f} s")
+        print(f"{'=' * 62}\n")
 
     try:
         while global_step < config.max_steps:
+            label = "compile" if global_step == 0 else f"steady_{global_step}"
+            if micro_step % config.gradient_accumulation_steps == 0:
+                # First micro-step of this optimizer step: the wall clock for the step as
+                # a whole starts here, not at each micro-step.
+                start = time.perf_counter()
+                _signpost(f"step_{label}_start")
+
+            t0 = time.perf_counter()
             try:
                 batch = next(data_iter)
             except StopIteration:
                 data_iter = iter(train_loader)
                 batch = next(data_iter)
+            micro["data"] += time.perf_counter() - t0
 
+            _signpost(f"fwd_{label}_start")
+            t0 = time.perf_counter()
             loss = flow_matching_step(compiled_transformer, batch, config, device_manager)
+            device_manager.sync()
+            micro["forward"] += time.perf_counter() - t0
+            _signpost(f"fwd_{label}_end")
+
+            _signpost(f"bwd_{label}_start")
+            t0 = time.perf_counter()
             (loss / config.gradient_accumulation_steps).backward()
             device_manager.sync()
+            micro["backward"] += time.perf_counter() - t0
+            _signpost(f"bwd_{label}_end")
+
             accum_loss += loss.item()
             accum_count += 1
             micro_step += 1
 
             if micro_step % config.gradient_accumulation_steps == 0:
+                _signpost(f"opt_{label}_start")
+                t0 = time.perf_counter()
                 device_manager.optimizer_step(optimizer)
                 optimizer.zero_grad()
                 device_manager.sync()
+                opt_time = time.perf_counter() - t0
+                _signpost(f"opt_{label}_end")
+                _signpost(f"step_{label}_end")
                 global_step += 1
+
+                step_time = time.perf_counter() - start
+                # One line per optimizer step, covering every micro-step in the
+                # accumulation window. `fwd`/`bwd` are sums over those micro-steps, so
+                # the parts add up to the step total.
+                logger.info(
+                    f"Step {global_step} took {step_time:.3f}s "
+                    f"(fwd {micro['forward']:.3f} + bwd {micro['backward']:.3f} + "
+                    f"opt {opt_time:.3f} + data {micro['data']:.3f}, "
+                    f"{config.gradient_accumulation_steps} micro-step(s))"
+                )
+                if bench_steps:
+                    for phase, value in micro.items():
+                        bench[phase].append(value)
+                    bench["optimizer"].append(opt_time)
+                micro = {"data": 0.0, "forward": 0.0, "backward": 0.0}
+
+                if bench_steps and global_step >= bench_steps:
+                    _signpost("benchmark_complete")
+                    _bench_summary()
+                    return
 
                 avg_loss = accum_loss / accum_count
                 # Per-step flow-matching loss is noisy (each step averages only a few
@@ -189,22 +287,22 @@ def train(
                         step=global_step,
                     )
 
-                if global_step % config.val_steps_freq == 0:
-                    device_manager.sync()
-                    checkpoint_manager.save_checkpoint(
-                        transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}
-                    )
-                    validate(transformer, config, device_manager, logger, global_step)
+                # if global_step % config.val_steps_freq == 0:
+                #     device_manager.sync()
+                #     checkpoint_manager.save_checkpoint(
+                #         transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}
+                #     )
+                #     validate(transformer, config, device_manager, logger, global_step)
 
                 # Commit everything buffered for this step (metrics + any val image) in a
                 # single W&B row.
                 logger.log_metrics({}, commit=True, step=global_step)
 
         device_manager.sync()
-        final_path = checkpoint_manager.save_checkpoint(
-            transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}, checkpoint_name="final_model.pt"
-        )
-        logger.log_artifact(final_path, artifact_type="model", name="final_model.pt")
+        # final_path = checkpoint_manager.save_checkpoint(
+        #     transformer, global_step, 0, optimizer, metrics={"train/loss": avg_loss}, checkpoint_name="final_model.pt"
+        # )
+        # logger.log_artifact(final_path, artifact_type="model", name="final_model.pt")
         logger.info(f"Training done at step {global_step}.")
     except Exception as e:
         logger.error(f"Training failed with error: {str(e)}", traceback.format_exc())

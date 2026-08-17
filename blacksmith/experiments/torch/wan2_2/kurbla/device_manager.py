@@ -30,6 +30,8 @@ _COMPILE_OPTIONS = {
     CompileOption.FP32_DEST_ACC_EN: True,
     CompileOption.MATH_FIDELITY: MathFidelity.HiFi4,
     CompileOption.EXPERIMENTAL_ENABLE_DRAM_SPACE_SAVING_OPTIMIZATION: True,
+    # EXPERIMENT: const-eval off
+    CompileOption.ENABLE_CONST_EVAL: False,
 }
 
 def _patch_dtensor_conv() -> None:
@@ -42,26 +44,24 @@ def _patch_dtensor_conv() -> None:
     _tp_conv._is_supported = _is_supported_patched
     import torch.nn.functional as F
 
-    # _orig_pad = F.pad
-    # def _pad_debug(input, pad, mode='constant', value=None):
-    #     if isinstance(input, DTensor):
-    #         print(f"[F.pad IN]  shape={tuple(input.shape)} mesh_ndim={input.device_mesh.ndim} "
-    #             f"placements={input.placements} pad={pad}")
-    #     out = _orig_pad(input, pad, mode=mode, value=value)
-    #     if isinstance(out, DTensor):
-    #         print(f"[F.pad OUT] shape={tuple(out.shape)} mesh_ndim={out.device_mesh.ndim} "
-    #             f"placements={out.placements}")
-    #     return out
-    # F.pad = _pad_debug
-
     _orig_pad = F.pad
-    def _pad_dtensor_safe(input, pad, mode='constant', value=None):
+
+    @torch.jit.ignore
+    def _pad_maybe_dtensor(input, pad, mode: str, value) -> torch.Tensor:
         if isinstance(input, DTensor):
             mesh, placements = input.device_mesh, input.placements
             local = input.to_local()
             out_local = _orig_pad(local, pad, mode=mode, value=value)
             return DTensor.from_local(out_local, device_mesh=mesh, placements=placements)
         return _orig_pad(input, pad, mode=mode, value=value)
+
+    def _pad_dtensor_safe(
+        input: torch.Tensor, pad: List[int], mode: str = 'constant', value: Optional[float] = None
+    ) -> torch.Tensor:
+        if not torch.jit.is_scripting():
+            return _pad_maybe_dtensor(input, pad, mode, value)
+        return _orig_pad(input, pad, mode=mode, value=value)
+
     F.pad = _pad_dtensor_safe
 
 
@@ -220,18 +220,47 @@ class WanDeviceManager:
         return prepared
 
     def compile(self, module: nn.Module):
-        print(f"[precompute] compiling with {self.compile_options}")
-        cached = torch.compile(module, backend="tt", options=self.compile_options)
+        """Cached on id(module), like the tt-xla manager: callers must keep the wrapper
+        alive across calls.
+
+        `generate_validation_sample` calls this on the transformer at every validation,
+        so without the cache each one built a fresh `OptimizedModule` around a module
+        that was already compiled. `self._compile_cache` existed for this and was simply
+        never consulted.
+        """
+        cached = self._compile_cache.get(id(module))
+        if cached is None:
+            print(f"[compile] compiling {type(module).__name__} with {self.compile_options}", flush=True)
+            cached = torch.compile(module, backend="tt", options=self.compile_options)
+            self._compile_cache[id(module)] = cached
+        else:
+            print(f"[compile] reusing the compiled {type(module).__name__}", flush=True)
         return cached
 
     def optimizer_step(self, optimizer: torch.optim.Optimizer, zero_grad: bool = False):
-        """Perform the optimizer step.
+        """Perform the optimizer step, as one compiled graph when `compile_optimizer` is set.
 
         No explicit all-reduce: with DTensor parameters the gradients are DTensors too,
         and a data-parallel gradient comes out `Partial` over the batch axis. The step
         combines it with the replicated parameter, so DTensor emits the reduction itself.
+
+        Run eagerly, the step is one program submit per parameter per op. Dynamo traces
+        the whole of AdamW's single-tensor path without a graph break, so compiling
+        `optimizer.step` turns those into one graph. Cached on id(optimizer) like
+        `compile`, because a fresh wrapper each call would defeat the point.
         """
-        optimizer.step()
+        if not getattr(self.config, "compile_optimizer", False):
+            optimizer.step()
+            if zero_grad:
+                optimizer.zero_grad(set_to_none=False)
+            return
+
+        step = self._compile_cache.get(id(optimizer))
+        if step is None:
+            print(f"[compile] compiling the {type(optimizer).__name__} step", flush=True)
+            step = torch.compile(optimizer.step, backend="tt", options=self.compile_options)
+            self._compile_cache[id(optimizer)] = step
+        step()
         if zero_grad:
             # Kept as tensors (not None) so the next window's grads accumulate.
             optimizer.zero_grad(set_to_none=False)
