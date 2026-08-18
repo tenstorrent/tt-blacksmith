@@ -253,7 +253,8 @@ def train(
                 # accumulation window. `fwd`/`bwd` are sums over those micro-steps, so
                 # the parts add up to the step total.
                 logger.info(
-                    f"Step {global_step} took {step_time:.3f}s "
+                    f"Step {global_step} loss {accum_loss / max(accum_count, 1):.4f} "
+                    f"took {step_time:.3f}s "
                     f"(fwd {micro['forward']:.3f} + bwd {micro['backward']:.3f} + "
                     f"opt {opt_time:.3f} + data {micro['data']:.3f}, "
                     f"{config.gradient_accumulation_steps} micro-step(s))"

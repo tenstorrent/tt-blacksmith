@@ -9,19 +9,8 @@ dtype: "torch.bfloat16"
 vae_precompute_dtype: "torch.bfloat16"
 gradient_checkpointing: false
 
-# --- BRING-UP SETTINGS (restore before any real training run) ---
-# Keep only the first 2 of the DiT's 30 blocks. The blocks are identical to each other,
-# so every op, shape and sharding pattern still runs -- at roughly a fifteenth of the
-# compile and step time. Loss, checkpoints and validation output are meaningless while
-# this is set. `null` restores the full model.
 dit_layers: 30
-# Same trade for UMT5: 4 of its 24 encoder blocks. Only matters when validation actually
-# has to run the text encoder -- once `val_prompt_embeds.pt` exists in cache_dir the
-# encoder is not loaded at all. Embeddings produced at this depth are meaningless, and
-# are cached under a key that records the depth, so they can never be served to a
-# full-depth run. `null` restores the full encoder.
 text_encoder_layers: 24
-# --- end bring-up settings ---
 
 dataset_id: "jainr3/diffusiondb-pixelart"
 cache_dir: "cache/wan22_5b_kurbla"
@@ -37,16 +26,11 @@ inference:
   infer_frames: 65
   infer_fps: 16
   infer_steps: 40
-  # BRING-UP: 1.0 (was 5.0) turns CFG off -- `do_cfg = guidance_scale > 1.0` in
-  # generate.py -- which skips the negative-prompt encode and halves the DiT calls per
-  # denoise step. Restore to 5.0 for output worth looking at.
   infer_guidance: 5.0
   infer_flow_shift: 5.0
   infer_output: "cache/wan22_5b/pixelart_video.mp4"
   val_prompt: "a train speeding through snowy fields, distant forest in background"
-  # BRING-UP: 1 (was 40). Validation still exercises encode -> denoise -> decode end to
-  # end; one step is enough to prove the path runs.
-  val_img_steps: 1
+  val_img_steps: 40
   val_img_frames: 1
   neg_prompt: ""
 
@@ -63,7 +47,7 @@ weight_decay: 0.01
 batch_size: 1
 gradient_accumulation_steps: 2
 max_steps: 3000
-# BRING-UP: the step-0 validation costs ~12 min and is not what we are measuring.
+
 validate_at_start: false
 
 train_flow_shift: 3.0
@@ -86,8 +70,7 @@ save_optim: true
 seed: 42
 
 use_tt: true
-# Capture the AdamW step as one graph instead of ~120 eager dispatches. Requires
-# capturable=True + foreach=False, which train.py applies only when this is set.
+
 compile_optimizer: true
 optimization_level: 1
 

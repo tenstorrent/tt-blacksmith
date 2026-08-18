@@ -30,8 +30,6 @@ _COMPILE_OPTIONS = {
     CompileOption.FP32_DEST_ACC_EN: True,
     CompileOption.MATH_FIDELITY: MathFidelity.HiFi4,
     CompileOption.EXPERIMENTAL_ENABLE_DRAM_SPACE_SAVING_OPTIMIZATION: True,
-    # EXPERIMENT: const-eval off
-    CompileOption.ENABLE_CONST_EVAL: False,
 }
 
 def _patch_dtensor_conv() -> None:
