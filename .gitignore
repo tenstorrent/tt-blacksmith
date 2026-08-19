@@ -1,4 +1,5 @@
 data/
+cache/
 generated_modules/
 **/__pycache__/
 *.egg-info/

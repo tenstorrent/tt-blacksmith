@@ -19,12 +19,34 @@ _TEST_MODE_DEFAULTS = {
 }
 
 
+def _apply_overrides(config_data: dict, overrides: list[str]) -> dict:
+    for item in overrides:
+        if "=" not in item:
+            raise ValueError(f"--set expects KEY=VALUE, got {item!r}")
+        key, _, raw_value = item.partition("=")
+        key = key.strip()
+        try:
+            value = yaml.safe_load(raw_value.strip())
+        except yaml.YAMLError as e:
+            raise ValueError(f"--set {key}: could not parse {raw_value.strip()!r}") from e
+
+        target = config_data
+        *parents, leaf = key.split(".")
+        for part in parents:
+            target = target.setdefault(part, {})
+            if not isinstance(target, dict):
+                raise ValueError(f"--set {key}: {part!r} is not a nested section")
+        target[leaf] = value
+    return config_data
+
+
 def generate_config(
     config: BaseModel,
     yaml_path: Path,
     test_yaml_path: Optional[Path] = None,
     test_checkpoint_path: Optional[str] = None,
     reference_model_checkpoint_path: Optional[str] = None,
+    overrides: Optional[list[str]] = None,
 ) -> BaseModel:
     assert yaml_path.exists(), f"Config file {yaml_path} does not exist"
     with yaml_path.open() as file:
@@ -49,6 +71,9 @@ def generate_config(
     if reference_model_checkpoint_path:
         config_data["sft_checkpoint_path"] = reference_model_checkpoint_path
 
+    if overrides:
+        config_data = _apply_overrides(config_data, overrides)
+
     return config.model_validate(config_data)
 
 
@@ -59,6 +84,15 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
         default_config = default_config.relative_to(Path.cwd())
 
     parser.add_argument("--config", type=Path, default=default_config, help="Path to YAML config file")
+
+    parser.add_argument(
+        "--set",
+        dest="overrides",
+        action="append",
+        metavar="KEY=VALUE",
+        default=[],
+        help="Override one config value, e.g. --set max_steps=100 or --set inference.infer_steps=10 (repeatable)",
+    )
 
     parser.add_argument(
         "--test-config", type=Path, required=False, help="[Testing utils] Configuration that is used for CI testing"
