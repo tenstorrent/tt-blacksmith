@@ -1,8 +1,8 @@
 # NeighborLoader needs a graph-sampling backend. pyg_lib is sufficient; the
 # scatter-free model does not require torch-scatter or torch-sparse.
---find-links https://data.pyg.org/whl/torch-2.10.0+cpu.html
+--find-links https://data.pyg.org/whl/torch-2.11.0+cpu.html
 filelock==3.29.0
-pyg_lib==0.8.0+pt210cpu
+pyg_lib==0.8.0+pt211cpu
 # PyG's Reddit processor loads the adjacency archive with scipy.sparse.
 scipy==1.18.0
 torch_geometric==2.8.0.post1
