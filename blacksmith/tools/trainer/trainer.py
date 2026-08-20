@@ -139,7 +139,7 @@ class Trainer(ABC):
                     self._backward(loss / grad_accumulation_steps)
                     if self.config.use_tt:
                         torch_xla.sync(wait=True)
-                    self.callback_handler("on_backward_end")
+                    self.callback_handler("on_backward_end", loss)
 
                     accumulation_step += 1
 
@@ -210,8 +210,7 @@ class Trainer(ABC):
         """
         Step the optimizer and reset gradients. Override for custom behaviour.
         """
-        self.device_manager.optimizer_step(self.optimizer)
-        self.optimizer.zero_grad()
+        self.device_manager.optimizer_step(self.optimizer, zero_grad=True)
 
     def cleanup(self) -> None:
         """
