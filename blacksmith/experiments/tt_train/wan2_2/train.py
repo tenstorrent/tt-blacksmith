@@ -30,21 +30,29 @@ from blacksmith.experiments.tt_train.wan2_2.timing import (
 from blacksmith.models.tt_train.wan2_2 import (
     WanConfig,
     WanTransformer3D,
+    assert_conv3d_patch_embed_is_frozen,
     build_rope_params,
     load_expert_from_safetensors,
     patchify,
     patchify_output_order,
+    to_ndhwc,
 )
 from blacksmith.models.tt_train.wan2_2.device import setup_device
-from blacksmith.models.tt_train.wan2_2.lora import init_lora_A_gaussian, load_all, resolve_targets, save_all
+from blacksmith.models.tt_train.wan2_2.lora import (
+    init_lora_A_gaussian,
+    load_all,
+    resolve_targets,
+    save_all,
+)
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.tt_train.logging_manager import TrainingLogger
 
 DEFAULT_CONFIG = Path(__file__).parent / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
 
 
-def _to_ttml(arr: np.ndarray, dtype=ttnn.bfloat16, mapper=None):
-    return ttml.autograd.Tensor.from_numpy(np.ascontiguousarray(arr, dtype=np.float32), ttnn.Layout.TILE, dtype, mapper)
+def _to_ttml(arr: np.ndarray, dtype=ttnn.bfloat16, mapper=None, layout=ttnn.Layout.TILE):
+    """Tokens go up tiled; the conv3d patch embed needs its latent row-major instead."""
+    return ttml.autograd.Tensor.from_numpy(np.ascontiguousarray(arr, dtype=np.float32), layout, dtype, mapper)
 
 
 def _loss_value(loss) -> float:
@@ -100,6 +108,14 @@ def build_lora_expert(role: str, config: TrainingConfig, logger: TrainingLogger)
         n = init_lora_A_gaussian(lora_model, config.lora_rank, config.mesh_shape, seed=config.seed)
         logger.info(f"{role}: re-initialized {n} lora_A ~ N(0, 1/{config.lora_rank})")
 
+    if config.conv3d_patch_embed:
+        # Here, not in train(): LoraModel exposes no accessor for the module it wraps, so this
+        # is the only scope holding the WanTransformer3D. After wrapping, so the frozen check
+        # sees the injected adapters; the wrapper's forward delegates, so enabling still takes.
+        assert_conv3d_patch_embed_is_frozen(model)
+        model.enable_conv3d_patch_embed()
+        logger.info(f"{role}: patch embed via ttnn conv3d over the raw latent (no host patchify)")
+
     all_params = lora_model.parameters()
     trainable = {name: p for name, p in all_params.items() if "lora" in name}
     logger.info(f"{role}: {len(trainable)} LoRA params trainable, {len(all_params) - len(trainable)} frozen")
@@ -141,7 +157,10 @@ def flow_matching_step(
     rng: np.random.Generator,
     fixed_noise: np.ndarray | None = None,
     dp_mapper=None,
+    use_conv3d: bool = False,
 ):
+    """`use_conv3d` is passed, not read off `model`: LoraModel does not forward attribute
+    lookups to the WanTransformer3D it wraps."""
     x0 = np.asarray(batch["latent"], dtype=np.float32)
     noise = (
         rng.standard_normal(x0.shape, dtype=np.float32)
@@ -151,15 +170,20 @@ def flow_matching_step(
     x_t = (1.0 - t) * x0 + t * noise
     target = noise - x0
 
-    tokens = patchify(x_t, patch_size)
+    # Target is always host-patchified: proj_out emits tokens either way, so only the input
+    # side changes with conv3d.
     target_tokens = patchify_output_order(target, patch_size)
+    if use_conv3d:
+        inputs = _to_ttml(to_ndhwc(x_t), mapper=dp_mapper, layout=ttnn.Layout.ROW_MAJOR)
+    else:
+        inputs = _to_ttml(patchify(x_t, patch_size), mapper=dp_mapper)
 
     text_embed = np.asarray(batch["text_embed"], dtype=np.float32)
     text_embed = text_embed.reshape(text_embed.shape[0], 1, *text_embed.shape[-2:])
 
     timesteps = [t * 1000.0]
 
-    pred = model(_to_ttml(tokens, mapper=dp_mapper), timesteps, _to_ttml(text_embed, mapper=dp_mapper), rope_params)
+    pred = model(inputs, timesteps, _to_ttml(text_embed, mapper=dp_mapper), rope_params)
     return ttml.ops.loss.mse_loss(pred, _to_ttml(target_tokens, mapper=dp_mapper), reduce=ttml.ops.ReduceType.MEAN)
 
 
@@ -177,7 +201,18 @@ def validation_loss(experts, val_loader, config: TrainingConfig, ctx, rope_param
             noise = g.standard_normal(batch["latent"].shape, dtype=np.float32)
             model = _route(t, experts, config)
             losses.append(
-                _loss_value(flow_matching_step(model, batch, t, rope_params, patch_size, g, fixed_noise=noise))
+                _loss_value(
+                    flow_matching_step(
+                        model,
+                        batch,
+                        t,
+                        rope_params,
+                        patch_size,
+                        g,
+                        fixed_noise=noise,
+                        use_conv3d=config.conv3d_patch_embed,
+                    )
+                )
             )
             ctx.reset_graph()
     finally:
@@ -285,12 +320,21 @@ def train(config: TrainingConfig, logger: TrainingLogger) -> None:
 
         t = _sample_timestep(config, lo, hi, rng)
         model = _route(t, experts, config)
-        loss = flow_matching_step(model, batch, t, rope_params, patch_size, rng, dp_mapper=dp_mapper)
+        loss = flow_matching_step(
+            model,
+            batch,
+            t,
+            rope_params,
+            patch_size,
+            rng,
+            dp_mapper=dp_mapper,
+            use_conv3d=config.conv3d_patch_embed,
+        )
         accum_loss += _loss_value(loss)
         accum_n += 1
 
         if config.gradient_accumulation_steps > 1:
-            loss = loss * (1.0 / float(config.gradient_accumulation_steps))
+           loss = loss * (1.0 / float(config.gradient_accumulation_steps))
         loss.backward(False)
         ctx.reset_graph()
         micro += 1

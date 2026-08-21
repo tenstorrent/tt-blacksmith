@@ -18,15 +18,21 @@ import pytest
 ttnn = pytest.importorskip("ttnn")
 ttml = pytest.importorskip("ttml")
 from blacksmith.models.tt_train.wan2_2 import (
+    _CONV3D_ALIGNMENT,
     WanConfig,
+    WanTransformer3D,
     WanTransformerBlock,
+    assert_conv3d_patch_embed_is_frozen,
     build_rope_params,
     build_tables,
+    conv3d_patch_embed,
     grid_size,
     patch_features,
     patchify,
     patchify_output_order,
+    prepare_conv3d_patch_weight,
     timestep_features,
+    to_ndhwc,
     to_ttml_name,
     unpatchify,
 )
@@ -139,6 +145,20 @@ def test_patchify_equals_conv3d():
     np.testing.assert_allclose(mine[:, 0], reference, atol=1e-12)
 
 
+def test_to_ndhwc_is_a_pure_permutation():
+    """conv3d takes the raw latent as (B, F, H, W, C) instead of patchify's tokens."""
+    rng = np.random.default_rng(2)
+    latent = rng.standard_normal((2, 4, 1, 8, 8)).astype(np.float32)
+    ndhwc = to_ndhwc(latent)
+    assert ndhwc.shape == (2, 1, 8, 8, 4)
+    np.testing.assert_allclose(ndhwc.transpose(0, 4, 1, 2, 3), latent, atol=0.0)
+
+
+def test_conv3d_alignment_divides_wan_in_channels():
+    """16, not ttnn's default 32, so Wan's 16-channel latents need no zero-padded upload."""
+    assert WanConfig().in_channels % _CONV3D_ALIGNMENT == 0
+
+
 def test_unpatchify_inverts_output_order():
     rng = np.random.default_rng(0)
     patch = (1, 2, 2)
@@ -166,8 +186,8 @@ def test_checkpoint_name_mapping():
         assert to_ttml_name(unchanged) == unchanged
 
 
-def test_to_ttml_array_rejects_shape_mismatch(expect_error):
-    with expect_error(ValueError, "model wants"):
+def test_to_ttml_array_rejects_shape_mismatch():
+    with pytest.raises(ValueError, match="model wants"):
         to_ttml_array("proj_out.weight", np.zeros((8, 4), np.float32), (1, 1, 8, 5))
 
 
@@ -484,3 +504,169 @@ def test_rope_op_uses_interleaved_convention():
         f"(interleaved {pcc_interleaved:.4f} vs split {pcc_split:.4f}); "
         f"the 3D tables in rope.py must be reordered to match"
     )
+
+
+@pytest.mark.requires_device
+def test_conv3d_patch_embed_matches_linear_path():
+    """conv3d over the raw latent reproduces patchify + the linear patch embed it replaces.
+
+    Reference is the float64 linear path, already pinned to torch.nn.Conv3d by
+    test_patchify_equals_conv3d. Tolerance is bf16's, not the op's.
+    """
+    rng = np.random.default_rng(0)
+    patch = (1, 2, 2)
+    # C must be a multiple of _CONV3D_ALIGNMENT, so SMALL's in_channels=4 cannot be used.
+    c_in, dim = 16, 64
+    latent = (rng.standard_normal((1, c_in, 1, 8, 8)) * 0.5).astype(np.float32)
+    weight = (rng.standard_normal((dim, c_in, *patch)) * 0.1).astype(np.float32)
+    bias = (rng.standard_normal(dim) * 0.1).astype(np.float32)
+
+    reference = patchify(latent, patch).astype(np.float64) @ conv3d_weight_to_linear(weight)[0, 0].astype(
+        np.float64
+    ).T + bias.astype(np.float64)
+
+    device = ttml.autograd.AutoContext.get_instance().get_device()
+    weight_host = ttnn.from_torch(torch.from_numpy(weight), dtype=ttnn.bfloat16, layout=ttnn.ROW_MAJOR_LAYOUT)
+    prepared = prepare_conv3d_patch_weight(weight_host, device)
+    latent_dev = ttml.autograd.Tensor.from_numpy(to_ndhwc(latent), ttnn.Layout.ROW_MAJOR, ttnn.bfloat16)
+
+    got = conv3d_patch_embed(latent_dev, prepared, patch, dim, bias=to_ttml(bias.reshape(1, 1, 1, dim)).get_value())
+    mine = np_of(got)
+
+    assert not got.get_requires_grad(), "the conv3d patch embed must stay a graph leaf"
+    assert mine.shape == reference.shape, f"{mine.shape} != {reference.shape}"
+    assert pcc(mine, reference) > 0.999, f"PCC {pcc(mine, reference):.6f}"
+
+
+@pytest.mark.requires_device
+def test_conv3d_patch_embed_rejects_unaligned_channels():
+    """ttnn reports this as a confusing patch-size mismatch; the wrapper names the cause."""
+    device = ttml.autograd.AutoContext.get_instance().get_device()
+    patch, c_in, dim = (1, 2, 2), _CONV3D_ALIGNMENT // 2, 64
+    weight = np.zeros((dim, c_in, *patch), np.float32)
+    weight_host = ttnn.from_torch(torch.from_numpy(weight), dtype=ttnn.bfloat16, layout=ttnn.ROW_MAJOR_LAYOUT)
+    latent_dev = ttml.autograd.Tensor.from_numpy(
+        to_ndhwc(np.zeros((1, c_in, 1, 8, 8), np.float32)), ttnn.Layout.ROW_MAJOR, ttnn.bfloat16
+    )
+    with pytest.raises(ValueError, match="divisible by"):
+        conv3d_patch_embed(latent_dev, prepare_conv3d_patch_weight(weight_host, device), patch, dim)
+
+
+@pytest.mark.requires_device
+def test_conv3d_patch_embed_matches_linear_end_to_end():
+    """A whole expert forward is unchanged by swapping the patch embed for conv3d.
+
+    Also pins token order: conv3d must emit f,h,w so RoPE lines up. A token-order bug leaves
+    the isolated op's PCC intact and only shows up here.
+    """
+    config = WanConfig(
+        dim=64,
+        ffn_dim=128,
+        num_layers=1,
+        num_heads=2,
+        patch_size=(1, 2, 2),
+        in_channels=16,  # SMALL's 4 is not a multiple of _CONV3D_ALIGNMENT
+        out_channels=16,
+        text_dim=64,
+        freq_dim=32,
+        cross_attn_norm=True,
+        eps=1e-6,
+        rope_max_seq_len=128,
+    )
+    latent_shape = (1, config.in_channels, 1, 8, 8)
+    rng = np.random.default_rng(0)
+    latent = (rng.standard_normal(latent_shape) * 0.5).astype(np.float32)
+    text = (rng.standard_normal((1, 1, 8, config.text_dim)) * 0.5).astype(np.float32)
+
+    model = WanTransformer3D(config)
+    model.eval()
+    rope = build_rope_params(
+        head_dim=config.head_dim,
+        patch_size=config.patch_size,
+        latent_shape=latent_shape,
+        max_seq_len=config.rope_max_seq_len,
+    )
+    context = ttml.autograd.AutoContext.get_instance()
+    context.set_gradient_mode(ttml.autograd.GradMode.DISABLED)
+    try:
+        linear = np_of(model(to_ttml(patchify(latent, config.patch_size)), [500.0], to_ttml(text), rope))
+        context.reset_graph()
+
+        model.enable_conv3d_patch_embed()
+        ndhwc = ttml.autograd.Tensor.from_numpy(to_ndhwc(latent), ttnn.Layout.ROW_MAJOR, ttnn.bfloat16)
+        conv = np_of(model(ndhwc, [500.0], to_ttml(text), rope))
+    finally:
+        context.set_gradient_mode(ttml.autograd.GradMode.ENABLED)
+
+    assert conv.shape == linear.shape, f"{conv.shape} != {linear.shape}"
+    assert pcc(conv, linear) > 0.999, f"PCC {pcc(conv, linear):.6f}"
+
+
+@pytest.mark.requires_device
+def test_conv3d_patch_embed_refuses_an_adapted_patch_embed():
+    """The conv3d path has no backward, so a LoRA'd patch_embed must be rejected, not run."""
+
+    class _Adapted:
+        def named_parameters(self):
+            return [("patch_embed.weight", None), ("patch_embed.lora_A", None)]
+
+    with pytest.raises(RuntimeError, match="no conv3d backward"):
+        assert_conv3d_patch_embed_is_frozen(_Adapted())
+
+
+@pytest.mark.requires_device
+def test_conv3d_patch_embed_survives_the_lora_wrapper():
+    """Training wraps the expert in a LoraModel, so the conv3d path must work through it.
+
+    The wrapper forwards no attribute lookups, so enable_conv3d_patch_embed() must be called
+    on the inner model -- which still changes the wrapper's forward. That is what this pins.
+    """
+    from blacksmith.models.tt_train.wan2_2.lora import resolve_targets
+
+    config = WanConfig(
+        dim=64,
+        ffn_dim=128,
+        num_layers=1,
+        num_heads=2,
+        patch_size=(1, 2, 2),
+        in_channels=16,
+        out_channels=16,
+        text_dim=64,
+        freq_dim=32,
+        rope_max_seq_len=128,
+    )
+    inner = WanTransformer3D(config)
+    wrapper = ttml.modules.LoraModel(
+        inner,
+        ttml.modules.LoraConfig(
+            rank=8, alpha=8.0, target_modules=resolve_targets("attn"), lora_dropout=0.0, use_rslora=False, verbose=False
+        ),
+    )
+    assert not hasattr(wrapper, "enable_conv3d_patch_embed"), "wrapper gained the method; simplify train.py"
+
+    # The frozen check must see the injected adapters through the inner model, or it is inert.
+    assert any("lora" in name for name, _ in inner.named_parameters())
+    assert_conv3d_patch_embed_is_frozen(inner)
+    inner.enable_conv3d_patch_embed()
+    assert inner.uses_conv3d_patch_embed
+
+    latent_shape = (1, config.in_channels, 1, 8, 8)
+    rng = np.random.default_rng(0)
+    latent = (rng.standard_normal(latent_shape) * 0.5).astype(np.float32)
+    text = (rng.standard_normal((1, 1, 8, config.text_dim)) * 0.5).astype(np.float32)
+    rope = build_rope_params(
+        head_dim=config.head_dim,
+        patch_size=config.patch_size,
+        latent_shape=latent_shape,
+        max_seq_len=config.rope_max_seq_len,
+    )
+
+    context = ttml.autograd.AutoContext.get_instance()
+    context.set_gradient_mode(ttml.autograd.GradMode.DISABLED)
+    try:
+        ndhwc = ttml.autograd.Tensor.from_numpy(to_ndhwc(latent), ttnn.Layout.ROW_MAJOR, ttnn.bfloat16)
+        out = np_of(wrapper(ndhwc, [500.0], to_ttml(text), rope))
+    finally:
+        context.set_gradient_mode(ttml.autograd.GradMode.ENABLED)
+
+    assert out.shape == (1, 1, 16, patch_features(config.out_channels, config.patch_size))

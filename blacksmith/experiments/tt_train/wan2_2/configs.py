@@ -51,6 +51,7 @@ class TrainingConfig(BaseModel):
     dtype: str = Field(default="bfloat16")
     vae_dtype: str = Field(default="bfloat16")
     gradient_checkpointing: bool = Field(default=True)
+    conv3d_patch_embed: bool = Field(default=False)
 
     dataset_id: str = Field(default="showlab/OmniConsistency")
     style: str = Field(default="LEGO")
