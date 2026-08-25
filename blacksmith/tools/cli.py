@@ -37,7 +37,7 @@ def generate_config(
 
     if test_yaml_path is not None:
         # This enables test config to overwrite some fields in original config or add new ones for example `test_config`.
-        assert test_yaml_path.exists(), f"Test config file {yaml_path} does not exist"
+        assert test_yaml_path.exists(), f"Test config file {test_yaml_path} does not exist"
         with test_yaml_path.open() as file:
             config_data |= yaml.safe_load(file)
 
@@ -45,6 +45,11 @@ def generate_config(
         config_data["resume_from_checkpoint"] = True
         config_data["resume_option"] = "path"
         config_data["checkpoint_path"] = test_checkpoint_path
+        checkpoint = config_data.get("checkpoint")
+        if isinstance(checkpoint, dict):
+            checkpoint["resume_from_checkpoint"] = True
+            checkpoint["resume_option"] = "path"
+            checkpoint["checkpoint_path"] = test_checkpoint_path
 
     if reference_model_checkpoint_path:
         config_data["sft_checkpoint_path"] = reference_model_checkpoint_path

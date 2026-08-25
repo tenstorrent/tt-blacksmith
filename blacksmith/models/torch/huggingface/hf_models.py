@@ -88,6 +88,7 @@ def get_model(config: TrainingConfig, device: torch.device, compile_model: bool 
         compile_options = {
             "tt_enable_torch_fx_fusion_pass": False,
             "tt_legacy_compile": True,
+            "tt_lazy_execution": True,
             "tt_use_aot_autograd": False,
         }
         model = torch.compile(model, backend="tt", options=compile_options)

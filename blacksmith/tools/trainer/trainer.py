@@ -18,6 +18,7 @@ from blacksmith.tools.trainer.callback import Callback
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.trainer.configs.base import TrainerConfig
 from blacksmith.tools.trainer.utils import normalize_callbacks
+from blacksmith.tools.workaround_utils import materialize_adamw_state, materialize_grads
 
 
 class Trainer(ABC):
@@ -33,6 +34,8 @@ class Trainer(ABC):
         self.logger: TrainingLogger | None = None
         self.global_step: int = 0
         self.epoch: int = 0
+        # Device-side loss accumulator for fused fwd+bwd+optimizer graphs.
+        self.step_loss: torch.Tensor | None = None
 
     def setup(
         self,
@@ -47,7 +50,10 @@ class Trainer(ABC):
 
         self.config = config
         if config is not None:
-            self.logger = TrainingLogger(config.logging)
+            self.logger = TrainingLogger(
+                config.logging,
+                kwargs.get("test_log_filename_prefix"),
+            )
         if self.reproducibility_manager is None:
             self.reproducibility_manager = ReproducibilityManager(config)
         self.reproducibility_manager.setup()
@@ -60,7 +66,7 @@ class Trainer(ABC):
     @abstractmethod
     def _load_model(self) -> torch.nn.Module:
         """
-        Build and return compiled model to train.
+        Build and return the model to train.
         """
         pass
 
@@ -100,6 +106,38 @@ class Trainer(ABC):
             if self.logger is not None:
                 self.logger.finish()
 
+    @abstractmethod
+    def _make_step_loss(self) -> torch.Tensor:
+        """Return a zeros tensor matching the training loss shape."""
+        pass
+
+    def _apply_tt_compile_options(self) -> None:
+        if not self.config.use_tt:
+            return
+        compile_options = {
+            "fp32_dest_acc_en": True,
+            "math_fidelity": "hifi4",
+            "optimization_level": self.config.optimization_level,
+            "enable_const_eval": self.config.enable_const_eval,
+        }
+        torch_xla.set_custom_compile_options(compile_options)
+
+    def _init_fused_step_state(self) -> None:
+        """Pre-seed grads, step_loss, and AdamW moments for a stable fused graph.
+
+        Runs at the start of ``train()`` so subclasses that override ``setup``
+        (and attach the optimizer afterward) still get the pre-seeds.
+        """
+        self.step_loss = self._make_step_loss()
+        if not self.config.use_tt:
+            return
+        # AdamW lazily allocates moments on the first step; pre-seed so the
+        # fused graph stays stable. Skip on resume so restored moments are kept.
+        # CheckpointCallback loads in on_train_start, before this runs.
+        if isinstance(self.optimizer, torch.optim.AdamW) and not self.config.checkpoint.resume_from_checkpoint:
+            materialize_adamw_state(self.optimizer, sync=False)
+        materialize_grads(self.optimizer)
+
     def train(self) -> None:
         self.callback_handler("on_train_start")
         # `on_train_start` callbacks need to guard against having a config.
@@ -108,8 +146,12 @@ class Trainer(ABC):
 
         grad_accumulation_steps = self.config.gradient_accumulation_steps
         with self._train_lifecycle():
+            self._apply_tt_compile_options()
+            self._init_fused_step_state()
+            self.device_manager.shard_model(self.model)
+
             # Initial validation pass before any optimizer steps.
-            if self.val_dataloader is not None:
+            if self._validation_enabled():
                 self.validate()
 
             for epoch in range(self.config.num_epochs):
@@ -117,46 +159,56 @@ class Trainer(ABC):
                 self.callback_handler("on_train_epoch_start")
 
                 self.model.train()
-                self.optimizer.zero_grad()
+                # No zero_grad() here: grads are pre-seeded and re-zeroed in
+                # place inside the optimizer graph.
                 accumulation_step = 0
 
                 progress = tqdm(self.train_dataloader, desc=f"Training (epoch {epoch})")
                 for batch in progress:
                     self.callback_handler("on_train_batch_start", batch)
 
-                    # Shard inputs (data parallel) and model (tensor parallel) if configured.
-                    batch = self.device_manager.prepare_batch(batch)
-                    self.device_manager.shard_model(self.model)
+                    # Keep ``labels`` on CPU; one-hot on device OOMs (#455).
+                    batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
 
-                    # Forward.
+                    # Forward. Loss is lazy on TT until the next sync.
                     self.callback_handler("on_forward_start", batch)
                     loss = self._forward(batch)
                     self.callback_handler("on_forward_end", loss)
 
-                    # Backward. Gradient-accumulation scaling is applied here so
-                    # _forward can stay identical between training and validation.
+                    # Backward. Scale here so _forward stays shared with val.
+                    scaled_loss = loss / grad_accumulation_steps
                     self.callback_handler("on_backward_start", loss)
-                    self._backward(loss / grad_accumulation_steps)
-                    if self.config.use_tt:
-                        torch_xla.sync(wait=True)
+                    self._backward(scaled_loss)
+                    # Accumulate detached scaled loss into this micro-batch's
+                    # graph so every accum step compiles the same IR.
+                    self.step_loss = self.step_loss + scaled_loss.detach()
                     self.callback_handler("on_backward_end", loss)
 
                     accumulation_step += 1
 
-                    # Step the optimizer only after accumulating gradients.
-                    if accumulation_step == grad_accumulation_steps:
+                    if accumulation_step != grad_accumulation_steps:
+                        # Non-final: cut here so this is the shared fwd+bwd
+                        # graph. Leave grads/step_loss as device tensors.
+                        if self.config.use_tt:
+                            torch_xla.sync(wait=True)
+                    else:
+                        # Last micro-batch: leave fwd+bwd pending so it fuses
+                        # with the optimizer update and in-place grad re-zero.
+                        # The sync inside optimizer_step flushes it and
+                        # materializes window_loss.
+                        window_loss = self.step_loss
+                        self.step_loss = torch.zeros_like(self.step_loss)
                         self.callback_handler("on_optimizer_step_start")
                         self._optimizer_step()
-                        self.callback_handler("on_optimizer_step_end")
+                        self.callback_handler("on_optimizer_step_end", window_loss)
 
                         accumulation_step = 0
                         self.global_step += 1
-                        progress.set_postfix(loss=loss.item())
+                        progress.set_postfix(loss=window_loss.item())
 
                         # Periodic inline validation.
                         if (
-                            self.val_dataloader is not None
-                            and self.config.val_steps_freq
+                            self._validation_enabled()
                             and self.global_step % self.config.val_steps_freq == 0
                         ):
                             self.validate()
@@ -165,9 +217,15 @@ class Trainer(ABC):
 
                 self.callback_handler("on_train_epoch_end")
 
+    def _validation_enabled(self) -> bool:
+        return self.val_dataloader is not None and self.config.val_steps_freq > 0
+
     def validate(self) -> None:
         self.model.eval()
         self.callback_handler("on_validation_start")
+
+        eval_model = getattr(self, "eval_model", self.model)
+        self.device_manager.shard_model(eval_model)
 
         total_loss = 0.0
         num_batches = 0
@@ -175,9 +233,8 @@ class Trainer(ABC):
             for batch in tqdm(self.val_dataloader, desc="Validation"):
                 self.callback_handler("on_validation_batch_start", batch)
 
-                batch = self.device_manager.prepare_batch(batch)
-                self.device_manager.shard_model(self.model)
-
+                # Keep ``labels`` on CPU; one-hot on device OOMs (#455).
+                batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
                 loss = self._forward(batch)
                 if self.config.use_tt:
                     torch_xla.sync(wait=True)
@@ -197,6 +254,9 @@ class Trainer(ABC):
 
         Shared by both ``train`` and ``validate``; gradient-accumulation scaling
         is applied by ``train`` before backward.
+
+        On TT the returned tensor is lazy until the next ``torch_xla.sync`` or
+        host read. Callbacks around this call must not call ``.item()``.
         """
         pass
 
@@ -228,3 +288,4 @@ class Trainer(ABC):
         self.logger = None
         self.global_step = 0
         self.epoch = 0
+        self.step_loss = None
