@@ -52,9 +52,7 @@ class LoraLLMTrainer(Trainer):
                 options=TT_COMPILE_OPTIONS,
             )
             if self.config.val_steps_freq > 0:
-                self.eval_model = torch.compile(
-                    model, backend="tt", options=TT_COMPILE_OPTIONS
-                )
+                self.eval_model = torch.compile(model, backend="tt", options=TT_COMPILE_OPTIONS)
         return model
 
     def _load_dataloaders(self) -> tuple[DataLoader, DataLoader | None]:

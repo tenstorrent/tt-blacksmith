@@ -159,10 +159,7 @@ TRAINING_TEST_CASES = [
     pytest.param(
         {
             "test_script": "blacksmith/tools/trainer/examples/lora_llm/train.py",
-            "experiment_config": (
-                "blacksmith/tools/trainer/examples/lora_llm/single_chip/"
-                "llama_3_1_8b_sst2.yaml"
-            ),
+            "experiment_config": ("blacksmith/tools/trainer/examples/lora_llm/single_chip/" "llama_3_1_8b_sst2.yaml"),
             "timeout": 5000,
         },
         marks=[

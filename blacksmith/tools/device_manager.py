@@ -173,9 +173,7 @@ class DeviceManager:
             for key, tensor in batch.items():
                 if key in skip_keys or tensor.dim() == 0:
                     continue
-                partition_spec = (self.config.input_sharding_dim,) + tuple(
-                    [None] * (tensor.dim() - 1)
-                )
+                partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
                 xs.mark_sharding(tensor, self.mesh, partition_spec)
 
         return batch

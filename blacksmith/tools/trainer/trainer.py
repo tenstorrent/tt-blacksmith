@@ -207,10 +207,7 @@ class Trainer(ABC):
                         progress.set_postfix(loss=window_loss.item())
 
                         # Periodic inline validation.
-                        if (
-                            self._validation_enabled()
-                            and self.global_step % self.config.val_steps_freq == 0
-                        ):
+                        if self._validation_enabled() and self.global_step % self.config.val_steps_freq == 0:
                             self.validate()
 
                     self.callback_handler("on_train_batch_end")
