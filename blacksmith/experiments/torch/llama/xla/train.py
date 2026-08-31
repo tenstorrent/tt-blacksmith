@@ -16,6 +16,14 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.performance_utils import (
+    MFU_PERF_METRICS_FILE,
+    clear_perf_metrics_files,
+    compute_mfu_metrics,
+    flops_per_step,
+    format_mfu_summary,
+    read_training_step_flops,
+)
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_helpers import (
     collate_fn_for_causal_lm,
@@ -184,8 +192,17 @@ def train(
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
         train_start = None
         step_start = None
+        # Hardware-independent 6*N FLOP estimate for the per-step MFU numerator, and a lazy
+        # cache for tt-mlir's per-graph FLOP report (written once, during the fused-step
+        # compile on the first training step). Both only used when measuring e2e time on TT.
+        analytical_step_flops = 0
+        perf_report = None
+        perf_report_read = False
         if config.measure_e2e_time:
             train_start = time.perf_counter()
+            analytical_step_flops = flops_per_step(
+                model, config.max_length, config.batch_size, config.gradient_accumulation_steps
+            )
 
         for epoch in range(config.num_epochs):
             # NOTE: grads and step_loss persist across epochs (reset only after an optimizer
@@ -248,6 +265,25 @@ def train(
                     if config.measure_e2e_time:
                         step_elapsed = time.perf_counter() - step_start
                         logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
+
+                        # Combine the measured step time with tt-mlir's FLOP report into MFU.
+                        # The report is static after the fused-step graph compiles (first step),
+                        # so read it once and reuse it for every subsequent step's timing.
+                        if config.use_tt:
+                            if not perf_report_read:
+                                perf_report = read_training_step_flops()
+                                perf_report_read = True
+                            mfu = compute_mfu_metrics(
+                                perf_report,
+                                analytical_step_flops,
+                                step_elapsed,
+                                config.gradient_accumulation_steps,
+                                num_chips=device_manager.num_chips,
+                            )
+                            logger.info(f"Step {global_step} MFU: {format_mfu_summary(mfu)}")
+                            mfu_metrics = {f"perf/{k}": v for k, v in mfu.items() if v is not None}
+                            if mfu_metrics:
+                                logger.log_metrics(mfu_metrics, commit=False, step=global_step)
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / config.steps_freq
@@ -332,9 +368,23 @@ if __name__ == "__main__":
             "enable_trace": config.enable_trace,
             "optimization_level": config.optimization_level,
             "enable_const_eval": config.enable_const_eval,
+            "optimization_level": 1,
+            "export_path": "./irs",
         }
         if config.experimental_weight_dtype:
             compile_options["experimental_weight_dtype"] = config.experimental_weight_dtype
+        if config.measure_e2e_time:
+            # Ask tt-mlir to emit its per-graph theoretical-FLOP report so the training
+            # loop can turn measured step time into MFU. Both options are required:
+            # `enabled` turns the pass on, and `output_file` sets the base path it writes
+            # to -- without it tt-mlir defaults to a `perf_metrics/` directory and
+            # read_training_step_flops (which globs the CWD for MFU_PERF_METRICS_FILE*.json)
+            # finds nothing. tt-mlir appends `_<graphidx>.json` to this base name. Clear
+            # stale reports first: graphs are auto-numbered per process, so a previous run's
+            # leftovers would pollute the max-FLOPs graph pick.
+            compile_options["ttnn_perf_metrics_enabled"] = True
+            compile_options["ttnn_perf_metrics_output_file"] = MFU_PERF_METRICS_FILE
+            clear_perf_metrics_files()
         torch_xla.set_custom_compile_options(compile_options)
 
     # Checkpoint manager setup
