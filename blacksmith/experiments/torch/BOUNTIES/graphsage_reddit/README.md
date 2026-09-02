@@ -27,10 +27,12 @@ The model uses two mean-aggregation GraphSAGE layers:
 602 features -> SAGEConv -> ReLU -> Dropout -> SAGEConv -> 41 logits
 ```
 
-CPU runs use the stock PyTorch Geometric `SAGEConv`. TT runs select the
-scatter-free `SpMMGraphSAGEConv`, which preserves the same weights and mean
-aggregation but expresses node-to-edge and edge-to-node operations with
-matmuls. Both backends use the same `GraphSAGE` class and `train.py` path.
+The stock CPU baseline uses PyTorch Geometric `SAGEConv`. The matched CPU
+parity and TT runs select the scatter-free `SpMMGraphSAGEConv`, which preserves
+the same weights and mean aggregation but expresses node-to-edge and
+edge-to-node operations with matmuls. Both backends use the same `GraphSAGE`
+class and `train.py` path. The XLA matmuls use bfloat16 inputs with float32
+accumulation, while the CPU path keeps float32 inputs.
 
 NeighborLoader normally produces different graph shapes for each step. The TT
 configuration pads sampled graphs, seed labels, and masks to fixed capacities
@@ -56,14 +58,20 @@ python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml
 
-# TT side of the same workload: Wormhole N300, single chip
+# TT side of the same workload: single-chip Wormhole
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml
 ```
 
 The CPU parity and TT configurations intentionally differ only in device
-selection and run metadata. Their model, sampling, optimizer, static-shape,
-epoch, seed, and determinism settings are identical.
+selection and run metadata. Their model, sampling, optimizer hyperparameters,
+static-shape, epoch, seed, and determinism settings are identical. Adam's
+`capturable` mode is enabled automatically for TT execution and disabled on
+CPU.
+
+The TT configuration selects the backend, not a specific board model. The full
+results in [RESULTS.md](RESULTS.md) were recorded on one Wormhole N150. The
+maintainer CI smoke run used an N300 allocated by CI.
 
 ### Bounded smoke checks
 
@@ -76,7 +84,7 @@ python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml
 
-# N300 smoke check
+# TT/Wormhole smoke check (hardware is selected by the runner)
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml
@@ -103,7 +111,7 @@ python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300-benchmark.yaml
 
-# N300 bounded timing run
+# TT/Wormhole bounded timing run (hardware is selected by the runner)
 python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300-benchmark.yaml
@@ -151,8 +159,10 @@ the benchmark.
 
 ## Validation status
 
-The CPU figures from the closed draft [PR #570](https://github.com/tenstorrent/tt-blacksmith/pull/570)
-are intentionally not copied as current results because that branch used an
-older stack and reported inconsistent final metrics. Fresh CPU and N300 runs,
-including correctness parity and step-time measurements, must be recorded from
-this branch before the workload is submitted.
+Fresh matched CPU/Wormhole N150 full-run results, correctness parity, timing,
+and limitations are recorded in [RESULTS.md](RESULTS.md). Final test accuracy
+was 0.9247 on CPU and 0.9237 on N150, a gap of about 0.10 percentage points.
+
+The maintainer N300/PyG CI job also passed its GraphSAGE hardware smoke case
+and focused tests. A full N300 cloud allocation was not available, so the N150
+full-run measurements are kept clearly separate from the N300 smoke result.
