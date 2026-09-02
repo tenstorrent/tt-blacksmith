@@ -21,5 +21,5 @@ RESPONSE_TEMPLATE = Template('{"label": "$label"}')
 LBL2VALUE = {0: "negative", 1: "positive"}
 VALUE2LBL = {"negative": 0, "positive": 1}
 
-DATASET_BENCHMARK = "glue"
+DATASET_BENCHMARK = "nyu-mll/glue"
 DATASET_NAME = "sst2"

@@ -14,11 +14,9 @@ class TestConfig(BaseModel):
     the number of batches processed per epoch.
     """
 
-    # NOTE: blacksmith/tools/cli.py merges the test_config block via a shallow
-    # `dict |=`, so a per-test yaml that sets `test_config:` replaces this whole
-    # dict rather than merging into it. If you add fields here that callers rely
-    # on as defaults, either give them sensible behavior when missing or update
-    # cli.py to deep-merge.
+    # NOTE: blacksmith/tools/cli.py deep-merges the per-test YAML into the
+    # experiment config, so a `test_config:` block here merges into the
+    # PYTEST_CURRENT_TEST defaults rather than replacing them.
     model_config = ConfigDict(extra="forbid")
 
     max_steps_per_epoch: Optional[int] = Field(

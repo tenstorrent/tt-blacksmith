@@ -15,9 +15,6 @@ class MetricsCallback(Callback):
         # Sum of per-step average losses since the last log; divided by
         # `steps_freq` (exactly that many steps complete between logs).
         self._running_loss = 0.0
-        # Sum of micro-batch losses for the current step (count is always
-        # `gradient_accumulation_steps`).
-        self._step_running_loss = 0.0
         self._prev_global_step = 0
 
     def on_train_start(self, trainer, *args, **kwargs):
@@ -41,25 +38,20 @@ class MetricsCallback(Callback):
         if trainer.config.logging.model_to_wandb:
             trainer.logger.watch_model(trainer.model)
 
-    def on_backward_end(self, trainer, loss, *args, **kwargs):
-        # Fires for every micro-batch; accumulate each one so the per-step loss is
-        # the mean over the step's micro-batches.
-        self._step_running_loss += loss.item()
+    def on_optimizer_step_end(self, trainer, window_loss, *args, **kwargs):
+        # optimizer_step has already synced; window_loss is the sum of scaled
+        # micro-batch losses for this accumulation window (the per-step mean).
+        self._running_loss += window_loss.item()
 
     def on_train_batch_end(self, trainer, *args, **kwargs):
         if trainer.logger is None:
             return
 
-        # Only finalize when an optimizer step completed this batch. Under gradient
-        # accumulation most micro-batches do not advance `global_step`.
+        # Only finalize when an optimizer step completed this batch. Under
+        # gradient accumulation most micro-batches do not advance global_step.
         if trainer.global_step == self._prev_global_step:
             return
         self._prev_global_step = trainer.global_step
-
-        # Reduce the step to its mean micro-batch loss, then accumulate that into
-        # the window so the logged value is the mean of per-step means.
-        self._running_loss += self._step_running_loss / trainer.config.gradient_accumulation_steps
-        self._step_running_loss = 0.0
 
         steps_freq = trainer.config.metrics.steps_freq
         if trainer.global_step % steps_freq == 0:

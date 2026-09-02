@@ -158,15 +158,23 @@ class DeviceManager:
     def shard_optimizer(self, optimizer: torch.optim.Optimizer):
         raise NotImplementedError("Optimizer sharding is not implemented yet.")
 
-    def prepare_batch(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-        """Prepare batch for training, applying data parallel sharding if configured."""
-        batch = {k: v.to(self.device) for k, v in batch.items()}
+    def prepare_batch(
+        self,
+        batch: Dict[str, torch.Tensor],
+        skip_keys: tuple[str, ...] = (),
+    ) -> Dict[str, torch.Tensor]:
+        """Move the batch to device and apply data-parallel sharding if configured.
+
+        ``skip_keys`` stay on the host.
+        """
+        batch = {k: v if k in skip_keys else v.to(self.device) for k, v in batch.items()}
 
         if self.is_data_parallel():
-            for _, tensor in batch.items():
-                if tensor.dim() > 0:
-                    partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
-                    xs.mark_sharding(tensor, self.mesh, partition_spec)
+            for key, tensor in batch.items():
+                if key in skip_keys or tensor.dim() == 0:
+                    continue
+                partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
+                xs.mark_sharding(tensor, self.mesh, partition_spec)
 
         return batch
 

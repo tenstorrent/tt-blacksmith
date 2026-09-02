@@ -181,6 +181,20 @@ TRAINING_TEST_CASES = [
     ],
     pytest.param(
         {
+            "test_script": "blacksmith/tools/trainer/examples/lora_llm/train.py",
+            "experiment_config": ("blacksmith/tools/trainer/examples/lora_llm/single_chip/" "llama_3_1_8b_sst2.yaml"),
+            "timeout": 5000,
+        },
+        marks=[
+            pytest.mark.uplift,
+            pytest.mark.p150,
+            pytest.mark.torch,
+            pytest.mark.single_chip,
+        ],
+        id="tt-llama_3_1_8b-sst2-p150-trainer",
+    ),
+    pytest.param(
+        {
             "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
             "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
