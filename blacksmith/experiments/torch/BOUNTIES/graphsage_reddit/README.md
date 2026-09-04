@@ -1,7 +1,7 @@
 # GraphSAGE Node Classification on Reddit
 
 This experiment trains a two-layer [GraphSAGE](https://arxiv.org/abs/1706.02216)
-model for inductive node classification on the
+model for node classification on the
 [Reddit dataset](https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.Reddit.html).
 It is the workload proposed in [bounty #529](https://github.com/tenstorrent/tt-blacksmith/issues/529).
 
@@ -18,6 +18,11 @@ It is the workload proposed in [bounty #529](https://github.com/tenstorrent/tt-b
 The graph is too large for full-graph training on the target device. The
 experiment therefore uses `NeighborLoader` mini-batches with configurable
 per-hop fanouts.
+
+This workload uses a transductive setup: neighbor sampling can access the full
+graph's features and edges, including validation and test nodes. The training
+mask selects the seed nodes, and only their training labels contribute to the
+training loss. It does not restrict sampling to a train-only subgraph.
 
 ## Model and TT path
 
@@ -267,12 +272,30 @@ repeatable and is intended to keep their sampled workloads aligned. Download
 and process Reddit before collecting timings; dataset setup time is not part of
 the benchmark.
 
+### Checkpoints and resume
+
+`save_strategy: epoch` saves every `epoch_freq` epochs; `step` saves every
+`steps_freq` synchronized optimizer steps, outside the model-step timer. Both
+also save a final snapshot; `none` disables checkpoint writes. Set
+`save_optim: true` to include Adam's state in every snapshot, including the
+final one; the default is `false`.
+
+Resume with `--test-checkpoint-path PATH`, or set `resume_from_checkpoint: true`
+and the YAML `resume_option` (`last`, `best`, or `path`, with `checkpoint_path`).
+The saved epoch counts completed epochs. A mid-epoch checkpoint restores the
+model, saved optimizer state, and global step, but restarts the unfinished
+epoch from its beginning. Sampler/dropout RNG state and the loader cursor are
+not saved, so resume is not exact continuation and may add training steps.
+
 ## Validation status
 
-Fresh matched CPU/Wormhole N150 full-run results, correctness parity, timing,
-and limitations are recorded in [RESULTS.md](RESULTS.md). Final test accuracy
-was 0.9247 on CPU and 0.9237 on N150, a gap of about 0.10 percentage points.
+The matched CPU/Wormhole N150 full-run results from commit `f353f93`, including
+accuracy parity, timing, and limitations, are recorded in [RESULTS.md](RESULTS.md).
+Final test accuracy was 0.9247 on CPU and 0.9237 on N150, a gap of about 0.10
+percentage points. These are historical measurements, not a rerun of later
+commits.
 
-The maintainer N300/PyG CI job also passed its GraphSAGE hardware smoke case
-and focused tests. A full N300 cloud allocation was not available, so the N150
-full-run measurements are kept clearly separate from the N300 smoke result.
+The maintainer N300/PyG CI job at commit `6a045cb` passed its GraphSAGE hardware
+smoke case and 23 focused tests. A full N300 cloud allocation was not available,
+so the N150 full-run measurements are kept clearly separate from the N300 smoke
+result.

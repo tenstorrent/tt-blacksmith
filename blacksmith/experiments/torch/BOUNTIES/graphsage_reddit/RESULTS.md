@@ -78,15 +78,20 @@ measurement of 0.7221 seconds rather than a second cold-cache result.
 
 ## N300 CI status
 
-The isolated [N300/PyG maintainer CI job][n300-ci] completed successfully: the
-GraphSAGE hardware smoke case and 18 focused tests all passed (`19 passed` in
-123.68 seconds). The smoke overlay limits initial validation, training,
-post-training validation, and testing to two batches each. It verifies N300
-execution and CI integration, but it is not a full convergence or performance
-run.
+The isolated [N300/PyG maintainer CI job][n300-ci] completed successfully on
+September 4, 2026, at commit `6a045cb04457d60522f62ad75812303e6e6caead`:
+the GraphSAGE hardware smoke case and 23 focused tests all passed (`24 passed`
+in 149.16 seconds). This CI result applies to that commit; the full CPU/N150
+measurements above remain from `f353f93`. The smoke overlay limits initial
+validation, training, post-training validation, and testing to two batches
+each. It verifies N300 execution and CI integration, but it is not a full
+convergence or performance run.
 
 ## Limitations
 
+- Sampling uses the full graph's features and edges, including validation and
+  test nodes; only training seed labels contribute to the training loss. This
+  is a transductive workload, not a train-only induced-subgraph setup.
 - Neighbor sampling and batch preparation remain on CPU. Model forward,
   backward, and the optimizer step are the TT workload.
 - The TT path uses fixed sampled-graph capacities and a scatter-free SpMM
@@ -120,4 +125,4 @@ Download and process Reddit before collecting timings so dataset setup is not
 part of the comparison. Run the CPU and TT commands sequentially on the same
 software stack.
 
-[n300-ci]: https://github.com/tenstorrent/tt-blacksmith/actions/runs/32417455921/job/97565328507
+[n300-ci]: https://github.com/tenstorrent/tt-blacksmith/actions/runs/33874950040/job/101168129123

@@ -4,6 +4,7 @@
 import traceback
 from pathlib import Path
 from time import perf_counter
+from uuid import uuid4
 
 import torch
 from torch_geometric.loader import NeighborLoader
@@ -64,6 +65,8 @@ def train_epoch(
     config: GraphSAGEConfig,
     epoch: int,
     global_step: int,
+    *,
+    checkpoint_manager: CheckpointManager,
 ) -> tuple[int, float | None]:
     model.train()
     epoch_loss = epoch_nodes = 0
@@ -129,6 +132,16 @@ def train_epoch(
             running_loss = running_nodes = 0
             running_step_time = 0.0
             running_steps = 0
+
+        if checkpoint_manager.should_save_checkpoint(global_step):
+            # Only completed epochs are recorded. A mid-epoch checkpoint
+            # restarts this epoch on resume; the sampler/RNG state is not saved.
+            checkpoint_manager.save_checkpoint(
+                model,
+                step=global_step,
+                epoch=epoch - 1,
+                optimizer=optimizer,
+            )
 
     if epoch_nodes == 0:
         return global_step, None
@@ -237,6 +250,7 @@ def train(
                 config,
                 epoch,
                 global_step,
+                checkpoint_manager=checkpoint_manager,
             )
             if avg_epoch_loss is None:
                 break
@@ -288,7 +302,11 @@ def train(
                 model,
                 step=global_step,
                 epoch=completed_epoch,
+                optimizer=optimizer,
                 metrics={"val/acc": val_acc},
+                # Do not reuse an epoch checkpoint's second-resolution name:
+                # retention could delete the newly written final checkpoint.
+                checkpoint_name=f"checkpoint_step{global_step}_epoch{completed_epoch}_final_{uuid4().hex}.pt",
             )
             logger.log_artifact(final_path, artifact_type="model", name="final_model.pth")
 
@@ -299,10 +317,12 @@ def train(
         logger.finish()
 
 
-if __name__ == "__main__":
+def main() -> None:
     default_config = Path(__file__).parent / "single_chip" / "graphsage_reddit.yaml"
     args = parse_cli_options(default_config=default_config)
-    config: GraphSAGEConfig = generate_config(GraphSAGEConfig, args.config, args.test_config)
+    config: GraphSAGEConfig = generate_config(
+        GraphSAGEConfig, args.config, args.test_config, test_checkpoint_path=args.test_checkpoint_path
+    )
 
     ReproducibilityManager(config).setup()
 
@@ -313,3 +333,7 @@ if __name__ == "__main__":
     checkpoint_manager = CheckpointManager(config, logger, device_manager.device)
 
     train(config, device_manager, logger, checkpoint_manager)
+
+
+if __name__ == "__main__":
+    main()
