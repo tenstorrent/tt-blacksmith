@@ -1,9 +1,12 @@
+.data/
 data/
 generated_modules/
 **/__pycache__/
 *.egg-info/
 blacksmith/**/checkpoints/
 wandb/
+cache/
+runs/
 results/
 logs/
 docs/output

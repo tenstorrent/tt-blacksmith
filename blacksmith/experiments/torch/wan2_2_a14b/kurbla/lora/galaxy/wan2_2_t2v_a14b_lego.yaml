@@ -1,0 +1,132 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Entry mode dispatched by train.py (train | infer)
+mode: "train"
+
+# Model settings
+model_id: "Wan-AI/Wan2.2-T2V-A14B-Diffusers"
+# A14B is a 2-expert MoE. high-noise handles t >= boundary_ratio, low-noise below.
+boundary_ratio: 0.875
+# "low" | "high" | "both". "low" alone is often enough for a style LoRA and keeps
+# only one 14B expert resident.
+train_experts: "both"
+dtype: "bfloat16"
+# ttnn dtype for the on-device VAE encoder.
+vae_dtype: "bfloat16"
+# -> RunnerType.MemoryEfficient (activation recompute)
+gradient_checkpointing: True
+
+# Dataset / cache settings
+dataset_id: "showlab/OmniConsistency"
+style: "LEGO"
+data_dir: "data/lego"
+cache_dir: "cache/wan22_14b_lego_kurbla"
+# h/w must be multiples of 16 (VAE spatial stride 8 * patch 2); frames must be 4k+1.
+train_h: 512
+train_w: 512
+train_frames: 13
+# Rare token: the base model ignores it, the LoRA learns it -> style trigger.
+trigger: "lg, "
+# Drop "lego/blocky/minifigure" clauses so the trigger alone carries the style.
+strip_style_words: True
+# Fraction of samples whose caption becomes "" (classifier-free guidance).
+text_drop_prob: 0.10
+# 0 = use every sample.
+subset_size: 0
+max_seq: 512
+val_holdout: 4
+
+# LoRA setup
+lora_rank: 32
+lora_alpha: 32
+# "attn" reproduces what the CUDA reference actually trains; "attn+ffn" what it
+# intended (see README on the ff/ffn mismatch).
+lora_target_set: "attn"
+# "gaussian" matches PEFT's N(0, 1/rank); "kaiming" is ttml's own init, ~4x
+# smaller at rank 32 (see README known differences).
+lora_a_init: "gaussian"
+lora_path: "cache/wan22_14b_lego/wan22_14b_lego_lora.safetensors"
+
+# Training hyperparameters
+learning_rate: 1.0e-4
+weight_decay: 0.01
+# Must be 0 at TP>1: ttml.core.clip_grad_norm is per-device.
+grad_clip: 0
+batch_size: 1
+gradient_accumulation_steps: 4
+max_steps: 3000
+val_loss_every: 200
+ckpt_every: 500
+resume_step: 0
+
+# Flow-matching training
+train_flow_shift: 3.0
+lognorm_mean: 0.0
+lognorm_std: 1.0
+
+# Inference / validation video generation
+inference:
+  infer_h: 512
+  infer_w: 512
+  # 4k+1 only; other values decode to black video.
+  infer_frames: 49
+  infer_fps: 16
+  infer_steps: 40
+  infer_guidance: 7.0
+  infer_guidance_2: 5.0
+  infer_flow_shift: 12.0
+  infer_output: "cache/wan22_14b_lego/lego_video.mp4"
+  # The prompt to generate; the trigger above is prepended automatically.
+  val_prompt: "a cat sitting on a wooden table"
+  neg_prompt: ""
+  # true = run the base model with no adapter (A/B against a trained run).
+  infer_no_lora: False
+  # Over-drive the adapter (1.5-2.0) to survive temporal dilution in video.
+  lora_scale: 1.0
+  # Leave empty to derive both from lora_path.
+  infer_high_lora: ""
+  infer_low_lora: ""
+
+# Device settings.
+#
+# mesh_shape is [DP, TP]; mesh_axis_names names those axes in the same order, so "batch"
+# is the data-parallel axis and "model" the tensor-parallel one. [4, 8] = all 32 chips of
+# a Blackhole Galaxy. Set mesh_shape: null for a single chip (no DTensor, no collectives),
+# which is the rung to start from.
+mesh_shape: [4, 8]
+mesh_axis_names: ["batch", "model"]
+
+# null = the batch is replicated on every chip. Setting this to "batch" turns on data
+# parallelism, which requires the loader to yield the global batch (batch_size * 4 = 4
+# here) -- dim 0 must be divisible by the axis width.
+input_sharding_dim: null
+
+# Both null = every parameter replicated on all 32 chips. That is the correct first rung:
+# it exercises the mesh, the collectives and the compile without any sharding to get
+# wrong. Tensor parallelism needs a pattern list written against the A14B module names and
+# checked for divisibility at TP=8 -- see the README before filling these in.
+model_sharding_patterns: null
+param_sharding_patterns: null
+
+# CompileOption.OPT_LEVEL, and whether the optimizer step is captured as one graph.
+optimization_level: 0
+compile_optimizer: false
+
+# Precompute's own mesh, [DP, TP]. All 32 on DP: one sample per chip, nothing to shard.
+vae_parallel_shape: [32, 1]
+
+# Reproducibility settings
+seed: 42
+
+# Logging settings
+log_level: "INFO"
+use_wandb: True
+wandb_project: "wan22-14b-lego-lora"
+wandb_run_name: "tt-wan22-a14b-lego-galaxy"
+wandb_tags: ["test"]
+
+# Other settings
+framework: "pytorch"
+project_dir: "blacksmith/experiments/torch/wan2_2_a14b"
