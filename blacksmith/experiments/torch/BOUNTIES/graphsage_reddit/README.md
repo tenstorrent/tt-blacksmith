@@ -52,10 +52,10 @@ pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requiremen
 
 ```bash
 # Stock PyG CPU accuracy baseline
-python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
+CUDA_VISIBLE_DEVICES="" python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py
 
 # CPU side of the matched SpMM/static-shape workload
-python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+CUDA_VISIBLE_DEVICES="" python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml
 
 # TT side of the same workload: single-chip Wormhole
@@ -69,6 +69,9 @@ static-shape, epoch, seed, and determinism settings are identical. Adam's
 `capturable` mode is enabled automatically for TT execution and disabled on
 CPU.
 
+`CUDA_VISIBLE_DEVICES=""` makes the two CPU commands unambiguous on hosts that
+also have a CUDA device. It is not needed on CPU-only hosts.
+
 The TT configuration selects the backend, not a specific board model. The full
 results in [RESULTS.md](RESULTS.md) were recorded on one Wormhole N150. The
 maintainer CI smoke run used an N300 allocated by CI.
@@ -80,7 +83,7 @@ can be run without Tenstorrent hardware.
 
 ```bash
 # CPU-only smoke check
-python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+CUDA_VISIBLE_DEVICES="" python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300.yaml
 
@@ -107,7 +110,7 @@ intermediate CPU/TT execution and model-step timing check:
 
 ```bash
 # CPU bounded timing run
-python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+CUDA_VISIBLE_DEVICES="" python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
   --test-config tests/configs/BOUNTIES/tt-graphsage_reddit-reddit-n300-benchmark.yaml
 
@@ -128,6 +131,113 @@ neighbor sampling and batch preparation. Keep the raw metrics, but summarize
 step-20 through step-100 windows for the warm CPU/TT comparison. This bounded
 run is useful for catching execution failures and comparing model-step timing,
 but it is not a correctness-parity or convergence result.
+
+### Reproduce the full-run summary and curves
+
+Keep each completed run's raw log, `*_train.csv`, and `*_val.csv` in a separate
+artifact directory. The analysis requires `git-head.txt` and verifies that both
+runs used the same commit. If `checkpoints/checkpoint_history.json` is present,
+it uses the checkpoint history for full-precision final/best validation
+accuracy. If `start.txt` and `end.txt` are present, it also reports the run wall
+time. Without checkpoint history, validation accuracy is taken from the
+four-decimal raw-log summaries.
+
+The following Bash commands capture the required raw log and CSV files while
+running from the repository root. Use clean checkpoint output directories for
+a new result pair so an older checkpoint history cannot affect the reported
+best validation accuracy.
+
+```bash
+set -euo pipefail
+artifact_root=results/graphsage-reddit
+cpu_checkpoints=blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/runs/matched_cpu/checkpoints
+tt_checkpoints=blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/runs/tt/checkpoints
+
+require_clean_tree() {
+  if [ -n "$(git status --porcelain --untracked-files=normal)" ]; then
+    echo "Commit or remove local source changes before collecting evidence." >&2
+    git status --short >&2
+    exit 1
+  fi
+}
+
+require_clean_tree
+if [ -e "$artifact_root" ] || [ -e "$cpu_checkpoints" ] || [ -e "$tt_checkpoints" ]; then
+  echo "Remove or archive existing GraphSAGE artifacts and checkpoints first." >&2
+  exit 1
+fi
+mkdir -p "$artifact_root"/{cpu,n150}/checkpoints "$artifact_root/meta"
+
+# Finish the shared download and preprocessing before either timed run.
+python3 - <<'PY'
+from blacksmith.datasets.torch.BOUNTIES.reddit.reddit_dataset import RedditDataset
+from blacksmith.experiments.torch.BOUNTIES.graphsage_reddit.configs import GraphSAGEConfig
+
+RedditDataset(GraphSAGEConfig())
+PY
+
+cp blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requirements.txt "$artifact_root/meta/"
+cp blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
+  "$artifact_root/meta/"
+cp blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
+  "$artifact_root/meta/"
+python3 --version > "$artifact_root/meta/python-version.txt" 2>&1
+python3 -m pip freeze > "$artifact_root/meta/pip-freeze.txt"
+git rev-parse HEAD > "$artifact_root/meta/git-head.txt"
+
+date --iso-8601=seconds > "$artifact_root/cpu/start.txt"
+set +e
+CUDA_VISIBLE_DEVICES="" python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml \
+  --test-log-filename-prefix graphsage_cpu_full \
+  2>&1 | tee "$artifact_root/cpu/graphsage-cpu-full.log"
+cpu_pipeline_status=("${PIPESTATUS[@]}")
+set -e
+date --iso-8601=seconds > "$artifact_root/cpu/end.txt"
+printf 'python_exit_code=%s\ntee_exit_code=%s\n' \
+  "${cpu_pipeline_status[0]}" "${cpu_pipeline_status[1]}" \
+  >> "$artifact_root/cpu/graphsage-cpu-full.log"
+test "${cpu_pipeline_status[0]}" -eq 0 || exit "${cpu_pipeline_status[0]}"
+test "${cpu_pipeline_status[1]}" -eq 0 || exit "${cpu_pipeline_status[1]}"
+cp tests/test_logs/graphsage_cpu_full_{train,val}.csv "$artifact_root/cpu/"
+cp -R "$cpu_checkpoints"/. "$artifact_root/cpu/checkpoints/"
+git rev-parse HEAD > "$artifact_root/cpu/git-head.txt"
+
+require_clean_tree
+date --iso-8601=seconds > "$artifact_root/n150/start.txt"
+set +e
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+  --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_tt.yaml \
+  --test-log-filename-prefix graphsage_n150_full \
+  2>&1 | tee "$artifact_root/n150/graphsage-n150-full.log"
+tt_pipeline_status=("${PIPESTATUS[@]}")
+set -e
+date --iso-8601=seconds > "$artifact_root/n150/end.txt"
+printf 'python_exit_code=%s\ntee_exit_code=%s\n' \
+  "${tt_pipeline_status[0]}" "${tt_pipeline_status[1]}" \
+  >> "$artifact_root/n150/graphsage-n150-full.log"
+test "${tt_pipeline_status[0]}" -eq 0 || exit "${tt_pipeline_status[0]}"
+test "${tt_pipeline_status[1]}" -eq 0 || exit "${tt_pipeline_status[1]}"
+cp tests/test_logs/graphsage_n150_full_{train,val}.csv "$artifact_root/n150/"
+cp -R "$tt_checkpoints"/. "$artifact_root/n150/checkpoints/"
+git rev-parse HEAD > "$artifact_root/n150/git-head.txt"
+```
+
+```bash
+python3 -m pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requirements-analysis.txt
+python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/analyze_results.py \
+  --cpu-dir results/graphsage-reddit/cpu \
+  --tt-dir results/graphsage-reddit/n150 \
+  --tt-label "Wormhole N150" \
+  --output-dir results/graphsage-reddit/analysis
+```
+
+The command writes `summary.json` and `graphsage-cpu-tt-curves.png`. The summary
+includes the logged train/evaluation interval, first-step timing, steady timing,
+accuracy, and parity differences. It checks that CSV steps and values align
+with the raw log before calculating parity. The steady timing values use the
+same method as [RESULTS.md](RESULTS.md): timing windows at step 100 or later,
+excluding epoch-end partial windows, followed by a 5% trim from each tail.
 
 ## Configuration
 

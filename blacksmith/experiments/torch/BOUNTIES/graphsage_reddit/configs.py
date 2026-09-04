@@ -21,10 +21,12 @@ class GraphSAGEConfig(TrainingConfig):
     # Training
     learning_rate: float = Field(default=0.001, gt=0)
     weight_decay: float = Field(default=5e-4, ge=0.0)
-    batch_size: int = Field(default=512, gt=0)
+    # Keep sampling defaults at the fixed-shape sizes validated on Wormhole.
+    # The stock CPU YAML explicitly opts into its larger sampling workload.
+    batch_size: int = Field(default=32, gt=0)
     num_epochs: int = Field(default=30, gt=0)
-    num_neighbors: list[int] = Field(default=[25, 10])
-    val_batch_size: int = Field(default=4096, gt=0)
+    num_neighbors: list[int] = Field(default=[5, 3])
+    val_batch_size: int = Field(default=32, gt=0)
 
     # Logging
     use_wandb: bool = Field(default=False)

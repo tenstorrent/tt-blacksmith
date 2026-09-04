@@ -33,6 +33,7 @@ checkpoint_metric_mode: "max"
 epoch_freq: 1
 keep_last_n: 2
 keep_best_n: 2
+project_dir: "blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/runs/matched_cpu"
 
 # Reproducibility
 seed: 42

@@ -1,0 +1,2 @@
+# The post-run analyzer writes CPU/TT comparison curves.
+matplotlib==3.11.1

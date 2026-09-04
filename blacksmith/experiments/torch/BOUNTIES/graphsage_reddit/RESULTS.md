@@ -108,7 +108,7 @@ source env/activate --xla
 pip install -r blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/requirements.txt
 
 # Matched CPU parity run
-python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
+CUDA_VISIBLE_DEVICES="" python3 blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/train.py \
   --config blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/single_chip/graphsage_reddit_spmm_cpu.yaml
 
 # Matched TT run (N150 results above; the config also targets one Wormhole chip)

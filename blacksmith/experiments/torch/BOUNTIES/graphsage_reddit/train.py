@@ -50,6 +50,8 @@ def evaluate(
         total_loss += loss.item() * prepared.target_count
         correct += int(masked_correct(out, prepared.target_y, prepared.target_mask).item())
         total += prepared.target_count
+    if total == 0:
+        raise ValueError("evaluation loader yielded no seed nodes")
     return total_loss / total, correct / total
 
 
@@ -145,6 +147,27 @@ def train_epoch(
     return global_step, epoch_loss / epoch_nodes
 
 
+def _resume_training_state(
+    config: GraphSAGEConfig,
+    checkpoint_manager: CheckpointManager,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    logger: TrainingLogger,
+) -> tuple[int, int]:
+    """Restore the training counters recorded alongside a checkpoint."""
+    if not config.resume_from_checkpoint:
+        return 0, 0
+
+    checkpoint_info = checkpoint_manager.load_checkpoint(model, optimizer)
+    if checkpoint_info is None:
+        return 0, 0
+
+    global_step = checkpoint_info.get("step", 0)
+    completed_epoch = checkpoint_info.get("epoch", 0)
+    logger.info(f"Resuming after epoch {completed_epoch} at step {global_step}")
+    return global_step, completed_epoch
+
+
 def train(
     config: GraphSAGEConfig,
     device_manager: DeviceManager,
@@ -186,11 +209,13 @@ def train(
         capturable=config.use_tt,
     )
 
-    if config.resume_from_checkpoint:
-        checkpoint_manager.load_checkpoint(model, optimizer)
-
-    global_step = 0
-    completed_epoch = 0
+    global_step, completed_epoch = _resume_training_state(
+        config,
+        checkpoint_manager,
+        model,
+        optimizer,
+        logger,
+    )
     try:
         val_loss, val_acc = evaluate(
             model,
@@ -202,7 +227,7 @@ def train(
         logger.log_metrics({"val/loss": val_loss, "val/acc": val_acc}, step=global_step, commit=True)
         logger.info(f"Initial | val_loss={val_loss:.4f}  val_acc={val_acc:.4f}")
 
-        for epoch in range(1, config.num_epochs + 1):
+        for epoch in range(completed_epoch + 1, config.num_epochs + 1):
             global_step, avg_epoch_loss = train_epoch(
                 model,
                 train_loader,
