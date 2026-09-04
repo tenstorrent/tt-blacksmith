@@ -61,9 +61,14 @@ jobs:
         git config --global --add safe.directory /__w/tt-blacksmith/tt-blacksmith
 
     - name: Setup environment
+      env:
+        EXTRA_REQUIREMENTS: ${{ matrix.build.extra_requirements || '' }}
       shell: bash
       run: |
         source env/activate --${{ matrix.build.frontend }}
+        if [[ -n "${EXTRA_REQUIREMENTS}" ]]; then
+          python -m pip install -r "${EXTRA_REQUIREMENTS}"
+        fi
 
     - name: Run tests
       shell: bash

@@ -1,0 +1,8 @@
+# Bounded CPU/TT execution and timing overlay for bounty #529.
+# This caps every train/validation/test loader iteration; it is not a full run.
+num_epochs: 1
+steps_freq: 10
+save_strategy: "none"
+use_wandb: false
+test_config:
+  max_steps_per_epoch: 100
