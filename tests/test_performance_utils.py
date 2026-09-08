@@ -17,6 +17,8 @@ import json
 import pytest
 
 from blacksmith.tools.performance_utils import (
+    MFU_PERF_METRICS_FILE,
+    MfuTracker,
     clear_perf_metrics_files,
     compute_mfu_metrics,
     flops_per_step,
@@ -290,3 +292,71 @@ def test_analytical_flops_no_config():
             return [_FakeParam(10)]
 
     assert flops_per_step(M(), 16, 1, 1) == 0
+
+
+# --- MfuTracker ---------------------------------------------------------------
+
+
+class _RecordingLogger:
+    def __init__(self):
+        self.lines = []
+        self.metrics = []
+
+    def info(self, msg):
+        self.lines.append(msg)
+
+    def log_metrics(self, metrics, step=None, commit=True):
+        self.metrics.append((metrics, step, commit))
+
+
+def test_tracker_reads_the_report_once_and_logs_each_step(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    # The report only lands once the fused step graph compiles, i.e. after the tracker
+    # is constructed; the tracker must therefore read it on the first logged step.
+    tracker = MfuTracker(_FakeModel(), 16, 8, 1, num_chips=1)
+    (tmp_path / f"{MFU_PERF_METRICS_FILE}_0.json").write_text(json.dumps({"flops": _report(1e12, 1e14)}))
+
+    logger = _RecordingLogger()
+    first = tracker.log_step(logger, 1, 0.02)
+    assert first["hfu_pct"] == pytest.approx(50.0)
+    assert first["mfu_pct"] is not None
+
+    reads = []
+    monkeypatch.setattr(
+        "blacksmith.tools.performance_utils.read_training_step_flops",
+        lambda *a, **k: reads.append(1),
+    )
+    second = tracker.log_step(logger, 2, 0.04)
+    assert reads == []  # cached, not re-read
+    assert second["hfu_pct"] == pytest.approx(25.0)  # twice the time, half the utilization
+
+    assert len(logger.lines) == 2
+    assert len(logger.metrics) == 2
+    metrics, step, commit = logger.metrics[1]
+    assert step == 2 and commit is False
+    assert set(metrics) == {"perf/mfu_pct", "perf/hfu_pct", "perf/achieved_tflops"}
+
+
+def test_tracker_logs_nothing_to_wandb_without_a_report(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    tracker = MfuTracker(_FakeModel(), 16, 8, 1, num_chips=1)
+    logger = _RecordingLogger()
+    assert tracker.log_step(logger, 1, 0.02) == {"mfu_pct": None, "hfu_pct": None, "achieved_tflops": None}
+    assert logger.lines  # the summary line still says n/a
+    assert logger.metrics == []
+
+
+# --- config wiring ------------------------------------------------------------
+
+
+def test_log_mfu_requires_its_inputs():
+    """log_mfu is opt-in and cannot be satisfied without the tt-xla backend (which
+    produces the FLOP report) and measure_e2e_time (which times the step)."""
+    from blacksmith.experiments.torch.llama.configs import TrainingConfig
+
+    assert TrainingConfig().log_mfu is False
+    assert TrainingConfig(log_mfu=True, use_tt=True, measure_e2e_time=True).log_mfu is True
+    with pytest.raises(ValueError):
+        TrainingConfig(log_mfu=True, use_tt=True, measure_e2e_time=False)
+    with pytest.raises(ValueError):
+        TrainingConfig(log_mfu=True, use_tt=False, measure_e2e_time=True)

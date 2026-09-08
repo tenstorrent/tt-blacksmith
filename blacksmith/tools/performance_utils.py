@@ -7,6 +7,13 @@ tt-mlir emits a per-graph FLOP report (a ``flops`` JSON section) when the compil
 option ``ttnn_perf_metrics_enabled`` is set. These helpers read that report back
 and combine it with the measured step time to report Model FLOPs Utilization.
 
+Enabling it takes two compile options, not one: ``ttnn_perf_metrics_enabled``
+turns the pass on, and ``ttnn_perf_metrics_output_file`` must be set to
+:data:`MFU_PERF_METRICS_FILE` -- left unset, tt-mlir writes into a
+``perf_metrics/`` directory instead and :func:`read_training_step_flops`, which
+globs the CWD, finds nothing. Call :func:`clear_perf_metrics_files` alongside
+them so an earlier run's reports cannot be mistaken for this one's.
+
 The denominator's per-chip half comes straight from the report:
 ``peak_flops_per_sec`` is the flops-weighted peak the graph actually ran at (right
 whether the matmuls ran LoFi or HiFi4, not just at one assumed fidelity). Nothing
@@ -54,6 +61,9 @@ def clear_perf_metrics_files(base_name=MFU_PERF_METRICS_FILE):
         try:
             os.remove(stale)
         except OSError:
+            # Best effort. A report we cannot remove (gone already, or not ours) is not
+            # worth aborting a training run over; at worst read_training_step_flops has
+            # one more graph to choose between.
             pass
 
 
@@ -214,3 +224,38 @@ def format_mfu_summary(mfu):
 
     achieved = f"{mfu['achieved_tflops']:.2f} TFLOP/s" if mfu.get("achieved_tflops") is not None else "n/a"
     return f"MFU {pct(mfu.get('mfu_pct'))} | " f"HFU {pct(mfu.get('hfu_pct'))} | " f"{achieved}"
+
+
+class MfuTracker:
+    """Turns each measured optimizer-step time into logged MFU/HFU metrics.
+
+    Owns the two pieces of state that outlive a single step: the analytical
+    numerator, fixed for the whole run, and tt-mlir's FLOP report, which only
+    exists once the fused training-step graph has compiled -- so it is read on the
+    first step and reused for every step after that.
+    """
+
+    def __init__(self, model, seq_len, batch_size, gradient_accumulation_steps, num_chips):
+        self.analytical_step_flops = flops_per_step(model, seq_len, batch_size, gradient_accumulation_steps)
+        self.gradient_accumulation_steps = gradient_accumulation_steps
+        self.num_chips = num_chips
+        self._perf_report = None
+        self._report_read = False
+
+    def log_step(self, logger, global_step, step_elapsed):
+        """Log this step's MFU to stdout and W&B, and return the metrics dict."""
+        if not self._report_read:
+            self._perf_report = read_training_step_flops()
+            self._report_read = True
+        mfu = compute_mfu_metrics(
+            self._perf_report,
+            self.analytical_step_flops,
+            step_elapsed,
+            self.gradient_accumulation_steps,
+            num_chips=self.num_chips,
+        )
+        logger.info(f"Step {global_step} MFU: {format_mfu_summary(mfu)}")
+        metrics = {f"perf/{k}": v for k, v in mfu.items() if v is not None}
+        if metrics:
+            logger.log_metrics(metrics, commit=False, step=global_step)
+        return mfu
