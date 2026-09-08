@@ -16,6 +16,11 @@ from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.performance_utils import (
+    MFU_PERF_METRICS_FILE,
+    MfuTracker,
+    clear_perf_metrics_files,
+)
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.torch_helpers import (
     collate_fn_for_causal_lm,
@@ -184,8 +189,17 @@ def train(
         # TODO: Refactor when https://github.com/tenstorrent/tt-blacksmith/issues/602#issue-4596214372 is resolved.
         train_start = None
         step_start = None
+        mfu_tracker = None
         if config.measure_e2e_time:
             train_start = time.perf_counter()
+            if config.log_mfu:
+                mfu_tracker = MfuTracker(
+                    model,
+                    config.max_length,
+                    config.batch_size,
+                    config.gradient_accumulation_steps,
+                    device_manager.num_chips,
+                )
 
         for epoch in range(config.num_epochs):
             # NOTE: grads and step_loss persist across epochs (reset only after an optimizer
@@ -248,6 +262,9 @@ def train(
                     if config.measure_e2e_time:
                         step_elapsed = time.perf_counter() - step_start
                         logger.info(f"Step {global_step} e2e time: {step_elapsed:.3f}s")
+
+                        if mfu_tracker is not None:
+                            mfu_tracker.log_step(logger, global_step, step_elapsed)
 
                     if global_step % config.steps_freq == 0:
                         avg_loss = running_loss / config.steps_freq
@@ -332,9 +349,17 @@ if __name__ == "__main__":
             "enable_trace": config.enable_trace,
             "optimization_level": config.optimization_level,
             "enable_const_eval": config.enable_const_eval,
+            "optimization_level": config.optimization_level,
         }
         if config.experimental_weight_dtype:
             compile_options["experimental_weight_dtype"] = config.experimental_weight_dtype
+        if config.log_mfu:
+            # Ask tt-mlir for the per-graph FLOP report the training loop turns into MFU,
+            # and drop any leftovers from an earlier run. See performance_utils for why
+            # both options and the cleanup are needed.
+            compile_options["ttnn_perf_metrics_enabled"] = True
+            compile_options["ttnn_perf_metrics_output_file"] = MFU_PERF_METRICS_FILE
+            clear_perf_metrics_files()
         torch_xla.set_custom_compile_options(compile_options)
 
     # Checkpoint manager setup
