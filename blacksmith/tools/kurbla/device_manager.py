@@ -61,6 +61,54 @@ def _patch_dtensor_pad() -> None:
     F.pad = _pad_dtensor_safe
 
 
+def _patch_dtensor_fused_backward() -> None:
+    """Decompose the fused backward ops into ones DTensor has strategies for.
+
+    tt-kurbla registers fused `linear`/`matmul` kernels and their backwards, so those
+    forwards never decompose and autograd emits backward ops DTensor cannot shard.
+    """
+
+    def sum_to_shape(grad, shape):
+        extra = grad.dim() - len(shape)
+        if extra > 0:
+            grad = grad.sum(dim=tuple(range(extra)))
+        broadcast = [i for i, size in enumerate(shape) if size == 1 and grad.shape[i] != 1]
+        return grad.sum(dim=tuple(broadcast), keepdim=True) if broadcast else grad
+
+    def matmul_backward_handler(op_call, args, kwargs):
+        grad, input_, other, output_mask = args
+        if input_.dim() < 2 or other.dim() < 2:
+            raise NotImplementedError(
+                f"aten.matmul_backward on DTensor with {input_.dim()}-D x {other.dim()}-D operands"
+            )
+        grad_input = sum_to_shape(grad @ other.transpose(-2, -1), input_.shape) if output_mask[0] else None
+        grad_other = sum_to_shape(input_.transpose(-2, -1) @ grad, other.shape) if output_mask[1] else None
+        return (grad_input, grad_other)
+
+    def linear_backward_handler(op_call, args, kwargs):
+        input_, grad_output, weight, output_mask = args
+        grad_input = grad_output @ weight if output_mask[0] else None
+
+        grad_weight = None
+        if output_mask[1]:
+            if grad_output.dim() > 2:
+                # The leading-dim sum is the data-parallel reduction: grad comes out Partial.
+                stacked = torch.matmul(grad_output.transpose(-2, -1), input_)
+                grad_weight = stacked.sum(dim=tuple(range(stacked.dim() - 2)))
+            else:
+                grad_weight = grad_output.transpose(0, 1) @ input_
+
+        grad_bias = None
+        if output_mask[2]:
+            grad_bias = grad_output.sum(dim=tuple(range(grad_output.dim() - 1)))
+
+        return (grad_input, grad_weight, grad_bias)
+
+    handlers = DTensor._op_dispatcher._custom_op_handlers
+    handlers[torch.ops.aten.linear_backward.default] = linear_backward_handler
+    handlers[torch.ops.aten.matmul_backward.default] = matmul_backward_handler
+
+
 class DeviceManager:
     """tt-kurbla device, mesh and DTensor sharding. See the module docstring for the config
     contract.
@@ -137,6 +185,7 @@ class DeviceManager:
             dist.init_process_group(backend="tt", rank=0, world_size=mesh_size, store=dist.HashStore())
 
         _patch_dtensor_pad()
+        _patch_dtensor_fused_backward()
 
         try:
             return torch.tt.init_device_mesh(
@@ -261,9 +310,8 @@ class DeviceManager:
                     print(f"[shard_model] {qualified_name}: {tuple(param.shape)} -> {placements}")
                 _distribute_param(module, param_name, device_mesh, placements)
 
-        # Buffers (unmatched by construction — the patterns name parameters) are
-        # replicated by `distribute_module` itself.
-        sharded = distribute_module(model.to(self.device), self.mesh, partition_fn=partition_fn)
+        # Not `model.to(device)`: that would stage the whole model on every chip first.
+        sharded = distribute_module(model, self.mesh, partition_fn=partition_fn)
         print(
             f"[shard_model] {type(model).__name__}: {counts['sharded']} sharded / "
             f"{counts['replicated']} replicated over mesh {tuple(self.mesh_shape)}",

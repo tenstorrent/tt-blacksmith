@@ -7,6 +7,7 @@ import gc
 import json
 import time
 from pathlib import Path
+from typing import cast
 
 import torch
 import torch.nn as nn
@@ -62,10 +63,10 @@ def _normalize_latents(latent: torch.Tensor, vae, device_manager: DeviceManager)
 
 def _dp_batch_size(device_manager: DeviceManager) -> int:
     """How many samples one encode call covers: the width of the data-parallel axis."""
-    if not device_manager.is_data_parallel():
+    mesh, axis = device_manager.mesh, device_manager.input_sharding_dim
+    if mesh is None or axis is None or mesh.mesh_dim_names is None:
         return 1
-    mesh = device_manager.mesh
-    return mesh.size(mesh.mesh_dim_names.index(device_manager.input_sharding_dim))
+    return mesh.size(mesh.mesh_dim_names.index(axis))
 
 
 @torch.no_grad()
@@ -142,12 +143,12 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: Device
 
     (cache / "metadata.json").write_text(json.dumps(metadata, indent=2))
 
-    # --- captions -----------------------------------------------------------------------
     unique_captions = sorted({m["caption"] for m in metadata})
     if "" not in unique_captions:
         unique_captions.append("")
 
     tokenizer = AutoTokenizer.from_pretrained(config.model_id, subfolder="tokenizer")
+    assert tokenizer is not None, f"no tokenizer in {config.model_id}"
     text_encoder = UMT5EncoderModel.from_pretrained(
         config.model_id, subfolder="text_encoder", torch_dtype=config.torch_dtype(), low_cpu_mem_usage=True
     ).eval()
@@ -174,12 +175,12 @@ def precompute_latents_and_embeds(config: TrainingConfig, device_manager: Device
         input_ids, attn_mask = batch["input_ids"], batch["attention_mask"]
 
         out = umt5(input_ids, attn_mask)
-        # Match WanPipeline.encode_prompt: zero the padding, keep the full length.
-        out = out * attn_mask.unsqueeze(-1).to(out.dtype)
         gathered = device_manager.gather(out).to("cpu")
+        # Mask on the host: the device-side mask does not survive the batch scatter.
+        gathered = gathered * tok.attention_mask.unsqueeze(-1).to(gathered.dtype)
 
         for k, caption in enumerate(chunk):
-            embeds[caption] = gathered[k].contiguous()
+            embeds[str(caption)] = gathered[k].contiguous()
             done += 1
         print(
             f"[precompute]   {done}/{len(unique_captions)} "
@@ -202,7 +203,10 @@ if __name__ == "__main__":
 
     DEFAULT_CONFIG = Path(__file__).parent / "kurbla" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
     args = parse_cli_options(default_config=DEFAULT_CONFIG)
-    config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, overrides=args.overrides)
+    config = cast(
+        TrainingConfig,
+        generate_config(TrainingConfig, args.config, args.test_config, overrides=args.overrides),
+    )
 
     ReproducibilityManager(config).setup()
 

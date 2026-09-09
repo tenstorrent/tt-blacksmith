@@ -47,18 +47,19 @@ lora_target_set: "attn"
 # "gaussian" matches PEFT's N(0, 1/rank); "kaiming" is ttml's own init, ~4x
 # smaller at rank 32 (see README known differences).
 lora_a_init: "gaussian"
-lora_path: "cache/wan22_14b_lego/wan22_14b_lego_lora.safetensors"
+lora_path: "cache/wan22_14b_lego_kurbla/wan22_14b_lego_lora.safetensors"
 
 # Training hyperparameters
 learning_rate: 1.0e-4
 weight_decay: 0.01
 # Must be 0 at TP>1: ttml.core.clip_grad_norm is per-device.
 grad_clip: 0
-batch_size: 1
+# Global batch: 1 per chip x DP 4. Must divide by the input_sharding_dim axis width.
+batch_size: 4
 gradient_accumulation_steps: 4
 max_steps: 3000
 val_loss_every: 200
-ckpt_every: 500
+ckpt_every: 250
 resume_step: 0
 
 # Flow-matching training
@@ -77,7 +78,7 @@ inference:
   infer_guidance: 7.0
   infer_guidance_2: 5.0
   infer_flow_shift: 12.0
-  infer_output: "cache/wan22_14b_lego/lego_video.mp4"
+  infer_output: "cache/wan22_14b_lego_kurbla/lego_video.mp4"
   # The prompt to generate; the trigger above is prepended automatically.
   val_prompt: "a cat sitting on a wooden table"
   neg_prompt: ""
@@ -98,17 +99,57 @@ inference:
 mesh_shape: [4, 8]
 mesh_axis_names: ["batch", "model"]
 
-# null = the batch is replicated on every chip. Setting this to "batch" turns on data
-# parallelism, which requires the loader to yield the global batch (batch_size * 4 = 4
-# here) -- dim 0 must be divisible by the axis width.
-input_sharding_dim: null
+input_sharding_dim: "batch"
 
-# Both null = every parameter replicated on all 32 chips. That is the correct first rung:
-# it exercises the mesh, the collectives and the compile without any sharding to get
-# wrong. Tensor parallelism needs a pattern list written against the A14B module names and
-# checked for divisibility at TP=8 -- see the README before filling these in.
-model_sharding_patterns: null
-param_sharding_patterns: null
+# Column-parallel (QKV, FFN-up, *_embedder.linear_1) -> ["model", null].
+# Row-parallel (O, FFN-down, *_embedder.linear_2, time_proj) -> [null, "model"].
+# Nothing names "batch", so that axis carries data, not weights: 4 replicas, each 8-way
+# tensor-parallel. First re.search hit wins, so order matters.
+model_sharding_patterns:
+  # The whole conditioning path stays replicated (233M params, ~0.5 GiB/chip/expert). Any
+  # row-parallel layer here leaves temb Partial, and DTensor does not resolve
+  # Replicate + Partial on a 2-D mesh: the Partial survives into the AdaLN `1 + scale`,
+  # where the scalar lands once per shard and scales the hidden state by the TP width.
+  - ['^condition_embedder\.', [null, null]]
+
+  - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer$', ["model", null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_k\.base_layer$', ["model", null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_v\.base_layer$', ["model", null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.base_layer$', [null, "model"]]
+  # Exact only because the RMS sum of squares is separable; needs the rms_norm patch, or
+  # DTensor all-gathers q/k back to 5120 and every chip runs all 40 heads.
+  - ['\bblocks\.\d+\.attn[12]\.norm_q$', ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.norm_k$', ["model"]]
+
+  # Shard whichever LoRA side meets the sharded activation; rank 32 is never split.
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.lora_A\.default$', [null, "model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.lora_B\.default$', [null, null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_[qkv]\.lora_A\.default$', [null, null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_[qkv]\.lora_B\.default$', ["model", null]]
+
+  # (\.base_layer)? so these keep matching if lora_target_set becomes "attn+ffn".
+  - ['\bblocks\.\d+\.ffn\.net\.0\.proj(\.base_layer)?$', ["model", null]]
+  - ['\bblocks\.\d+\.ffn\.net\.2(\.base_layer)?$', [null, "model"]]
+
+  # Replicated on purpose, listed so the sharded/replicated tally is auditable.
+  - ['\bblocks\.\d+\.norm2$', [null]]
+  - ['^patch_embedding$', [null, null, null, null, null]]
+  - ['^proj_out$', [null, null]]
+
+param_sharding_patterns:
+  - ['^condition_embedder\..*\.bias$', [null]]
+  - ['\bblocks\.\d+\.attn[12]\.to_q\.base_layer\.bias$', ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_k\.base_layer\.bias$', ["model"]]
+  - ['\bblocks\.\d+\.attn[12]\.to_v\.base_layer\.bias$', ["model"]]
+  # Row-parallel bias is added once, after the all-reduce.
+  - ['\bblocks\.\d+\.attn[12]\.to_out\.0\.base_layer\.bias$', [null]]
+  - ['\bblocks\.\d+\.ffn\.net\.0\.proj(\.base_layer)?\.bias$', ["model"]]
+  - ['\bblocks\.\d+\.ffn\.net\.2(\.base_layer)?\.bias$', [null]]
+  - ['\bblocks\.\d+\.norm2\.(weight|bias)$', [null]]
+  - ['\bblocks\.\d+\.scale_shift_table$', [null, null, null]]
+  - ['^scale_shift_table$', [null, null, null]]
+  - ['^patch_embedding\.bias$', [null]]
+  - ['^proj_out\.bias$', [null]]
 
 # CompileOption.OPT_LEVEL, and whether the optimizer step is captured as one graph.
 optimization_level: 0
@@ -123,7 +164,7 @@ seed: 42
 # Logging settings
 log_level: "INFO"
 use_wandb: True
-wandb_project: "wan22-14b-lego-lora"
+wandb_project: "wan22-14b-lego-lora-kurbla"
 wandb_run_name: "tt-wan22-a14b-lego-galaxy"
 wandb_tags: ["test"]
 

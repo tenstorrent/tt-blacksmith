@@ -59,6 +59,8 @@ class TrainingConfig(BaseModel):
     vae_dtype: str = Field(default="bfloat16")
     gradient_checkpointing: bool = Field(default=True)
     conv3d_patch_embed: bool = Field(default=False)
+    # Truncate the DiT to the first N blocks. Bring-up only.
+    dit_layers: Optional[int] = Field(default=None, gt=0)
 
     dataset_id: str = Field(default="showlab/OmniConsistency")
     style: str = Field(default="LEGO")
@@ -169,6 +171,18 @@ class TrainingConfig(BaseModel):
                 f"grad_clip={self.grad_clip} is not supported at TP={tp_size}: the clip may "
                 f"apply to shard-local norms instead of the global one. Set grad_clip: 0, "
                 f"or use mesh_shape: [{dp_size}, 1]."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def check_batch_divides_dp(self) -> Self:
+        if self.input_sharding_dim is None or self.mesh_shape is None:
+            return self
+        dp_size = self.mesh_shape[self.mesh_axis_names.index(self.input_sharding_dim)]
+        if self.batch_size % dp_size != 0:
+            raise ValueError(
+                f"batch_size={self.batch_size} is the global batch and must divide by the "
+                f"'{self.input_sharding_dim}' axis width {dp_size}"
             )
         return self
 
