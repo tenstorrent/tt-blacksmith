@@ -11,7 +11,6 @@ from unittest.mock import Mock
 
 import pytest
 import torch
-from torch_geometric.data import Data
 
 pytestmark = [
     pytest.mark.push,
@@ -191,6 +190,9 @@ def test_evaluate_rejects_an_empty_loader(train_module) -> None:
 @pytest.fixture
 def tiny_training(train_module, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Exercise real training and checkpoint I/O without downloading Reddit."""
+    # Defer the PyG import until fixtures run so other CI jobs can collect tests.
+    from torch_geometric.data import Data
+
     batch = Data(
         x=torch.tensor([[1.0, 0.0, 0.5, -0.5], [0.0, 1.0, -0.5, 0.5]]),
         edge_index=torch.tensor([[0, 1], [1, 0]]),
