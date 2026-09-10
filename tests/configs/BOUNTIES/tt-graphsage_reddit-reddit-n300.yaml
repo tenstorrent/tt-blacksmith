@@ -1,0 +1,7 @@
+# N300 smoke overlay: two batches in each train/validation/test phase.
+num_epochs: 1
+steps_freq: 1
+save_strategy: "none"
+use_wandb: false
+test_config:
+  max_steps_per_epoch: 2

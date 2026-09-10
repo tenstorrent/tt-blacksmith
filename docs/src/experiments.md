@@ -34,6 +34,7 @@ The following table provides an overview of different model and method combinati
 | PyTorch | Phi-1 | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md#phi1) |
 | PyTorch | Phi-1.5 | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/phi/README.md#phi-15) |
 | PyTorch | GATv2 | Full-model | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/README.md) |
+| PyTorch | GraphSAGE | Full-model | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/README.md) |
 | PyTorch | Wan 2.2 5b | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/wan2_2/README.md) |
 | JAX | MLP | Full-model | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/mnist/README.md) |
 | JAX | NeRF | Full-model | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/jax/nerf/README.md) |

@@ -1,0 +1,9 @@
+# N300 CI smoke overlay: two batches in every train/validation/test phase.
+# Keep the large Reddit download and processed graph on the persistent runner cache.
+dataset_root: "/mnt/dockercache/torch_geometric/Reddit-pyg-2.8.0.post1"
+num_epochs: 1
+steps_freq: 1
+save_strategy: "none"
+use_wandb: false
+test_config:
+  max_steps_per_epoch: 2
