@@ -1,30 +1,27 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
 import random
 
 import numpy as np
 import torch
 
-from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.configs import TrainingConfig
 
 
 class ReproducibilityManager:
+    """Seeds host RNGs.
+
+    Only host-side randomness is covered: dataset shuffling, dropout masks and
+    weight init all draw from the CPU generator before anything reaches the
+    device, and tt-crank has no separately seedable device RNG.
+    """
+
     def __init__(self, config: TrainingConfig):
         self.config = config
 
-    def setup(self):
-        self._seed_python_rngs()
-
-        torch.manual_seed(self.config.seed)
-        torch.cuda.manual_seed(self.config.seed)
-        torch.cuda.manual_seed_all(self.config.seed)
-
-        if self.config.deterministic:
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
-
-    def _seed_python_rngs(self):
-        random.seed(self.config.seed)
-        np.random.seed(self.config.seed)
+    def setup(self) -> None:
+        seed = self.config.seed
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)

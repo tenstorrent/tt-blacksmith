@@ -1,204 +1,242 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+"""Device and parallelism setup for tt-crank.
+
+This is the tt-crank counterpart of the tt-xla DeviceManager. The two differ
+in kind, not just in API:
+
+- tt-xla exposed one PJRT device per chip and used SPMD: an `xs.Mesh` plus
+  `mark_sharding` annotations that the XLA partitioner turned into collectives.
+- tt-crank exposes a *single* logical `tt` device backed by a runtime
+  `MeshDevice`. Parallelism is plain torch DTensor: `torch.tt.init_device_mesh`
+  opens the mesh and builds a `DeviceMesh`, then `distribute_tensor` /
+  `distribute_module` place shards. Collectives come from the `tt` c10d backend.
+
+There is also no lazy-execution fence: tt-crank is eager, so nothing here
+corresponds to `torch_xla.sync()` / `xm.optimizer_step`.
+"""
+import contextlib
+import math
 import os
 import re
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.spmd as xs
-import torch_xla.runtime as xr
-from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
-    SpmdFullyShardedDataParallel as FSDP,
+from torch.distributed.tensor import DeviceMesh, Replicate, Shard, distribute_module, distribute_tensor
+
+from blacksmith.tools.configs import TrainingConfig
+
+# Megatron tensor parallelism, matched against each leaf module's fully
+# qualified name as `distribute_module` reports it.
+#
+# Column-parallel linears shard the output (feature) dim; row-parallel linears
+# shard the contraction (input) dim. LoRA splits each target into three
+# `nn.Linear`s -- `base_layer`, `lora_A` (r x in) and `lora_B` (out x r) -- and
+# they do NOT all follow the parent's rule:
+#
+#   column-parallel (out sharded): base_layer and lora_B shard dim 0;
+#       lora_A stays replicated (its output is the rank dim, not the feature dim).
+#   row-parallel (in sharded): base_layer and lora_A shard dim 1;
+#       lora_B stays replicated (its input is the rank dim).
+#
+# An unadapted target is a bare `nn.Linear`, hence the optional suffix group.
+# `embed_tokens` / `lm_head` are deliberately absent: Llama ties them, so
+# vocab-sharding lm_head would also shard the embedding lookup and corrupt it.
+_COLUMN_PARALLEL = (
+    re.compile(r"\.(q_proj|k_proj|v_proj|gate_proj|up_proj)(\.base_layer|\.lora_B\.[^.]+)?$"),
+    Shard(0),
+)
+_ROW_PARALLEL = (
+    re.compile(r"\.(o_proj|down_proj)(\.base_layer|\.lora_A\.[^.]+)?$"),
+    Shard(1),
 )
 
-from blacksmith.tools.templates.configs import TrainingConfig
+_TENSOR_PARALLEL_RULES = (_COLUMN_PARALLEL, _ROW_PARALLEL)
 
 
 class DeviceManager:
-    """Manages different parallelization strategies based on mesh configuration."""
+    """Owns the `tt` device and, for multichip runs, the DTensor mesh."""
 
     def __init__(self, config: TrainingConfig):
         self.config = config
-        self.mesh = None
+        self.mesh: Optional[DeviceMesh] = None
 
-        self._setup()
-
-    def _setup(self):
-        if not self.config.use_tt:
+        if not config.use_tt:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             return
 
-        self._setup_tt_environment()
-        self.device = torch_xla.device()
+        # Importing the package registers the "tt" PrivateUse1 backend, the
+        # "tt" dynamo backend and the "tt" c10d backend. Nothing else is needed;
+        # in particular there is no PJRT_DEVICE / XLA_* environment to set.
+        import tt_crank.torch  # noqa: F401
 
-        self.mesh = self._create_mesh()
+        self.device = torch.device("tt")
 
-    def _setup_tt_environment(self):
-        # Setup for single device.
-        xr.set_device_type("TT")
-        os.environ["PJRT_DEVICE"] = "TT"
-        os.environ["XLA_STABLEHLO_COMPILE"] = "1"
+        if config.mesh is not None:
+            self._init_mesh()
 
-        # Additional setup for multichip (if mesh configuration is provided).
-        if hasattr(self.config, "mesh_shape") and self.config.mesh_shape is not None:
-            os.environ["XLA_ALWAYS_ALLREDUCE"] = "1"
-            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-            os.environ["DISABLE_NUMERIC_CC_TOKEN"] = "1"
-            xr.use_spmd()
+    def _init_mesh(self) -> None:
+        mesh_cfg = self.config.mesh
+        available = torch.tt.num_chips()
+        requested = math.prod(mesh_cfg.shape)
+        assert requested <= available, f"mesh {mesh_cfg.shape} needs {requested} chips, only {available} available"
 
-        # Additional setup for DRAM region for runtime trace (before device initialization).
-        if hasattr(self.config, "enable_trace") and self.config.enable_trace is True:
-            os.environ.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", str(self.config.trace_region_size))
+        self._init_process_group(requested)
 
-    def _create_mesh(self) -> Optional[xs.Mesh]:
-        # Check if mesh configuration is provided.
-        if not hasattr(self.config, "mesh_shape") or not self.config.mesh_shape:
-            return None
+        # init_device_mesh opens the runtime MeshDevice at this shape *and*
+        # builds the torch DeviceMesh; the two must not be set up separately.
+        self.mesh = torch.tt.init_device_mesh(tuple(mesh_cfg.shape), mesh_dim_names=tuple(mesh_cfg.axis_names))
 
-        # Check if mesh configuration is valid.
-        assert self.config.mesh_axis_names is not None, "Mesh axis names must be provided for multichip parallelism."
-        assert (self.config.input_sharding_dim is None) or (
-            self.config.input_sharding_dim in self.config.mesh_axis_names
-        ), "`input_sharding_dim` must be None or it should be present in `mesh_axis_names`."
-        if self.config.model_sharding_patterns is not None:
-            for pattern_spec in self.config.model_sharding_patterns:
-                dimensions = pattern_spec[1]
-                for dimension in dimensions:
-                    if dimension is not None:
-                        assert (
-                            dimension in self.config.mesh_axis_names
-                            and self.config.mesh_shape[self.config.mesh_axis_names.index(dimension)] > 1
-                        ), f"Dimension {dimension} is not present in `mesh_axis_names` or it has size 1 for model sharding pattern {pattern_spec}."
+    @staticmethod
+    def _init_process_group(world_size: int) -> None:
+        """Bring up the "tt" c10d process group that DTensor collectives use.
 
-        num_devices = xr.global_runtime_device_count()
-        device_ids = np.array(range(num_devices))
+        Single-process, one rank per chip: this is not distributed training in
+        the usual sense -- the collectives run inside the device mesh, so there
+        are no peer processes to rendezvous with and a `FakeStore` stands in for
+        the TCP store. `world_size` is the mesh size rather than the machine's
+        chip count, so a run that uses part of a larger machine still gets a
+        world that matches the mesh it opened.
+        """
+        import torch.distributed as dist
+        from torch.testing._internal.distributed.fake_pg import FakeStore
 
-        assert len(self.config.mesh_shape) == len(
-            self.config.mesh_axis_names
-        ), "Mesh shape and axis names must have the same length."
+        if dist.is_initialized():
+            return
+        os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
+        os.environ.setdefault("MASTER_PORT", "29500")
+        os.environ.setdefault("RANK", "0")
+        os.environ.setdefault("WORLD_SIZE", str(world_size))
+        dist.init_process_group(backend="tt", rank=0, world_size=world_size, store=FakeStore())
 
-        return xs.Mesh(
-            device_ids=device_ids,
-            mesh_shape=tuple(self.config.mesh_shape),
-            axis_names=tuple(self.config.mesh_axis_names),
-        )
-
+    @property
     def is_data_parallel(self) -> bool:
-        """Check if data parallelism is enabled based on mesh configuration."""
+        cfg = self.config.mesh
+        return self.mesh is not None and cfg.data_axis is not None and cfg.axis_size(cfg.data_axis) > 1
 
-        return (
-            self.config.input_sharding_dim is not None
-            and self.mesh is not None
-            and self.mesh.shape()[self.config.input_sharding_dim] > 1
-        )
-
+    @property
     def is_tensor_parallel(self) -> bool:
-        """Check if tensor parallelism is enabled based on mesh configuration."""
-        return self.config.model_sharding_patterns is not None and self.mesh is not None
+        cfg = self.config.mesh
+        return self.mesh is not None and cfg.tensor_axis is not None and cfg.axis_size(cfg.tensor_axis) > 1
 
-    def is_fsdp(self) -> bool:
-        """Check if FSDP is enabled based on mesh axis."""
-        return self.mesh is not None and "fsdp" in self.mesh.axis_names
+    def _placements(self, axis: str, shard: Shard) -> list:
+        """Shard along `axis`, replicate every other mesh axis."""
+        idx = self.config.mesh.axis_index(axis)
+        return [shard if i == idx else Replicate() for i in range(len(self.config.mesh.shape))]
 
-    def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Tuple):
-        return xs.mark_sharding(tensor, self.mesh, sharding_spec)
+    def distribute_model(self, model: nn.Module) -> nn.Module:
+        """Turn the model's parameters into DTensors over the mesh, in place.
 
-    def shard_model(self, model: nn.Module) -> nn.Module:
-        """Shard model based on mesh configuration."""
-        if self.is_fsdp():
-            model = self._apply_fsdp(model)
-        if self.is_tensor_parallel():
-            model = self._apply_tensor_parallelism(model)
+        `distribute_module` replicates every parameter it is not told to shard,
+        which is what makes the mixed case work: under tensor parallelism the
+        matched projections are column/row sharded and everything else (norms,
+        embeddings, the LoRA A matrices) becomes an explicitly replicated
+        DTensor, so no op ever sees a DTensor and a plain tensor together.
 
-        return model
+        Under pure data parallelism there is nothing to shard, so this is a
+        plain replicate -- the batch is what gets sharded, in `prepare_batch`.
 
-    def _apply_tensor_parallelism(self, model: nn.Module) -> nn.Module:
-        """Apply tensor parallelism using regex pattern matching from config."""
-        sharding_patterns = self.config.model_sharding_patterns
+        Single chip: no mesh, nothing to do.
 
-        for name, module in model.named_modules():
-            if not hasattr(module, "weight") or module.weight is None:
-                continue
-            match = next((ps for ps in sharding_patterns if re.search(ps[0], name)), None)
-            if match and torch_xla._XLAC._get_xla_sharding_spec(module.weight) in (None, ""):
-                xs.mark_sharding(module.weight, self.mesh, tuple(match[1]))
+        Call once, before training. Unlike the tt-xla SPMD version there is no
+        per-step re-annotation: a DTensor parameter stays a DTensor.
+        """
+        if self.mesh is None:
+            return model
 
-        # Shard parameters by name (for nn.Parameter, biases, etc. not reachable via module.weight).
-        param_patterns = getattr(self.config, "param_sharding_patterns", [])
-        for name, param in model.named_parameters():
-            match = next((ps for ps in param_patterns if re.search(ps[0], name)), None)
-            if match and torch_xla._XLAC._get_xla_sharding_spec(param) in (None, ""):
-                xs.mark_sharding(param, self.mesh, tuple(match[1]))
+        partition_fn = self._tensor_parallel_partition_fn() if self.is_tensor_parallel else None
+        return distribute_module(model, self.mesh, partition_fn=partition_fn)
 
-        torch_xla.sync(wait=True)
-        return model
+    def _tensor_parallel_partition_fn(self):
+        """Megatron column/row sharding for each decoder layer's projections.
 
-    def _apply_fsdp(self, model: nn.Module) -> nn.Module:
-        # TODO(pglusac): Add support for FSDP granularity configuration.
-        def shard_output(output, mesh):
-            # Extract logits and shard its batch dimension along the fsdp axis.
-            real_output = getattr(output, "logits", None)
-            if real_output is None:
-                real_output = output[0] if isinstance(output, tuple) else output
-            # Skip if the sharding annotation is already set.
-            if torch_xla._XLAC._get_xla_sharding_spec(real_output) not in (None, ""):
+        `embed_tokens` / `lm_head` are deliberately not matched: Llama ties them,
+        so vocab-sharding lm_head would also shard the embedding lookup.
+        """
+        axis = self.config.mesh.tensor_axis
+
+        def partition_fn(name: str, module: nn.Module, device_mesh: DeviceMesh) -> None:
+            if not isinstance(module, nn.Linear):
                 return
-            partition_spec = ("fsdp",) + (None,) * (real_output.dim() - 1)
-            xs.mark_sharding(real_output, mesh, partition_spec)
+            # A PEFT adapter wrapper holds the real linear in `base_layer`; its
+            # own `.weight` is a property forwarding to that child, so sharding
+            # it here would double-apply. Let the children match instead.
+            if hasattr(module, "base_layer"):
+                return
+            shard = next((s for pattern, s in _TENSOR_PARALLEL_RULES if pattern.search(name)), None)
+            if shard is None:
+                return
+            weight = module.weight
+            module.register_parameter(
+                "weight",
+                nn.Parameter(
+                    distribute_tensor(weight, device_mesh, self._placements(axis, shard)),
+                    requires_grad=weight.requires_grad,
+                ),
+            )
 
-        # TODO(pglusac): Investigate if shard_output is necessary.
-        model = FSDP(model, mesh=self.mesh, shard_output=shard_output)
-        return model
-
-    def shard_optimizer(self, optimizer: torch.optim.Optimizer):
-        raise NotImplementedError("Optimizer sharding is not implemented yet.")
+        return partition_fn
 
     def prepare_batch(
         self,
         batch: Dict[str, torch.Tensor],
         skip_keys: tuple[str, ...] = (),
     ) -> Dict[str, torch.Tensor]:
-        """Move the batch to device and apply data-parallel sharding if configured.
-
-        ``skip_keys`` stay on the host.
-        """
+        """Move the batch to device, sharding the batch dim under data parallelism."""
         batch = {k: v if k in skip_keys else v.to(self.device) for k, v in batch.items()}
 
-        if self.is_data_parallel():
-            for key, tensor in batch.items():
-                if key in skip_keys or tensor.dim() == 0:
-                    continue
-                partition_spec = (self.config.input_sharding_dim,) + tuple([None] * (tensor.dim() - 1))
-                xs.mark_sharding(tensor, self.mesh, partition_spec)
+        if not self.is_data_parallel:
+            return batch
 
-        return batch
+        placements = self._placements(self.config.mesh.data_axis, Shard(0))
+        return {
+            k: v if k in skip_keys or v.dim() == 0 else distribute_tensor(v, self.mesh, placements)
+            for k, v in batch.items()
+        }
 
-    def optimizer_step(self, optimizer: torch.optim.Optimizer, zero_grad: bool = False):
-        """Perform optimizer step with appropriate synchronization.
+    def optimizer_step(self, optimizer: torch.optim.Optimizer) -> None:
+        """Step the optimizer.
 
-        When ``zero_grad`` is set, grads are re-zeroed in place (kept as tensors) after the
-        step so the zeroing fuses into this optimizer graph and the next window's grads stay
-        non-None for accumulation. Off by default to preserve existing models' behavior.
+        Gradient all-reduce across the data-parallel axis is implicit: under DP
+        the loss is a `Partial` DTensor, so autograd produces `Partial` grads and
+        the optimizer's first read redistributes them. No `xm.optimizer_step`
+        equivalent and no barrier -- tt-crank executes eagerly.
+        """
+        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
+
+    def compile_options(self) -> dict:
+        """tt-crank compile options for `torch.compile(backend="tt", options=...)`.
+
+        tt-xla set these once, globally, via `set_custom_compile_options`;
+        tt-crank takes them per compiled callable.
+        """
+        from tt_crank.torch._compile import BfpDtype, CompileOption, MathFidelity
+
+        options = {
+            CompileOption.OPT_LEVEL: self.config.optimization_level,
+            CompileOption.MATH_FIDELITY: getattr(MathFidelity, self.config.math_fidelity),
+            CompileOption.FP32_DEST_ACC_EN: self.config.fp32_dest_acc_en,
+            CompileOption.ENABLE_CONST_EVAL: self.config.enable_const_eval,
+            CompileOption.ENABLE_TRACE: self.config.enable_trace,
+        }
+        if self.config.experimental_weight_dtype:
+            options[CompileOption.EXPERIMENTAL_WEIGHT_DTYPE] = getattr(BfpDtype, self.config.experimental_weight_dtype)
+        return options
+
+    def replication_context(self):
+        """Context in which plain tensors are treated as replicated DTensors.
+
+        HF builds a few tensors internally (causal-mask helpers, position ids)
+        that never pass through `prepare_batch`. Without this they stay plain
+        tensors and mixing them with DTensor parameters raises. A no-op on a
+        single chip.
         """
         if self.mesh is None:
-            # Single device
-            optimizer.step()
-            if zero_grad:
-                optimizer.zero_grad(set_to_none=False)
-            if self.config.use_tt:
-                torch_xla.sync(wait=True)
-        else:
-            # For multichip - xm.optimizer_step forces execution and ensures correct all-reduce operations.
-            if zero_grad:
-                # Drop the internal barrier so the in-place grad re-zero fuses into the optimizer
-                # graph; the explicit sync flushes the reduce + step + zeroing together.
-                xm.optimizer_step(optimizer, barrier=False)
-                optimizer.zero_grad(set_to_none=False)
-                torch_xla.sync(wait=True)
-            else:
-                xm.optimizer_step(optimizer, barrier=True)
+            return contextlib.nullcontext()
+
+        from torch.distributed.tensor.experimental import implicit_replication
+
+        return implicit_replication()

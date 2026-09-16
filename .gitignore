@@ -3,6 +3,7 @@ generated_modules/
 **/__pycache__/
 *.egg-info/
 blacksmith/**/checkpoints/
+blacksmith_xla/**/checkpoints/
 wandb/
 results/
 logs/
@@ -19,7 +20,16 @@ env/*
 !env/ffe_requirements.txt
 !env/xla_requirements.txt
 !env/requirements.txt
+!env/crank_requirements.txt
 
 # Local custom datasets
 blacksmith/datasets/torch/custom/*.json
 blacksmith/datasets/torch/custom/*.jsonl
+blacksmith_xla/datasets/torch/custom/*.json
+blacksmith_xla/datasets/torch/custom/*.jsonl
+
+# tt-crank wheels built locally by scripts/build_crank_wheel.sh
+env/wheels/
+
+# tt-metal's on-disk kernel binary cache, written next to the run
+.data/

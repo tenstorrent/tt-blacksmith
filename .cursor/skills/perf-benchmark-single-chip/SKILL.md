@@ -9,7 +9,7 @@ Benchmark a tt-blacksmith training workload by running Tracy device profiling on
 
 ## Eligible workloads
 
-Any workload under `blacksmith/experiments/torch/` that targets a single chip. Check the YAML config: if `mesh_shape` is `null` or absent, the workload is eligible. Multi-chip workloads (TG, Galaxy, `mesh_shape` set) are out of scope.
+Any workload under `blacksmith_xla/experiments/torch/` that targets a single chip. Check the YAML config: if `mesh_shape` is `null` or absent, the workload is eligible. Multi-chip workloads (TG, Galaxy, `mesh_shape` set) are out of scope.
 
 ## Prerequisites
 

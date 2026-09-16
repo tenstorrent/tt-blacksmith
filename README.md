@@ -22,6 +22,14 @@ The **TT-Blacksmith** project contains optimized training recipes for a variety 
 For more information on the project, see our [documentation](https://docs.tenstorrent.com/tt-blacksmith/).
 
 -----
+# Repository Layout
+
+- `blacksmith/` — training recipes on **tt-crank**, the PyTorch frontend in
+  [TT-MLIR](https://github.com/tenstorrent/tt-mlir). New experiments go here.
+- `blacksmith_xla/` — the earlier recipes on TT-XLA, TT-Forge-FE and GPU. Being
+  migrated to tt-crank.
+
+-----
 # Quick Links
 
 - [Getting Started](https://docs.tenstorrent.com/tt-blacksmith/src/getting-started.html)

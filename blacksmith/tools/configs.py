@@ -1,93 +1,121 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import Dict, Optional
+"""Base training config shared by every tt-crank experiment.
 
-from pydantic import BaseModel, Field
+Experiment-specific configs subclass `TrainingConfig` and add their own fields;
+see `blacksmith/experiments/torch/llama/configs.py`.
+"""
+from typing import Optional
 
-
-class LoggingConfig(BaseModel):
-    """
-    Logger / Weights & Biases setup consumed by ``TrainingLogger``.
-
-    Holds only logger configuration; *what* metrics get logged and *how often*
-    lives in :class:`MetricsConfig`. Designed to be composed as a nested
-    sub-config (e.g. ``TrainerConfig.logging``).
-    """
-
-    log_level: str
-    use_wandb: bool
-    wandb_project: str
-    wandb_run_name: str
-    wandb_tags: list[str]
-    wandb_watch_mode: str
-    wandb_log_freq: int
-    model_to_wandb: bool
+import torch
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class MetricsConfig(BaseModel):
-    """
-    Declares which metrics to log and how often.
+class TestConfig(BaseModel):
+    """Limits applied when an experiment runs under pytest."""
 
-    Separated from :class:`LoggingConfig` (logger/W&B setup) so trainings can
-    extend the set of logged metrics without touching logger configuration.
-    Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.metrics``).
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    # Cadence at which train/validation metrics are logged.
-    steps_freq: int = Field(ge=1)
-    epoch_freq: int = Field(ge=1)
-
-    # Metric names to log, per phase. The callback logs each name it can resolve
-    # (currently "loss"); names without a source yet are ignored, keeping the set
-    # forward-compatible with metrics future trainers expose.
-    train_metrics: list[str]
-    val_metrics: list[str]
+    max_steps_per_epoch: Optional[int] = Field(
+        default=None,
+        description="Maximum number of batches to process per epoch.",
+    )
 
 
-class CheckpointConfig(BaseModel):
-    """
-    Reusable checkpoint settings consumed by ``CheckpointManager`` and the checkpoint callback.
+class MeshConfig(BaseModel):
+    """Multi-chip layout, expressed the way tt-crank models it.
 
-    Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.checkpoint``).
+    tt-crank exposes the chips as one logical `tt` device backed by a
+    `MeshDevice`, and parallelism is expressed with torch DTensor over a
+    `DeviceMesh` (`torch.tt.init_device_mesh`). That replaces tt-xla's SPMD
+    `xs.Mesh` + `mark_sharding` annotations.
+
+    `shape` is `[rows, cols]` (or `[n]` for a 1-D mesh); `axis_names` names each
+    axis so `data_axis` / `tensor_axis` below can refer to them.
     """
 
-    # Cadence at which checkpoints are saved.
-    steps_freq: int = Field(ge=1)
-    epoch_freq: int = Field(ge=1)
-    save_strategy: str  # [epoch, step, none]
+    model_config = ConfigDict(extra="forbid")
 
-    project_dir: str
-    final_checkpoint_name: str
-    save_optim: bool
-    keep_last_n: int = Field(ge=0)
-    keep_best_n: int = Field(ge=0)
-    checkpoint_metric: str
-    checkpoint_metric_mode: str  # [min, max]
+    shape: list[int] = Field(min_length=1, max_length=2)
+    axis_names: list[str] = Field(min_length=1, max_length=2)
 
-    # Storage backend settings.
-    storage_backend: str
-    sync_to_storage: bool
-    load_from_storage: bool
-    remote_path: str
+    # Batch is sharded along this axis (data parallelism). None disables DP.
+    data_axis: Optional[str] = Field(default=None)
+    # Megatron column/row sharding is applied along this axis. None disables TP.
+    tensor_axis: Optional[str] = Field(default=None)
 
-    # Resume settings.
-    resume_from_checkpoint: bool
-    resume_option: str  # [last, best, path]
-    checkpoint_path: str  # path to checkpoint if resume_option is "path"
+    def model_post_init(self, _context) -> None:
+        if len(self.shape) != len(self.axis_names):
+            raise ValueError(f"mesh shape {self.shape} and axis_names {self.axis_names} must have the same length")
+        for field, axis in (("data_axis", self.data_axis), ("tensor_axis", self.tensor_axis)):
+            if axis is not None and axis not in self.axis_names:
+                raise ValueError(f"mesh.{field}={axis!r} is not one of axis_names {self.axis_names}")
+
+    def axis_index(self, name: str) -> int:
+        return self.axis_names.index(name)
+
+    def axis_size(self, name: str) -> int:
+        return self.shape[self.axis_index(name)]
 
 
-class CustomDatasetConfig(BaseModel):
-    """
-    Additional config in case of custom datasets.
-    Train and validation sets should be loaded from separate files.
-    """
+class TrainingConfig(BaseModel):
+    # Dataset settings
+    dataset_id: str = Field(default="sst2")
 
-    file_type: str = Field(default="json")
-    train_dataset_path: Optional[str] = Field(default=None)
-    val_dataset_path: Optional[str] = Field(default=None)
+    # Model settings
+    model_name: str = Field(default="path/to/model")
+    max_length: int = Field(default=128, gt=0)
+    dtype: str = Field(default="torch.bfloat16")
 
-    # Define template type (Alpaca-style, chat, etc)
-    template: str = Field(default="alpaca")
+    # Training hyperparameters
+    learning_rate: float = Field(default=2e-5, gt=0)
+    batch_size: int = Field(default=32, gt=0)
+    gradient_accumulation_steps: int = Field(default=1, gt=0)
+    num_epochs: int = Field(default=1, gt=0)
+    ignored_index: int = Field(default=-100)
 
-    column_mapping: Optional[Dict[str, str]] = Field(default=None)
+    # Logging settings
+    log_level: str = Field(default="INFO")
+    use_wandb: bool = Field(default=False)
+    wandb_project: str = Field(default="model-finetuning")
+    wandb_run_name: str = Field(default="tt-model-test")
+    wandb_tags: list[str] = Field(default_factory=lambda: ["test"])
+    steps_freq: int = Field(default=25)
+    val_steps_freq: int = Field(default=25)
+    measure_e2e_time: bool = Field(default=False)
+
+    # Checkpoint settings
+    save_strategy: str = Field(default="none")  # [none, step, epoch]
+    output_dir: str = Field(default="results")
+    keep_last_n: int = Field(default=2, ge=0)
+
+    # Reproducibility settings
+    seed: int = Field(default=23)
+
+    # Device settings. None => single chip.
+    mesh: Optional[MeshConfig] = Field(default=None)
+
+    # tt-crank compile options; forwarded verbatim to
+    # torch.compile(backend="tt", options=...). See tt_crank.torch CompileOption.
+    optimization_level: int = Field(default=0, ge=0, le=2)
+    enable_const_eval: bool = Field(default=True)
+    enable_trace: bool = Field(default=False)
+    math_fidelity: str = Field(default="HiFi4")  # [LoFi, HiFi2, HiFi3, HiFi4]
+    fp32_dest_acc_en: bool = Field(default=True)
+    experimental_weight_dtype: Optional[str] = Field(default=None)  # [BfpBf8, BfpBf4]
+
+    # Other settings
+    use_tt: bool = Field(default=True)
+    print_examples: bool = Field(default=False)
+    test_config: Optional[TestConfig] = Field(default=None)
+
+    def torch_dtype(self) -> torch.dtype:
+        dtypes = {
+            "torch.bfloat16": torch.bfloat16,
+            "torch.float32": torch.float32,
+        }
+        try:
+            return dtypes[self.dtype]
+        except KeyError as e:
+            raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(dtypes)}") from e
