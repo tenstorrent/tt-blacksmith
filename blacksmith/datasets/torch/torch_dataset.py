@@ -7,7 +7,7 @@ from typing import Dict, Union
 
 from torch.utils.data import DataLoader, Dataset
 
-from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.configs import TrainingConfig
 
 
 class TestDataLoaderWrapper:
