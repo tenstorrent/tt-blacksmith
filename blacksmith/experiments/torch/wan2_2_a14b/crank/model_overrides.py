@@ -156,4 +156,4 @@ def apply_generality_overrides() -> None:
     _patch_tp_conv_support_check()
     _patch_timestep_embedding_dtensor()
     _patch_rms_norm_dtensor()
-    _patch_wan_rope_out_of_place()
+    # _patch_wan_rope_out_of_place()

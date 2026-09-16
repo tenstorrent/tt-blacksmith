@@ -18,8 +18,8 @@ from blacksmith.datasets.torch.omniconsistency_lego.omniconsistency_lego_dataset
     strip_style_words,
 )
 from blacksmith.experiments.torch.wan2_2_a14b.configs import TrainingConfig
-from blacksmith.experiments.torch.wan2_2_a14b.kurbla.model_overrides import apply_generality_overrides
-from blacksmith.tools.kurbla.device_manager import DeviceManager
+from blacksmith.experiments.torch.wan2_2_a14b.crank.model_overrides import apply_generality_overrides
+from blacksmith.tools.crank.device_manager import DeviceManager
 
 
 class VAEEncoderWrapper(nn.Module):
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     from blacksmith.tools.cli import generate_config, parse_cli_options
     from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
-    DEFAULT_CONFIG = Path(__file__).parent / "kurbla" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
+    DEFAULT_CONFIG = Path(__file__).parent / "crank" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
     args = parse_cli_options(default_config=DEFAULT_CONFIG)
     config = cast(
         TrainingConfig,

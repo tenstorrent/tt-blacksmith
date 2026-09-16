@@ -19,8 +19,8 @@ from torch.distributed.tensor import (
     distribute_tensor,
 )
 
-import tt_kurbla.torch  # noqa: F401  — registers the "tt" device, c10d backend, dynamo backend, torch.tt
-from tt_kurbla.torch._compile import CompileOption, MathFidelity
+import tt_crank.torch  # noqa: F401  — registers the "tt" device, c10d backend, dynamo backend, torch.tt
+from tt_crank.torch._compile import CompileOption, MathFidelity
 
 DEFAULT_COMPILE_OPTIONS = {
     CompileOption.FP32_DEST_ACC_EN: True,
@@ -64,7 +64,7 @@ def _patch_dtensor_pad() -> None:
 def _patch_dtensor_fused_backward() -> None:
     """Decompose the fused backward ops into ones DTensor has strategies for.
 
-    tt-kurbla registers fused `linear`/`matmul` kernels and their backwards, so those
+    tt-crank registers fused `linear`/`matmul` kernels and their backwards, so those
     forwards never decompose and autograd emits backward ops DTensor cannot shard.
     """
 
@@ -110,7 +110,7 @@ def _patch_dtensor_fused_backward() -> None:
 
 
 class DeviceManager:
-    """tt-kurbla device, mesh and DTensor sharding. See the module docstring for the config
+    """tt-crank device, mesh and DTensor sharding. See the module docstring for the config
     contract.
 
     Args:
@@ -385,7 +385,7 @@ class DeviceManager:
             optimizer.zero_grad(set_to_none=False)
 
     def sync(self) -> None:
-        """No-op: tt_kurbla executes eagerly, there is no lazy graph to flush.
+        """No-op: tt_crank executes eagerly, there is no lazy graph to flush.
 
         Kept so training loops can call it unconditionally.
         """

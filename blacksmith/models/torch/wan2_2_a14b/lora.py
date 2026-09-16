@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 
 from blacksmith.experiments.torch.wan2_2_a14b.configs import SUBFOLDER, TrainingConfig
-from blacksmith.tools.kurbla.device_manager import DeviceManager
+from blacksmith.tools.crank.device_manager import DeviceManager
 
 _ATTN_TARGETS = ["to_q", "to_k", "to_v", "to_out.0"]
 _FFN_TARGETS = ["ffn.net.0.proj", "ffn.net.2"]

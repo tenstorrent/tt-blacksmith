@@ -20,7 +20,7 @@ from blacksmith.datasets.torch.omniconsistency_lego.omniconsistency_lego_dataset
 )
 from blacksmith.experiments.torch.wan2_2_a14b.configs import TrainingConfig
 from blacksmith.models.torch.wan2_2_a14b.lora import build_lora_expert, expert_suffix_path, save_lora
-from blacksmith.tools.kurbla.device_manager import DeviceManager
+from blacksmith.tools.crank.device_manager import DeviceManager
 
 EMA_ALPHA = 0.1
 
@@ -259,12 +259,12 @@ def train(config: TrainingConfig, device_manager: DeviceManager, logger) -> None
 
 
 if __name__ == "__main__":
-    from blacksmith.experiments.torch.wan2_2_a14b.kurbla.model_overrides import apply_generality_overrides
+    from blacksmith.experiments.torch.wan2_2_a14b.crank.model_overrides import apply_generality_overrides
     from blacksmith.tools.cli import generate_config, parse_cli_options
     from blacksmith.tools.logging_manager import TrainingLogger
     from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
-    DEFAULT_CONFIG = Path(__file__).parent / "kurbla" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
+    DEFAULT_CONFIG = Path(__file__).parent / "crank" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
     args = parse_cli_options(default_config=DEFAULT_CONFIG)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, overrides=args.overrides)
 

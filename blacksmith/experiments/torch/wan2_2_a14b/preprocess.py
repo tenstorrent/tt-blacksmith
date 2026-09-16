@@ -13,7 +13,7 @@ from blacksmith.experiments.torch.wan2_2_a14b.configs import TrainingConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.logging_manager import TrainingLogger
 
-DEFAULT_CONFIG = Path(__file__).parent / "kurbla" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
+DEFAULT_CONFIG = Path(__file__).parent / "crank" / "lora" / "galaxy" / "wan2_2_t2v_a14b_lego.yaml"
 
 
 def preprocess(config: TrainingConfig, logger: TrainingLogger) -> Path:
