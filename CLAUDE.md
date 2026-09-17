@@ -6,8 +6,10 @@ Optimized ML training recipes for Tenstorrent hardware using the TT-Forge compil
 
 The repo is mid-migration from tt-xla to **tt-crank** (the torch frontend in `tt-mlir`).
 
-- `blacksmith/` — the tt-crank tree. New work goes here. Minimal by design: only
-  what the ported experiments need.
+- `blacksmith/` — the tt-crank tree. New work goes here. `tools/`, `datasets/torch`
+  and `models/torch` carry the full tt-xla tool set (same module paths and
+  signatures, adapted for tt-crank), so porting an experiment is a `train.py`
+  change only. Only ported experiments live under `experiments/`.
 - `blacksmith_xla/` — the previous tt-xla / tt-forge-fe / GPU tree, unchanged
   apart from the rename. Kept until every experiment is ported, then deleted.
 

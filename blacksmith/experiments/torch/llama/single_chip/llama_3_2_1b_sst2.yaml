@@ -14,6 +14,7 @@ batch_size: 16
 gradient_accumulation_steps: 1
 num_epochs: 1
 ignored_index: -100
+training_model_type: "lora"  # [lora, adapters]
 
 # LoRA setup
 lora_r: 4
@@ -39,16 +40,35 @@ use_wandb: true
 wandb_project: "llama1b-singlechip-lora-crank"
 wandb_run_name: "tt-crank-llama1b-test"
 wandb_tags: ["crank", "test"]
+wandb_watch_mode: "all"
+wandb_log_freq: 1000
+model_to_wandb: False
 steps_freq: 5
 val_steps_freq: 5
+epoch_freq: 1
 
 # Checkpoint settings
 save_strategy: "step"
 output_dir: "results/llama_3_2_1b_crank"
+project_dir: "results/llama_3_2_1b_crank"  # CheckpointManager writes to <project_dir>/checkpoints
 keep_last_n: 2
+keep_best_n: 1
+checkpoint_metric: "eval/loss"
+checkpoint_metric_mode: "min"  # [min, max]
+save_optim: True
+resume_from_checkpoint: False
+resume_option: "last"  # [last, best, path]
+checkpoint_path: ""  # path to checkpoint if resume_option is "path"
+storage_backend: "local"
+sync_to_storage: False
+load_from_storage: False
+remote_path: ""
 
 # Reproducibility settings
 seed: 23
+deterministic: False
 
 # Other settings
 use_tt: true
+framework: "pytorch"
+print_examples: True

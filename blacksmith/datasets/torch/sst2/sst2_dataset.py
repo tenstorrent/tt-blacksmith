@@ -12,7 +12,7 @@ from blacksmith.datasets.torch.sst2.sst2_utils import (
     RESPONSE_TEMPLATE,
 )
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.tools.configs import TrainingConfig
+from blacksmith.tools.templates.configs import TrainingConfig
 from datasets import load_dataset
 
 

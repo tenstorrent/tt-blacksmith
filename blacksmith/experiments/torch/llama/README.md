@@ -47,10 +47,20 @@ opens on the runtime mesh:
   `blacksmith/tools/device_manager.py`; `embed_tokens` / `lm_head` stay
   replicated because Llama ties them.
 
+## Tooling parity with `blacksmith_xla/`
+
+`blacksmith/tools`, `blacksmith/datasets/torch` and `blacksmith/models/torch`
+carry the full tt-xla tool set (checkpoint resume / best-N / storage backends,
+W&B watch / artifacts / summaries, decode helpers, DPO/GRPO utils, the
+`Trainer` framework, every dataset in `dataset_utils.py`) with the same module
+paths and call signatures, adapted for tt-crank where tt-xla leaked through.
+Porting an `_xla` experiment is therefore an edit to its `train.py` only; the
+config and YAML carry over (the `mesh:` block replaces the sharding quartet).
+
 ## Differences from the tt-xla experiment
 
 The tt-xla version of this experiment is preserved under
-`blacksmith_xla/experiments/torch/llama/xla/`. What changed:
+`blacksmith/experiments/torch/llama/xla/`. What changed:
 
 | tt-xla | tt-crank |
 |---|---|
