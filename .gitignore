@@ -12,12 +12,16 @@ model/
 .vscode/
 tests/test_logs/
 
+# tt-crank compile cache and IR dumps (crank experiments)
+.data/
+
 # Python env
 env/*
 !env/activate
 !env/download_debug_wheel.sh
 !env/ffe_requirements.txt
 !env/xla_requirements.txt
+!env/mlir_requirements.txt
 !env/requirements.txt
 
 # Local custom datasets
