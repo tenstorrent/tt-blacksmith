@@ -10,10 +10,14 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+try:
+    import torch_xla
+except ImportError:  # tt-crank env: only the tt-xla code paths below need it.
+    torch_xla = None
+
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_helpers import loss_to_float
 from blacksmith.tools.trainer.callback import Callback
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.trainer.configs.base import TrainerConfig
@@ -34,7 +38,7 @@ class Trainer(ABC):
         self.logger: TrainingLogger | None = None
         self.global_step: int = 0
         self.epoch: int = 0
-        # Device-side loss accumulator over a gradient-accumulation window.
+        # Device-side loss accumulator for fused fwd+bwd+optimizer graphs.
         self.step_loss: torch.Tensor | None = None
 
     def setup(
@@ -86,11 +90,11 @@ class Trainer(ABC):
         Defaults to AdamW; override for a different optimizer.
         """
         trainable_params = [p for p in self.model.parameters() if p.requires_grad]
-        # No `capturable`: that kept the tt-xla fused step graph stable; tt-crank is eager.
         return torch.optim.AdamW(
             trainable_params,
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
+            capturable=self.config.use_tt,
         )
 
     @contextmanager
@@ -112,24 +116,27 @@ class Trainer(ABC):
         pass
 
     def _apply_tt_compile_options(self) -> None:
-        # tt-xla set compile options once, globally (`torch_xla.set_custom_compile_options`).
-        # tt-crank takes them per `torch.compile` call: strategies read
-        # `self.device_manager.compile_options()` when they compile (see LoraLLMTrainer).
-        return
+        if not self.config.use_tt:
+            return
+        compile_options = {
+            "fp32_dest_acc_en": True,
+            "math_fidelity": "hifi4",
+            "optimization_level": self.config.optimization_level,
+            "enable_const_eval": self.config.enable_const_eval,
+        }
+        torch_xla.set_custom_compile_options(compile_options)
 
     def _init_fused_step_state(self) -> None:
-        """Pre-seed grads, step_loss, and AdamW moments.
+        """Pre-seed grads, step_loss, and AdamW moments for a stable fused graph.
 
-        Under tt-xla this kept the fused graph's signature stable. tt-crank is
-        eager so it is not required, but it is kept: it is a numerical no-op and
-        keeps the loop identical to the tt-xla trainer. Runs at the start of
-        ``train()`` so subclasses that override ``setup`` (and attach the
-        optimizer afterward) still get the pre-seeds.
+        Runs at the start of ``train()`` so subclasses that override ``setup``
+        (and attach the optimizer afterward) still get the pre-seeds.
         """
         self.step_loss = self._make_step_loss()
         if not self.config.use_tt:
             return
-        # Skip on resume so restored moments are kept.
+        # AdamW lazily allocates moments on the first step; pre-seed so the
+        # fused graph stays stable. Skip on resume so restored moments are kept.
         # CheckpointCallback loads in on_train_start, before this runs.
         if isinstance(self.optimizer, torch.optim.AdamW) and not self.config.checkpoint.resume_from_checkpoint:
             materialize_adamw_state(self.optimizer, sync=False)
@@ -167,7 +174,7 @@ class Trainer(ABC):
                     # Keep ``labels`` on CPU; one-hot on device OOMs (#455).
                     batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
 
-                    # Forward.
+                    # Forward. Loss is lazy on TT until the next sync.
                     self.callback_handler("on_forward_start", batch)
                     loss = self._forward(batch)
                     self.callback_handler("on_forward_end", loss)
@@ -183,7 +190,16 @@ class Trainer(ABC):
 
                     accumulation_step += 1
 
-                    if accumulation_step == grad_accumulation_steps:
+                    if accumulation_step != grad_accumulation_steps:
+                        # Non-final: cut here so this is the shared fwd+bwd
+                        # graph. Leave grads/step_loss as device tensors.
+                        if self.config.use_tt:
+                            torch_xla.sync(wait=True)
+                    else:
+                        # Last micro-batch: leave fwd+bwd pending so it fuses
+                        # with the optimizer update and in-place grad re-zero.
+                        # The sync inside optimizer_step flushes it and
+                        # materializes window_loss.
                         window_loss = self.step_loss
                         self.step_loss = torch.zeros_like(self.step_loss)
                         self.callback_handler("on_optimizer_step_start")
@@ -192,7 +208,7 @@ class Trainer(ABC):
 
                         accumulation_step = 0
                         self.global_step += 1
-                        progress.set_postfix(loss=loss_to_float(window_loss))
+                        progress.set_postfix(loss=window_loss.item())
 
                         # Periodic inline validation.
                         if self._validation_enabled() and self.global_step % self.config.val_steps_freq == 0:
@@ -221,8 +237,10 @@ class Trainer(ABC):
                 # Keep ``labels`` on CPU; one-hot on device OOMs (#455).
                 batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
                 loss = self._forward(batch)
+                if self.config.use_tt:
+                    torch_xla.sync(wait=True)
 
-                total_loss += loss_to_float(loss)
+                total_loss += loss.item()
                 num_batches += 1
                 self.callback_handler("on_validation_batch_end", batch, loss)
 
@@ -238,8 +256,8 @@ class Trainer(ABC):
         Shared by both ``train`` and ``validate``; gradient-accumulation scaling
         is applied by ``train`` before backward.
 
-        Under data parallelism the returned tensor is a ``Partial`` DTensor;
-        read it with ``loss_to_float`` rather than ``.item()``.
+        On TT the returned tensor is lazy until the next ``torch_xla.sync`` or
+        host read. Callbacks around this call must not call ``.item()``.
         """
         pass
 

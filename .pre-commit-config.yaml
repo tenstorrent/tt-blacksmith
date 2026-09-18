@@ -27,7 +27,7 @@ repos:
     rev: 5.13.2
     hooks:
       - id: isort
-        args: ["--profile", "black", "--src-path", "blacksmith", "--src-path", "blacksmith_xla"]
+        args: ["--profile", "black", "--src-path", "blacksmith"]
   - repo: https://github.com/pycqa/flake8
     rev: 7.3.0
     hooks:

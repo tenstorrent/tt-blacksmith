@@ -17,8 +17,7 @@ _TEST_MODE_DEFAULTS = {
     "val_steps_freq": 5,
     "save_strategy": "none",
     "use_tt": True,
-    "use_wandb": False,
-    "log_on_wandb": False,  # jax experiments
+    "log_on_wandb": False,
 }
 
 # Nested TrainerConfig equivalents of the flat keys above. Applied under

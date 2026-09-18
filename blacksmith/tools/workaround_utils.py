@@ -1,20 +1,22 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Workarounds shared by the torch experiments.
-
-Same names as the tt-xla tree so scripts port over unchanged. tt-crank executes
-eagerly, so the `sync` knobs below are accepted and ignored: there is no lazy
-graph whose signature has to be kept stable and nothing to fence.
-"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+try:
+    import torch_xla
+except ImportError:  # tt-crank env: only the tt-xla code paths below need it.
+    torch_xla = None
 
-# Materialize AdamW state up front. Under tt-xla this kept the fused fwd+bwd+optimizer graph's
-# input signature stable across step 0; under tt-crank it is a numerical no-op (Adam's own lazy
-# init also starts the moments at zero) kept so ported scripts run unchanged. `sync` is ignored.
+
+# Materialize AdamW state so the fused fwd+bwd+optimizer XLA graph compiles only once.
+# AdamW lazily allocates step/exp_avg/exp_avg_sq on the first step, which changes the graph's
+# input signature after step 0 and forces a second compilation. Pre-initializing to zero is a
+# numerical no-op (Adam's own lazy init also starts moments at zero) and keeps the signature stable.
+# Pass sync=False to leave the zero-fills pending so a later sync fuses them with other
+# pre-seeds (grads, loss) into a single one-time materialization graph.
 def materialize_adamw_state(optimizer: torch.optim.Optimizer, sync: bool = True) -> None:
     for group in optimizer.param_groups:
         for p in group["params"]:
@@ -24,54 +26,51 @@ def materialize_adamw_state(optimizer: torch.optim.Optimizer, sync: bool = True)
             state["step"] = torch.zeros((), dtype=torch.float32, device=p.device)
             state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
             state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+    if sync:
+        torch_xla.sync(wait=True)
 
 
-# Pre-seed zero .grad tensors (never None) so the first micro-batch of a gradient-accumulation
-# window accumulates (grad += g) like the rest. Harmless under eager execution. `sync` is ignored.
+# Pre-seed zero .grad tensors (never None) so the first micro-batch of a gradient-
+# accumulation window accumulates (grad += g) like the rest instead of assigning fresh
+# grads, which would compile a second, distinct fwd+bwd graph. Paired with optimizer_step
+# re-zeroing grads in place (set_to_none=False) so they stay tensors across windows.
 def materialize_grads(optimizer: torch.optim.Optimizer, sync: bool = True) -> None:
     for group in optimizer.param_groups:
         for p in group["params"]:
             if not p.requires_grad:
                 continue
             p.grad = torch.zeros_like(p, memory_format=torch.preserve_format)
+    if sync:
+        torch_xla.sync(wait=True)
 
 
-# After restoring an optimizer from a CPU checkpoint, move its state (crucially `step`) back onto
-# the parameter device so AdamW does not mix CPU state with device params. The tt-xla version also
-# forced `capturable=True` to keep the fused step graph stable; eager tt-crank has no such graph.
+# After restoring an optimizer from a CPU checkpoint, re-enable capturable AdamW and move its
+# state (crucially `step`) back onto the parameter device. Old checkpoints store capturable=False
+# and CPU state; load_state_dict restores both, which makes AdamW compute the step-dependent bias
+# correction host-side and bake it into the fused step graph as a constant (recompile as the step
+# advances), and mismatches CPU state against device params. No-op off XLA.
 def restore_capturable_optimizer_state(optimizer: torch.optim.Optimizer) -> None:
     params = [p for group in optimizer.param_groups for p in group["params"]]
-    if not params or params[0].device.type == "cpu":
+    if not params or params[0].device.type != "xla":
         return
     device = params[0].device
+    for group in optimizer.param_groups:
+        group["capturable"] = True
     for state in optimizer.state.values():
         for k, v in state.items():
             if isinstance(v, torch.Tensor) and v.device != device:
                 state[k] = v.to(device)
+    torch_xla.sync(wait=True)
 
 
-# Smallest probability fed to log(). bfloat16's smallest normal is ~1.2e-38, so
-# 1e-9 is far inside range while still bounding log() at about -20.7.
-_LOG_EPS = 1e-9
-
-
-# Custom cross-entropy over one-hot targets, originally because of
-# https://github.com/tenstorrent/tt-xla/issues/1993; still needed so the whole loss (and its
-# backward) lowers into the compiled tt graph instead of falling back to eager.
+# Custom cross-entropy loss because of https://github.com/tenstorrent/tt-xla/issues/1993.
 def cross_entropy_loss(shift_logits, expected_output, labels_mask):
-    # NOTE: `log(softmax(x))` rather than `log_softmax(x)` because tt-crank does not lower
-    # `aten._log_softmax` (it lowers `aten._softmax`). The clamp is what keeps that decomposition
-    # safe: softmax alone is computed stably on device, but feeding an underflowed-to-zero
-    # probability into log() would produce -inf and poison the reduction. Fold this back into
-    # `F.log_softmax` once tt-crank lowers it -- the fused op is both more accurate and one graph
-    # node cheaper.
-    probs = F.softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]
-    log_probs = torch.log(torch.clamp(probs, min=_LOG_EPS))
+    log_probs = F.log_softmax(shift_logits, dim=-1)  # [batch, seq_len, vocab_size]
     # Cross entropy: -sum(target * log_prob) over vocab dimension.
     ce_loss = -(expected_output * log_probs).sum(dim=-1, keepdim=True)  # [batch, seq_len, 1]
 
     # Apply mask to ignore padding tokens.
-    labels_mask = labels_mask.unsqueeze(-1).to(ce_loss.dtype)  # [batch, seq_len, 1]
+    labels_mask = labels_mask.unsqueeze(-1).float()  # [batch, seq_len, 1]
     ce_loss = ce_loss * labels_mask
 
     # Compute mean over ALL valid tokens (not per-sample average).

@@ -12,6 +12,12 @@ from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 from blacksmith.tools.trainer.trainer import Trainer
 from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
+TT_COMPILE_OPTIONS = {
+    "tt_enable_torch_fx_fusion_pass": False,
+    "tt_legacy_compile": True,
+    "tt_lazy_execution": True,
+    "tt_use_aot_autograd": False,
+}
 IGNORED_INDEX = -100
 
 
@@ -35,19 +41,18 @@ class LoraLLMTrainer(Trainer):
 
     def _load_model(self) -> torch.nn.Module:
         # compile_model=False: training goes through a compiled loss wrapper
-        # (see llama experiment) so forward, loss and their backward stay in one tt graph.
+        # (see llama experiment) so fwd+bwd can join under lazy execution.
         model = get_model(self.config, self.device_manager.device, compile_model=False)
         self.eval_model = model
         self._compute_loss_fn = compute_causal_lm_loss
         if self.config.use_tt:
-            compile_options = self.device_manager.compile_options()
             self._compute_loss_fn = torch.compile(
                 compute_causal_lm_loss,
                 backend="tt",
-                options=compile_options,
+                options=TT_COMPILE_OPTIONS,
             )
             if self.config.val_steps_freq > 0:
-                self.eval_model = torch.compile(model, backend="tt", options=compile_options)
+                self.eval_model = torch.compile(model, backend="tt", options=TT_COMPILE_OPTIONS)
         return model
 
     def _load_dataloaders(self) -> tuple[DataLoader, DataLoader | None]:

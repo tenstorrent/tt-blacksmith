@@ -3,7 +3,6 @@ generated_modules/
 **/__pycache__/
 *.egg-info/
 blacksmith/**/checkpoints/
-blacksmith_xla/**/checkpoints/
 wandb/
 results/
 logs/
@@ -25,8 +24,6 @@ env/*
 # Local custom datasets
 blacksmith/datasets/torch/custom/*.json
 blacksmith/datasets/torch/custom/*.jsonl
-blacksmith_xla/datasets/torch/custom/*.json
-blacksmith_xla/datasets/torch/custom/*.jsonl
 
 # tt-crank wheels built locally by scripts/build_crank_wheel.sh
 env/wheels/

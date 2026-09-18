@@ -1,10 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""HuggingFace causal-LM loader with LoRA / adapters applied.
-
-Same API as the tt-xla tree; only the device/compile handling is tt-crank's.
-"""
 import warnings
 
 import torch
@@ -13,6 +9,26 @@ from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM
 
 from blacksmith.tools.templates.configs import TrainingConfig
+
+
+def _is_trainable_param(model: torch.nn.Module, param_path: str) -> bool:
+    """Look up a parameter by its pre-parametrize dotted path and return whether it's trainable.
+
+    After register_parametrization the original lives at
+    `<path-without-.weight>.parametrizations.<weight-name>.original`, so we try
+    that location first and fall back to the original path.
+    """
+    module_path, param_name = param_path.rsplit(".", 1)
+    try:
+        module = model.get_submodule(module_path)
+    except AttributeError:
+        return False
+    param = None
+    if hasattr(module, "parametrizations") and param_name in getattr(module.parametrizations, "_modules", {}):
+        param = getattr(module.parametrizations[param_name], "original", None)
+    if param is None:
+        param = getattr(module, param_name, None)
+    return isinstance(param, torch.nn.Parameter) and param.requires_grad
 
 
 def get_model(config: TrainingConfig, device: torch.device, compile_model: bool = True):
@@ -30,40 +46,52 @@ def get_model(config: TrainingConfig, device: torch.device, compile_model: bool 
     model = AutoModelForCausalLM.from_pretrained(config.model_name, **load_kwargs)
 
     # Apply training specific modifications
-    training_model_type = getattr(config, "training_model_type", "lora")
-    if training_model_type == "lora":
+    # Apply LoRA if rank is specified
+    if config.training_model_type == "lora":
         model = _apply_lora(model, config)
-    elif training_model_type == "adapters":
+    elif config.training_model_type == "adapters":
         _apply_adapters(model, config)
     else:
         warnings.warn(
-            f"Unknown training_model_type '{training_model_type}'; "
+            f"Unknown training_model_type '{config.training_model_type}'; "
             "falling back to full fine-tuning (all parameters trainable)."
         )
         for param in model.parameters():
             param.requires_grad = True
 
-    # Cast on the host first: moving a bf16 model is half the transfer of
-    # moving fp32 weights and then casting on device.
     model.to(config.torch_dtype())
     if config.use_tt:
         model.to(device)
 
-    # Per-tensor weight dtype overrides were a tt-xla feature (tt_torch.apply_weight_dtype_overrides).
-    # tt-crank only has the compiler-wide `experimental_weight_dtype` compile option.
-    if config.use_tt and getattr(config, "weight_dtype_overrides", None):
-        raise ValueError(
-            "weight_dtype_overrides is tt-xla only; tt-crank has no per-tensor override. "
-            "Use `experimental_weight_dtype` (BfpBf8 | BfpBf4) for a compiler-wide default instead."
-        )
+    # Per-tensor weight dtype overrides must be registered before torch.compile
+    # so the custom_call appears in the traced graph.
+    overrides = getattr(config, "weight_dtype_overrides", None)
+    if config.use_tt and overrides:
+        from tt_torch import apply_weight_dtype_overrides
+
+        applied = apply_weight_dtype_overrides(model, overrides)
+
+        # register_parametrization does `set_(original, original)` internally,
+        # which freezes XLA storage. If the target is trainable, the optimizer
+        # later fails with "cannot mutate tensors with frozen storage" on the
+        # first in-place update. Fail loudly here with an actionable message.
+        trainable_hits = [name for name, _ in applied if _is_trainable_param(model, name)]
+        if trainable_hits:
+            raise RuntimeError(
+                "weight_dtype_overrides matched trainable parameters, which is "
+                "unsupported during training on XLA (torch parametrize freezes "
+                "their storage and optimizer.step() will fail). Restrict the "
+                "config to frozen weights only.\nOffending parameters:\n  - " + "\n  - ".join(trainable_hits)
+            )
 
     if config.use_tt and compile_model:
-        # tt-xla wrapped the model with its dynamo knobs (tt_legacy_compile, tt_lazy_execution, ...).
-        # tt-crank takes the config's compile options per `torch.compile` call. Experiments that
-        # compile forward+loss as one callable pass compile_model=False and compile themselves.
-        from blacksmith.tools.device_manager import tt_compile_options
-
-        model = torch.compile(model, backend="tt", options=tt_compile_options(config))
+        compile_options = {
+            "tt_enable_torch_fx_fusion_pass": False,
+            "tt_legacy_compile": True,
+            "tt_lazy_execution": True,
+            "tt_use_aot_autograd": False,
+        }
+        model = torch.compile(model, backend="tt", options=compile_options)
 
     return model
 

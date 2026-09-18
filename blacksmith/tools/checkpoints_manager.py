@@ -8,25 +8,11 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 import torch
-from torch.distributed.tensor import DTensor
 
 from blacksmith.tools.configs import CheckpointConfig
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.storage_backends import StorageBackend
 from blacksmith.tools.workaround_utils import restore_capturable_optimizer_state
-
-
-def _to_host(obj):
-    """Recursively move tensors in a (nested) state dict to CPU, gathering DTensor shards."""
-    if isinstance(obj, DTensor):
-        return obj.full_tensor().cpu()
-    if isinstance(obj, torch.Tensor):
-        return obj.cpu()
-    if isinstance(obj, dict):
-        return {k: _to_host(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return type(obj)(_to_host(v) for v in obj)
-    return obj
 
 
 class CheckpointManager:
@@ -156,9 +142,7 @@ class CheckpointManager:
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
         trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
-        # Under tensor parallelism a sharded parameter is a DTensor; `full_tensor()` gathers it so
-        # the checkpoint is always the unsharded, host-side view (tt-xla saved the SPMD global view).
-        state_dict = {name: _to_host(v) for name, v in model.state_dict().items() if name in trainable_names}
+        state_dict = {name: v for name, v in model.state_dict().items() if name in trainable_names}
 
         checkpoint_data = {
             "step": step,
@@ -169,9 +153,7 @@ class CheckpointManager:
         }
 
         if self.config.save_optim and optimizer is not None:
-            # Optimizer state lives on device too; pull it to host tensor by tensor. torch.save
-            # would otherwise call Storage.cpu() on a `tt` storage, which tt-crank does not support.
-            checkpoint_data["optimizer_state_dict"] = _to_host(optimizer.state_dict())
+            checkpoint_data["optimizer_state_dict"] = optimizer.state_dict()
 
         torch.save(checkpoint_data, checkpoint_path)
 

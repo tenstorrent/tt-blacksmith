@@ -12,7 +12,6 @@ from blacksmith.tools.configs import (
     LoggingConfig,
     MetricsConfig,
 )
-from blacksmith.tools.templates.configs import MeshConfig
 from blacksmith.tools.test_config import TestConfig
 
 TORCH_DTYPES = {
@@ -66,22 +65,16 @@ class TrainerConfig(BaseModel):
     seed: int
     deterministic: bool
 
-    # Device / sharding settings. tt-crank reads `mesh` (see MeshConfig); the tt-xla quartet
-    # below is accepted so old YAMLs validate, but the sharding rules live in DeviceManager.
+    # Device / sharding settings
     use_tt: bool = Field(default=True)
-    mesh: Optional[MeshConfig] = Field(default=None)
     mesh_shape: Optional[list[int]] = Field(default=None)
     mesh_axis_names: Optional[list[str]] = Field(default=None)
     input_sharding_dim: Optional[str] = Field(default=None)
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
-    # tt-crank compile options (forwarded per torch.compile call, see DeviceManager.compile_options).
+    # tt-xla compile options (forwarded to set_custom_compile_options).
     optimization_level: int = Field(default=1, ge=0, le=2)
     enable_const_eval: bool = Field(default=False)
-    enable_trace: bool = Field(default=False)
-    math_fidelity: str = Field(default="HiFi4")  # [LoFi, HiFi2, HiFi3, HiFi4]
-    fp32_dest_acc_en: bool = Field(default=True)
-    experimental_weight_dtype: Optional[str] = Field(default=None)  # [BfpBf8, BfpBf4]
 
     # pytest step-limiting; set by generate_config under PYTEST_CURRENT_TEST.
     test_config: Optional[TestConfig] = Field(default=None)

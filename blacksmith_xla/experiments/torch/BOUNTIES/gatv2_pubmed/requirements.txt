@@ -1,3 +1,0 @@
-# Experiment-specific dependency for GATv2/PubMed (not part of the shared env).
-# Install with: pip install -r blacksmith_xla/experiments/torch/BOUNTIES/gatv2_pubmed/requirements.txt
-torch_geometric

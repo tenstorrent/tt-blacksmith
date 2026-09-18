@@ -4,6 +4,11 @@
 from typing import Sequence, Union
 
 import torch
+
+try:
+    import torch_xla
+except ImportError:  # tt-crank env: only the tt-xla code paths below need it.
+    torch_xla = None
 from transformers import StaticCache
 
 
@@ -315,8 +320,8 @@ def generate_completions(
     StaticCache all run on device. Unlike a typical decode helper, no per-step
     logits are copied to host and no host-side sampling/early-stop is performed;
     only the final id / validity tensors are moved to CPU once (for the host-side
-    reward computation). ``use_tt`` is kept for signature compatibility with the
-    tt-xla tree, where it fenced the lazy graph once per step; tt-crank is eager.
+    reward computation). When ``use_tt`` is True, ``torch_xla.sync`` is invoked
+    once per step to keep the lazy graph bounded without a host transfer.
 
     When ``sample_rng_on_cpu`` is True (intended for tests/CI), Uniform noise for
     Gumbel sampling is drawn on CPU then moved to device (TT RNG is not reliably
@@ -412,6 +417,8 @@ def generate_completions(
 
             input_ids = next_tokens.unsqueeze(-1)
             cache_position = cache_position[-1:] + 1
+            if use_tt:
+                torch_xla.sync(wait=True)
 
     # Single device -> host transfer at the very end.
     completion_ids = torch.stack(token_steps, dim=1).to("cpu")
@@ -461,18 +468,3 @@ def construct_inputs_for_decode(
         "use_cache": True,
         "attention_mask": attention_mask,
     }
-
-
-def loss_to_float(loss: torch.Tensor) -> float:
-    """Pull a loss value to host as a plain float.
-
-    Under data parallelism the loss reduces over the sharded batch dim, so it
-    comes back as a `Partial` DTensor -- each chip holds a piece of the sum.
-    `full_tensor()` fires the all-reduce that makes it the real value;
-    `.item()` alone would silently report one chip's partial.
-    """
-    from torch.distributed.tensor import DTensor
-
-    if isinstance(loss, DTensor):
-        loss = loss.full_tensor()
-    return float(loss.detach().cpu())

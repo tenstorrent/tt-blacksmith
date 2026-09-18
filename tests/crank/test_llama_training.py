@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Smoke tests for the tt-crank Llama experiments.
+"""Smoke tests for the tt-crank Llama experiments (`train_crank.py`, same YAMLs as tt-xla).
 
 Each runs the experiment script for a handful of steps (the PYTEST_CURRENT_TEST
 defaults in blacksmith/tools/cli.py cap it) and asserts the training loss
@@ -18,16 +18,21 @@ import pytest
 from blacksmith.tools.logging_manager import TEST_LOGS_DIR
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TRAIN_SCRIPT = REPO_ROOT / "blacksmith/experiments/torch/llama/train.py"
+TRAIN_SCRIPT = REPO_ROOT / "blacksmith/experiments/torch/llama/xla/train_crank.py"
+TRAINER_SCRIPT = REPO_ROOT / "blacksmith/tools/trainer/examples/lora_llm/train_crank.py"
+TEST_CONFIG = REPO_ROOT / "tests/configs/tt-crank-llama-sst2.yaml"
+TRAINER_TEST_CONFIG = REPO_ROOT / "tests/configs/tt-crank-trainer-llama-sst2.yaml"
 
 
-def _run(config: str, log_prefix: str, timeout: float) -> pd.DataFrame:
+def _run(config: str, log_prefix: str, timeout: float, script=TRAIN_SCRIPT, test_config=TEST_CONFIG) -> pd.DataFrame:
     result = subprocess.run(
         [
             sys.executable,
-            str(TRAIN_SCRIPT),
+            str(script),
             "--config",
             str(REPO_ROOT / config),
+            "--test-config",
+            str(test_config),
             "--test-log-filename-prefix",
             log_prefix,
         ],
@@ -55,7 +60,7 @@ def _assert_loss_decreases(df: pd.DataFrame) -> None:
 @pytest.mark.n150
 def test_llama_3_2_1b_sst2_single_chip():
     df = _run(
-        "blacksmith/experiments/torch/llama/single_chip/llama_3_2_1b_sst2.yaml",
+        "blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml",
         "tt-crank-llama_3_2_1b-sst2-single_chip",
         timeout=1800,
     )
@@ -68,8 +73,23 @@ def test_llama_3_2_1b_sst2_single_chip():
 @pytest.mark.n300_llmbox
 def test_llama_3_1_8b_sst2_multichip():
     df = _run(
-        "blacksmith/experiments/torch/llama/multichip/llama_3_1_8b_sst2.yaml",
+        "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
         "tt-crank-llama_3_1_8b-sst2-multichip",
         timeout=3600,
+    )
+    _assert_loss_decreases(df)
+
+
+@pytest.mark.push
+@pytest.mark.torch
+@pytest.mark.single_chip
+@pytest.mark.n150
+def test_trainer_lora_llm_3_2_1b_sst2_single_chip():
+    df = _run(
+        "blacksmith/tools/trainer/examples/lora_llm/single_chip/llama_3_2_1b_sst2.yaml",
+        "tt-crank-trainer-llama_3_2_1b-sst2-single_chip",
+        timeout=1800,
+        script=TRAINER_SCRIPT,
+        test_config=TRAINER_TEST_CONFIG,
     )
     _assert_loss_decreases(df)

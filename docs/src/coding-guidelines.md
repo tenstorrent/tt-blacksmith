@@ -320,11 +320,11 @@ When importing, make sure to adhere to the following:
     Bad example:
     ```python
     from module import *
-    import blacksmith_xla.module
+    import blacksmith.module
     ```
 
 Example:
 ```python
-from blacksmith_xla.module import MyClass
-from blacksmith_xla.utils.helpers import my_function, another_function
+from blacksmith.module import MyClass
+from blacksmith.utils.helpers import my_function, another_function
 ```

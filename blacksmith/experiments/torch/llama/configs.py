@@ -1,14 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Llama experiment config.
-
-Same fields as `blacksmith_xla/experiments/torch/llama/configs.py` so the tt-xla
-YAMLs port over, except the tt-xla sharding quartet (`mesh_shape`,
-`mesh_axis_names`, `input_sharding_dim`, `model_sharding_patterns`) which is
-replaced by the base config's `mesh:` block (see `MeshConfig`).
-"""
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from pydantic import Field
 
@@ -24,6 +17,12 @@ class TrainingConfig(BaseTrainingConfig):
     model_name: str = Field(default="meta-llama/Llama-3.2-1B")
     max_length: int = Field(default=128, gt=0)
     dtype: str = Field(default="torch.bfloat16")
+
+    # Mixed precision settings (tt-xla backend only). See tt-xla/docs/src/mixed_precision.md.
+    weight_dtype_overrides: Optional[str] = Field(default=None)  # JSON path (relative to the yaml if not absolute)
+    experimental_weight_dtype: Optional[str] = Field(
+        default=None
+    )  # compiler-level default: "bfp_bf8" | "bfp_bf4" | "bf16"
 
     # Training hyperparameters
     training_model_type: str = Field(default="lora")  # [lora, adapters]
@@ -81,7 +80,18 @@ class TrainingConfig(BaseTrainingConfig):
     adapter_non_linearity: str = Field(default="torch.nn.GELU")  # [torch.nn.ReLU, torch.nn.GELU, torch.nn.SiLU]
     adapter_layers: list[int] = Field(default_factory=lambda: [])  # [0, 1] for first and second adapter
 
-    # Device settings: `mesh:` block inherited from the base config (None => single chip).
+    # Device settings
+    mesh_shape: Optional[list[int]] = Field(default=None)  # Use None for single device, [x,y] for 2D mesh.
+    mesh_axis_names: Optional[list[str]] = Field(
+        default=None
+    )  # Use None for single device, ["data", "model"] for 2D mesh.
+    input_sharding_dim: Optional[str] = Field(
+        default=None
+    )  # If defined, we will shard inputs along this mesh axis dimension.
+
+    # Model sharding patterns (regex pattern based - matches module names).
+    # Format: List of tuples (regex_pattern, sharding_spec_tuple).
+    model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Other settings
     output_dir: str = Field(default="experiments/results/llama_3_2_1b")
@@ -92,5 +102,6 @@ class TrainingConfig(BaseTrainingConfig):
     use_tt: bool = Field(default=True)
     test_config: Optional[TestConfig] = Field(default=None)
     enable_trace: bool = Field(default=False)
+    trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
     optimization_level: int = Field(default=0, ge=0, le=2)
     enable_const_eval: bool = Field(default=True)

@@ -7,8 +7,8 @@ import pytest
 TRAINING_TEST_CASES = [
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/mnist/tensor_parallel/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/mnist/tensor_parallel/mnist_tp.yaml",
+            "test_script": "blacksmith/experiments/torch/mnist/tensor_parallel/train.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/tensor_parallel/mnist_tp.yaml",
             "timeout": 300,
         },
         marks=[
@@ -21,8 +21,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/mnist/data_parallel/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/mnist/data_parallel/mnist_dp.yaml",
+            "test_script": "blacksmith/experiments/torch/mnist/data_parallel/train.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/data_parallel/mnist_dp.yaml",
             "timeout": 300,
         },
         marks=[
@@ -35,8 +35,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/mnist/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/mnist/single_chip/mnist.yaml",
+            "test_script": "blacksmith/experiments/torch/mnist/train.py",
+            "experiment_config": "blacksmith/experiments/torch/mnist/single_chip/mnist.yaml",
             "timeout": 300,
         },
         marks=[
@@ -53,8 +53,8 @@ TRAINING_TEST_CASES = [
     # the golden config lives in tests/configs/BOUNTIES/. Re-enable by uncommenting.
     # pytest.param(
     #     {
-    #         "test_script": "blacksmith_xla/experiments/torch/BOUNTIES/gatv2_pubmed/train.py",
-    #         "experiment_config": "blacksmith_xla/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed.yaml",
+    #         "test_script": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/train.py",
+    #         "experiment_config": "blacksmith/experiments/torch/BOUNTIES/gatv2_pubmed/single_chip/gatv2_pubmed.yaml",
     #         "test_config": "tests/configs/BOUNTIES/tt-gatv2_pubmed-pubmed-n150.yaml",
     #         "timeout": 1200,
     #     },
@@ -69,8 +69,8 @@ TRAINING_TEST_CASES = [
     # ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/mnist/multi_chip/data_parallel/train.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/mnist/mnist.yaml",
+            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/data_parallel/train.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 3000,
             "skip_loss_checks": True,
         },
@@ -84,8 +84,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/mnist/single_chip/train.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/mnist/mnist.yaml",
+            "test_script": "blacksmith/experiments/jax/mnist/single_chip/train.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 200,
             "skip_loss_checks": True,
         },
@@ -99,8 +99,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/mnist/single_chip/train_flax.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/mnist/mnist.yaml",
+            "test_script": "blacksmith/experiments/jax/mnist/single_chip/train_flax.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 400,
             "skip_loss_checks": True,
         },
@@ -114,8 +114,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/mnist/multi_chip/tensor_parallel/train.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/mnist/mnist.yaml",
+            "test_script": "blacksmith/experiments/jax/mnist/multi_chip/tensor_parallel/train.py",
+            "experiment_config": "blacksmith/experiments/jax/mnist/mnist.yaml",
             "timeout": 3000,
             "skip_loss_checks": True,
         },
@@ -133,8 +133,8 @@ TRAINING_TEST_CASES = [
     *[
         pytest.param(
             {
-                "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-                "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml",
+                "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+                "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml",
                 "test_config": "tests/configs/tt-llama_3_2_1b-sst2-n150.yaml",
                 "test_checkpoint_path": test_checkpoint_path,
                 "timeout": 5000,
@@ -158,8 +158,8 @@ TRAINING_TEST_CASES = [
     ],
     pytest.param(
         {
-            "test_script": "blacksmith_xla/tools/trainer/examples/lora_llm/train.py",
-            "experiment_config": ("blacksmith_xla/tools/trainer/examples/lora_llm/single_chip/" "llama_3_1_8b_sst2.yaml"),
+            "test_script": "blacksmith/tools/trainer/examples/lora_llm/train.py",
+            "experiment_config": ("blacksmith/tools/trainer/examples/lora_llm/single_chip/" "llama_3_1_8b_sst2.yaml"),
             "timeout": 5000,
         },
         marks=[
@@ -172,8 +172,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
         },
         marks=[
@@ -187,8 +187,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b-sst2-data_tensor_parallel-n300-llmbox.yaml",
             "timeout": 5000,
         },
@@ -203,8 +203,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_instruct_metamathqa.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b_instruct-metamathqa-n300-llmbox.yaml",
             "timeout": 5000,
         },
@@ -219,8 +219,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b-sst2-qb2-blackhole.yaml",
             "timeout": 5000,
         },
@@ -235,8 +235,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/quietbox/llama_3_1_8b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b-sst2-tensor_parallel-n300-llmbox.yaml",
             "timeout": 14400,
         },
@@ -250,8 +250,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_1_8b_sst2.yaml",
             "timeout": 5000,
         },
         marks=[
@@ -264,8 +264,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
             "timeout": 20000,
         },
         marks=[
@@ -280,8 +280,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_8b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_8b-sst2-galaxy-batch-model.yaml",
             "timeout": 20000,
         },
@@ -297,8 +297,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_1_70b_sst2.yaml",
             "test_config": "tests/configs/tt-llama_3_1_70b-sst2-n300-galaxy.yaml",
             "timeout": 3000,
         },
@@ -312,8 +312,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/llama/xla/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/llama/xla/train.py",
+            "experiment_config": "blacksmith/experiments/torch/llama/xla/lora/galaxy/llama_3_2_1b_sst2.yaml",
             "timeout": 3000,
         },
         marks=[
@@ -327,8 +327,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/qwen/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/qwen/single_chip/qwen_1-5b_text2sql.yaml",
+            "test_script": "blacksmith/experiments/torch/qwen/train.py",
+            "experiment_config": "blacksmith/experiments/torch/qwen/single_chip/qwen_1-5b_text2sql.yaml",
             "timeout": 2000,
         },
         marks=[
@@ -342,8 +342,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/gemma11/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/gemma11/single_chip/gemma11_squadV2.yaml",
+            "test_script": "blacksmith/experiments/torch/gemma11/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma11/single_chip/gemma11_squadV2.yaml",
             "timeout": 10000,
         },
         marks=[
@@ -358,8 +358,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/gemma11/dpo/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml",
+            "test_script": "blacksmith/experiments/torch/gemma11/dpo/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml",
             "test_config": "tests/configs/tt-gemma11-math_preference_dpo-p150.yaml",
             "reference_model_checkpoint_path": "tests/checkpoints/tt-gemma11-math_preference_sft-p150_checkpoint_step360_epoch2_20260622_192415.pt",
             "timeout": 1800,
@@ -374,8 +374,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/gemma2/grpo/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/gemma2/grpo/single_chip/gemma2_gsm8k_grpo.yaml",
+            "test_script": "blacksmith/experiments/torch/gemma2/grpo/train.py",
+            "experiment_config": "blacksmith/experiments/torch/gemma2/grpo/single_chip/gemma2_gsm8k_grpo.yaml",
             "test_config": "tests/configs/tt-gemma2-gsm8k_grpo-p150.yaml",
             "timeout": 3600,
         },
@@ -395,8 +395,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/albert/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/albert/single_chip/albert_banking77.yaml",
+            "test_script": "blacksmith/experiments/torch/albert/train.py",
+            "experiment_config": "blacksmith/experiments/torch/albert/single_chip/albert_banking77.yaml",
             "test_config": "tests/configs/tt-albert_base_v2-banking77-n150.yaml",
             "timeout": 3600,
         },
@@ -412,8 +412,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/torch/phi/train.py",
-            "experiment_config": "blacksmith_xla/experiments/torch/phi/single_chip/phi1_sst2.yaml",
+            "test_script": "blacksmith/experiments/torch/phi/train.py",
+            "experiment_config": "blacksmith/experiments/torch/phi/single_chip/phi1_sst2.yaml",
             "timeout": 7000,
         },
         marks=[
@@ -426,8 +426,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/nerf/train.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/nerf/nerf_blender.yaml",
+            "test_script": "blacksmith/experiments/jax/nerf/train.py",
+            "experiment_config": "blacksmith/experiments/jax/nerf/nerf_blender.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },
@@ -442,8 +442,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/llama/dora/train.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/llama/dora/llama_sst2.yaml",
+            "test_script": "blacksmith/experiments/jax/llama/dora/train.py",
+            "experiment_config": "blacksmith/experiments/jax/llama/dora/llama_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },
@@ -458,8 +458,8 @@ TRAINING_TEST_CASES = [
     ),
     pytest.param(
         {
-            "test_script": "blacksmith_xla/experiments/jax/distil_bert/single_chip/train.py",
-            "experiment_config": "blacksmith_xla/experiments/jax/distil_bert/distil_bert_sst2.yaml",
+            "test_script": "blacksmith/experiments/jax/distil_bert/single_chip/train.py",
+            "experiment_config": "blacksmith/experiments/jax/distil_bert/distil_bert_sst2.yaml",
             "timeout": 20000,
             "skip_loss_checks": True,
         },

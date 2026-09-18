@@ -5,6 +5,8 @@ import traceback
 from pathlib import Path
 
 import torch
+import torch_xla
+import torch_xla.runtime as xr
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -12,7 +14,6 @@ from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.models.torch.huggingface.hf_models import get_model
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.cli import generate_config, parse_cli_options
-from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.templates.configs import TrainingConfig
@@ -70,7 +71,7 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
     # Init training components (optimizer, lr scheduler, etc.)
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(trainable_params, capturable=True, lr=config.learning_rate)
 
     global_step = 0
     running_loss = 0.0
@@ -99,9 +100,13 @@ def train(config: TrainingConfig, device: torch.device, logger: TrainingLogger, 
 
                 # Backward pass
                 loss.backward()
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 # Update parameters
                 optimizer.step()
+                if config.use_tt:
+                    torch_xla.sync(wait=True)
 
                 if global_step % config.steps_freq == 0:
                     avg_loss = running_loss / config.steps_freq
@@ -151,7 +156,11 @@ if __name__ == "__main__":
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
     # Device setup
-    device = DeviceManager(config).device
+    if config.use_tt:
+        xr.runtime.set_device_type("TT")
+        device = torch_xla.device()
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
 
     # Checkpoint manager setup

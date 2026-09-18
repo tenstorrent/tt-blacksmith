@@ -4,16 +4,11 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
 
-# The experiment config only exists once that experiment is ported to this tree; it is
-# only needed here as a type hint.
-if TYPE_CHECKING:
-    from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
-
+from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
 from blacksmith.models.torch.wan2_2.device import WanDeviceManager
 
 # --- Generality patches (correctness; the model will not run on TT without these) ---
@@ -335,7 +330,7 @@ class VAEDecoderWrapper(nn.Module):
 # --- LoRA transformer construction ---
 
 
-def _make_lora_config(config: "TrainingConfig"):
+def _make_lora_config(config: TrainingConfig):
     from peft import LoraConfig
 
     return LoraConfig(
@@ -347,7 +342,7 @@ def _make_lora_config(config: "TrainingConfig"):
     )
 
 
-def build_lora_transformer(config: "TrainingConfig", device_manager: WanDeviceManager):
+def build_lora_transformer(config: TrainingConfig, device_manager: WanDeviceManager):
     from diffusers import WanTransformer3DModel
 
     transformer = WanTransformer3DModel.from_pretrained(

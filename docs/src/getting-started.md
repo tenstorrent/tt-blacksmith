@@ -48,23 +48,17 @@ git clone https://github.com/tenstorrent/tt-blacksmith.git
 cd tt-blacksmith
 ```
 
-2. Activate the environment for the stack you want:
+2. Activate the environment:
 
 ```bash
-source env/activate --crank   # tt-crank experiments (blacksmith/)
-source env/activate --xla     # tt-xla experiments (blacksmith_xla/)
+source env/activate --xla
 ```
 
 > **NOTE:** To run experiments on GPU instead of Tenstorrent hardware, Docker is not required. Simply clone the repository and use `source env/activate --gpu`.
 
-`--crank` installs a pinned `tt-crank` wheel. Until tt-mlir CI publishes one,
-point it at a local tt-mlir checkout and it builds the wheel once:
+> **NOTE:** Experiments that have been ported to tt-crank (the PyTorch frontend in TT-MLIR) ship a `train_crank.py` next to their `train.py`; run those after `source env/activate --crank`. Until the `tt-crank` wheel is published, point at a local TT-MLIR checkout: `TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank`.
 
-```bash
-TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank
-```
-
-3. Run an experiment by following the instructions in its README file. For example, to run the LLaMA LoRA fine-tuning experiment, see the [Llama LoRA README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/README.md).
+3. Run an experiment by following the instructions in its README file. For example, to run the LLaMA LoRA fine-tuning experiment, see the [LoRA README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md).
 
 ---
 

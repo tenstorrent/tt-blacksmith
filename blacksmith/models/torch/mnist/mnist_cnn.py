@@ -1,20 +1,15 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import TYPE_CHECKING
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# The experiment config only exists once that experiment is ported to this tree; it is
-# only needed here as a type hint.
-if TYPE_CHECKING:
-    from blacksmith.experiments.torch.mnist.configs import TrainingConfig
+from blacksmith.experiments.torch.mnist.configs import TrainingConfig
 
 
 class MNISTCNN(nn.Module):
-    def __init__(self, config: "TrainingConfig"):
+    def __init__(self, config: TrainingConfig):
         super(MNISTCNN, self).__init__()
         self.conv1 = nn.Conv2d(1, config.conv1_channels, config.kernel_size, config.stride, bias=config.bias)
         self.conv2 = nn.Conv2d(

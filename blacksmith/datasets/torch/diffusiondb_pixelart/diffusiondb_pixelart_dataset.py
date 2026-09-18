@@ -7,7 +7,6 @@ import io
 import random
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -16,15 +15,12 @@ from huggingface_hub import HfApi, hf_hub_download
 from PIL import Image
 from torch.utils.data import Dataset
 
-# The experiment config only exists once that experiment is ported to this tree; it is
-# only needed here as a type hint.
-if TYPE_CHECKING:
-    from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
+from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
 
 TEXT_COL = "prompt"
 
 
-def download_and_subset_dataset(config: "TrainingConfig") -> list[tuple[Image.Image, str]]:
+def download_and_subset_dataset(config: TrainingConfig) -> list[tuple[Image.Image, str]]:
     """Pull a seeded subset of (image, prompt) pairs straight from the HF hub.
 
     `datasets >= 4` dropped loader-script support, so instead of `load_dataset` we:

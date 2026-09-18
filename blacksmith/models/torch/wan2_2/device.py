@@ -1,21 +1,27 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from typing import TYPE_CHECKING
-
 import torch
 import torch.nn as nn
 
-# The experiment config only exists once that experiment is ported to this tree; it is
-# only needed here as a type hint.
-if TYPE_CHECKING:
-    from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
-
+from blacksmith.experiments.torch.wan2_2.configs import TrainingConfig
 from blacksmith.tools.device_manager import DeviceManager
 
-# tt-crank compile options come from the config (`DeviceManager.compile_options()`); the tt-xla
-# dynamo knobs (`tt_legacy_compile`, `tt_enable_composite_ops`, ...) and the string-valued XLA
-# custom options have no tt-crank counterpart.
+# TT backend (dynamo) compile knobs. Accept Python types (not the XLA options).
+_TORCH_COMPILE_OPTIONS = {
+    "tt_enable_torch_fx_fusion_pass": False,
+    "tt_legacy_compile": True,
+    "tt_enable_composite_ops": True,
+    "tt_use_aot_autograd": False,
+}
+
+# XLA custom compile options. Values must be strings (the API does not coerce bool/int).
+_XLA_COMPILE_OPTIONS = {
+    "optimization_level": "0",
+    "fp32_dest_acc_en": "true",
+    "math_fidelity": "hifi4",
+    "experimental-enable-dram-space-saving-optimization": "true",
+}
 
 
 class WanDeviceManager(DeviceManager):
@@ -25,9 +31,11 @@ class WanDeviceManager(DeviceManager):
     `model_sharding_patterns`/`param_sharding_patterns` in the YAML.
     """
 
-    def __init__(self, config: "TrainingConfig"):
+    def __init__(self, config: TrainingConfig):
         super().__init__(config)
         self._compile_cache: dict = {}
+        # Passed to torch_xla.set_custom_compile_options(...) in the entry point.
+        self.xla_compile_options: dict = dict(_XLA_COMPILE_OPTIONS)
 
     def to_device(self, module_or_tensor):
         return module_or_tensor.to(self.device)
@@ -38,10 +46,13 @@ class WanDeviceManager(DeviceManager):
             return module
         cached = self._compile_cache.get(id(module))
         if cached is None:
-            cached = torch.compile(module, backend="tt", options=self.compile_options())
+            cached = torch.compile(module, backend="tt", options=_TORCH_COMPILE_OPTIONS)
             self._compile_cache[id(module)] = cached
         return cached
 
     def sync(self) -> None:
-        # tt-crank executes eagerly; kept so the Wan entry point ports unchanged.
-        return
+        if not self.config.use_tt:
+            return
+        import torch_xla
+
+        torch_xla.sync(wait=True)

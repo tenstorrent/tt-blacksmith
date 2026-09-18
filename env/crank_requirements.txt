@@ -1,7 +1,7 @@
 --extra-index-url https://pypi.eng.aws.tenstorrent.com
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Experiment dependencies for the tt-crank tree (blacksmith/).
+# Experiment dependencies for the tt-crank ports (the train_crank.py scripts in blacksmith/).
 #
 # tt-crank is installed FIRST (see install_tt_crank in env/activate) and its
 # wheel metadata carries the pins this file has to live under:
