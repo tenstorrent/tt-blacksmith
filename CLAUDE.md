@@ -11,6 +11,7 @@ Optimized ML training recipes for Tenstorrent hardware using TT-Forge compiler s
 ## Setup & Commands
 ```bash
 source env/activate --xla    # Activate environment (required before ANY work)
+source env/activate --mlir   # tt-crank experiments instead: reuses tt-mlir's venv (needs TT_MLIR_HOME)
 pre-commit install           # Install git hooks for linting
 pre-commit run --all-files   # Lint code before commits
 ```

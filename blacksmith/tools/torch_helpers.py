@@ -4,7 +4,6 @@
 from typing import Sequence, Union
 
 import torch
-import torch_xla
 from transformers import StaticCache
 
 
@@ -344,6 +343,10 @@ def generate_completions(
         stop_token_ids = list(eos_token_id)
     if not stop_token_ids:
         raise ValueError("eos_token_id must contain at least one stop token id")
+    if use_tt:
+        # Imported lazily so this module stays importable from environments without
+        # torch_xla (e.g. the tt-mlir venv used by the tt-crank experiments).
+        import torch_xla
 
     batch_size = prompt_input_ids.shape[0]
     max_cache_len = max_prompt_length + max_completion_length

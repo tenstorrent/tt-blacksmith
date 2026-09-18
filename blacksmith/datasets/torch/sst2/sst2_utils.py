@@ -21,5 +21,7 @@ RESPONSE_TEMPLATE = Template('{"label": "$label"}')
 LBL2VALUE = {0: "negative", 1: "positive"}
 VALUE2LBL = {"negative": 0, "positive": 1}
 
+# The namespaced id: `datasets` >= 5 rejects bare canonical names, and older releases
+# resolve "glue" to this repo anyway.
 DATASET_BENCHMARK = "nyu-mll/glue"
 DATASET_NAME = "sst2"
