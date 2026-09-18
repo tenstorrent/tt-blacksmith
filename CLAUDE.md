@@ -11,6 +11,7 @@ Optimized ML training recipes for Tenstorrent hardware using TT-Forge compiler s
 ## Setup & Commands
 ```bash
 source env/activate --xla    # Activate environment (required before ANY work)
+source env/activate --crank  # ... or the tt-crank environment, for the train_crank.py scripts
 pre-commit install           # Install git hooks for linting
 pre-commit run --all-files   # Lint code before commits
 ```
@@ -23,7 +24,31 @@ pre-commit run --all-files   # Lint code before commits
 - Prefer editing existing files over creating new ones
 - Use shared tools from `blacksmith/tools/` when possible
 
-## Debugging
+## tt-crank ports
+
+The repo is migrating from tt-xla to **tt-crank** (the PyTorch frontend in `tt-mlir`), one
+experiment at a time, inside the same tree:
+
+- Every experiment keeps its tt-xla `train.py`. The tt-crank port lives next to it as
+  `train_crank.py`, maps the experiment 1:1 and reads the *same* YAML (including the
+  `mesh_shape` / `model_sharding_patterns` block).
+- Only what differs between the stacks lives in `blacksmith/tools/crank/` (`DeviceManager`,
+  `CheckpointManager`, DTensor helpers); datasets, models, logger, CLI and configs are shared.
+- `env/activate --crank` installs a pinned `tt-crank` wheel from pypi.eng.aws.tenstorrent.com.
+  Until that wheel is published, point at a local tt-mlir checkout and it is built once into
+  `env/wheels/`: `TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank`.
+- tt-crank notes: `import tt_crank.torch` registers the `tt` device, dynamo backend and c10d
+  backend (no `PJRT_DEVICE` / `XLA_*` setup). Execution is eager: no `torch_xla.sync()`, none
+  of the lazy-graph workarounds (grad / AdamW-state pre-materialization, `capturable=True`).
+  Compile options are per `torch.compile(fn, backend="tt", options=...)` call, see
+  `DeviceManager.compile_options()`. Multichip is torch DTensor over
+  `torch.tt.init_device_mesh(...)`; the chips are one logical device (`torch.tt.num_chips()`).
+- Ported so far: Llama LoRA (`blacksmith/experiments/torch/llama/xla/train_crank.py`) and the
+  Trainer pipeline (`blacksmith/tools/crank/trainer/`, a `Trainer` / `LoraLLMTrainer` /
+  `CheckpointCallback` subclass trio; entry point `tools/trainer/examples/lora_llm/train_crank.py`).
+  Smoke tests in `tests/crank/`. Not ported: FSDP.
+
+## Debugging (tt-xla)
 For debugging use following environment variables:
 - TTXLA_LOGGER_LEVEL: DEBUG or VERBOSE.
 

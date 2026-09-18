@@ -1,0 +1,5 @@
+# CI overrides for the tt-crank Llama smoke tests (tests/crank/test_llama_training.py).
+# Base configs: blacksmith/experiments/torch/llama/xla/lora/**/*.yaml, run through train_crank.py.
+steps_freq: 1
+use_wandb: false
+resume_from_checkpoint: false

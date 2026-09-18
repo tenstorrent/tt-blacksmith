@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
 import os
 import re
 from typing import Dict, Optional, Tuple
@@ -8,13 +10,17 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.distributed.spmd as xs
-import torch_xla.runtime as xr
-from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
-    SpmdFullyShardedDataParallel as FSDP,
-)
+
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.spmd as xs
+    import torch_xla.runtime as xr
+    from torch_xla.experimental.spmd_fully_sharded_data_parallel import (
+        SpmdFullyShardedDataParallel as FSDP,
+    )
+except ImportError:  # tt-crank env: this module is only imported, never used (see blacksmith/tools/crank).
+    torch_xla = xm = xs = xr = FSDP = None
 
 from blacksmith.tools.templates.configs import TrainingConfig
 

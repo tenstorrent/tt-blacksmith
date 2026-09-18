@@ -4,7 +4,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla
+
+try:
+    import torch_xla
+except ImportError:  # tt-crank env: only the tt-xla code paths below need it.
+    torch_xla = None
 
 
 # Materialize AdamW state so the fused fwd+bwd+optimizer XLA graph compiles only once.

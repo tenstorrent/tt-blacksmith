@@ -4,7 +4,11 @@
 from typing import Sequence, Union
 
 import torch
-import torch_xla
+
+try:
+    import torch_xla
+except ImportError:  # tt-crank env: only the tt-xla code paths below need it.
+    torch_xla = None
 from transformers import StaticCache
 
 
