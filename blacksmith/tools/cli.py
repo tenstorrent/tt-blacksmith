@@ -9,7 +9,7 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel
 
-from blacksmith.tools.trainer.configs.base import TrainerConfig
+from blacksmith.tools.crank.trainer.configs.base import TrainerConfig
 
 _TEST_MODE_DEFAULTS = {
     "test_config": {"max_steps_per_epoch": 15},

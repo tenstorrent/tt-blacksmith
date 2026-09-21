@@ -28,7 +28,7 @@ from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.tools.crank.cli import generate_config, parse_cli_options
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.crank.checkpoints_manager import CheckpointManager
 from blacksmith.tools.crank.device_manager import DeviceManager
 from blacksmith.tools.crank.hf_models import get_model

@@ -37,9 +37,11 @@ experiment at a time, inside the same tree:
   `hf_models`, `loss_utils`, `torch_helpers`, the whole `trainer/` pipeline incl. configs),
   plus the tt-crank-only `DeviceManager`. Duplication is deliberate: tt-xla is being
   deprecated, so tt-crank must not depend on it. Backend-neutral infrastructure with no
-  tt-xla code in it (datasets, logger, CLI, reproducibility, `tools/configs.py`) stays shared.
-  Never add `try: import torch_xla` guards to tt-xla modules to make them importable from
-  tt-crank -- copy instead.
+  tt-xla code in it (datasets, logger, CLI, reproducibility, `tools/configs.py`) stays shared,
+  and where it needs a trainer config it imports the tt-crank one
+  (`blacksmith.tools.crank.trainer.configs`), never `blacksmith.tools.trainer`: that package's
+  `__init__` pulls in `torch_xla`. Never add `try: import torch_xla` guards to tt-xla modules
+  to make them importable from tt-crank -- copy instead.
 - `env/activate --crank` installs a pinned `tt-crank` wheel from pypi.eng.aws.tenstorrent.com.
   Until that wheel is published, point at a local tt-mlir checkout and it is built once into
   `env/wheels/`: `TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank`.

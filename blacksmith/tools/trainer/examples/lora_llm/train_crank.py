@@ -9,7 +9,7 @@
 """
 from pathlib import Path
 
-from blacksmith.tools.crank.cli import generate_config, parse_cli_options
+from blacksmith.tools.cli import generate_config, parse_cli_options
 from blacksmith.tools.crank.trainer import CheckpointCallback, MetricsCallback
 from blacksmith.tools.crank.trainer.configs import LoraLLMConfig
 from blacksmith.tools.crank.trainer.strategies import LoraLLMTrainer
