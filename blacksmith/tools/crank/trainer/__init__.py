@@ -3,16 +3,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """tt-crank Trainer pipeline.
 
-Same shape as `blacksmith.tools.trainer`: `Trainer` runs the loop, strategies fill in
-model / data / loss, callbacks do metrics and checkpointing. `Callback`,
-`CallbackHandler` and `MetricsCallback` are backend-agnostic and re-exported from the
-tt-xla package; `Trainer` and `CheckpointCallback` are the tt-crank versions.
+Standalone copy of `blacksmith.tools.trainer` (the tt-xla pipeline) with the tt-xla
+lazy-graph machinery removed: `Trainer` runs the loop, strategies fill in model / data /
+loss, callbacks do metrics and checkpointing. Nothing here imports from
+`blacksmith.tools.trainer`.
 """
-from blacksmith.tools.crank.trainer.callbacks import CheckpointCallback
+from blacksmith.tools.crank.trainer.callback import Callback
+from blacksmith.tools.crank.trainer.callbacks import CheckpointCallback, MetricsCallback
+from blacksmith.tools.crank.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.crank.trainer.trainer import Trainer
-from blacksmith.tools.trainer.callback import Callback
-from blacksmith.tools.trainer.callbacks import MetricsCallback
-from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 
 __all__ = [
     "Trainer",

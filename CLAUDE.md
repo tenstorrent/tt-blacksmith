@@ -32,8 +32,14 @@ experiment at a time, inside the same tree:
 - Every experiment keeps its tt-xla `train.py`. The tt-crank port lives next to it as
   `train_crank.py`, maps the experiment 1:1 and reads the *same* YAML (including the
   `mesh_shape` / `model_sharding_patterns` block).
-- Only what differs between the stacks lives in `blacksmith/tools/crank/` (`DeviceManager`,
-  `CheckpointManager`, DTensor helpers); datasets, models, logger, CLI and configs are shared.
+- `blacksmith/tools/crank/` imports no tt-xla code. Whatever a tt-crank script needs from the
+  tt-xla tools is a *copy* there with the tt-xla parts stripped (`checkpoints_manager`,
+  `hf_models`, `loss_utils`, `torch_helpers`, the whole `trainer/` pipeline incl. configs),
+  plus the tt-crank-only `DeviceManager`. Duplication is deliberate: tt-xla is being
+  deprecated, so tt-crank must not depend on it. Backend-neutral infrastructure with no
+  tt-xla code in it (datasets, logger, CLI, reproducibility, `tools/configs.py`) stays shared.
+  Never add `try: import torch_xla` guards to tt-xla modules to make them importable from
+  tt-crank -- copy instead.
 - `env/activate --crank` installs a pinned `tt-crank` wheel from pypi.eng.aws.tenstorrent.com.
   Until that wheel is published, point at a local tt-mlir checkout and it is built once into
   `env/wheels/`: `TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank`.
@@ -44,9 +50,10 @@ experiment at a time, inside the same tree:
   `DeviceManager.compile_options()`. Multichip is torch DTensor over
   `torch.tt.init_device_mesh(...)`; the chips are one logical device (`torch.tt.num_chips()`).
 - Ported so far: Llama LoRA (`blacksmith/experiments/torch/llama/xla/train_crank.py`) and the
-  Trainer pipeline (`blacksmith/tools/crank/trainer/`, a `Trainer` / `LoraLLMTrainer` /
-  `CheckpointCallback` subclass trio; entry point `tools/trainer/examples/lora_llm/train_crank.py`).
-  Smoke tests in `tests/crank/`. Not ported: FSDP.
+  Trainer pipeline (`blacksmith/tools/crank/trainer/`: `Trainer`, `LoraLLMTrainer`,
+  `MetricsCallback` / `CheckpointCallback`, `TrainerConfig` / `LoraLLMConfig`; entry point
+  `tools/trainer/examples/lora_llm/train_crank.py`). Smoke tests in `tests/crank/`.
+  Not ported: FSDP, `SFTLLMTrainer`.
 
 ## Debugging (tt-xla)
 For debugging use following environment variables:

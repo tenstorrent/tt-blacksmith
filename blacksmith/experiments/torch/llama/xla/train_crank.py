@@ -10,8 +10,9 @@ Reads the same YAMLs as `train.py` -- single chip and multichip alike, the `mesh
     python blacksmith/experiments/torch/llama/xla/train_crank.py \
         --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
 
-Diff against `train.py` to see what tt-crank changes. In short: `DeviceManager` and
-`CheckpointManager` come from `blacksmith.tools.crank`; compile options are passed per
+Diff against `train.py` to see what tt-crank changes. In short: everything backend-flavoured
+(`DeviceManager`, `CheckpointManager`, the HF model loader, loss / collate helpers) comes from
+`blacksmith.tools.crank`, which imports no tt-xla code; compile options are passed per
 `torch.compile` call instead of one global `set_custom_compile_options`; the model is
 sharded once (DTensor parameters stay DTensors) instead of re-annotated every step; and
 the lazy-graph machinery -- `torch_xla.sync` fences, grad / AdamW-state pre-seeding,
@@ -27,19 +28,20 @@ from tqdm import tqdm
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.experiments.torch.llama.configs import TrainingConfig
-from blacksmith.models.torch.huggingface.hf_models import get_model
-from blacksmith.tools.cli import generate_config, parse_cli_options
+from blacksmith.tools.crank.cli import generate_config, parse_cli_options
 from blacksmith.tools.crank.checkpoints_manager import CheckpointManager
 from blacksmith.tools.crank.device_manager import DeviceManager
-from blacksmith.tools.crank.torch_helpers import loss_to_float, to_host
-from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_helpers import (
+from blacksmith.tools.crank.hf_models import get_model
+from blacksmith.tools.crank.loss_utils import cross_entropy_loss, transform_labels
+from blacksmith.tools.crank.torch_helpers import (
     collate_fn_for_causal_lm,
     collect_examples,
+    loss_to_float,
     show_examples,
+    to_host,
 )
-from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
+from blacksmith.tools.logging_manager import TrainingLogger
+from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
 def validate(
@@ -120,9 +122,9 @@ def train(
 ):
     logger.info("Starting training...")
 
-    # Load model. compile_model=False: forward + loss are compiled together below so the loss
-    # and its backward stay in one tt graph.
-    model = get_model(config, device_manager.device, compile_model=False)
+    # Load model (eager). Forward + loss are compiled together below so the loss and its
+    # backward stay in one tt graph.
+    model = get_model(config, device_manager.device)
     # Shard model once, here (tensor and/or data parallelism). A DTensor parameter stays a
     # DTensor, so unlike tt-xla's SPMD annotations this does not have to be repeated per step.
     model = device_manager.shard_model(model)
@@ -293,13 +295,6 @@ if __name__ == "__main__":
     default_config = Path(__file__).parent / "lora" / "single_chip" / "llama_3_2_1b_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
-
-    # Per-tensor weight dtype overrides are a tt-xla feature (tt_torch.apply_weight_dtype_overrides);
-    # tt-crank only has the compiler-wide `experimental_weight_dtype`, see DeviceManager.compile_options.
-    if config.use_tt and config.weight_dtype_overrides:
-        raise ValueError(
-            "weight_dtype_overrides is tt-xla only; use `experimental_weight_dtype` (bfp_bf8 | bfp_bf4) on tt-crank."
-        )
 
     # Reproducibility setup
     repro_manager = ReproducibilityManager(config)

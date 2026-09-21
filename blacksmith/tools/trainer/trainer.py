@@ -7,13 +7,9 @@ from contextlib import contextmanager
 from typing import Any, Union
 
 import torch
+import torch_xla
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
-try:
-    import torch_xla
-except ImportError:  # tt-crank env: only the tt-xla code paths below need it.
-    torch_xla = None
 
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger

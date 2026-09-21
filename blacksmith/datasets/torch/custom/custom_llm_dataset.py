@@ -1,6 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
@@ -10,8 +14,12 @@ from blacksmith.datasets.torch.custom.custom_dataset_utils import (
     resolve_column_mapping,
 )
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.tools.trainer.configs import TrainerConfig
 from datasets import load_dataset
+
+if TYPE_CHECKING:
+    # Annotation only. A runtime import would pull the whole tt-xla trainer package
+    # (and torch_xla) into every consumer of blacksmith.datasets, tt-crank included.
+    from blacksmith.tools.trainer.configs import TrainerConfig
 
 
 class CustomLLMDataset(BaseDataset):
