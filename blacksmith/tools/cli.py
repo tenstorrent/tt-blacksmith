@@ -9,8 +9,6 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel
 
-from blacksmith.tools.crank.trainer.configs.base import TrainerConfig
-
 _TEST_MODE_DEFAULTS = {
     "test_config": {"max_steps_per_epoch": 15},
     "steps_freq": 5,
@@ -21,13 +19,23 @@ _TEST_MODE_DEFAULTS = {
 }
 
 # Nested TrainerConfig equivalents of the flat keys above. Applied under
-# pytest when ``config`` is a TrainerConfig subclass; deep-merged so the
+# pytest when ``config`` has the nested sub-configs; deep-merged so the
 # rest of logging / metrics / checkpoint is kept.
 _TRAINER_TEST_MODE_DEFAULTS = {
     "logging": {"use_wandb": False},
     "metrics": {"steps_freq": 5},
     "checkpoint": {"save_strategy": "none"},
 }
+
+
+def _has_nested_trainer_configs(config: type[BaseModel]) -> bool:
+    """Structural check for a TrainerConfig-shaped class.
+
+    Both the tt-xla and the tt-crank trainer pipelines define their own
+    ``TrainerConfig``; checking the fields instead of ``issubclass`` keeps this
+    module free of either import and works for both.
+    """
+    return set(_TRAINER_TEST_MODE_DEFAULTS) <= set(config.model_fields)
 
 
 def _deep_update(base: dict, overlay: dict) -> dict:
@@ -60,7 +68,7 @@ def generate_config(
     # logging frequency. An explicit test config (below) can still override.
     if "PYTEST_CURRENT_TEST" in os.environ:
         config_data |= _TEST_MODE_DEFAULTS
-        if issubclass(config, TrainerConfig):
+        if _has_nested_trainer_configs(config):
             _deep_update(config_data, _TRAINER_TEST_MODE_DEFAULTS)
 
     if test_yaml_path is not None:
