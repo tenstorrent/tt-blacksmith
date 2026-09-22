@@ -25,8 +25,8 @@ For more information on the project, see our [documentation](https://docs.tensto
 # tt-crank
 
 The recipes are being migrated from TT-XLA to **tt-crank**, the PyTorch frontend in
-[TT-MLIR](https://github.com/tenstorrent/tt-mlir). Ported experiments keep their `train.py`
-and gain a `train_crank.py` next to it that runs the same YAML on tt-crank; activate with
+[TT-MLIR](https://github.com/tenstorrent/tt-mlir). Ported experiments keep their `xla/` tree
+and gain a `crank/train.py` beside it that runs the same YAMLs on tt-crank; activate with
 `source env/activate --crank`.
 
 -----

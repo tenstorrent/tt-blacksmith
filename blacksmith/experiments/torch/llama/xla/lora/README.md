@@ -260,12 +260,12 @@ Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested 
 
 ## Running on tt-crank
 
-`train_crank.py` (one directory up, next to `train.py`) is the tt-crank port of this experiment. It reads the
+`blacksmith/experiments/torch/llama/crank/train.py` is the tt-crank port of this experiment. It reads the
 same YAMLs, single chip and multichip alike:
 
 ```bash
 source env/activate --crank
-python blacksmith/experiments/torch/llama/xla/train_crank.py \
+python blacksmith/experiments/torch/llama/crank/train.py \
     --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
 ```
 

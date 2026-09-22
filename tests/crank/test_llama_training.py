@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Smoke tests for the tt-crank Llama experiments (`train_crank.py`, same YAMLs as tt-xla).
+"""Smoke tests for the tt-crank Llama experiments (`llama/crank/train.py`, same YAMLs as tt-xla).
 
 Each runs the experiment script for a handful of steps (the PYTEST_CURRENT_TEST
 defaults in blacksmith/tools/cli.py cap it) and asserts the training loss
@@ -18,7 +18,7 @@ import pytest
 from blacksmith.tools.logging_manager import TEST_LOGS_DIR
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TRAIN_SCRIPT = REPO_ROOT / "blacksmith/experiments/torch/llama/xla/train_crank.py"
+TRAIN_SCRIPT = REPO_ROOT / "blacksmith/experiments/torch/llama/crank/train.py"
 TRAINER_SCRIPT = REPO_ROOT / "blacksmith/tools/trainer/examples/lora_llm/train_crank.py"
 TEST_CONFIG = REPO_ROOT / "tests/configs/tt-crank-llama-sst2.yaml"
 TRAINER_TEST_CONFIG = REPO_ROOT / "tests/configs/tt-crank-trainer-llama-sst2.yaml"

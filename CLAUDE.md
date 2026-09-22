@@ -11,7 +11,7 @@ Optimized ML training recipes for Tenstorrent hardware using TT-Forge compiler s
 ## Setup & Commands
 ```bash
 source env/activate --xla    # Activate environment (required before ANY work)
-source env/activate --crank  # ... or the tt-crank environment, for the train_crank.py scripts
+source env/activate --crank  # ... or the tt-crank environment, for the crank/ ports
 pre-commit install           # Install git hooks for linting
 pre-commit run --all-files   # Lint code before commits
 ```
@@ -29,9 +29,10 @@ pre-commit run --all-files   # Lint code before commits
 The repo is migrating from tt-xla to **tt-crank** (the PyTorch frontend in `tt-mlir`), one
 experiment at a time, inside the same tree:
 
-- Every experiment keeps its tt-xla `train.py`. The tt-crank port lives next to it as
-  `train_crank.py`, maps the experiment 1:1 and reads the *same* YAML (including the
-  `mesh_shape` / `model_sharding_patterns` block).
+- Every experiment keeps its tt-xla `xla/` tree. The tt-crank port lives beside it as
+  `<experiment>/crank/train.py`, maps the experiment 1:1 and reads the *same* YAMLs from `xla/`
+  (including the `mesh_shape` / `model_sharding_patterns` block). Tools examples that have no
+  framework subdirectory keep a `train_crank.py` next to `train.py`.
 - `blacksmith/tools/crank/` imports no tt-xla code. Whatever a tt-crank script needs from the
   tt-xla tools is a *copy* there with the tt-xla parts stripped (`checkpoints_manager`,
   `hf_models`, `loss_utils`, `torch_helpers`, the whole `trainer/` pipeline incl. configs),
@@ -51,7 +52,7 @@ experiment at a time, inside the same tree:
   Compile options are per `torch.compile(fn, backend="tt", options=...)` call, see
   `DeviceManager.compile_options()`. Multichip is torch DTensor over
   `torch.tt.init_device_mesh(...)`; the chips are one logical device (`torch.tt.num_chips()`).
-- Ported so far: Llama LoRA (`blacksmith/experiments/torch/llama/xla/train_crank.py`) and the
+- Ported so far: Llama LoRA (`blacksmith/experiments/torch/llama/crank/train.py`) and the
   Trainer pipeline (`blacksmith/tools/crank/trainer/`: `Trainer`, `LoraLLMTrainer`,
   `MetricsCallback` / `CheckpointCallback`, `TrainerConfig` / `LoraLLMConfig`; entry point
   `tools/trainer/examples/lora_llm/train_crank.py`). Smoke tests in `tests/crank/`.

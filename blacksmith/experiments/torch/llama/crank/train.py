@@ -1,16 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank port of `train.py` (Llama LoRA / adapters fine-tuning), 1:1 with the tt-xla script.
+"""tt-crank port of `../xla/train.py` (Llama LoRA / adapters fine-tuning), 1:1 with the tt-xla script.
 
-Reads the same YAMLs as `train.py` -- single chip and multichip alike, the `mesh_shape` /
-`model_sharding_patterns` block included:
+Reads the same YAMLs as the tt-xla script (`../xla/lora`, `../xla/adapters`) -- single chip and
+multichip alike, the `mesh_shape` / `model_sharding_patterns` block included:
 
     source env/activate --crank
-    python blacksmith/experiments/torch/llama/xla/train_crank.py \
+    python blacksmith/experiments/torch/llama/crank/train.py \
         --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
 
-Diff against `train.py` to see what tt-crank changes. In short: everything backend-flavoured
+Diff against `../xla/train.py` to see what tt-crank changes. In short: everything backend-flavoured
 (`DeviceManager`, `CheckpointManager`, the HF model loader, loss / collate helpers) comes from
 `blacksmith.tools.crank`, which imports no tt-xla code; compile options are passed per
 `torch.compile` call instead of one global `set_custom_compile_options`; the model is
@@ -292,7 +292,8 @@ def train(
 
 if __name__ == "__main__":
     # Config setup
-    default_config = Path(__file__).parent / "lora" / "single_chip" / "llama_3_2_1b_sst2.yaml"
+    # YAMLs are shared with the tt-xla script and live next to it.
+    default_config = Path(__file__).parent.parent / "xla" / "lora" / "single_chip" / "llama_3_2_1b_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
 
