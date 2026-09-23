@@ -3,7 +3,7 @@ TT_BLACKSMITH_HOME=$(pwd)
 EXPECTED_ARGS=1
 
 if [ "$#" -gt "$EXPECTED_ARGS" ]; then
-  echo "Single option for experiment type expected, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+  echo "Single option for experiment type expected, possible options are: TT-Crank (--crank), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
   return 1
 fi
 
@@ -11,11 +11,12 @@ case $1 in
     --ffe) EXPERIMENT_TYPE=0 ;;
     --xla) EXPERIMENT_TYPE=1 ;;
     --gpu) EXPERIMENT_TYPE=2 ;;
+    --crank) EXPERIMENT_TYPE=3 ;;
     "")
-        # No argument provided, default to TT-XLA
-        echo "No type of experiment was specified, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
-        echo "Defaulting to TT-XLA (--xla)"
-        EXPERIMENT_TYPE=1
+        # No argument provided, default to TT-Crank
+        echo "No type of experiment was specified, possible options are: TT-Crank (--crank), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+        echo "Defaulting to TT-Crank (--crank)"
+        EXPERIMENT_TYPE=3
         ;;
     *) echo "Unknown parameter passed: $1"; return 1 ;;
 esac
@@ -34,6 +35,9 @@ case $EXPERIMENT_TYPE in
     2)
         export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/gpu_env
         export PJRT_DEVICE=CUDA
+        ;;
+    3)
+        export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/crank_env
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
@@ -88,6 +92,56 @@ check_package_version() {
     return 0
 }
 
+
+# Install tt-crank into the active venv.
+#
+# Two sources, picked by env/crank_requirements.txt:
+#   * a pinned `tt-crank==<version>` line -> the wheel from
+#     pypi.eng.aws.tenstorrent.com, installed by the regular `pip install -r`
+#     below, same shape as the pjrt-plugin-tt flow for --xla. Not published yet.
+#   * otherwise TT_MLIR_HOME must point at a built tt-mlir checkout and tt-crank
+#     is used straight from its source tree: a .pth file puts
+#     $TT_MLIR_HOME/tt-crank/python on sys.path. Python edits are live; after a
+#     C++ edit rebuild in tt-mlir and run tt-crank/scripts/install-py, which is
+#     what drops the built extension into that tree (the normal tt-crank dev loop).
+#
+# Deliberately not `pip install -e`: scikit-build-core's editable build
+# reconfigures tt-mlir's build/ with this venv's Python and prefix path, which
+# breaks the tt-mlir dev build it shares the tree with.
+install_tt_crank() {
+    if grep -qE '^tt-crank==' env/crank_requirements.txt; then
+        return 0
+    fi
+
+    if python -c "import tt_crank" > /dev/null 2>&1; then
+        return 0
+    fi
+
+    if [ -z "$TT_MLIR_HOME" ]; then
+        echo "tt-crank is not pinned in env/crank_requirements.txt and no wheel is published yet."
+        echo "Set TT_MLIR_HOME to a built tt-mlir checkout to use tt-crank from source, e.g.:"
+        echo "  TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank"
+        return 1
+    fi
+    local crank_py="$TT_MLIR_HOME/tt-crank/python"
+    if [ ! -f "$crank_py/tt_crank/__init__.py" ]; then
+        echo "TT_MLIR_HOME=$TT_MLIR_HOME is not a tt-mlir checkout (no tt-crank/python/tt_crank)."
+        return 1
+    fi
+    if ! ls "$crank_py"/tt_crank/torch/_native.*.so > /dev/null 2>&1; then
+        echo "No built tt_crank extension in $crank_py. In $TT_MLIR_HOME run:"
+        echo "  source env/activate && cmake --build build && ./tt-crank/scripts/install-py"
+        return 1
+    fi
+
+    echo "Using tt-crank from source: $crank_py"
+    # Runtime pins (torch is the CPU wheel by URL) come from tt-crank itself.
+    pip install -r "$TT_MLIR_HOME/tt-crank/requirements.txt" || return 1
+    local site_packages
+    site_packages=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+    echo "$crank_py" > "$site_packages/tt_crank_source.pth"
+}
+
 # If environment directory already exists, check versions and activate
 if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
     if [ ! -f $TT_BLACKSMITH_ENV_DIR/bin/activate ]; then
@@ -98,6 +152,11 @@ if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
 
     # Activate environment
     source $TT_BLACKSMITH_ENV_DIR/bin/activate
+
+    if [ "$EXPERIMENT_TYPE" -eq 3 ]; then
+        install_tt_crank
+        return
+    fi
 
     # Only check tt-xla packages; return early for other experiment types
     if [ "$EXPERIMENT_TYPE" -ne 1 ]; then
@@ -121,7 +180,7 @@ case $EXPERIMENT_TYPE in
     0|2)
         python3.11 -m venv $TT_BLACKSMITH_ENV_DIR
         ;;
-    1)
+    1|3)
         python3.12 -m venv $TT_BLACKSMITH_ENV_DIR
         ;;
     *)
@@ -141,6 +200,14 @@ case $EXPERIMENT_TYPE in
         ;;
     2)
         pip install -r env/gpu_requirements.txt -r env/requirements.txt
+        ;;
+    3)
+        # tt-crank first: its requirements pin click/pandas/pydantic/numpy, and
+        # env/crank_requirements.txt is written to resolve under those pins.
+        # Installing it last instead lets the resolver pick, say, a wandb that
+        # needs a newer click, which then gets downgraded under it.
+        install_tt_crank || return 1
+        pip install -r env/crank_requirements.txt
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
