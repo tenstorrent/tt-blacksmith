@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank `TrainerConfig`: copy of `blacksmith.tools.trainer.configs.base`, same YAML schema."""
 from typing import List, Optional, Tuple
 
 import torch
@@ -73,7 +72,7 @@ class TrainerConfig(BaseModel):
     input_sharding_dim: Optional[str] = Field(default=None)
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
-    # Compile options (read by `DeviceManager.compile_options()`, passed per `torch.compile` call).
+    # tt-crank compile options (see DeviceManager.compile_options).
     optimization_level: int = Field(default=1, ge=0, le=2)
     enable_const_eval: bool = Field(default=False)
 

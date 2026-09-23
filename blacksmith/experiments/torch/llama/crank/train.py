@@ -1,24 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank port of `../xla/train.py` (Llama LoRA / adapters fine-tuning), 1:1 with the tt-xla script.
-
-Reads the same YAMLs as the tt-xla script (`../xla/lora`, `../xla/adapters`) -- single chip and
-multichip alike, the `mesh_shape` / `model_sharding_patterns` block included:
-
-    source env/activate --crank
-    python blacksmith/experiments/torch/llama/crank/train.py \
-        --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
-
-Diff against `../xla/train.py` to see what tt-crank changes. In short: everything backend-flavoured
-(`DeviceManager`, `CheckpointManager`, the HF model loader, loss / collate helpers) comes from
-`blacksmith.tools.crank`, which imports no tt-xla code; compile options are passed per
-`torch.compile` call instead of one global `set_custom_compile_options`; the model is
-sharded once (DTensor parameters stay DTensors) instead of re-annotated every step; and
-the lazy-graph machinery -- `torch_xla.sync` fences, grad / AdamW-state pre-seeding,
-`capturable=True`, the device-side `step_loss` accumulator -- is gone because tt-crank
-executes eagerly.
-"""
 import time
 import traceback
 from pathlib import Path
@@ -47,11 +29,6 @@ from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 def validate(
     model, compute_loss_fn, eval_model, val_data_loader, loss_fn, logger, device_manager, config, tokenizer=None
 ):
-    """Validation loss through the *compiled forward+loss* (`compute_loss_fn`), not an eager loss on
-    `eval_model`'s logits as in `train.py`. Same numbers on a single chip; on a mesh the eager DTensor
-    path is wrong on the current tt-crank (`aten._to_copy` and `log_softmax` on a batch-sharded DTensor
-    return bad values, while the same math inside a compiled graph is fine). `eval_model` is only used
-    for the predictions shown by `print_examples`."""
     logger.info("Starting validation...")
     total_val_loss = 0.0
     num_val_batches = 0
@@ -75,7 +52,7 @@ def validate(
                 }
             )
 
-            # Forward pass + loss, one compiled graph (see docstring).
+            # Forward pass + loss through the compiled graph; an eager DTensor loss is wrong on a mesh.
             loss = compute_loss_fn(device_batch, model, loss_fn, 1)
 
             total_val_loss += loss_to_float(loss)
@@ -122,11 +99,9 @@ def train(
 ):
     logger.info("Starting training...")
 
-    # Load model (eager). Forward + loss are compiled together below so the loss and its
-    # backward stay in one tt graph.
+    # Load model. Forward + loss are compiled together below.
     model = get_model(config, device_manager.device)
-    # Shard model once, here (tensor and/or data parallelism). A DTensor parameter stays a
-    # DTensor, so unlike tt-xla's SPMD annotations this does not have to be repeated per step.
+    # Shard model once; DTensor parameters stay DTensors.
     model = device_manager.shard_model(model)
 
     logger.info(f"Loaded {config.model_name} model.")
@@ -134,8 +109,7 @@ def train(
     logger.info(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)}")
 
     trainable_params = [p for p in model.parameters() if p.requires_grad]
-    # No capturable=True and no pre-seeded grads / AdamW state: those kept the tt-xla fused
-    # step graph's signature stable; tt-crank is eager.
+    # tt-crank is eager: no capturable AdamW, no pre-seeded grads / state.
     optimizer = torch.optim.AdamW(trainable_params, lr=config.learning_rate)
 
     # Load checkpoint if needed.
@@ -154,10 +128,7 @@ def train(
     tokenizer = train_dataset.tokenizer
 
     if config.use_tt:
-        # Per-callable compile options (tt-xla set them once, globally, in `__main__`).
-        # dynamic=False: tt-crank cannot lower symbolic (SymInt) inputs, and torch's automatic dynamic
-        # shapes would otherwise turn `gradient_accumulation_steps` into one after it is seen with two
-        # values (1 in `validate`, N in training). With it off the second value just recompiles.
+        # Per-callable compile options. dynamic=False: tt-crank cannot lower symbolic shapes.
         compile_options = device_manager.compile_options()
         compute_loss_fn = torch.compile(compute_loss, backend="tt", dynamic=False, options=compile_options)
         # Only needed for the predictions printed by `print_examples` (see `validate`).
@@ -291,8 +262,7 @@ def train(
 
 
 if __name__ == "__main__":
-    # Config setup
-    # YAMLs are shared with the tt-xla script and live next to it.
+    # Config setup. YAMLs are shared with the tt-xla script.
     default_config = Path(__file__).parent.parent / "xla" / "lora" / "single_chip" / "llama_3_2_1b_sst2.yaml"
     args = parse_cli_options(default_config=default_config)
     config: TrainingConfig = generate_config(TrainingConfig, args.config, args.test_config, args.test_checkpoint_path)
@@ -304,8 +274,7 @@ if __name__ == "__main__":
     # Logger setup.
     logger = TrainingLogger(config, args.test_log_filename_prefix)
 
-    # Device setup. Compile options are per `torch.compile` call on tt-crank (see `train`), so
-    # there is no global `set_custom_compile_options` step here.
+    # Device setup.
     device_manager = DeviceManager(config)
     logger.info(f"Using device: {device_manager.device}")
     if device_manager.mesh is not None:

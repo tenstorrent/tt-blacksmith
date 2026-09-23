@@ -1,29 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Device and parallelism setup for tt-crank.
-
-Counterpart of `blacksmith.tools.device_manager.DeviceManager` (tt-xla). It keeps the
-same public surface (`device`, `mesh`, `is_data_parallel()`, `is_tensor_parallel()`,
-`is_fsdp()`, `shard_model`, `shard_tensor`, `prepare_batch`, `optimizer_step`) and
-reads the *same* config fields (`mesh_shape`, `mesh_axis_names`, `input_sharding_dim`,
-`model_sharding_patterns`), so a `train_crank.py` runs the experiment's existing YAML.
-
-What differs underneath:
-
-- tt-xla exposed one PJRT device per chip and used SPMD: an `xs.Mesh` plus
-  `mark_sharding` annotations the XLA partitioner turned into collectives.
-- tt-crank exposes a *single* logical `tt` device backed by a runtime `MeshDevice`.
-  Parallelism is plain torch DTensor: `torch.tt.init_device_mesh` opens the mesh and
-  builds a `DeviceMesh`, `distribute_tensor` / `distribute_module` place the shards,
-  and collectives go through the `tt` c10d backend.
-- Execution is eager: nothing here corresponds to `torch_xla.sync()` or
-  `xm.optimizer_step`, and the lazy-graph workarounds (grad / AdamW-state
-  pre-materialization, `capturable=True`) are not needed.
-
-Not ported: FSDP (`SpmdFullyShardedDataParallel`). A mesh axis named "fsdp" is
-accepted so the YAML validates, but its parameters are replicated, not sharded.
-"""
 import contextlib
 import math
 import os
@@ -47,15 +24,7 @@ from blacksmith.tools.templates.configs import TrainingConfig
 
 
 def tt_compile_options(config) -> dict:
-    """tt-crank options for `torch.compile(fn, backend="tt", options=...)`.
-
-    tt-xla took these once, globally, via `torch_xla.set_custom_compile_options`
-    (see the `if config.use_tt:` block at the bottom of a tt-xla `train.py`);
-    tt-crank takes them per compiled callable. Same knobs, same defaults:
-    fp32_dest_acc_en + HiFi4 for full-precision fine-tuning, the rest from the
-    config. `experimental_weight_dtype` maps tt-xla's "bfp_bf8" / "bfp_bf4" to
-    tt-crank's `BfpDtype`; "bf16" (the tt-xla default) means no override.
-    """
+    """tt-crank options for `torch.compile(fn, backend="tt", options=...)`."""
     from tt_crank.torch._compile import BfpDtype, CompileOption, MathFidelity
 
     options = {
@@ -127,12 +96,7 @@ class DeviceManager:
 
     @staticmethod
     def _init_process_group(world_size: int) -> None:
-        """Bring up the "tt" c10d process group that DTensor collectives use.
-
-        Single process, one rank: the collectives run inside the device mesh, so
-        there are no peer processes to rendezvous with and a `FakeStore` stands in
-        for the TCP store. `world_size` is the mesh size, not the chip count.
-        """
+        """Bring up the "tt" c10d process group that DTensor collectives use."""
         import torch.distributed as dist
         from torch.testing._internal.distributed.fake_pg import FakeStore
 
@@ -148,12 +112,7 @@ class DeviceManager:
         return self.config.mesh_axis_names.index(axis)
 
     def _placements(self, sharding_spec: Sequence[Optional[str]]) -> list[Placement]:
-        """tt-xla partition spec -> DTensor placements.
-
-        `sharding_spec` has one entry per *tensor* dim naming the mesh axis that dim
-        is sharded along (None = replicated), exactly what `xs.mark_sharding` took.
-        DTensor placements are per *mesh* dim instead, so this transposes the two.
-        """
+        """tt-xla partition spec -> DTensor placements."""
         placements: list[Placement] = [Replicate() for _ in self.config.mesh_shape]
         for dim, axis in enumerate(sharding_spec):
             if axis is not None:
@@ -179,28 +138,12 @@ class DeviceManager:
 
     # ------------------------------------------------------------- sharding
     def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Sequence[Optional[str]]) -> torch.Tensor:
-        """Place `tensor` on the mesh given a tt-xla style partition spec.
-
-        Returns a DTensor: unlike `xs.mark_sharding`, which annotated in place, the
-        caller has to use the return value.
-        """
         if self.mesh is None:
             return tensor
         return distribute_tensor(tensor, self.mesh, self._placements(sharding_spec))
 
     def shard_model(self, model: nn.Module) -> nn.Module:
-        """Turn the model's parameters into DTensors over the mesh, in place.
-
-        `model_sharding_patterns` (regex on the module name -> partition spec) shard
-        `module.weight` exactly as the tt-xla version did, `param_sharding_patterns`
-        likewise by parameter name. Every other parameter becomes an explicitly
-        replicated DTensor, which is what makes both TP and pure DP work: no op ever
-        sees a DTensor and a plain tensor together.
-
-        Single chip: no mesh, nothing to do. Idempotent: the tt-xla scripts call
-        this every step, and a DTensor parameter stays a DTensor, so after the first
-        call this is a no-op.
-        """
+        """Shard model based on mesh configuration."""
         if self.mesh is None or self._is_distributed(model):
             return model
         return distribute_module(model, self.mesh, partition_fn=self._partition_fn(model))
@@ -271,13 +214,10 @@ class DeviceManager:
         return batch
 
     def optimizer_step(self, optimizer: torch.optim.Optimizer, zero_grad: bool = False) -> None:
-        """Step the optimizer, optionally zeroing grads afterwards.
+        """
+        Perform optimizer step, optionally zeroing grads afterwards.
 
-        The data-parallel gradient all-reduce is implicit: under DP the loss is a
-        `Partial` DTensor, autograd produces `Partial` grads and the optimizer's
-        first read redistributes them. No `xm.optimizer_step`, no barrier. Grads
-        are released rather than re-zeroed in place; eager execution has no graph
-        signature to keep stable.
+        Under data parallelism the gradient all-reduce is implicit (``Partial`` DTensor grads).
         """
         optimizer.step()
         if zero_grad:
@@ -288,13 +228,7 @@ class DeviceManager:
         return tt_compile_options(self.config)
 
     def replication_context(self):
-        """Context in which plain tensors are treated as replicated DTensors.
-
-        HF builds a few tensors internally (causal-mask helpers, position ids)
-        that never pass through `prepare_batch`. Without this they stay plain
-        tensors and mixing them with DTensor parameters raises. No-op on a
-        single chip.
-        """
+        """Context in which plain tensors HF builds internally count as replicated DTensors."""
         if self.mesh is None:
             return contextlib.nullcontext()
 

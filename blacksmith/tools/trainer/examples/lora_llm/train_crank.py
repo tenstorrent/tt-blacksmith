@@ -1,12 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank port of `train.py`: same YAMLs, everything from `blacksmith.tools.crank.trainer` (no tt-xla imports).
-
-    source env/activate --crank
-    python blacksmith/tools/trainer/examples/lora_llm/train_crank.py \
-        --config blacksmith/tools/trainer/examples/lora_llm/single_chip/llama_3_2_1b_sst2.yaml
-"""
 from pathlib import Path
 
 from blacksmith.tools.cli import generate_config, parse_cli_options

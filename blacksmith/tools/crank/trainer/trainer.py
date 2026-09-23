@@ -1,22 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank `Trainer`.
-
-Copy of the tt-xla `blacksmith.tools.trainer.Trainer` with the backend-specific parts
-swapped for their tt-crank equivalents:
-
-- `setup` uses the tt-crank `DeviceManager` and shards the model *before* the
-  optimizer is built: `shard_model` replaces parameters with DTensors, and the
-  optimizer has to hold those (tt-xla annotated in place, so order did not matter).
-- The training loop is eager. No `torch_xla.sync()` fences, no `capturable=True`,
-  no pre-seeded grads / AdamW moments, no global `set_custom_compile_options` (compile
-  options are per `torch.compile` call; strategies read
-  `self.device_manager.compile_options()`).
-- `step_loss` is a host-side scalar so callbacks can keep calling `.item()` on
-  `window_loss` (under data parallelism the device loss is a `Partial` DTensor, which
-  `loss_to_float` reduces).
-"""
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager

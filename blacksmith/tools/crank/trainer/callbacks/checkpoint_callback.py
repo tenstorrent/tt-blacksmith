@@ -7,8 +7,7 @@ from blacksmith.tools.crank.trainer.callback import Callback
 
 class CheckpointCallback(Callback):
     """
-    Default checkpointing callback for the `Trainer`, backed by the tt-crank
-    `CheckpointManager` (host-side, DTensor-gathered saves).
+    Default checkpointing callback for the `Trainer`.
     """
 
     def __init__(self):

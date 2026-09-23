@@ -1,14 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""HuggingFace causal-LM loader for the tt-crank scripts.
-
-Copy of `blacksmith.models.torch.huggingface.hf_models` without the tt-xla parts: no
-`tt_torch.apply_weight_dtype_overrides` (tt-crank has the compiler-wide
-`experimental_weight_dtype` instead, see `DeviceManager.compile_options`) and no
-`torch.compile(model, backend="tt", options=<tt-xla options>)`. The tt-crank scripts compile
-forward + loss as one callable themselves, so the model is returned eager, on `device`.
-"""
 import warnings
 
 import torch

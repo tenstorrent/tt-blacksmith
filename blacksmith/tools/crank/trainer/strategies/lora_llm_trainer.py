@@ -1,14 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank `LoraLLMTrainer`.
-
-Copy of `blacksmith.tools.trainer.strategies.lora_llm_trainer` for tt-crank: forward + loss
-are compiled as one callable with per-call tt-crank options (no global tt-xla
-`TT_COMPILE_OPTIONS`), and validation goes through that same compiled callable -- an eager
-loss over the logits is wrong on a mesh (see the llama `train_crank.py`), and on a single
-chip the numbers are identical.
-"""
 from typing import Any
 
 import torch
@@ -48,8 +40,7 @@ class LoraLLMTrainer(Trainer):
         self.eval_model = model
         self._compute_loss_fn = compute_causal_lm_loss
         if self.config.use_tt:
-            # dynamic=False: tt-crank cannot lower symbolic shapes, so never let dynamo
-            # generalize a recompile into SymInts.
+            # dynamic=False: tt-crank cannot lower symbolic shapes.
             self._compute_loss_fn = torch.compile(
                 compute_causal_lm_loss,
                 backend="tt",

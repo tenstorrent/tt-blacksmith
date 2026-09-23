@@ -1,23 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Tensor helpers for the tt-crank scripts.
-
-`to_host` / `loss_to_float` are tt-crank specific (DTensor gathering). The rest are copies
-of the helpers the tt-crank ports use from `blacksmith.tools.torch_helpers`; they are
-duplicated here so the tt-crank tree does not import tt-xla code.
-"""
 import torch
 from torch.distributed.tensor import DTensor
 
 
 def to_host(obj):
-    """Recursively move tensors in a (nested) container to CPU, gathering DTensor shards.
-
-    tt-crank tensors cannot be serialized in place (`torch.save` tries to rebind a
-    `tt` storage to a CPU tensor), and a sharded DTensor has to be gathered first
-    so a checkpoint is always the unsharded, host-side view.
-    """
+    """Move tensors in a (nested) container to CPU, gathering DTensor shards."""
     if isinstance(obj, DTensor):
         return obj.full_tensor().cpu()
     if isinstance(obj, torch.Tensor):
@@ -30,13 +19,7 @@ def to_host(obj):
 
 
 def loss_to_float(loss: torch.Tensor) -> float:
-    """Pull a loss value to host as a plain float.
-
-    Under data parallelism the loss reduces over the sharded batch dim, so it
-    comes back as a `Partial` DTensor -- each chip holds a piece of the sum.
-    `full_tensor()` fires the all-reduce that makes it the real value;
-    `.item()` alone would silently report one chip's partial.
-    """
+    """Pull a loss to host as a float, reducing a `Partial` DTensor first."""
     if isinstance(loss, DTensor):
         loss = loss.full_tensor()
     return float(loss.detach().cpu())

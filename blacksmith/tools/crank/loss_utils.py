@@ -1,14 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Loss and label helpers for the tt-crank scripts.
-
-Copies of `cross_entropy_loss` / `transform_labels` from `blacksmith.tools.workaround_utils`
-(the tt-xla module). The one-hot + masked log-softmax formulation avoids
-`F.cross_entropy(ignore_index=...)`, which does not lower; the rest of that module
-(AdamW / grad pre-materialization, capturable repair) is tt-xla lazy-graph machinery
-that tt-crank does not need.
-"""
 import torch
 import torch.nn.functional as F
 

@@ -1,14 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""tt-crank `CheckpointManager`.
-
-Copy of `blacksmith.tools.checkpoints_manager` (the tt-xla one) with two changes: model and
-optimizer state are copied to the host before `torch.save` (a `tt` tensor cannot be pickled in
-place, and under tensor parallelism the parameters are DTensor shards that have to be gathered),
-and there is no `restore_capturable_optimizer_state` after loading (that repaired the tt-xla
-capturable AdamW; tt-crank is eager and never sets `capturable`).
-"""
 import json
 import logging
 import os
@@ -149,8 +141,7 @@ class CheckpointManager:
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
-        # Host-side, gathered copies: `tt` storage cannot be pickled and DTensor shards
-        # must be assembled so the checkpoint is always the unsharded view.
+        # Copy state to host (gathers DTensor shards); `tt` tensors cannot be pickled in place.
         trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
         state_dict = to_host({name: v for name, v in model.state_dict().items() if name in trainable_names})
 

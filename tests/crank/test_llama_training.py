@@ -1,13 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Smoke tests for the tt-crank Llama experiments (`llama/crank/train.py`, same YAMLs as tt-xla).
-
-Each runs the experiment script for a handful of steps (the PYTEST_CURRENT_TEST
-defaults in blacksmith/tools/cli.py cap it) and asserts the training loss
-actually came down. Deliberately not golden-file based: the tt-crank numerics
-are not frozen yet.
-"""
 import subprocess
 import sys
 from pathlib import Path
