@@ -3,10 +3,10 @@
 Optimized ML training recipes for Tenstorrent hardware using TT-Forge compiler stack.
 
 ## Project Structure
-- `blacksmith_deprecated/models/` - Model implementations (vision, LLMs, NLP)
-- `blacksmith_deprecated/datasets/` - Dataset loaders and preprocessing
-- `blacksmith_deprecated/tools/` - Utilities (DeviceManager, TrainingLogger, CheckpointManager)
-- `blacksmith_deprecated/experiments/` - Training scripts for various models; most of the work happens here
+- `blacksmith_xla/models/` - Model implementations (vision, LLMs, NLP)
+- `blacksmith_xla/datasets/` - Dataset loaders and preprocessing
+- `blacksmith_xla/tools/` - Utilities (DeviceManager, TrainingLogger, CheckpointManager)
+- `blacksmith_xla/experiments/` - Training scripts for various models; most of the work happens here
 
 ## Setup & Commands
 ```bash
@@ -19,9 +19,9 @@ pre-commit run --all-files   # Lint code before commits
 - Follow `docs/src/coding-guidelines.md` for code style
 - Keep the `docs/src/experiments.md` table up to date
 - The `README.md` files in each experiment folder should reflect the actual config used
-- Prefer using the same structure and patterns as in `blacksmith_deprecated/models/`, `blacksmith_deprecated/experiments/`, and `blacksmith_deprecated/datasets/`
+- Prefer using the same structure and patterns as in `blacksmith_xla/models/`, `blacksmith_xla/experiments/`, and `blacksmith_xla/datasets/`
 - Prefer editing existing files over creating new ones
-- Use shared tools from `blacksmith_deprecated/tools/` when possible
+- Use shared tools from `blacksmith_xla/tools/` when possible
 
 ## Debugging
 For debugging use following environment variables:

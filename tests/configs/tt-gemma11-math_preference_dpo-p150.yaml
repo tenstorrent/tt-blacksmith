@@ -1,5 +1,5 @@
 # CI overrides for the Gemma 1.1 2B DPO experiment
-# (base config: blacksmith_deprecated/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml).
+# (base config: blacksmith_xla/experiments/torch/gemma11/dpo/single_chip/gemma11_math_preferences_dpo.yaml).
 # Runs a single bounded epoch so the run is fast and deterministic for golden-file comparison.
 num_epochs: 1
 use_wandb: False
