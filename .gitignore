@@ -2,7 +2,7 @@ data/
 generated_modules/
 **/__pycache__/
 *.egg-info/
-blacksmith/**/checkpoints/
+blacksmith_deprecated/**/checkpoints/
 wandb/
 results/
 logs/
@@ -22,8 +22,8 @@ env/*
 !env/crank_requirements.txt
 
 # Local custom datasets
-blacksmith/datasets/torch/custom/*.json
-blacksmith/datasets/torch/custom/*.jsonl
+blacksmith_deprecated/datasets/torch/custom/*.json
+blacksmith_deprecated/datasets/torch/custom/*.jsonl
 
 # tt-metal's on-disk kernel binary cache, written next to the run
 .data/
