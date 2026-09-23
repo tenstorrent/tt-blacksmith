@@ -1,0 +1,47 @@
+--extra-index-url https://pypi.eng.aws.tenstorrent.com
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Experiment dependencies for running on tt-crank.
+#
+# tt-crank is installed FIRST (see install_tt_crank in env/activate) and its
+# wheel metadata carries the pins this file has to live under:
+#
+#     torch@<cpu wheel URL>  click==8.1.7  pandas==2.3.3
+#     pydantic==2.9.2        numpy>=1.24.4,<2  pyyaml>=5.4
+#     loguru==0.6.0          seaborn==0.13.2   networkx==3.1
+#     graphviz               websockets==16.0
+#
+# Those are deliberately NOT restated here -- one source of truth, in
+# tt-crank/requirements.txt. This file adds only what the experiments need on
+# top, pinned so the resolver never has to move one of the pins above.
+# Keep `pip check` clean after changing anything here.
+
+# tt-crank itself. Once tt-mlir CI publishes the wheel, pin it here exactly the
+# way xla_requirements.txt pins pjrt-plugin-tt and drop the local build path.
+# Until then `env/activate --crank` builds it from a local tt-mlir checkout --
+# point TT_MLIR_HOME at one.
+# tt-crank==0.1.0
+
+# Matches tt-crank/requirements-dev.txt, which tracks transformers 5.x. (The
+# tt-xla env's 4.57.1 pin is unrelated and does not apply here.)
+transformers==5.12.1
+
+# Upper-bounded by tt-crank's click==8.1.7:
+#   huggingface-hub >= 1.17 requires click>=8.4.2; 1.16.1 has no click
+#     dependency at all, and is >= the 1.5.0 transformers 5.12.1 asks for.
+#   wandb >= 0.27 requires click>=8.2.0; 0.26.1 asks for click>=8.0.1.
+# Raise both as soon as tt-crank's click pin moves -- they are held back by
+# that pin, not by anything in blacksmith.
+huggingface-hub==1.16.1
+wandb==0.26.1
+
+peft
+datasets
+tqdm
+pytest
+
+# NOTE: no torchvision here. It must match torch exactly (a mismatched build
+# fails at import with "operator torchvision::nms does not exist"), and tt-crank
+# pins torch by direct URL to the CPU wheel. Nothing in these experiments needs
+# it; if a vision experiment is added, pin the matching CPU torchvision wheel by
+# URL the way tt-crank/requirements-dev.txt does.
