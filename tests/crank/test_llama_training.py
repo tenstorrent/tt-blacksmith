@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from blacksmith.tools.logging_manager import TEST_LOGS_DIR
+from blacksmith.tools.crank.logging_manager import TEST_LOGS_DIR
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TRAIN_SCRIPT = REPO_ROOT / "blacksmith/experiments/torch/llama/crank/train.py"

@@ -8,9 +8,9 @@ from torch.utils.data import DataLoader
 
 from blacksmith.datasets.torch.dataset_utils import get_dataset
 from blacksmith.tools.crank.hf_models import get_model
-from blacksmith.tools.crank.loss_utils import cross_entropy_loss, transform_labels
 from blacksmith.tools.crank.torch_helpers import collate_fn_for_causal_lm
 from blacksmith.tools.crank.trainer.trainer import Trainer
+from blacksmith.tools.crank.workaround_utils import cross_entropy_loss, transform_labels
 
 IGNORED_INDEX = -100
 

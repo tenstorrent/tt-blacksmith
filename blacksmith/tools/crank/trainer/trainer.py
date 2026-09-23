@@ -11,13 +11,13 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from blacksmith.tools.crank.device_manager import DeviceManager
+from blacksmith.tools.crank.logging_manager import TrainingLogger
+from blacksmith.tools.crank.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.crank.torch_helpers import loss_to_float
 from blacksmith.tools.crank.trainer.callback import Callback
 from blacksmith.tools.crank.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.crank.trainer.configs.base import TrainerConfig
 from blacksmith.tools.crank.trainer.utils import normalize_callbacks
-from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 
 
 class Trainer(ABC):

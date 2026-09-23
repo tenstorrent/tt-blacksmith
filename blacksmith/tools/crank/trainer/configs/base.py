@@ -6,13 +6,13 @@ from typing import List, Optional, Tuple
 import torch
 from pydantic import BaseModel, Field, model_validator
 
-from blacksmith.tools.configs import (
+from blacksmith.tools.crank.configs import (
     CheckpointConfig,
     CustomDatasetConfig,
     LoggingConfig,
     MetricsConfig,
 )
-from blacksmith.tools.test_config import TestConfig
+from blacksmith.tools.crank.test_config import TestConfig
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,

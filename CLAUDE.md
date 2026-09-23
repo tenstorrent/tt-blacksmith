@@ -33,16 +33,18 @@ experiment at a time, inside the same tree:
   `<experiment>/crank/train.py`, maps the experiment 1:1 and reads the *same* YAMLs from `xla/`
   (including the `mesh_shape` / `model_sharding_patterns` block). Tools examples that have no
   framework subdirectory keep a `train_crank.py` next to `train.py`.
-- `blacksmith/tools/crank/` imports no tt-xla code. Whatever a tt-crank script needs from the
-  tt-xla tools is a *copy* there with the tt-xla parts stripped (`checkpoints_manager`,
-  `hf_models`, `loss_utils`, `torch_helpers`, the whole `trainer/` pipeline incl. configs),
-  plus the tt-crank-only `DeviceManager`. Duplication is deliberate: tt-xla is being
-  deprecated, so tt-crank must not depend on it. Backend-neutral infrastructure with no
-  tt-xla code in it (datasets, logger, CLI, reproducibility, `tools/configs.py`) stays shared,
-  and where it needs a trainer config it imports the tt-crank one
-  (`blacksmith.tools.crank.trainer.configs`), never `blacksmith.tools.trainer`: that package's
-  `__init__` pulls in `torch_xla`. Never add `try: import torch_xla` guards to tt-xla modules
-  to make them importable from tt-crank -- copy instead.
+- `blacksmith/tools/crank/` is a self-contained edition of `blacksmith/tools/`: every module a
+  tt-crank script needs is a *copy* there under the same name (`cli`, `configs`, `logging_manager`,
+  `reproducibility_manager`, `test_config`, `storage_backends`, `templates/configs`,
+  `checkpoints_manager`, `hf_models`, `torch_helpers`, `workaround_utils`, the whole `trainer/`
+  pipeline incl. configs), with tt-xla parts stripped, plus the tt-crank-only `DeviceManager`.
+  Likewise `experiments/torch/llama/crank/configs.py` beside `llama/configs.py`. Duplication is
+  deliberate: tt-xla is being deprecated, so tt-crank code imports only `blacksmith.tools.crank.*`
+  (and `blacksmith.datasets`, still shared). Keep the tt-xla file names; do not rename copies.
+  Never add `try: import torch_xla` guards to tt-xla modules to make them importable from
+  tt-crank -- copy instead. `datasets/torch/custom/custom_llm_dataset.py` imports its
+  `TrainerConfig` from `blacksmith.tools.crank.trainer.configs`, never `blacksmith.tools.trainer`:
+  that package's `__init__` pulls in `torch_xla`.
 - `env/activate --crank` installs a pinned `tt-crank` wheel from pypi.eng.aws.tenstorrent.com.
   Until that wheel is published, point at a local tt-mlir checkout and it is built once into
   `env/wheels/`: `TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank`.

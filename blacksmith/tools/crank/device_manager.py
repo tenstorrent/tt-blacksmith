@@ -20,7 +20,7 @@ from torch.distributed.tensor import (
     distribute_tensor,
 )
 
-from blacksmith.tools.templates.configs import TrainingConfig
+from blacksmith.tools.crank.templates.configs import TrainingConfig
 
 
 def tt_compile_options(config) -> dict:
