@@ -13,10 +13,10 @@ case $1 in
     --gpu) EXPERIMENT_TYPE=2 ;;
     --crank) EXPERIMENT_TYPE=3 ;;
     "")
-        # No argument provided, default to TT-XLA
+        # No argument provided, default to TT-Crank
         echo "No type of experiment was specified, possible options are: TT-Crank (--crank), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
-        echo "Defaulting to TT-XLA (--xla)"
-        EXPERIMENT_TYPE=1
+        echo "Defaulting to TT-Crank (--crank)"
+        EXPERIMENT_TYPE=3
         ;;
     *) echo "Unknown parameter passed: $1"; return 1 ;;
 esac
