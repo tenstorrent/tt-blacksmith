@@ -17,9 +17,8 @@
 # Keep `pip check` clean after changing anything here.
 
 # tt-crank itself. Once tt-mlir CI publishes the wheel, pin it here exactly the
-# way xla_requirements.txt pins pjrt-plugin-tt and drop the local build path.
-# Until then `env/activate --crank` builds it from a local tt-mlir checkout --
-# point TT_MLIR_HOME at one.
+# way xla_requirements.txt pins pjrt-plugin-tt. Until then `env/activate --crank`
+# uses it from a local tt-mlir checkout's source tree -- point TT_MLIR_HOME at one.
 # tt-crank==0.1.0
 
 # Matches tt-crank/requirements-dev.txt, which tracks transformers 5.x. (The
