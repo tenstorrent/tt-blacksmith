@@ -25,8 +25,5 @@ env/*
 blacksmith/datasets/torch/custom/*.json
 blacksmith/datasets/torch/custom/*.jsonl
 
-# tt-crank wheels built locally by scripts/build_crank_wheel.sh
-env/wheels/
-
 # tt-metal's on-disk kernel binary cache, written next to the run
 .data/
