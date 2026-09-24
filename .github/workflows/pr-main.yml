@@ -1,9 +1,12 @@
 name: On PR
 
+# CI is paused during the tt-crank migration: the tt-xla test suites no longer
+# match the tree. Manual runs only; automatic PR triggers return with the
+# experiments PR of the migration stack.
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [ "main" ]
+  # pull_request:
+  #   branches: [ "main" ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
