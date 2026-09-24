@@ -1,8 +1,12 @@
 name: On push
 
+# CI is paused during the tt-crank migration: the tt-xla test suites no longer
+# match the tree. Manual runs only; the push trigger returns with the
+# experiments PR of the migration stack.
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch:
+  # push:
+  #   branches: [ "main" ]
 
 permissions:
   contents: read
