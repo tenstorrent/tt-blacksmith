@@ -230,7 +230,19 @@ def train(
     obs_shape = envs.single_observation_space.shape
 
     agent = BreakoutCNN(num_actions, config.frame_stack).to(device)
-    optimizer = torch.optim.Adam(agent.parameters(), lr=config.learning_rate, eps=1e-5, capturable=config.use_tt)
+    # On the TT (torch_xla) path, a Python-float lr is baked into the traced
+    # optimizer step as a compile-time constant: every lr change re-traces and
+    # recompiles, and each compiled executable's host-side metadata stays
+    # resident for the life of the process. With anneal_lr enabled that is one
+    # new compilation per update, which shows up as a linear host-memory leak
+    # (issue #609). A 0-dim device tensor keeps the graph shape stable; Adam
+    # already runs with capturable=True on this path, which is what supports
+    # tensor lrs in the first place.
+    if config.use_tt:
+        initial_lr = torch.tensor(config.learning_rate, device=device)
+    else:
+        initial_lr = config.learning_rate
+    optimizer = torch.optim.Adam(agent.parameters(), lr=initial_lr, eps=1e-5, capturable=config.use_tt)
 
     logger.info(f"Model parameters: {sum(p.numel() for p in agent.parameters())}")
 
@@ -255,10 +267,16 @@ def train(
 
     try:
         for update in range(start_update, config.num_updates + 1):
-            # Anneal learning rate.
+            # Anneal learning rate. On TT, update the lr tensor in place so the
+            # traced graph (and its compilation) is reused instead of rebuilt
+            # every update.
             if config.anneal_lr:
                 frac = 1.0 - (update - 1) / config.num_updates
-                optimizer.param_groups[0]["lr"] = config.learning_rate * frac
+                new_lr = config.learning_rate * frac
+                if config.use_tt:
+                    optimizer.param_groups[0]["lr"].copy_(new_lr)
+                else:
+                    optimizer.param_groups[0]["lr"] = new_lr
 
             # Collect rollout.
             obs, done, global_step = collect_rollout(
