@@ -51,7 +51,16 @@ class JaxDeviceManager:
         if not self.config.use_tt:
             return
 
-        os.environ.setdefault("PJRT_DEVICE", "TT")
+        # `PJRT_DEVICE` must be "TT" when `use_tt` is set. With `setdefault` a stale value
+        # (e.g. "CUDA", exported by `env/activate --gpu`) silently leaked through to TT-XLA,
+        # so overwrite it and say so instead.
+        pjrt_device = os.environ.get("PJRT_DEVICE")
+        if pjrt_device is not None and pjrt_device != "TT":
+            logger.warning(
+                f"PJRT_DEVICE is set to {pjrt_device!r} but config.use_tt is True, "
+                "which requires PJRT_DEVICE='TT'; overriding it."
+            )
+        os.environ["PJRT_DEVICE"] = "TT"
         os.environ.setdefault("XLA_STABLEHLO_COMPILE", "1")
 
         if getattr(self.config, "num_devices", 1) > 1:
