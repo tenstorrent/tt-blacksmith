@@ -42,6 +42,7 @@ class CustomLLMDataset(BaseDataset):
             template=self.template,
             column_mapping=self.column_mapping,
         )
+        full_text = full_text + self.tokenizer.eos_token
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
 
         input_ids = encoding["input_ids"].squeeze(0)
