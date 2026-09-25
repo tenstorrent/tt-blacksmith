@@ -1,0 +1,43 @@
+# CPU side of the CPU/TT backend-parity pair. Keep execution-affecting fields
+# matched with graphsage_reddit_tt.yaml; only device and run metadata may differ.
+
+# Dataset
+dataset_id: "Reddit"
+dataset_root: "/tmp/Reddit"
+
+# Model
+model_name: "GraphSAGE"
+hidden_channels: 256
+dropout: 0.0
+use_spmm: true
+
+# Training (matched to the TT run for backend parity)
+learning_rate: 0.001
+weight_decay: 5.0e-4
+batch_size: 32
+num_epochs: 5
+num_neighbors: [5, 3]
+val_batch_size: 32
+static_shapes: true
+
+# Logging
+steps_freq: 50
+use_wandb: false
+wandb_project: "graphsage-reddit"
+wandb_run_name: "graphsage-reddit-spmm-cpu"
+wandb_tags: ["graphsage", "reddit", "cpu", "spmm", "parity"]
+
+# Checkpoint
+checkpoint_metric: "val/acc"
+checkpoint_metric_mode: "max"
+epoch_freq: 1
+keep_last_n: 2
+keep_best_n: 2
+project_dir: "blacksmith/experiments/torch/BOUNTIES/graphsage_reddit/runs/matched_cpu"
+
+# Reproducibility
+seed: 42
+deterministic: true
+
+# Device
+use_tt: false
