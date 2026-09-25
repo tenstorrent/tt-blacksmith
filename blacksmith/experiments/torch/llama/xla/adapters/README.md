@@ -72,6 +72,7 @@ Current `llama_3_2_1b_sst2.yaml` has the recommended and tested hyperparameters 
 | `steps_freq`                  | Frequency (in steps) for performing periodic actions.  | 25                                  |
 | `val_steps_freq`              | Frequency (in steps) for performing validation actions.| 25                                  |
 | `epoch_freq`                  | Frequency (in epochs) for performing periodic actions. | 1                                   |
+| `log_mfu`                     | Log MFU/HFU per step (needs `measure_e2e_time`).       | False                               |
 | `resume_from_checkpoint`      | Whether to resume training from a previous checkpoint. | False                               |
 | `resume_option`               | Resume method (`last`, `best`, or `path`).             | "last"                              |
 | `checkpoint_path`             | Path to a checkpoint if `resume_option="path"`.        | ""                                  |
@@ -89,4 +90,5 @@ Current `llama_3_2_1b_sst2.yaml` has the recommended and tested hyperparameters 
 | `adapter_layers`              | List of layers to apply adapters to. If [], then all.  | []                                  |
 | `framework`                   | Training framework.                                    | "pytorch"                           |
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
+| `optimization_level`          | tt-xla optimizer passes (0 off, 2 most aggressive).    | 0                                   |
 | `parallelism`                 | Parallelism strategy (`single`, `data`, `tensor`).     | "single"                            |

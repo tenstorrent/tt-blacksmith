@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from blacksmith.tools.templates.configs import TrainingConfig as BaseTrainingConfig
 from blacksmith.tools.test_config import TestConfig
@@ -48,6 +48,10 @@ class TrainingConfig(BaseTrainingConfig):
     val_steps_freq: int = Field(default=25)
     epoch_freq: int = Field(default=1)
     measure_e2e_time: bool = Field(default=False)
+    # Log MFU/HFU per optimizer step. Requires use_tt (the numbers come from tt-mlir's
+    # FLOP report) and measure_e2e_time (which supplies the step time); see
+    # blacksmith/tools/performance_utils.py.
+    log_mfu: bool = Field(default=False)
 
     # Checkpoint settings
     resume_from_checkpoint: bool = Field(default=False)
@@ -105,3 +109,12 @@ class TrainingConfig(BaseTrainingConfig):
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
     optimization_level: int = Field(default=0, ge=0, le=2)
     enable_const_eval: bool = Field(default=True)
+    optimization_level: int = Field(default=0, ge=0, le=2)  # tt-xla optimizer passes: 0 off, 2 most aggressive
+
+    @model_validator(mode="after")
+    def _validate_mfu_logging(self):
+        """MFU needs both of its inputs: tt-mlir's FLOP report (tt-xla backend only) and the
+        measured step time. Fail loudly rather than silently logging nothing."""
+        if self.log_mfu and not (self.use_tt and self.measure_e2e_time):
+            raise ValueError("log_mfu requires use_tt and measure_e2e_time to both be set.")
+        return self

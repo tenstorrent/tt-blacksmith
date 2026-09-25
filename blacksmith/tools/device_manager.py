@@ -88,6 +88,12 @@ class DeviceManager:
             axis_names=tuple(self.config.mesh_axis_names),
         )
 
+    @property
+    def num_chips(self) -> int:
+        """Number of chips this run executes on: the mesh size, or 1 without a mesh."""
+        # Mesh.size() is np.prod(mesh_shape), so it comes back as a numpy integer.
+        return int(self.mesh.size()) if self.mesh is not None else 1
+
     def is_data_parallel(self) -> bool:
         """Check if data parallelism is enabled based on mesh configuration."""
 
