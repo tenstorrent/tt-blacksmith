@@ -1,0 +1,8 @@
+# CI overrides for the tt-crank Trainer smoke test (tests/crank/test_llama_training.py).
+# Base config: blacksmith/tools/trainer/examples/lora_llm/**/*.yaml, run through train_crank.py.
+metrics:
+  steps_freq: 1
+logging:
+  use_wandb: false
+checkpoint:
+  resume_from_checkpoint: false

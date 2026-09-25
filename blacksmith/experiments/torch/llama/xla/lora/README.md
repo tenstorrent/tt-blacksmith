@@ -257,3 +257,19 @@ Current `llama_fine_tuning_pure_torch_sst2.yaml` has the recommended and tested 
 | `use_tt`                      | Whether to run on TT device (or GPU otherwise).        | True                                |
 | `mesh_shape`                  | Mesh shape for distributed training.                   | None                                |
 | `mesh_axis_names`             | Axis names for the mesh.                               | None                                |
+
+## Running on tt-crank
+
+`blacksmith/experiments/torch/llama/crank/train.py` is the tt-crank port of this experiment. It reads the
+same YAMLs, single chip and multichip alike:
+
+```bash
+source env/activate --crank
+python blacksmith/experiments/torch/llama/crank/train.py \
+    --config blacksmith/experiments/torch/llama/xla/lora/single_chip/llama_3_2_1b_sst2.yaml
+```
+
+The `mesh_shape` / `mesh_axis_names` / `input_sharding_dim` / `model_sharding_patterns` block is honoured as is:
+`blacksmith/tools/crank/device_manager.py` turns each partition spec into torch DTensor placements over
+`torch.tt.init_device_mesh`. Not supported on tt-crank yet: an `fsdp` mesh axis (parameters are replicated
+instead) and `weight_dtype_overrides` (use `experimental_weight_dtype`).

@@ -10,7 +10,7 @@ from blacksmith.datasets.torch.custom.custom_dataset_utils import (
     resolve_column_mapping,
 )
 from blacksmith.datasets.torch.torch_dataset import BaseDataset
-from blacksmith.tools.trainer.configs import TrainerConfig
+from blacksmith.tools.crank.trainer.configs import TrainerConfig
 from datasets import load_dataset
 
 

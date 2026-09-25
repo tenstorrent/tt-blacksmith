@@ -11,6 +11,7 @@ Optimized ML training recipes for Tenstorrent hardware using TT-Forge compiler s
 ## Setup & Commands
 ```bash
 source env/activate --xla    # Activate environment (required before ANY work)
+source env/activate --crank  # ... or the tt-crank environment, for the crank/ ports
 pre-commit install           # Install git hooks for linting
 pre-commit run --all-files   # Lint code before commits
 ```
@@ -23,7 +24,43 @@ pre-commit run --all-files   # Lint code before commits
 - Prefer editing existing files over creating new ones
 - Use shared tools from `blacksmith/tools/` when possible
 
-## Debugging
+## tt-crank ports
+
+The repo is migrating from tt-xla to **tt-crank** (the PyTorch frontend in `tt-mlir`), one
+experiment at a time, inside the same tree:
+
+- Every experiment keeps its tt-xla `xla/` tree. The tt-crank port lives beside it as
+  `<experiment>/crank/train.py`, maps the experiment 1:1 and reads the *same* YAMLs from `xla/`
+  (including the `mesh_shape` / `model_sharding_patterns` block). Tools examples that have no
+  framework subdirectory keep a `train_crank.py` next to `train.py`.
+- `blacksmith/tools/crank/` is a self-contained edition of `blacksmith/tools/`: every module a
+  tt-crank script needs is a *copy* there under the same name (`cli`, `configs`, `logging_manager`,
+  `reproducibility_manager`, `test_config`, `storage_backends`, `templates/configs`,
+  `checkpoints_manager`, `hf_models`, `torch_helpers`, `workaround_utils`, the whole `trainer/`
+  pipeline incl. configs), with tt-xla parts stripped, plus the tt-crank-only `DeviceManager`.
+  Likewise `experiments/torch/llama/crank/configs.py` beside `llama/configs.py`. Duplication is
+  deliberate: tt-xla is being deprecated, so tt-crank code imports only `blacksmith.tools.crank.*`
+  (and `blacksmith.datasets`, still shared). Keep the tt-xla file names; do not rename copies.
+  Never add `try: import torch_xla` guards to tt-xla modules to make them importable from
+  tt-crank -- copy instead. `datasets/torch/custom/custom_llm_dataset.py` imports its
+  `TrainerConfig` from `blacksmith.tools.crank.trainer.configs`, never `blacksmith.tools.trainer`:
+  that package's `__init__` pulls in `torch_xla`.
+- `env/activate --crank` installs a pinned `tt-crank` wheel from pypi.eng.aws.tenstorrent.com.
+  Until that wheel is published, point at a local tt-mlir checkout and it is built once into
+  `env/wheels/`: `TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank`.
+- tt-crank notes: `import tt_crank.torch` registers the `tt` device, dynamo backend and c10d
+  backend (no `PJRT_DEVICE` / `XLA_*` setup). Execution is eager: no `torch_xla.sync()`, none
+  of the lazy-graph workarounds (grad / AdamW-state pre-materialization, `capturable=True`).
+  Compile options are per `torch.compile(fn, backend="tt", options=...)` call, see
+  `DeviceManager.compile_options()`. Multichip is torch DTensor over
+  `torch.tt.init_device_mesh(...)`; the chips are one logical device (`torch.tt.num_chips()`).
+- Ported so far: Llama LoRA (`blacksmith/experiments/torch/llama/crank/train.py`) and the
+  Trainer pipeline (`blacksmith/tools/crank/trainer/`: `Trainer`, `LoraLLMTrainer`,
+  `MetricsCallback` / `CheckpointCallback`, `TrainerConfig` / `LoraLLMConfig`; entry point
+  `tools/trainer/examples/lora_llm/train_crank.py`). Smoke tests in `tests/crank/`.
+  Not ported: FSDP, `SFTLLMTrainer`.
+
+## Debugging (tt-xla)
 For debugging use following environment variables:
 - TTXLA_LOGGER_LEVEL: DEBUG or VERBOSE.
 
