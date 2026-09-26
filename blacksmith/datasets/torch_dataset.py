@@ -5,8 +5,9 @@ from abc import ABC, abstractmethod
 from itertools import islice
 from typing import Dict, Union
 
-from blacksmith.configs import TrainingConfig
 from torch.utils.data import DataLoader, Dataset
+
+from blacksmith.configs import TrainingConfig
 
 
 class TestDataLoaderWrapper:
