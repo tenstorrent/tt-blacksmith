@@ -2,12 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-from blacksmith.configs import TrainingConfig
-from blacksmith.datasets.torch_dataset import BaseDataset
+from datasets import load_dataset
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from datasets import load_dataset
+from blacksmith.configs import TrainingConfig
+from blacksmith.datasets.torch_dataset import BaseDataset
 
 DATASET_PATH = "tanganke/stanford_cars"
 

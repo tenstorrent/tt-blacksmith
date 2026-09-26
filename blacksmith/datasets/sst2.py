@@ -1,6 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer, DataCollatorForSeq2Seq
+
 from blacksmith.configs import TrainingConfig
 from blacksmith.datasets.sst2_utils import (
     DATASET_BENCHMARK,
@@ -10,10 +14,6 @@ from blacksmith.datasets.sst2_utils import (
     RESPONSE_TEMPLATE,
 )
 from blacksmith.datasets.torch_dataset import BaseDataset
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, DataCollatorForSeq2Seq
-
-from datasets import load_dataset
 
 
 class SSTDataset(BaseDataset):

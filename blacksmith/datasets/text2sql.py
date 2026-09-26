@@ -5,12 +5,12 @@ import logging
 from string import Template
 from typing import Dict
 
-from blacksmith.configs import TrainingConfig
-from blacksmith.datasets.torch_dataset import BaseDataset
+from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from datasets import load_dataset
+from blacksmith.configs import TrainingConfig
+from blacksmith.datasets.torch_dataset import BaseDataset
 
 PROMPT_TEMPLATE = Template(
     """### Instruction:\n

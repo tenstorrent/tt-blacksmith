@@ -1,8 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from blacksmith.configs.trainer import TrainerConfig
 from pydantic import Field
+
+from blacksmith.configs.trainer import TrainerConfig
 
 
 class LoraLLMConfig(TrainerConfig):

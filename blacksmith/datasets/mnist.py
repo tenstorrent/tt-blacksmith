@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
-from blacksmith.configs import TrainingConfig
-from blacksmith.datasets.torch_dataset import BaseDataset
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
+
+from blacksmith.configs import TrainingConfig
+from blacksmith.datasets.torch_dataset import BaseDataset
 
 # Constants for MNIST
 MEAN = 0.1307
