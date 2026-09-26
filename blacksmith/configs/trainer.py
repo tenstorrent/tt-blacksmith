@@ -4,12 +4,13 @@
 from typing import List, Optional, Tuple
 
 import torch
+from pydantic import BaseModel, Field, model_validator
+
 from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
 from blacksmith.configs.logging import LoggingConfig
 from blacksmith.configs.metrics import MetricsConfig
 from blacksmith.configs.test import TestConfig
-from pydantic import BaseModel, Field, model_validator
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,

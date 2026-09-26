@@ -6,6 +6,10 @@ GSM8K dataset for GRPO training.
 """
 from typing import Dict, List
 
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+from transformers import AutoTokenizer
+
 from blacksmith.datasets.gsm8k_utils import (
     DATASET_CONFIG,
     DATASET_PATH,
@@ -13,10 +17,6 @@ from blacksmith.datasets.gsm8k_utils import (
     extract_gsm8k_gold,
 )
 from blacksmith.datasets.torch_dataset import BaseDataset
-from torch.utils.data import DataLoader
-from transformers import AutoTokenizer
-
-from datasets import load_dataset
 
 
 class GSM8KDataset(BaseDataset):
