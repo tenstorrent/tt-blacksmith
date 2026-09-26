@@ -73,6 +73,11 @@ class TrainerConfig(BaseModel):
     # Compile options (see DeviceManager.compile_options).
     optimization_level: int = Field(default=1, ge=0, le=2)
     enable_const_eval: bool = Field(default=False)
+    fp32_dest_acc_en: bool = Field(default=True)
+    math_fidelity: str = Field(default="HiFi4")  # [LoFi, HiFi2, HiFi3, HiFi4]
+    enable_trace: bool = Field(default=False)
+    # Mixed precision: compiler-wide weight dtype, "bfp_bf8" | "bfp_bf4" | "bf16" (no override).
+    experimental_weight_dtype: Optional[str] = Field(default=None)
 
     # pytest step-limiting; set by generate_config under PYTEST_CURRENT_TEST.
     test_config: Optional[TestConfig] = Field(default=None)

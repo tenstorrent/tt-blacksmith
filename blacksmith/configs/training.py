@@ -78,7 +78,12 @@ class TrainingConfig(BaseModel):
     use_tt: bool = Field(default=True)
     enable_trace: bool = Field(default=False)
     trace_region_size: int = Field(default=1000000000, gt=0)  # DRAM region size (bytes) for runtime trace
-    enable_const_eval: bool = Field(default=True)
+
+    # Compile options (see DeviceManager.compile_options).
+    optimization_level: int = Field(default=1, ge=0, le=2)
+    enable_const_eval: bool = Field(default=False)
+    fp32_dest_acc_en: bool = Field(default=True)
+    math_fidelity: str = Field(default="HiFi4")  # [LoFi, HiFi2, HiFi3, HiFi4]
 
     def torch_dtype(self) -> torch.dtype:
         # Broader than TrainerConfig: some experiment YAMLs still use float16.
