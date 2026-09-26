@@ -1,0 +1,27 @@
+{
+  "checkpoints": [
+    {
+      "path": "blacksmith/tools/trainer/examples/lora_llm/single_chip/checkpoints/final_model.pth",
+      "name": "final_model.pth",
+      "step": 15,
+      "epoch": 0,
+      "metrics": {
+        "eval/loss": 4.21507838567098
+      },
+      "timestamp": "2026-09-26T11:31:11.880856"
+    }
+  ],
+  "best_checkpoints": [
+    {
+      "path": "blacksmith/tools/trainer/examples/lora_llm/single_chip/checkpoints/final_model.pth",
+      "name": "final_model.pth",
+      "step": 15,
+      "epoch": 0,
+      "metrics": {
+        "eval/loss": 4.21507838567098
+      },
+      "timestamp": "2026-09-26T11:31:11.880856",
+      "metric_value": 4.21507838567098
+    }
+  ]
+}
