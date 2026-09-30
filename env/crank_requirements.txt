@@ -1,0 +1,19 @@
+--extra-index-url https://pypi.eng.aws.tenstorrent.com
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# tt-crank pins torch (CPU wheel), click, pandas, pydantic and numpy itself; the
+# shared env/requirements.txt is installed alongside this file. Pin here only
+# what has to be held for tt-crank. Keep `pip check` clean.
+
+# Uncomment once the wheel is published; until then TT_MLIR_HOME (see env/activate).
+# tt-crank==0.1.0
+
+transformers==5.12.1
+
+# tt-crank's own pin, restated: in source mode tt-crank is not a pip package, so
+# pip cannot see it, and flax in the shared file would otherwise pull numpy 2.
+numpy>=1.24.4,<2
+
+# Held back by tt-crank's click==8.1.7; raise when that pin moves.
+huggingface-hub==1.16.1
+wandb==0.26.1
