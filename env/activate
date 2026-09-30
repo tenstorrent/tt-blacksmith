@@ -92,22 +92,10 @@ check_package_version() {
     return 0
 }
 
-
-# Install tt-crank into the active venv.
-#
-# Two sources, picked by env/crank_requirements.txt:
-#   * a pinned `tt-crank==<version>` line -> the wheel from
-#     pypi.eng.aws.tenstorrent.com, installed by the regular `pip install -r`
-#     below, same shape as the pjrt-plugin-tt flow for --xla. Not published yet.
-#   * otherwise TT_MLIR_HOME must point at a built tt-mlir checkout and tt-crank
-#     is used straight from its source tree: a .pth file puts
-#     $TT_MLIR_HOME/tt-crank/python on sys.path. Python edits are live; after a
-#     C++ edit rebuild in tt-mlir and run tt-crank/scripts/install-py, which is
-#     what drops the built extension into that tree (the normal tt-crank dev loop).
-#
-# Deliberately not `pip install -e`: scikit-build-core's editable build
-# reconfigures tt-mlir's build/ with this venv's Python and prefix path, which
-# breaks the tt-mlir dev build it shares the tree with.
+# Function to install tt-crank into the active venv
+# Uses the pinned wheel from env/crank_requirements.txt when present; otherwise
+# puts $TT_MLIR_HOME/tt-crank/python on sys.path via a .pth (not `pip install -e`,
+# which would reconfigure tt-mlir's build/ for this venv)
 install_tt_crank() {
     if grep -qE '^tt-crank==' env/crank_requirements.txt; then
         return 0
@@ -207,7 +195,7 @@ case $EXPERIMENT_TYPE in
         # Installing it last instead lets the resolver pick, say, a wandb that
         # needs a newer click, which then gets downgraded under it.
         install_tt_crank || return 1
-        pip install -r env/crank_requirements.txt
+        pip install -r env/crank_requirements.txt -r env/requirements.txt
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"

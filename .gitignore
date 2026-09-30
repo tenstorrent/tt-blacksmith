@@ -25,5 +25,5 @@ env/*
 blacksmith/datasets/torch/custom/*.json
 blacksmith/datasets/torch/custom/*.jsonl
 
-# tt-metal's on-disk kernel binary cache, written next to the run
+# tt-metal kernel binary cache, written next to the run by tt-crank (--crank env)
 .data/
