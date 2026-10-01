@@ -27,7 +27,10 @@ repos:
     rev: 5.13.2
     hooks:
       - id: isort
-        args: ["--profile", "black", "--src-path", "blacksmith"]
+        args: ["--profile", "black", "--project", "blacksmith"]
+        # The tt-xla tree is frozen for reference and is deleted at the end of the
+        # tt-crank migration; its import order predates this config.
+        exclude: ^blacksmith_xla/
   - repo: https://github.com/pycqa/flake8
     rev: 7.3.0
     hooks:
