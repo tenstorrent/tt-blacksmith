@@ -72,7 +72,7 @@ class AlpacaDataset(BaseDataset):
             prompt = PROMPT_TEMPLATE_NO_INPUT.substitute(instruction=instruction)
 
         response = output
-        full_text = prompt + response
+        full_text = prompt + response + self.tokenizer.eos_token
 
         encoding = self.tokenizer(full_text, truncation=False, padding=False, return_tensors="pt")
 
