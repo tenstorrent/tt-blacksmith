@@ -36,7 +36,6 @@ class TrainerConfig(BaseModel):
     learning_rate: float = Field(ge=0.0)
     batch_size: int = Field(gt=0)
     num_epochs: int = Field(gt=0)
-    optim: str
     weight_decay: float = Field(ge=0.0)
     gradient_accumulation_steps: int = Field(gt=0)
     training_model_type: str  # [lora, adapters]
@@ -59,7 +58,6 @@ class TrainerConfig(BaseModel):
         return self
 
     # Reproducibility settings
-    framework: str
     seed: int
     deterministic: bool
 
