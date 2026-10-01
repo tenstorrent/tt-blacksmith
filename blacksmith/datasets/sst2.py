@@ -5,7 +5,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.sst2_utils import (
     DATASET_BENCHMARK,
     DATASET_NAME,
@@ -17,10 +17,10 @@ from blacksmith.datasets.torch_dataset import BaseDataset
 
 
 class SSTDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: TrainingConfig
+            config: TrainerConfig
             split: Dataset split to use ("train", "validation")
             collate_fn: Collate function to use for the dataset
         """

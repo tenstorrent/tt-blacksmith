@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import MNIST as mnist_dataset
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.torch_dataset import BaseDataset
 
 # Constants for MNIST
@@ -17,7 +17,7 @@ NUM_CLASSES = 10
 
 
 class MNISTDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split="train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split="train", collate_fn=None):
         self.config = config
         self.split = split
         self.collate_fn = collate_fn

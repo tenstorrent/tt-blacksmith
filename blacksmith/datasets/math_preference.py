@@ -8,7 +8,7 @@ from datasets import Dataset, load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.math_preference_utils import (
     DATASET_PATH,
     DEFAULT_SFT_RATIO,
@@ -79,7 +79,7 @@ class MathPreferenceDataset(BaseDataset):
 
     def __init__(
         self,
-        config: TrainingConfig,
+        config: TrainerConfig,
         split: str = "train",
         collate_fn=None,
         mode: str = "dpo",

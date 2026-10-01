@@ -7,7 +7,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.torch_dataset import BaseDataset
 
 PROMPT_TEMPLATE = Template(
@@ -21,10 +21,10 @@ DATASET_PATH = "rajpurkar/squad_v2"
 
 
 class SquadV2Dataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: TrainingConfig (ensure config.dataset_id is set to "squad_v2")
+            config: TrainerConfig (ensure config.dataset_id is set to "squad_v2")
             split: Dataset split to use ("train", "validation")
             collate_fn: Collate function to use for the dataset
         """

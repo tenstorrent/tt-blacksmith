@@ -6,7 +6,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.fusechat_utils import DATASET_PATH, PROMPT_TEMPLATE
 from blacksmith.datasets.torch_dataset import BaseDataset
 
@@ -16,10 +16,10 @@ class FuseChatDataset(BaseDataset):
     # This is used to avoid reloading the dataset multiple times.
     _shared_dataset = None
 
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
-            config: TrainingConfig (ensure config.dataset_id is set to "fusechat")
+            config: TrainerConfig (ensure config.dataset_id is set to "fusechat")
             split: Dataset split to use ("train")
             collate_fn: Collate function to use for the dataset
         """

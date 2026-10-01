@@ -8,10 +8,10 @@ import torch.nn as nn
 from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 
 
-def get_model(config: TrainingConfig, device: torch.device):
+def get_model(config: TrainerConfig, device: torch.device):
     # Load a model
     load_kwargs = {
         "use_cache": False,
@@ -49,7 +49,7 @@ def get_model(config: TrainingConfig, device: torch.device):
     return model
 
 
-def _apply_lora(model, config: TrainingConfig):
+def _apply_lora(model, config: TrainerConfig):
     # When unfreeze_embeddings is enabled, use modules_to_save to also train
     # the embedding layer alongside LoRA adapters. This is needed for models
     # like Falcon3 that have limited language coverage - unfreezing embeddings
@@ -69,7 +69,7 @@ def _apply_lora(model, config: TrainingConfig):
     return get_peft_model(model, lora_config)
 
 
-def _apply_adapters(model, config: TrainingConfig):
+def _apply_adapters(model, config: TrainerConfig):
     # Freeze all layers
     for param in model.parameters():
         param.requires_grad = False
@@ -94,7 +94,7 @@ def _apply_adapters(model, config: TrainingConfig):
     return model
 
 
-def make_adapted_layer(linear, config: TrainingConfig):
+def make_adapted_layer(linear, config: TrainerConfig):
     class ResidualAdapter(nn.Module):
         def __init__(self, linear, bottleneck_dim):
             super().__init__()

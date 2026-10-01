@@ -13,7 +13,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForLanguageModeling
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.torch_dataset import BaseDataset
 
 DATASET_BENCHMARK = "wikitext"
@@ -28,7 +28,7 @@ class WikitextDataset(BaseDataset):
     for training LLMs with LoRA.
     """
 
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
 
         if self.tokenizer.pad_token is None:

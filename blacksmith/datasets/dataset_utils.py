@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from enum import Enum
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.alpaca import AlpacaDataset
 from blacksmith.datasets.banking77 import Banking77Dataset
 from blacksmith.datasets.BOUNTIES.wikitext import WikitextDataset
@@ -37,7 +37,7 @@ class AvailableDataset(Enum):
     CUSTOM = "custom"
 
 
-def get_dataset(config: TrainingConfig, split: str = "train", collate_fn=None):
+def get_dataset(config: TrainerConfig, split: str = "train", collate_fn=None):
     """Factory function to get the appropriate dataset based on the config"""
     dataset_id = config.dataset_id.lower()
 

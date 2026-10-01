@@ -6,17 +6,17 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.torch_dataset import BaseDataset
 
 DATASET_PATH = "tanganke/stanford_cars"
 
 
 class StanfordCarsDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train"):
+    def __init__(self, config: TrainerConfig, split: str = "train"):
         """
         Args:
-            config: TrainingConfig (ensure config.dataset_id is set to "stanfordcars")
+            config: TrainerConfig (ensure config.dataset_id is set to "stanfordcars")
             split: Dataset split to use
         """
         self.dtype = eval(config.dtype)

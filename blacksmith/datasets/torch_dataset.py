@@ -7,7 +7,7 @@ from typing import Dict, Union
 
 from torch.utils.data import DataLoader, Dataset
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 
 
 class TestDataLoaderWrapper:
@@ -42,7 +42,7 @@ class TestDataLoaderWrapper:
 class BaseDataset(Dataset, ABC):
     """Abstract base class for all PyTorch dataset implementations"""
 
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
             config: Training configuration

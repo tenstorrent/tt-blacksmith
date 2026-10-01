@@ -9,7 +9,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, DataCollatorForSeq2Seq
 
-from blacksmith.configs import TrainingConfig
+from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.torch_dataset import BaseDataset
 
 PROMPT_TEMPLATE = Template(
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class TextToSQLDataset(BaseDataset):
-    def __init__(self, config: TrainingConfig, split: str = "train", collate_fn=None):
+    def __init__(self, config: TrainerConfig, split: str = "train", collate_fn=None):
         """
         Args:
             config: Training configuration
