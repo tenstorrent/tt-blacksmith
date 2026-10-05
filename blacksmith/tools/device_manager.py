@@ -24,17 +24,18 @@ from blacksmith.configs.trainer import TrainerConfig
 
 
 def tt_compile_options(config) -> dict:
-    """tt-crank options for `torch.compile(fn, backend="tt", options=...)`."""
+    """tt-crank options for `torch.compile(fn, backend="tt", options=...)`, from `config.compile`."""
     from tt_crank.torch._compile import BfpDtype, CompileOption, MathFidelity
 
+    compile_config = config.compile
     options = {
-        CompileOption.FP32_DEST_ACC_EN: config.fp32_dest_acc_en,
-        CompileOption.MATH_FIDELITY: getattr(MathFidelity, config.math_fidelity),
-        CompileOption.OPT_LEVEL: config.optimization_level,
-        CompileOption.ENABLE_CONST_EVAL: config.enable_const_eval,
-        CompileOption.ENABLE_TRACE: config.enable_trace,
+        CompileOption.FP32_DEST_ACC_EN: compile_config.fp32_dest_acc_en,
+        CompileOption.MATH_FIDELITY: getattr(MathFidelity, compile_config.math_fidelity),
+        CompileOption.OPT_LEVEL: compile_config.optimization_level,
+        CompileOption.ENABLE_CONST_EVAL: compile_config.enable_const_eval,
+        CompileOption.ENABLE_TRACE: compile_config.enable_trace,
     }
-    weight_dtype = config.experimental_weight_dtype
+    weight_dtype = compile_config.experimental_weight_dtype
     if weight_dtype and weight_dtype != "bf16":
         bfp = {"bfp_bf8": "BfpBf8", "bfp_bf4": "BfpBf4"}.get(weight_dtype.lower(), weight_dtype)
         options[CompileOption.EXPERIMENTAL_WEIGHT_DTYPE] = getattr(BfpDtype, bfp)
