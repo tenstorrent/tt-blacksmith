@@ -136,8 +136,7 @@ class Trainer(ABC):
                 for batch in progress:
                     self.callback_handler("on_train_batch_start", batch)
 
-                    # Keep ``labels`` on CPU; one-hot on device OOMs (#455).
-                    batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
+                    batch = self.device_manager.prepare_batch(batch)
 
                     self.callback_handler("on_forward_start", batch)
                     loss = self._forward(batch)
@@ -184,8 +183,7 @@ class Trainer(ABC):
             for batch in tqdm(self.val_dataloader, desc="Validation"):
                 self.callback_handler("on_validation_batch_start", batch)
 
-                # Keep ``labels`` on CPU; one-hot on device OOMs (#455).
-                batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
+                batch = self.device_manager.prepare_batch(batch)
                 loss = self._forward(batch)
 
                 total_loss += loss_to_float(loss)
