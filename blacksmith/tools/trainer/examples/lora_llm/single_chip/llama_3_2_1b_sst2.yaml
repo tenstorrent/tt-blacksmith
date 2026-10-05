@@ -54,10 +54,6 @@ checkpoint:
   keep_best_n: 3
   checkpoint_metric: "eval/loss"
   checkpoint_metric_mode: "min"
-  storage_backend: "local"
-  sync_to_storage: False
-  load_from_storage: False
-  remote_path: ""
   resume_from_checkpoint: False
   resume_option: "last"
   checkpoint_path: ""

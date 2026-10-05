@@ -11,7 +11,6 @@ import torch
 
 from blacksmith.configs import CheckpointConfig
 from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.storage_backends import StorageBackend
 from blacksmith.tools.torch_helpers import to_host
 
 
@@ -32,16 +31,7 @@ class CheckpointManager:
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-        self.storage_backend = self._setup_storage_backend()
-
         self.checkpoint_history = self._load_checkpoint_history()
-
-    def _setup_storage_backend(self) -> StorageBackend:
-        """Setup storage backend based on config"""
-        if self.config.storage_backend == "local":
-            return None
-        else:
-            raise ValueError(f"Unknown storage backend: {self.config.storage_backend}")
 
     def _load_checkpoint_history(self) -> Dict[str, Any]:
         """Load checkpoint history from metadata file"""
@@ -173,9 +163,6 @@ class CheckpointManager:
         self._cleanup_checkpoints()
         self._save_checkpoint_history()
 
-        if self.config.sync_to_storage and self.config.remote_path:
-            self.storage_backend.save(checkpoint_path)
-
         self.logger.info(f"Saved checkpoint: {checkpoint_path}")
 
         return checkpoint_path
@@ -242,9 +229,6 @@ class CheckpointManager:
         Returns:
             Dictionary containing checkpoint metadata
         """
-        if self.config.load_from_storage:
-            self.storage_backend.load(checkpoint_path, checkpoint_path)
-
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
         checkpoint["model_state_dict"] = CheckpointManager.align_state_dict_parameter_names(
