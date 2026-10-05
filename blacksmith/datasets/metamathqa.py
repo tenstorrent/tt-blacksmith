@@ -6,6 +6,8 @@ from string import Template
 
 from datasets import load_dataset
 
+from blacksmith.datasets.llm_dataset import LLMDataset
+
 PROMPT_TEMPLATE = Template(
     cleandoc(
         """
@@ -24,7 +26,6 @@ PROMPT_TEMPLATE = Template(
 DATASET_PATH = "meta-math/MetaMathQA"
 
 TRAIN_VAL_SPLIT_RATIO = 0.98
-from blacksmith.datasets.llm_dataset import LLMDataset
 
 
 class MetaMathQADataset(LLMDataset):

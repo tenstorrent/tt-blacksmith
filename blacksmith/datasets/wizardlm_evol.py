@@ -5,6 +5,8 @@ from string import Template
 
 from datasets import load_dataset
 
+from blacksmith.datasets.llm_dataset import LLMDataset
+
 PROMPT_INTRO = (
     "Below is an instruction that describes a task. Write a response that appropriately completes the request."
 )
@@ -37,7 +39,6 @@ $instruction
 DATASET_PATH = "WizardLMTeam/WizardLM_evol_instruct_70k"
 
 TRAIN_VAL_SPLIT_RATIO = 0.98
-from blacksmith.datasets.llm_dataset import LLMDataset
 
 
 class WizardLMEvolDataset(LLMDataset):

@@ -5,6 +5,8 @@ from string import Template
 
 from datasets import load_dataset
 
+from blacksmith.datasets.llm_dataset import LLMDataset
+
 PROMPT_TEMPLATE = Template(
     """
 Context: $context\n
@@ -13,7 +15,6 @@ Answer:
 """
 )
 DATASET_PATH = "rajpurkar/squad_v2"
-from blacksmith.datasets.llm_dataset import LLMDataset
 
 
 class SquadV2Dataset(LLMDataset):

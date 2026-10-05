@@ -5,6 +5,8 @@ from string import Template
 
 from datasets import load_dataset
 
+from blacksmith.datasets.llm_dataset import LLMDataset
+
 PROMPT_INTRO = (
     "Below is an instruction that describes a task. Write a response that appropriately completes the request."
 )
@@ -35,7 +37,6 @@ $instruction
 )
 
 DATASET_PATH = "tatsu-lab/alpaca"
-from blacksmith.datasets.llm_dataset import LLMDataset
 
 
 class AlpacaDataset(LLMDataset):

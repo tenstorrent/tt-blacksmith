@@ -7,6 +7,7 @@ from string import Template
 from datasets import load_dataset
 
 from blacksmith.configs import TrainerConfig
+from blacksmith.datasets.llm_dataset import LLMDataset
 
 PROMPT_TEMPLATE = Template(
     """### Instruction:\n
@@ -19,7 +20,6 @@ Schema: $context\n\n
 DATASET_PATH = "gretelai/synthetic_text_to_sql"
 
 logger = logging.getLogger(__name__)
-from blacksmith.datasets.llm_dataset import LLMDataset
 
 
 class TextToSQLDataset(LLMDataset):
