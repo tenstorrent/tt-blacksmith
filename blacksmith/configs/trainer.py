@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 import torch
 from pydantic import BaseModel, Field, model_validator
 
+from blacksmith.configs.compile import CompileConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
 
 TORCH_DTYPES = {
@@ -60,13 +61,7 @@ class TrainerConfig(BaseModel):
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Compile options (see DeviceManager.compile_options).
-    optimization_level: int = Field(default=1, ge=0, le=2)
-    enable_const_eval: bool = Field(default=False)
-    fp32_dest_acc_en: bool = Field(default=True)
-    math_fidelity: str = Field(default="HiFi4")  # [LoFi, HiFi2, HiFi3, HiFi4]
-    enable_trace: bool = Field(default=False)
-    # Mixed precision: compiler-wide weight dtype, "bfp_bf8" | "bfp_bf4" | "bf16" (no override).
-    experimental_weight_dtype: Optional[str] = Field(default=None)
+    compile: CompileConfig = Field(default_factory=CompileConfig)
 
     def torch_dtype(self) -> torch.dtype:
         try:

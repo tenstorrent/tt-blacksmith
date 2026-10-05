@@ -69,5 +69,6 @@ deterministic: False
 
 # Device settings - single chip (no mesh).
 use_tt: True
-enable_const_eval: False
-optimization_level: 1
+compile:
+  enable_const_eval: False
+  optimization_level: 1
