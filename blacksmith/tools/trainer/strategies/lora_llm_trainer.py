@@ -4,21 +4,24 @@
 from typing import Any
 
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from blacksmith.datasets.dataset_utils import get_dataset
 from blacksmith.models.hf_models import get_model
 from blacksmith.tools.torch_helpers import collate_fn_for_causal_lm
 from blacksmith.tools.trainer.trainer import Trainer
-from blacksmith.tools.workaround_utils import cross_entropy_loss, transform_labels
 
 IGNORED_INDEX = -100
 
 
-def compute_causal_lm_loss(batch, model, loss_fn):
+def compute_causal_lm_loss(batch, model):
     output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
-    shift_logits = output.logits[:, :-1, :].contiguous()
-    return loss_fn(shift_logits, batch["expected_output"], batch["labels_mask"])
+    # Labels are pre-shifted by collate_fn_for_causal_lm, so logits[:, :-1] line up with them.
+    shift_logits = output.logits[:, :-1, :]
+    return F.cross_entropy(
+        shift_logits.reshape(-1, shift_logits.size(-1)), batch["labels"].reshape(-1), ignore_index=IGNORED_INDEX
+    )
 
 
 class LoraLLMTrainer(Trainer):
@@ -60,20 +63,5 @@ class LoraLLMTrainer(Trainer):
         )
         return train_dataset.get_dataloader(), val_dataset.get_dataloader()
 
-    def _labels_to_targets(self, batch: dict) -> dict:
-        expected_output, labels_mask = transform_labels(
-            batch["labels"],
-            IGNORED_INDEX,
-            self.model.config.vocab_size,
-        )
-        return {
-            "input_ids": batch["input_ids"],
-            "attention_mask": batch["attention_mask"],
-            "expected_output": expected_output,
-            "labels_mask": labels_mask,
-        }
-
     def _forward(self, batch: Any) -> torch.Tensor:
-        # One-hot on CPU (labels were left on the host), then move / shard the targets.
-        batch = self.device_manager.prepare_batch(self._labels_to_targets(batch))
-        return self._compute_loss_fn(batch, self.model, cross_entropy_loss)
+        return self._compute_loss_fn(batch, self.model)
