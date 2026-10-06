@@ -93,24 +93,31 @@ check_package_version() {
 }
 
 # Function to install tt-crank into the active venv
-# Uses the pinned wheel from env/crank_requirements.txt when present; otherwise
-# puts $TT_MLIR_HOME/tt-crank/python on sys.path via a .pth (not `pip install -e`,
-# which would reconfigure tt-mlir's build/ for this venv)
+# Default: the wheel from tt-mlir's nightly run (env/download_crank_wheel.sh, cached
+# in env/wheels/) plus its pinned SFPI toolchain (env/install_crank_sfpi.sh). With TT_MLIR_HOME set: $TT_MLIR_HOME/tt-crank/python goes on
+# sys.path via a .pth instead (not `pip install -e`, which would reconfigure
+# tt-mlir's build/ for this venv)
 install_tt_crank() {
-    if grep -qE '^tt-crank==' env/crank_requirements.txt; then
-        return 0
-    fi
-
     if python -c "import tt_crank" > /dev/null 2>&1; then
         return 0
     fi
 
     if [ -z "$TT_MLIR_HOME" ]; then
-        echo "tt-crank is not pinned in env/crank_requirements.txt and no wheel is published yet."
-        echo "Set TT_MLIR_HOME to a built tt-mlir checkout to use tt-crank from source, e.g.:"
-        echo "  TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank"
-        return 1
+        local wheel
+        wheel=$(env/download_crank_wheel.sh) || {
+            echo "Could not fetch the tt-crank wheel. Log in with 'gh auth login', or set TT_MLIR_HOME"
+            echo "to a built tt-mlir checkout to use tt-crank from source:"
+            echo "  TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank"
+            return 1
+        }
+        echo "Installing $wheel"
+        pip install "$wheel" || return 1
+        # The wheel does not bundle the SFPI kernel toolchain; provision the pinned
+        # version inside the venv unless the system one already matches.
+        env/install_crank_sfpi.sh || return 1
+        return 0
     fi
+
     local crank_py="$TT_MLIR_HOME/tt-crank/python"
     if [ ! -f "$crank_py/tt_crank/__init__.py" ]; then
         echo "TT_MLIR_HOME=$TT_MLIR_HOME is not a tt-mlir checkout (no tt-crank/python/tt_crank)."
@@ -190,8 +197,8 @@ case $EXPERIMENT_TYPE in
         pip install -r env/gpu_requirements.txt -r env/requirements.txt
         ;;
     3)
-        # tt-crank first: its requirements pin click/pandas/pydantic/numpy, and
-        # env/crank_requirements.txt is written to resolve under those pins.
+        # tt-crank first: its pins (click/pandas/pydantic/numpy) must be in place
+        # before env/crank_requirements.txt resolves against them.
         # Installing it last instead lets the resolver pick, say, a wandb that
         # needs a newer click, which then gets downgraded under it.
         install_tt_crank || return 1

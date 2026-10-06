@@ -1,12 +1,10 @@
 --extra-index-url https://pypi.eng.aws.tenstorrent.com
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-# tt-crank pins torch (CPU wheel), click, pandas, pydantic and numpy itself; the
-# shared env/requirements.txt is installed alongside this file. Pin here only
-# what has to be held for tt-crank. Keep `pip check` clean.
-
-# Uncomment once the wheel is published; until then TT_MLIR_HOME (see env/activate).
-# tt-crank==0.1.0
+# tt-crank itself comes from the nightly wheel or a source checkout (see
+# install_tt_crank in env/activate) and pins torch (CPU wheel), click, pandas,
+# pydantic and numpy. The shared env/requirements.txt is installed alongside this
+# file. Pin here only what has to be held for tt-crank. Keep `pip check` clean.
 
 transformers==5.12.1
 

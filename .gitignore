@@ -20,6 +20,8 @@ env/*
 !env/xla_requirements.txt
 !env/requirements.txt
 !env/crank_requirements.txt
+!env/download_crank_wheel.sh
+!env/install_crank_sfpi.sh
 
 # Local custom datasets
 blacksmith/datasets/torch/custom/*.json
@@ -27,3 +29,6 @@ blacksmith/datasets/torch/custom/*.jsonl
 
 # tt-metal kernel binary cache, written next to the run by tt-crank (--crank env)
 .data/
+
+# tt-crank wheels and SFPI archives fetched by env/download_crank_wheel.sh / install_crank_sfpi.sh
+env/wheels/
