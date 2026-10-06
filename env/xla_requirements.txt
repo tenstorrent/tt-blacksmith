@@ -3,3 +3,7 @@
 pjrt-plugin-tt==1.5.0.dev20260831000501
 torchvision
 git+https://github.com/erfanzar/EasyDeL.git@77ced9d2f2ab6a3d705936d26112eb97d9f9e64a
+transformers==4.57.1
+# jax experiments (blacksmith_xla/experiments/jax)
+flax
+six
