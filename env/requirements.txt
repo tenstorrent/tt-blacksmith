@@ -5,8 +5,6 @@ peft
 tqdm
 datasets
 transformers
-flax
-six
 kornia
 pytest
 pandas

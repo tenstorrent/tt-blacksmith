@@ -1,4 +1,4 @@
-TT_BLACKSMITH_HOME=$(pwd)
+export TT_BLACKSMITH_HOME=$(pwd)
 
 EXPECTED_ARGS=1
 
@@ -93,48 +93,23 @@ check_package_version() {
 }
 
 # Function to install tt-crank into the active venv
-# Default: the wheel from tt-mlir's nightly run (env/download_crank_wheel.sh, cached
-# in env/wheels/) plus its pinned SFPI toolchain (env/install_crank_sfpi.sh). With TT_MLIR_HOME set: $TT_MLIR_HOME/tt-crank/python goes on
-# sys.path via a .pth instead (not `pip install -e`, which would reconfigure
-# tt-mlir's build/ for this venv)
+# Installs the wheel from tt-mlir's nightly run (env/download_crank_wheel.sh, cached
+# in env/wheels/)
 install_tt_crank() {
     if python -c "import tt_crank" > /dev/null 2>&1; then
         return 0
     fi
 
-    if [ -z "$TT_MLIR_HOME" ]; then
-        local wheel
-        wheel=$(env/download_crank_wheel.sh) || {
-            echo "Could not fetch the tt-crank wheel. Log in with 'gh auth login', or set TT_MLIR_HOME"
-            echo "to a built tt-mlir checkout to use tt-crank from source:"
-            echo "  TT_MLIR_HOME=/path/to/tt-mlir source env/activate --crank"
-            return 1
-        }
-        echo "Installing $wheel"
-        pip install "$wheel" || return 1
-        # The wheel does not bundle the SFPI kernel toolchain; provision the pinned
-        # version inside the venv unless the system one already matches.
-        env/install_crank_sfpi.sh || return 1
-        return 0
-    fi
-
-    local crank_py="$TT_MLIR_HOME/tt-crank/python"
-    if [ ! -f "$crank_py/tt_crank/__init__.py" ]; then
-        echo "TT_MLIR_HOME=$TT_MLIR_HOME is not a tt-mlir checkout (no tt-crank/python/tt_crank)."
+    local wheel
+    wheel=$(env/download_crank_wheel.sh) || {
+        echo "Could not fetch the tt-crank wheel; log in with 'gh auth login' and retry."
         return 1
-    fi
-    if ! ls "$crank_py"/tt_crank/torch/_native.*.so > /dev/null 2>&1; then
-        echo "No built tt_crank extension in $crank_py. In $TT_MLIR_HOME run:"
-        echo "  source env/activate && cmake --build build && ./tt-crank/scripts/install-py"
-        return 1
-    fi
-
-    echo "Using tt-crank from source: $crank_py"
-    # Runtime pins (torch is the CPU wheel by URL) come from tt-crank itself.
-    pip install -r "$TT_MLIR_HOME/tt-crank/requirements.txt" || return 1
-    local site_packages
-    site_packages=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
-    echo "$crank_py" > "$site_packages/tt_crank_source.pth"
+    }
+    echo "Installing $wheel"
+    # One resolve for the wheel and the requirement files: installed separately, pip
+    # would not re-check the wheel's pins (numpy<2, click) against the later files.
+    pip install "$wheel" -r env/crank_requirements.txt -r env/requirements.txt || return 1
+    echo "Note: tt-crank needs the SFPI toolchain in /opt/tenstorrent/sfpi; if missing or outdated run 'tt-crank-install-sfpi' (needs sudo)."
 }
 
 # If environment directory already exists, check versions and activate
@@ -197,12 +172,7 @@ case $EXPERIMENT_TYPE in
         pip install -r env/gpu_requirements.txt -r env/requirements.txt
         ;;
     3)
-        # tt-crank first: its pins (click/pandas/pydantic/numpy) must be in place
-        # before env/crank_requirements.txt resolves against them.
-        # Installing it last instead lets the resolver pick, say, a wandb that
-        # needs a newer click, which then gets downgraded under it.
         install_tt_crank || return 1
-        pip install -r env/crank_requirements.txt -r env/requirements.txt
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"

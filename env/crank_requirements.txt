@@ -1,16 +1,9 @@
 --extra-index-url https://pypi.eng.aws.tenstorrent.com
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-# tt-crank itself comes from the nightly wheel or a source checkout (see
-# install_tt_crank in env/activate) and pins torch (CPU wheel), click, pandas,
-# pydantic and numpy. The shared env/requirements.txt is installed alongside this
-# file. Pin here only what has to be held for tt-crank. Keep `pip check` clean.
+# tt-crank sets this due to StaticCache.
 
 transformers==5.12.1
-
-# tt-crank's own pin, restated: in source mode tt-crank is not a pip package, so
-# pip cannot see it, and flax in the shared file would otherwise pull numpy 2.
-numpy>=1.24.4,<2
 
 # Held back by tt-crank's click==8.1.7; raise when that pin moves.
 huggingface-hub==1.16.1
