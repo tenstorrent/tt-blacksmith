@@ -4,7 +4,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch_xla
+
+# torch_xla is imported inside the functions that need it so this module (and everything
+# that imports it, e.g. the dataset factory via the trainer callbacks) also loads in
+# environments without tt-xla, such as the tt-crank one (`source env/activate --mlir`).
 
 
 # Materialize AdamW state so the fused fwd+bwd+optimizer XLA graph compiles only once.
@@ -23,6 +26,8 @@ def materialize_adamw_state(optimizer: torch.optim.Optimizer, sync: bool = True)
             state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
             state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
     if sync:
+        import torch_xla
+
         torch_xla.sync(wait=True)
 
 
@@ -37,6 +42,8 @@ def materialize_grads(optimizer: torch.optim.Optimizer, sync: bool = True) -> No
                 continue
             p.grad = torch.zeros_like(p, memory_format=torch.preserve_format)
     if sync:
+        import torch_xla
+
         torch_xla.sync(wait=True)
 
 
@@ -49,6 +56,8 @@ def restore_capturable_optimizer_state(optimizer: torch.optim.Optimizer) -> None
     params = [p for group in optimizer.param_groups for p in group["params"]]
     if not params or params[0].device.type != "xla":
         return
+    import torch_xla
+
     device = params[0].device
     for group in optimizer.param_groups:
         group["capturable"] = True

@@ -1,0 +1,92 @@
+# Dataset settings
+dataset_id: "alpaca"
+
+# Model settings
+model_name: "meta-llama/Llama-3.1-8B"
+max_length: 512
+dtype: "torch.bfloat16"
+
+# Mixed precision settings
+# Storage dtype of every matmul weight tt-crank lowers. Options: "bfp_bf8" | "bfp_bf4" | "bf16".
+experimental_weight_dtype: "bf16"
+
+# Training hyperparameters
+training_model_type: "lora"
+learning_rate: 2e-4
+batch_size: 2
+gradient_accumulation_steps: 1
+num_epochs: 1
+max_steps: 200
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_eps: 1e-8
+weight_decay: 0.01
+ignored_index: -100
+
+# LoRA setup
+lora_r: 16
+lora_alpha: 32
+lora_target_modules: ["q_proj", "v_proj"]
+lora_task_type: "CAUSAL_LM"
+
+# Validation settings
+val_steps_freq: 20
+
+# Logging settings
+logging:
+  log_level: "INFO"
+  use_wandb: True
+  wandb_project: "llama8b-p150-lora-crank"
+  wandb_run_name: "tt-llama8b-crank-alpaca-bf16"
+  wandb_tags: ["test", "crank", "bf16", "alpaca"]
+  wandb_watch_mode: "all"
+  wandb_log_freq: 1000
+  model_to_wandb: False
+
+# Metrics settings
+metrics:
+  steps_freq: 1
+  epoch_freq: 1
+  train_metrics: ["loss"]
+  val_metrics: ["loss"]
+
+# Checkpoint settings
+checkpoint:
+  steps_freq: 1
+  epoch_freq: 1
+  save_strategy: "none"
+  project_dir: "blacksmith/experiments/torch/llama/crank/lora"
+  final_checkpoint_name: "final_model.pth"
+  save_optim: False
+  keep_last_n: 2
+  keep_best_n: 1
+  checkpoint_metric: "eval/loss"
+  checkpoint_metric_mode: "min"
+  storage_backend: "local"
+  sync_to_storage: False
+  load_from_storage: False
+  remote_path: ""
+  resume_from_checkpoint: False
+  resume_option: "last"  # [last, best, path]
+  checkpoint_path: ""  # path to checkpoint if resume_option is "path"
+
+# Reproducibility settings
+framework: "pytorch"
+seed: 23
+deterministic: False
+
+# Device settings - single chip (no mesh).
+use_tt: True
+
+# tt-crank compile settings
+optimization_level: 1
+enable_const_eval: False
+enable_trace: False
+perf_metrics_enabled: True  # exact FLOPs from tt-mlir, reported as perf/hfu
+perf_metrics_file: "perf_metrics"
+artifacts_name: "llama_3_1_8b_alpaca"  # TTIR/TTNN dump of the first step's graphs; null to skip
+artifacts_dir: ".data/artifacts"
+
+# Other settings
+print_examples: False
+measure_e2e_time: True

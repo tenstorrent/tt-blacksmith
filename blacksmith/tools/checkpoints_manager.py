@@ -15,6 +15,17 @@ from blacksmith.tools.storage_backends import StorageBackend
 from blacksmith.tools.workaround_utils import restore_capturable_optimizer_state
 
 
+def _to_cpu(obj: Any) -> Any:
+    """Return `obj` with every tensor in it (also inside dicts/lists/tuples) moved to CPU."""
+    if isinstance(obj, torch.Tensor):
+        return obj.detach().to("cpu")
+    if isinstance(obj, dict):
+        return {key: _to_cpu(value) for key, value in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return type(obj)(_to_cpu(value) for value in obj)
+    return obj
+
+
 class CheckpointManager:
     def __init__(
         self,
@@ -142,7 +153,9 @@ class CheckpointManager:
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
         trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
-        state_dict = {name: v for name, v in model.state_dict().items() if name in trainable_names}
+        # Saved on CPU: torch.save cannot serialize tensors on the tt (tt-crank) device, and a
+        # CPU checkpoint loads onto any backend.
+        state_dict = {name: _to_cpu(v) for name, v in model.state_dict().items() if name in trainable_names}
 
         checkpoint_data = {
             "step": step,
@@ -153,7 +166,7 @@ class CheckpointManager:
         }
 
         if self.config.save_optim and optimizer is not None:
-            checkpoint_data["optimizer_state_dict"] = optimizer.state_dict()
+            checkpoint_data["optimizer_state_dict"] = _to_cpu(optimizer.state_dict())
 
         torch.save(checkpoint_data, checkpoint_path)
 

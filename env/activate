@@ -3,7 +3,7 @@ TT_BLACKSMITH_HOME=$(pwd)
 EXPECTED_ARGS=1
 
 if [ "$#" -gt "$EXPECTED_ARGS" ]; then
-  echo "Single option for experiment type expected, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+  echo "Single option for experiment type expected, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe), TT-MLIR via tt-crank (--mlir) or GPU (--gpu)"
   return 1
 fi
 
@@ -11,9 +11,10 @@ case $1 in
     --ffe) EXPERIMENT_TYPE=0 ;;
     --xla) EXPERIMENT_TYPE=1 ;;
     --gpu) EXPERIMENT_TYPE=2 ;;
+    --mlir) EXPERIMENT_TYPE=3 ;;
     "")
         # No argument provided, default to TT-XLA
-        echo "No type of experiment was specified, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+        echo "No type of experiment was specified, possible options are: TT-XLA (--xla), TT-Forge-FE (--ffe), TT-MLIR via tt-crank (--mlir) or GPU (--gpu)"
         echo "Defaulting to TT-XLA (--xla)"
         EXPERIMENT_TYPE=1
         ;;
@@ -22,6 +23,33 @@ esac
 
 # pytest alias for venv interpreter
 alias pytest='python -m pytest'
+
+# TT-MLIR: tt-crank is a subproject of tt-mlir and reuses tt-mlir's virtualenv, so no env of
+# our own is created. The tt-mlir checkout must be built with -DTTMLIR_ENABLE_CRANK=ON and
+# tt_crank installed into its venv (./tt-crank/scripts/install-py from the tt-mlir root).
+if [ "$EXPERIMENT_TYPE" -eq 3 ]; then
+    if [ -z "${TT_MLIR_HOME:-}" ] || [ ! -f "$TT_MLIR_HOME/env/activate" ]; then
+        echo "TT_MLIR_HOME must point at a tt-mlir checkout (its env/activate is sourced):"
+        echo "  export TT_MLIR_HOME=/path/to/tt-mlir"
+        return 1
+    fi
+    # tt-mlir's activate derives its paths from the current directory.
+    pushd "$TT_MLIR_HOME" > /dev/null
+    source env/activate
+    popd > /dev/null
+    export TT_BLACKSMITH_ENV_DIR=$TTMLIR_VENV_DIR
+
+    if ! python -c "import tt_crank" 2> /dev/null; then
+        echo "tt_crank is not installed in the tt-mlir venv; run ./tt-crank/scripts/install-py from $TT_MLIR_HOME"
+        return 1
+    fi
+    # Install the blacksmith deps tt-mlir's venv lacks, once.
+    if ! python -c "import blacksmith, peft, datasets, wandb" 2> /dev/null; then
+        pip install -r env/mlir_requirements.txt
+        pip install -e $TT_BLACKSMITH_HOME
+    fi
+    return
+fi
 
 # Set environment directory based on experiment type
 case $EXPERIMENT_TYPE in

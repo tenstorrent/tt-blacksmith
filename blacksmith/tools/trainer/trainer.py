@@ -7,11 +7,9 @@ from contextlib import contextmanager
 from typing import Any, Union
 
 import torch
-import torch_xla
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
 from blacksmith.tools.trainer.callback import Callback
@@ -57,6 +55,10 @@ class Trainer(ABC):
         if self.reproducibility_manager is None:
             self.reproducibility_manager = ReproducibilityManager(config)
         self.reproducibility_manager.setup()
+        # Imported here, like torch_xla below, so the trainer package loads in environments
+        # without tt-xla (cli.py imports TrainerConfig, which pulls in this module).
+        from blacksmith.tools.device_manager import DeviceManager
+
         self.device_manager = DeviceManager(config)
 
         self.model = self._load_model()
@@ -114,6 +116,8 @@ class Trainer(ABC):
     def _apply_tt_compile_options(self) -> None:
         if not self.config.use_tt:
             return
+        import torch_xla
+
         compile_options = {
             "fp32_dest_acc_en": True,
             "math_fidelity": "hifi4",
@@ -190,6 +194,8 @@ class Trainer(ABC):
                         # Non-final: cut here so this is the shared fwd+bwd
                         # graph. Leave grads/step_loss as device tensors.
                         if self.config.use_tt:
+                            import torch_xla
+
                             torch_xla.sync(wait=True)
                     else:
                         # Last micro-batch: leave fwd+bwd pending so it fuses
@@ -234,6 +240,8 @@ class Trainer(ABC):
                 batch = self.device_manager.prepare_batch(batch, skip_keys=("labels",))
                 loss = self._forward(batch)
                 if self.config.use_tt:
+                    import torch_xla
+
                     torch_xla.sync(wait=True)
 
                 total_loss += loss.item()

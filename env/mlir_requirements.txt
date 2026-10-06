@@ -1,0 +1,8 @@
+# Extra packages for the tt-crank experiments (`source env/activate --mlir`). tt-crank is a
+# subproject of tt-mlir and reuses tt-mlir's virtualenv, which already carries torch,
+# transformers, pydantic, tqdm, pandas and pyyaml; only the blacksmith-specific packages are
+# added here. The tt-mlir checkout provides tt_crank via ./tt-crank/scripts/install-py.
+wandb>=0.12.10
+peft
+datasets
+pytest

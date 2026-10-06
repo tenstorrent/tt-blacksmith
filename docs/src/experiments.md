@@ -14,6 +14,7 @@ The following table provides an overview of different model and method combinati
 | PyTorch | Llama 3.2 1B | Adapters | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/adapters/README.md) |
 | PyTorch | Llama 3.2 3B | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md#llama-32-3b-training) |
 | PyTorch | Llama 3.1 8B | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md#llama-31-8b-training) |
+| PyTorch (tt-crank) | Llama 3.1 8B | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/crank/lora/README.md#llama-31-8b-training) |
 | PyTorch | Llama 3.1 8B Instruct | LoRA | [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md#llama-31-8b-instruct-training) |
 | PyTorch | Llama 3.1 70B | LoRA| [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md#llama-31-70b-training) |
 | PyTorch | Llama 3.3 70B Instruct | LoRA| [README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md#llama-33-70b-instruct-training) |

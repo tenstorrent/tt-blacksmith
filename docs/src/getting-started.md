@@ -56,6 +56,8 @@ source env/activate --xla
 
 > **NOTE:** To run experiments on GPU instead of Tenstorrent hardware, Docker is not required. Simply clone the repository and use `source env/activate --gpu`.
 
+> **NOTE:** The tt-crank experiments (`blacksmith/experiments/torch/llama/crank`) run in tt-mlir's own virtualenv, since tt-crank is a subproject of tt-mlir: build tt-mlir with `-DTTMLIR_ENABLE_CRANK=ON`, install `tt_crank` with `./tt-crank/scripts/install-py`, then `export TT_MLIR_HOME=/path/to/tt-mlir` and `source env/activate --mlir` here. See `env/mlir_requirements.txt`.
+
 3. Run an experiment by following the instructions in its README file. For example, to run the LLaMA LoRA fine-tuning experiment, see the [LoRA README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md).
 
 ---
