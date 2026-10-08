@@ -41,15 +41,12 @@ def seed_worker(worker_id):
 
 
 class BlenderDataset(BaseDataset):
-    def __init__(self, config, split="train"):
-        self.config = config
+    def __init__(self, config, split="train", collate_fn=None):
         self.root_dir = config.data_loading.input_dir
-        self.split = split
         self.img_wh = config.data_loading.img_wh
         assert self.img_wh[0] == self.img_wh[1], "image width must equal image height!"
         self.define_transforms()
-
-        self._prepare_dataset()
+        super().__init__(config, split, collate_fn)
 
     def _prepare_dataset(self):
         with open(os.path.join(self.root_dir, f"transforms_{self.split}.json"), "r") as f:
@@ -112,6 +109,7 @@ class BlenderDataset(BaseDataset):
             return len(self.meta["frames"])
         elif self.split == "val":
             return self.pose_vis.shape[0]
+        raise ValueError(f"Unknown split: {self.split}")
 
     def __getitem__(self, idx):
         if self.split == "train":  # use data in the buffers
@@ -141,6 +139,8 @@ class BlenderDataset(BaseDataset):
             rays = torch.cat([rays_o, rays_d], 1)  # (H*W, 8)
 
             sample = {"rays": rays}
+        else:
+            raise ValueError(f"Unknown split: {self.split}")
 
         return sample
 

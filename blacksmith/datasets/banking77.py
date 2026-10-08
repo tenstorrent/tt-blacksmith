@@ -21,15 +21,11 @@ class Banking77Dataset(BaseDataset):
             config: Training configuration
             split: Dataset split to use ("train" or "test")
         """
-        self.config = config
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_name, padding_side="right", use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_name, padding_side="right", use_fast=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.required_columns = ["input_ids", "attention_mask", "labels"]
-        self.split = split
         self.label_map = None
-        self.collate_fn = collate_fn
-
-        self._prepare_dataset()
+        super().__init__(config, split, collate_fn)
 
     def _tokenize_function(self, example: Dict) -> Dict:
         encoding = self.tokenizer(example["text"], truncation=False, padding=False, return_tensors="pt")

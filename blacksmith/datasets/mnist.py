@@ -18,11 +18,7 @@ NUM_CLASSES = 10
 
 class MNISTDataset(BaseDataset):
     def __init__(self, config: TrainerConfig, split="train", collate_fn=None):
-        self.config = config
-        self.split = split
-        self.collate_fn = collate_fn
-
-        self._prepare_dataset()
+        super().__init__(config, split, collate_fn)
 
     def _prepare_dataset(self):
         dtype = eval(self.config.dtype)
