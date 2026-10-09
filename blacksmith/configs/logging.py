@@ -8,9 +8,7 @@ class LoggingConfig(BaseModel):
     """
     Logger / Weights & Biases setup consumed by ``TrainingLogger``.
 
-    Holds only logger configuration; *what* metrics get logged and *how often*
-    lives in :class:`MetricsConfig`. Designed to be composed as a nested
-    sub-config (e.g. ``TrainerConfig.logging``).
+    Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.logging``).
     """
 
     log_level: str

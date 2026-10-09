@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field, model_validator
 from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
 from blacksmith.configs.logging import LoggingConfig
-from blacksmith.configs.metrics import MetricsConfig
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
@@ -42,9 +41,8 @@ class TrainerConfig(BaseModel):
     # Validation settings. 0 disables validation (no initial or periodic pass).
     val_steps_freq: int = Field(ge=0)
 
-    # Logging / metrics / checkpointing settings (nested sub-configs).
+    # Logging / checkpointing settings (nested sub-configs).
     logging: LoggingConfig
-    metrics: MetricsConfig
     checkpoint: CheckpointConfig
 
     # Custom dataset settings.
