@@ -6,7 +6,11 @@ from typing import List, Optional, Tuple
 import torch
 from pydantic import BaseModel, Field, model_validator
 
+from blacksmith.configs.checkpoint import CheckpointConfig
+from blacksmith.configs.compile import CompileConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
+from blacksmith.configs.logging import LoggingConfig
+from blacksmith.configs.metrics import MetricsConfig
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
@@ -39,6 +43,11 @@ class TrainerConfig(BaseModel):
     # Validation settings. 0 disables validation (no initial or periodic pass).
     val_steps_freq: int = Field(ge=0)
 
+    # Logging / metrics / checkpointing settings (nested sub-configs).
+    logging: LoggingConfig
+    metrics: MetricsConfig
+    checkpoint: CheckpointConfig
+
     # Custom dataset settings.
     custom_dataset: Optional[CustomDatasetConfig] = Field(default=None)
 
@@ -60,8 +69,7 @@ class TrainerConfig(BaseModel):
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     # Compile options (see DeviceManager.compile_options).
-    optimization_level: int = Field(default=1, ge=0, le=2)
-    enable_const_eval: bool = Field(default=False)
+    compile: CompileConfig = Field(default_factory=CompileConfig)
 
     def torch_dtype(self) -> torch.dtype:
         try:
