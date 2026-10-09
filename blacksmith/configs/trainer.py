@@ -10,7 +10,6 @@ from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
 from blacksmith.configs.logging import LoggingConfig
 from blacksmith.configs.metrics import MetricsConfig
-from blacksmith.configs.test import TestConfig
 
 TORCH_DTYPES = {
     "torch.bfloat16": torch.bfloat16,
@@ -71,9 +70,6 @@ class TrainerConfig(BaseModel):
     # Compile options (see DeviceManager.compile_options).
     optimization_level: int = Field(default=1, ge=0, le=2)
     enable_const_eval: bool = Field(default=False)
-
-    # pytest step-limiting; set by generate_config under PYTEST_CURRENT_TEST.
-    test_config: Optional[TestConfig] = Field(default=None)
 
     def torch_dtype(self) -> torch.dtype:
         try:
