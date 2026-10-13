@@ -21,7 +21,9 @@ IGNORED_INDEX = -100
 
 
 def compute_causal_lm_loss(batch, model):
-    output = model(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"])
+    # No padding mask: batches are right-padded and padded labels are IGNORED_INDEX, so causal attention is
+    # exact for every real token, and without a mask tt-crank's sdpa stays on its fused kernels at any batch size.
+    output = model(input_ids=batch["input_ids"])
     # Labels are pre-shifted by collate_fn_for_causal_lm, so logits[:, :-1] line up with them.
     shift_logits = output.logits[:, :-1, :]
     return F.cross_entropy(
@@ -90,10 +92,13 @@ class CrankLLMTrainer(Trainer):
     def _load_optimizer(self) -> torch.optim.Optimizer:
         """Build an AdamW optimizer over the model's trainable parameters."""
         trainable_params = [p for p in self.model.parameters() if p.requires_grad]
+        # fused=True: tt-crank implements `_fused_adamw_` natively, while torch's default
+        # (foreach) AdamW runs as a chain of small eager ops per parameter on tt.
         return torch.optim.AdamW(
             trainable_params,
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
+            fused=True,
         )
 
     def _forward(self, batch: Any) -> torch.Tensor:

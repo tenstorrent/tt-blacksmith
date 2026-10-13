@@ -4,10 +4,49 @@
 import torch
 from peft import LoraConfig as PeftLoraConfig
 from peft import get_peft_model
-from transformers import AutoModelForCausalLM
+from transformers import AttentionInterface, AutoModelForCausalLM
+from transformers.integrations.sdpa_attention import sdpa_attention_forward
+from transformers.masking_utils import ALL_MASK_ATTENTION_FUNCTIONS, sdpa_mask
 
 from blacksmith.configs import TrainerConfig
 from blacksmith.tools.crank.torch_helpers import torch_dtype
+
+# HF's SDPA, except that a forward with no padding mask and no KV cache gets no mask at all and runs
+# `is_causal`. HF skips the mask itself only outside torch.compile; under compile it materializes a
+# [batch, 1, seq, seq] causal mask, which keeps tt-crank's sdpa off the fused sdpa_fw/sdpa_bw kernels.
+# Packed sequences therefore need an explicit mask: their position_ids are not checked here.
+CAUSAL_SDPA = "sdpa_causal"
+
+
+def _causal_sdpa_mask(**kwargs):
+    q_offset, kv_offset = kwargs.get("q_offset", 0), kwargs.get("kv_offset", 0)
+    without_cache = isinstance(q_offset, int) and isinstance(kv_offset, int) and q_offset == kv_offset == 0
+    if (
+        kwargs.get("attention_mask") is None
+        and kwargs.get("local_size") is None
+        and without_cache
+        and kwargs["q_length"] == kwargs["kv_length"]
+    ):
+        return None
+    return sdpa_mask(**kwargs)
+
+
+AttentionInterface.register(CAUSAL_SDPA, sdpa_attention_forward)
+ALL_MASK_ATTENTION_FUNCTIONS.register(CAUSAL_SDPA, _causal_sdpa_mask)
+
+
+# tt-crank lowers `aten.linear` as is, and tt-mlir runs a linear on [batch, seq, hidden] activations at about
+# half the speed of the same linear on [batch * seq, hidden] once batch > 1.
+class _FlatLinear(torch.nn.Linear):
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        output = super().forward(input.reshape(-1, input.shape[-1]))
+        return output.reshape(*input.shape[:-1], self.out_features)
+
+
+def _flatten_linear_inputs(model: torch.nn.Module) -> None:
+    for module in model.modules():
+        if type(module) is torch.nn.Linear:
+            module.__class__ = _FlatLinear
 
 
 def get_model(config: TrainerConfig, device: torch.device):
@@ -15,6 +54,7 @@ def get_model(config: TrainerConfig, device: torch.device):
     load_kwargs = {
         "use_cache": False,
         "low_cpu_mem_usage": True,
+        "attn_implementation": CAUSAL_SDPA,
     }
     if device.type == "cuda":
         # Stream weights directly to GPU to avoid CPU RAM spikes during load.
@@ -31,6 +71,7 @@ def get_model(config: TrainerConfig, device: torch.device):
 
     model.to(torch_dtype(config.dtype))
     if config.use_tt:
+        _flatten_linear_inputs(model)
         model.to(device)
 
     if config.use_tt and getattr(config, "weight_dtype_overrides", None):
