@@ -7,19 +7,18 @@ max_length: 64
 dtype: "torch.bfloat16"
 
 # Training hyperparameters
-training_model_type: "lora"
 learning_rate: 1e-4
 batch_size: 16
 gradient_accumulation_steps: 1
 num_epochs: 1
-optim: "adamw_torch"
 weight_decay: 0.0
 
-# LoRA setup
-lora_r: 4
-lora_alpha: 8
-lora_target_modules: ["q_proj", "v_proj"]
-lora_task_type: "CAUSAL_LM"
+# LoRA setup (optional; omit this block for full fine-tuning)
+lora:
+  r: 4
+  alpha: 8
+  target_modules: ["q_proj", "v_proj"]
+  task_type: "CAUSAL_LM"
 
 # Validation settings
 val_steps_freq: 50
@@ -63,7 +62,7 @@ checkpoint:
   steps_freq: 50
   epoch_freq: 1
   save_strategy: "step"
-  project_dir: "blacksmith/tools/trainer/examples/lora_llm/tensor_parallel"
+  project_dir: "blacksmith/tools/trainer/examples/crank/llm/lora/tensor_parallel"
   final_checkpoint_name: "final_model.pth"
   save_optim: False
   keep_last_n: 3

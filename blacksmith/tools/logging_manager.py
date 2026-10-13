@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
-import torch
 
 from blacksmith.configs import LoggingConfig
 
@@ -179,7 +178,7 @@ class TrainingLogger:
             except Exception as e:
                 self.std_logger.warning(f"Failed to log model info to W&B: {e}")
 
-    def watch_model(self, model: torch.nn.Module):
+    def watch_model(self, model: Any):
         """
         Watch model gradients and parameters in W&B.
 

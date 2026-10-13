@@ -6,16 +6,13 @@ from pydantic import Field
 from blacksmith.configs.trainer import TrainerConfig
 
 
-class LoraLLMConfig(TrainerConfig):
+class LLMTrainerConfig(TrainerConfig):
     """
-    Configuration for the LoRA LLM trainer.
+    Configuration for the LLM trainer.
+
+    LoRA is opt-in via the nested ``lora`` block on ``TrainerConfig``; leaving it
+    out runs a full fine-tune.
     """
 
     # Model settings
     max_length: int = Field(gt=0)
-
-    # LoRA setup
-    lora_r: int = Field(gt=0)
-    lora_alpha: int = Field(gt=0)
-    lora_target_modules: list[str]
-    lora_task_type: str

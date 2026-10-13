@@ -4,29 +4,34 @@
 import json
 import logging
 import os
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-import torch
-
 from blacksmith.configs import CheckpointConfig
 from blacksmith.tools.logging_manager import TrainingLogger
-from blacksmith.tools.torch_helpers import to_host
 
 
-class CheckpointManager:
+class CheckpointManager(ABC):
+    """Framework-agnostic checkpoint bookkeeping.
+
+    The base owns the on-disk history (metadata file, best / last-N rotation,
+    resume dispatch) and must stay importable without a deep-learning framework.
+    Reading and writing the actual model / optimizer state is delegated to the
+    abstract ``_write_state`` / ``_read_state`` hooks, implemented by a concrete
+    subclass such as ``CrankCheckpointManager``.
+    """
+
     def __init__(
         self,
         config: CheckpointConfig,
         logger: Optional[TrainingLogger] = None,
-        device: Optional[torch.device] = None,
     ):
         self.config = config
         # Fall back to a plain module logger when no TrainingLogger is provided
         # (e.g. when used standalone via the checkpoint callback). Both expose
         # the .info/.warning methods used below.
         self.logger = logger if logger is not None else logging.getLogger(__name__)
-        self.device = device
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
@@ -48,46 +53,30 @@ class CheckpointManager:
         with open(history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
-    @staticmethod
-    def align_state_dict_parameter_names(loaded_state_dict, model_state_dict):
+    # ------------------------------------------------------- framework hooks
+    @abstractmethod
+    def _write_state(
+        self,
+        checkpoint_path: str,
+        model: Any,
+        metadata: Dict[str, Any],
+        optimizer: Optional[Any] = None,
+    ) -> None:
+        """Serialize ``model`` (and optionally ``optimizer``) plus ``metadata`` to disk."""
+        pass
+
+    @abstractmethod
+    def _read_state(
+        self,
+        checkpoint_path: str,
+        model: Any,
+        optimizer: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Load state from disk into ``model`` (and optionally ``optimizer``).
+
+        Returns the stored metadata (``step`` / ``epoch`` / ``metrics``).
         """
-        Adjusts loaded_state_dict parameter names to match model_state_dict by adding
-        or removing a prefix.
-
-        This is necessary because "torch.compile" adds an "_orig_mod." prefix to
-        the parameter names and depending on the case, this function either adds
-        or removes the prefix.
-
-        Logic:
-        - Both have prefix or both don't: No change.
-        - Model has it, Loaded doesn't: Prepend prefix to Loaded.
-        - Loaded has it, Model doesn't: Strip prefix from Loaded.
-        """
-        prefix = "_orig_mod."
-
-        loaded_keys = list(loaded_state_dict.keys())
-        model_keys = list(model_state_dict.keys())
-
-        if not loaded_keys or not model_keys:
-            return loaded_state_dict
-
-        loaded_has_prefix = loaded_keys[0].startswith(prefix)
-        model_has_prefix = model_keys[0].startswith(prefix)
-
-        if loaded_has_prefix == model_has_prefix:
-            return loaded_state_dict
-
-        new_state_dict = dict()
-
-        if model_has_prefix and not loaded_has_prefix:
-            for k, v in loaded_state_dict.items():
-                new_state_dict[prefix + k] = v
-
-        elif loaded_has_prefix and not model_has_prefix:
-            for k, v in loaded_state_dict.items():
-                new_state_dict[k.replace(prefix, "")] = v
-
-        return new_state_dict
+        pass
 
     def should_save_checkpoint(self, step: int, epoch: Optional[int] = None) -> bool:
         """Determine if checkpoint should be saved at current step/epoch"""
@@ -102,10 +91,10 @@ class CheckpointManager:
 
     def save_checkpoint(
         self,
-        model: torch.nn.Module,
+        model: Any,
         step: int = 0,
         epoch: int = 0,
-        optimizer: Optional[torch.optim.Optimizer] = None,
+        optimizer: Optional[Any] = None,
         metrics: Optional[Dict[str, float]] = None,
         checkpoint_name: Optional[str] = None,
     ) -> str:
@@ -113,7 +102,7 @@ class CheckpointManager:
         Save a checkpoint
 
         Args:
-            model: PyTorch model to save
+            model: Model to save
             step: Current training step
             epoch: Current epoch
             optimizer: Optimizer state (optional)
@@ -131,22 +120,14 @@ class CheckpointManager:
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
-        # Copy state to host (gathers DTensor shards); `tt` tensors cannot be pickled in place.
-        trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
-        state_dict = to_host({name: v for name, v in model.state_dict().items() if name in trainable_names})
-
-        checkpoint_data = {
+        metadata = {
             "step": step,
             "epoch": epoch,
-            "model_state_dict": state_dict,
             "metrics": metrics,
             "timestamp": datetime.now().isoformat(),
         }
 
-        if self.config.save_optim and optimizer is not None:
-            checkpoint_data["optimizer_state_dict"] = to_host(optimizer.state_dict())
-
-        torch.save(checkpoint_data, checkpoint_path)
+        self._write_state(checkpoint_path, model, metadata, optimizer=optimizer)
 
         checkpoint_info = {
             "path": checkpoint_path,
@@ -154,7 +135,7 @@ class CheckpointManager:
             "step": step,
             "epoch": epoch,
             "metrics": metrics,
-            "timestamp": checkpoint_data["timestamp"],
+            "timestamp": metadata["timestamp"],
         }
         self.checkpoint_history["checkpoints"].append(checkpoint_info)
 
@@ -199,7 +180,7 @@ class CheckpointManager:
 
         self.checkpoint_history["checkpoints"] = all_checkpoints[-self.config.keep_last_n :]
 
-    def load_checkpoint(self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None):
+    def load_checkpoint(self, model: Any, optimizer: Optional[Any] = None):
         """Load checkpoint based on resume option in config"""
         if self.config.resume_option == "last":
             return self.load_latest_checkpoint(model, optimizer)
@@ -215,8 +196,8 @@ class CheckpointManager:
     def load_checkpoint_path(
         self,
         checkpoint_path: str,
-        model: torch.nn.Module,
-        optimizer: Optional[torch.optim.Optimizer] = None,
+        model: Any,
+        optimizer: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         Load a checkpoint
@@ -229,29 +210,14 @@ class CheckpointManager:
         Returns:
             Dictionary containing checkpoint metadata
         """
-        checkpoint = torch.load(checkpoint_path, map_location="cpu")
-
-        checkpoint["model_state_dict"] = CheckpointManager.align_state_dict_parameter_names(
-            checkpoint["model_state_dict"], model.state_dict()
-        )
-        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
-
-        if optimizer is not None and "optimizer_state_dict" in checkpoint:
-            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            self.logger.info("Loaded optimizer state")
-
+        metadata = self._read_state(checkpoint_path, model, optimizer)
         self.logger.info(f"Loaded checkpoint from {checkpoint_path}")
-
-        return {
-            "step": checkpoint.get("step", 0),
-            "epoch": checkpoint.get("epoch", 0),
-            "metrics": checkpoint.get("metrics", {}),
-        }
+        return metadata
 
     def load_latest_checkpoint(
         self,
-        model: torch.nn.Module,
-        optimizer: Optional[torch.optim.Optimizer] = None,
+        model: Any,
+        optimizer: Optional[Any] = None,
     ) -> Optional[Dict[str, Any]]:
         """Load the most recent checkpoint
 
@@ -265,9 +231,7 @@ class CheckpointManager:
         latest_checkpoint = self.checkpoint_history["checkpoints"][-1]
         return self.load_checkpoint_path(latest_checkpoint["path"], model, optimizer)
 
-    def load_best_checkpoint(
-        self, model: torch.nn.Module, optimizer: Optional[torch.optim.Optimizer] = None
-    ) -> Optional[Dict[str, Any]]:
+    def load_best_checkpoint(self, model: Any, optimizer: Optional[Any] = None) -> Optional[Dict[str, Any]]:
         """Load the best checkpoint based on tracked metric
 
         Args:

@@ -5,25 +5,22 @@
 import random
 
 import numpy as np
-import torch
 
 from blacksmith.configs.trainer import TrainerConfig
 
 
 class ReproducibilityManager:
+    """Framework-agnostic seeding of the Python and NumPy RNGs.
+
+    Framework-specific seeding (e.g. torch) is added by subclasses so the base
+    stays importable without a deep-learning framework.
+    """
+
     def __init__(self, config: TrainerConfig):
         self.config = config
 
     def setup(self):
         self._seed_python_rngs()
-
-        torch.manual_seed(self.config.seed)
-        torch.cuda.manual_seed(self.config.seed)
-        torch.cuda.manual_seed_all(self.config.seed)
-
-        if self.config.deterministic:
-            torch.backends.cudnn.deterministic = True
-            torch.backends.cudnn.benchmark = False
 
     def _seed_python_rngs(self):
         random.seed(self.config.seed)

@@ -3,19 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-import torch
 from pydantic import BaseModel, Field, model_validator
 
 from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.configs.compile import CompileConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
 from blacksmith.configs.logging import LoggingConfig
+from blacksmith.configs.lora import LoraConfig
 from blacksmith.configs.metrics import MetricsConfig
-
-TORCH_DTYPES = {
-    "torch.bfloat16": torch.bfloat16,
-    "torch.float32": torch.float32,
-}
 
 
 class TrainerConfig(BaseModel):
@@ -38,7 +33,6 @@ class TrainerConfig(BaseModel):
     num_epochs: int = Field(gt=0)
     weight_decay: float = Field(ge=0.0)
     gradient_accumulation_steps: int = Field(gt=0)
-    training_model_type: str  # [lora, adapters]
 
     # Validation settings. 0 disables validation (no initial or periodic pass).
     val_steps_freq: int = Field(ge=0)
@@ -47,6 +41,9 @@ class TrainerConfig(BaseModel):
     logging: LoggingConfig
     metrics: MetricsConfig
     checkpoint: CheckpointConfig
+
+    # LoRA settings (nested, optional). When unset the trainer does a full fine-tune.
+    lora: Optional[LoraConfig] = Field(default=None)
 
     # Custom dataset settings.
     custom_dataset: Optional[CustomDatasetConfig] = Field(default=None)
@@ -68,11 +65,5 @@ class TrainerConfig(BaseModel):
     input_sharding_dim: Optional[str] = Field(default=None)
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
-    # Compile options (see DeviceManager.compile_options).
+    # Compile options (see CrankDeviceManager.compile_options).
     compile: CompileConfig = Field(default_factory=CompileConfig)
-
-    def torch_dtype(self) -> torch.dtype:
-        try:
-            return TORCH_DTYPES[self.dtype]
-        except KeyError as e:
-            raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(TORCH_DTYPES)}") from e

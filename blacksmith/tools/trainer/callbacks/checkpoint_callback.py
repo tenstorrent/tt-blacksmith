@@ -20,8 +20,9 @@ class CheckpointCallback(Callback):
         if trainer.config is None:
             return
 
-        device = getattr(trainer.device_manager, "device", None)
-        self.manager = CheckpointManager(trainer.config.checkpoint, logger=trainer.logger, device=device)
+        # The trainer builds a framework-specific manager so this callback stays
+        # free of framework imports.
+        self.manager = trainer.create_checkpoint_manager(trainer.config.checkpoint, trainer.logger)
         self._prev_global_step = trainer.global_step
 
         if trainer.config.checkpoint.resume_from_checkpoint:
@@ -30,7 +31,9 @@ class CheckpointCallback(Callback):
     def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         # Cache the freshest validation loss so saved checkpoints carry it as a
         # metric (used for best-N tracking). Runs before `on_train_batch_end`.
-        self._last_val_loss = val_loss
+        # Read the device-side loss back to a host float once, here (off the hot
+        # path): it is serialized to JSON and compared for best-N selection.
+        self._last_val_loss = float(val_loss)
 
     def on_train_batch_end(self, trainer, *args, **kwargs):
         if self.manager is None:

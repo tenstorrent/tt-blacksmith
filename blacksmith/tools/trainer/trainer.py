@@ -2,25 +2,33 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 from abc import ABC, abstractmethod
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any, Union
 
-import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.configs.trainer import TrainerConfig
+from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.device_manager import DeviceManager
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.reproducibility_manager import ReproducibilityManager
-from blacksmith.tools.torch_helpers import loss_to_float
 from blacksmith.tools.trainer.callback import Callback
 from blacksmith.tools.trainer.callbacks_handler import CallbackHandler
 from blacksmith.tools.trainer.utils import normalize_callbacks
 
 
 class Trainer(ABC):
+    """Framework-agnostic training loop.
+
+    This base owns the loop, the callback dispatch, gradient-accumulation
+    bookkeeping and validation scheduling, and must stay importable without a
+    deep-learning framework (no ``torch``). Everything that touches tensors /
+    autograd / devices is expressed as an abstract hook or a manager factory,
+    implemented by a concrete subclass such as ``CrankLLMTrainer``.
+    """
+
     def __init__(
         self,
         callbacks: Union[Callback, Sequence[Callback], None] = None,
@@ -33,8 +41,11 @@ class Trainer(ABC):
         self.logger: TrainingLogger | None = None
         self.global_step: int = 0
         self.epoch: int = 0
-        # Host-side loss accumulator over a gradient-accumulation window.
-        self.step_loss: torch.Tensor | None = None
+        # Loss accumulator over a gradient-accumulation window. Kept as a detached
+        # (device) loss object, never read back to the host here: materializing it
+        # to a float every step would force a device sync and break the compiled
+        # graph. Consumers (e.g. MetricsCallback) convert to a float off the hot path.
+        self.step_loss: Any = None
 
     def setup(
         self,
@@ -54,9 +65,9 @@ class Trainer(ABC):
                 kwargs.get("test_log_filename_prefix"),
             )
         if self.reproducibility_manager is None:
-            self.reproducibility_manager = ReproducibilityManager(config)
+            self.reproducibility_manager = self._create_reproducibility_manager()
         self.reproducibility_manager.setup()
-        self.device_manager = DeviceManager(config)
+        self.device_manager = self._create_device_manager()
 
         self.model = self._load_model()
         # Once, here: DTensor parameters stay DTensors, and the optimizer below must see them.
@@ -64,15 +75,39 @@ class Trainer(ABC):
         self.train_dataloader, self.val_dataloader = self._load_dataloaders()
         self.optimizer = self._load_optimizer()
 
+    # --------------------------------------------------------- manager factories
     @abstractmethod
-    def _load_model(self) -> torch.nn.Module:
+    def _create_reproducibility_manager(self) -> ReproducibilityManager:
+        """Build the reproducibility manager for this trainer's framework."""
+        pass
+
+    @abstractmethod
+    def _create_device_manager(self) -> DeviceManager:
+        """Build the device manager for this trainer's framework."""
+        pass
+
+    @abstractmethod
+    def create_checkpoint_manager(
+        self,
+        checkpoint_config: CheckpointConfig,
+        logger: TrainingLogger | None = None,
+    ) -> CheckpointManager:
+        """Build a checkpoint manager for this trainer's framework.
+
+        Used by the checkpoint callback so it stays free of framework imports.
+        """
+        pass
+
+    # ------------------------------------------------------------------- hooks
+    @abstractmethod
+    def _load_model(self) -> Any:
         """
         Build and return the model to train.
         """
         pass
 
     @abstractmethod
-    def _load_dataloaders(self) -> tuple[DataLoader, DataLoader | None]:
+    def _load_dataloaders(self) -> tuple[Iterable, Iterable | None]:
         """
         Build and return the ``(train_dataloader, val_dataloader)`` pair.
 
@@ -80,18 +115,10 @@ class Trainer(ABC):
         """
         pass
 
-    def _load_optimizer(self) -> torch.optim.Optimizer:
-        """
-        Build and return the optimizer over the model's trainable parameters.
-
-        Defaults to AdamW; override for a different optimizer.
-        """
-        trainable_params = [p for p in self.model.parameters() if p.requires_grad]
-        return torch.optim.AdamW(
-            trainable_params,
-            lr=self.config.learning_rate,
-            weight_decay=self.config.weight_decay,
-        )
+    @abstractmethod
+    def _load_optimizer(self) -> Any:
+        """Build and return the optimizer over the model's trainable parameters."""
+        pass
 
     @contextmanager
     def _train_lifecycle(self) -> Iterator[None]:
@@ -107,8 +134,8 @@ class Trainer(ABC):
                 self.logger.finish()
 
     def _init_step_state(self) -> None:
-        """Reset the host-side loss accumulator at the start of ``train()``."""
-        self.step_loss = torch.zeros(())
+        """Reset the loss accumulator at the start of ``train()``."""
+        self.step_loss = None
 
     def train(self) -> None:
         self.callback_handler("on_train_start")
@@ -129,7 +156,7 @@ class Trainer(ABC):
                 self.epoch = epoch
                 self.callback_handler("on_train_epoch_start")
 
-                self.model.train()
+                self._train_mode()
                 accumulation_step = 0
 
                 progress = tqdm(self.train_dataloader, desc=f"Training (epoch {epoch})")
@@ -146,21 +173,21 @@ class Trainer(ABC):
                     scaled_loss = loss / grad_accumulation_steps
                     self.callback_handler("on_backward_start", loss)
                     self._backward(scaled_loss)
-                    self.step_loss = self.step_loss + loss_to_float(scaled_loss)
+                    # Accumulate the detached loss on the device; no host readback here.
+                    self.step_loss = self._accumulate_loss(self.step_loss, scaled_loss)
                     self.callback_handler("on_backward_end", loss)
 
                     accumulation_step += 1
 
                     if accumulation_step == grad_accumulation_steps:
                         window_loss = self.step_loss
-                        self.step_loss = torch.zeros(())
+                        self.step_loss = None
                         self.callback_handler("on_optimizer_step_start")
                         self._optimizer_step()
                         self.callback_handler("on_optimizer_step_end", window_loss)
 
                         accumulation_step = 0
                         self.global_step += 1
-                        progress.set_postfix(loss=window_loss.item())
 
                         # Periodic inline validation.
                         if self._validation_enabled() and self.global_step % self.config.val_steps_freq == 0:
@@ -174,28 +201,31 @@ class Trainer(ABC):
         return self.val_dataloader is not None and self.config.val_steps_freq > 0
 
     def validate(self) -> None:
-        self.model.eval()
+        self._eval_mode()
         self.callback_handler("on_validation_start")
 
-        total_loss = 0.0
+        total_loss = None
         num_batches = 0
-        with torch.no_grad():
+        with self._no_grad():
             for batch in tqdm(self.val_dataloader, desc="Validation"):
                 self.callback_handler("on_validation_batch_start", batch)
 
                 batch = self.device_manager.prepare_batch(batch)
                 loss = self._forward(batch)
 
-                total_loss += loss_to_float(loss)
+                # Accumulate the detached loss on the device; no host readback here.
+                total_loss = self._accumulate_loss(total_loss, loss)
                 num_batches += 1
                 self.callback_handler("on_validation_batch_end", batch, loss)
 
+        # Device-side mean (or 0.0 when there is no validation data). Consumers
+        # read it back to the host off the hot path.
         val_loss = total_loss / num_batches if num_batches else 0.0
         self.callback_handler("on_validation_end", val_loss)
-        self.model.train()
+        self._train_mode()
 
     @abstractmethod
-    def _forward(self, batch: Any) -> torch.Tensor:
+    def _forward(self, batch: Any) -> Any:
         """
         Run a forward pass for a single batch and return the raw (unscaled) loss.
 
@@ -204,17 +234,47 @@ class Trainer(ABC):
         """
         pass
 
-    def _backward(self, loss: torch.Tensor) -> None:
-        """
-        Run the backward pass. Override for custom synchronization behaviour.
-        """
-        loss.backward()
+    @abstractmethod
+    def _backward(self, loss: Any) -> None:
+        """Run the backward pass for ``loss``."""
+        pass
 
     def _optimizer_step(self) -> None:
         """
         Step the optimizer and reset gradients. Override for custom behaviour.
         """
         self.device_manager.optimizer_step(self.optimizer, zero_grad=True)
+
+    @abstractmethod
+    def _train_mode(self) -> None:
+        """Put the model in training mode."""
+        pass
+
+    @abstractmethod
+    def _eval_mode(self) -> None:
+        """Put the model in evaluation mode."""
+        pass
+
+    @abstractmethod
+    def _no_grad(self) -> Any:
+        """Return a context manager that disables gradient tracking."""
+        pass
+
+    @abstractmethod
+    def _accumulate_loss(self, running: Any, loss: Any) -> Any:
+        """Add ``loss`` to the running accumulator, staying on the device.
+
+        Must detach ``loss`` (so the autograd graph is not retained) but must not
+        read it back to the host: pulling the value to a float here would force a
+        device sync every step and break the compiled graph. ``running`` is
+        ``None`` for the first loss of a window.
+        """
+        pass
+
+    @abstractmethod
+    def parameter_counts(self) -> tuple[int, int]:
+        """Return ``(total_params, trainable_params)`` for the current model."""
+        pass
 
     def cleanup(self) -> None:
         """
