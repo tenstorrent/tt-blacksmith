@@ -6,11 +6,7 @@ from pydantic import BaseModel, Field
 
 class LoraConfig(BaseModel):
     """
-    Reusable LoRA settings.
-
-    Nested optionally under ``TrainerConfig`` (like metrics / checkpoint) so any
-    trainer can enable parameter-efficient fine-tuning by providing this block,
-    and run a full fine-tune by leaving it out.
+    LoRA settings.
     """
 
     r: int = Field(gt=0)

@@ -10,11 +10,7 @@ from blacksmith.configs.trainer import TrainerConfig
 
 
 class ReproducibilityManager:
-    """Framework-agnostic seeding of the Python and NumPy RNGs.
-
-    Framework-specific seeding (e.g. torch) is added by subclasses so the base
-    stays importable without a deep-learning framework.
-    """
+    """Framework-agnostic seeding."""
 
     def __init__(self, config: TrainerConfig):
         self.config = config

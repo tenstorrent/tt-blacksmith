@@ -10,14 +10,7 @@ from blacksmith.configs.trainer import TrainerConfig
 
 
 class DeviceManager(ABC):
-    """Framework-agnostic view of the device / mesh configuration.
-
-    The base holds the configuration and answers the parallelism queries the
-    training loop needs, without importing any deep-learning framework. The
-    framework-specific parts (opening the device, building the DTensor mesh,
-    sharding, batch movement, optimizer stepping) are abstract and implemented
-    by a concrete subclass such as ``CrankDeviceManager``.
-    """
+    """Framework-agnostic view of the device / mesh configuration."""
 
     def __init__(self, config: TrainerConfig):
         self.config = config
