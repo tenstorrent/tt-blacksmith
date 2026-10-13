@@ -42,9 +42,7 @@ def get_model(config: TrainerConfig, device: torch.device):
         model.to(device)
 
     if config.use_tt and getattr(config, "weight_dtype_overrides", None):
-        raise ValueError(
-            "weight_dtype_overrides is deprecated; use `experimental_weight_dtype` (bfp_bf8 | bfp_bf4)."
-        )
+        raise ValueError("weight_dtype_overrides is deprecated; use `experimental_weight_dtype` (bfp_bf8 | bfp_bf4).")
 
     return model
 
