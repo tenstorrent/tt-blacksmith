@@ -7,5 +7,5 @@ setup(
     name="blacksmith",
     version="0.1",
     description="Tenstorrent Python Blacksmith",
-    packages=find_packages(include=["blacksmith*"]),
+    packages=find_packages(include=["blacksmith", "blacksmith.*"]),
 )
