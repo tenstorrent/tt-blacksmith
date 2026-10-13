@@ -4,9 +4,7 @@ torchdata
 peft
 tqdm
 datasets
-transformers==4.57.1
-flax
-six
+transformers
 kornia
 pytest
 pandas
