@@ -5,30 +5,13 @@ from enum import Enum
 
 from blacksmith.configs import TrainerConfig
 from blacksmith.datasets.alpaca import AlpacaDataset
-from blacksmith.datasets.banking77 import Banking77Dataset
 from blacksmith.datasets.custom import CustomLLMDataset
-from blacksmith.datasets.fusechat import FuseChatDataset
-from blacksmith.datasets.gsm8k import GSM8KDataset
-from blacksmith.datasets.math_preference import MathDPODataset, MathSFTDataset
-from blacksmith.datasets.metamathqa import MetaMathQADataset
-from blacksmith.datasets.squadV2 import SquadV2Dataset
 from blacksmith.datasets.sst2 import SSTDataset
-from blacksmith.datasets.text2sql import TextToSQLDataset
-from blacksmith.datasets.wizardlm_evol import WizardLMEvolDataset
 
 
 class AvailableDataset(Enum):
     SST2 = "sst2"
-    TEXT2SQL = "text2sql"
-    BANKING77 = "banking77"
-    SQUADV2 = "squadv2"
-    MATH_PREFERENCE_DPO = "math_preference_dpo"
-    MATH_PREFERENCE_SFT = "math_preference_sft"  # Supervised fine-tuning on chosen responses (stage 1 of DPO pipeline)
-    FUSECHAT = "fusechat"
     ALPACA = "alpaca"
-    METAMATHQA = "metamathqa"
-    GSM8K = "gsm8k"
-    WIZARDLM_EVOL = "wizardlm_evol"
     CUSTOM = "custom"
 
 
@@ -38,26 +21,8 @@ def get_dataset(config: TrainerConfig, split: str = "train", collate_fn=None):
 
     if dataset_id == AvailableDataset.SST2.value:
         return SSTDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.TEXT2SQL.value:
-        return TextToSQLDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.BANKING77.value:
-        return Banking77Dataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.SQUADV2.value:
-        return SquadV2Dataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.FUSECHAT.value:
-        return FuseChatDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.ALPACA.value:
         return AlpacaDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.METAMATHQA.value:
-        return MetaMathQADataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.GSM8K.value:
-        return GSM8KDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.MATH_PREFERENCE_DPO.value:
-        return MathDPODataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.MATH_PREFERENCE_SFT.value:
-        return MathSFTDataset(config, split, collate_fn=collate_fn)
-    elif dataset_id == AvailableDataset.WIZARDLM_EVOL.value:
-        return WizardLMEvolDataset(config, split, collate_fn=collate_fn)
     elif dataset_id == AvailableDataset.CUSTOM.value:
         return CustomLLMDataset(config, split, collate_fn=collate_fn)
     else:
