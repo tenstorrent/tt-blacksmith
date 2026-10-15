@@ -23,6 +23,7 @@ def torch_dtype(dtype: str) -> torch.dtype:
     except KeyError as e:
         raise ValueError(f"Unsupported dtype {dtype!r}; expected one of {sorted(TORCH_DTYPES)}") from e
 
+
 # HF's SDPA, except that a forward with no padding mask and no KV cache gets no mask at all and runs
 # `is_causal`. HF skips the mask itself only outside torch.compile; under compile it materializes a
 # [batch, 1, seq, seq] causal mask, which keeps tt-crank's sdpa off the fused sdpa_fw/sdpa_bw kernels.

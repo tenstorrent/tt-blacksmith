@@ -165,9 +165,7 @@ class CheckpointManager(ABC):
     def _tracked_paths(self) -> set[str]:
         """Paths referenced by either the last-N or the best-N list."""
         return {
-            cp["path"]
-            for key in ("checkpoints", "best_checkpoints")
-            for cp in self.checkpoint_history.get(key, [])
+            cp["path"] for key in ("checkpoints", "best_checkpoints") for cp in self.checkpoint_history.get(key, [])
         }
 
     def _rotate_last_checkpoints(self):

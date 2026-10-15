@@ -4,6 +4,7 @@
 import torch
 from torch.distributed.tensor import DTensor
 
+
 def to_host(obj):
     """Move tensors in a (nested) container to CPU, gathering DTensor shards."""
     if isinstance(obj, DTensor):
