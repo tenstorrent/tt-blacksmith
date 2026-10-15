@@ -19,7 +19,8 @@ class CheckpointConfig(BaseModel):
     project_dir: str
     final_checkpoint_name: str
     save_optim: bool
-    keep_last_n: int = Field(ge=0)
+    # At least 1, so the checkpoint just saved (e.g. the final one) is never rotated away.
+    keep_last_n: int = Field(ge=1)
     keep_best_n: int = Field(ge=0)
     checkpoint_metric: str
     checkpoint_metric_mode: str  # [min, max]

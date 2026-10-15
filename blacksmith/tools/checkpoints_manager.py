@@ -137,11 +137,13 @@ class CheckpointManager(ABC):
             "metrics": metrics,
             "timestamp": metadata["timestamp"],
         }
+        tracked_before = self._tracked_paths() | {checkpoint_path}
         self.checkpoint_history["checkpoints"].append(checkpoint_info)
 
         if self.config.checkpoint_metric in metrics:
             self._update_best_checkpoints(checkpoint_info)
-        self._cleanup_checkpoints()
+        self._rotate_last_checkpoints()
+        self._remove_untracked(tracked_before)
         self._save_checkpoint_history()
 
         self.logger.info(f"Saved checkpoint: {checkpoint_path}")
@@ -160,25 +162,29 @@ class CheckpointManager(ABC):
 
         self.checkpoint_history["best_checkpoints"] = best_checkpoints[: self.config.keep_best_n]
 
-    def _cleanup_checkpoints(self):
-        """Keep only the last N and best N checkpoints"""
-        all_checkpoints = self.checkpoint_history["checkpoints"]
-        best_checkpoint_paths = {cp["path"] for cp in self.checkpoint_history.get("best_checkpoints", [])}
+    def _tracked_paths(self) -> set[str]:
+        """Paths referenced by either the last-N or the best-N list."""
+        return {
+            cp["path"]
+            for key in ("checkpoints", "best_checkpoints")
+            for cp in self.checkpoint_history.get(key, [])
+        }
 
-        if len(all_checkpoints) <= self.config.keep_last_n:
-            return
+    def _rotate_last_checkpoints(self):
+        """Trim the last-N list. Files are removed separately by `_remove_untracked`."""
+        self.checkpoint_history["checkpoints"] = self.checkpoint_history["checkpoints"][-self.config.keep_last_n :]
 
-        checkpoints_to_remove = all_checkpoints[: -self.config.keep_last_n]
-        for checkpoint_info in checkpoints_to_remove:
-            checkpoint_path = checkpoint_info["path"]
+    def _remove_untracked(self, previously_tracked: set[str]):
+        """Delete files that were tracked before this save but are in neither list now.
 
-            # Don't remove if it's a best checkpoint
-            if checkpoint_path not in best_checkpoint_paths:
-                if os.path.exists(checkpoint_path):
-                    os.remove(checkpoint_path)
-                    self.logger.info(f"Removed old checkpoint: {checkpoint_path}")
-
-        self.checkpoint_history["checkpoints"] = all_checkpoints[-self.config.keep_last_n :]
+        A file is kept while either list references it, so a checkpoint that is
+        protected by best-N after leaving last-N is still deleted once it also
+        falls out of best-N.
+        """
+        for checkpoint_path in previously_tracked - self._tracked_paths():
+            if os.path.exists(checkpoint_path):
+                os.remove(checkpoint_path)
+                self.logger.info(f"Removed old checkpoint: {checkpoint_path}")
 
     def load_checkpoint(self, model: Any, optimizer: Optional[Any] = None):
         """Load checkpoint based on resume option in config"""
