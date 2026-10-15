@@ -13,7 +13,7 @@ from blacksmith.models.hf_models import get_model
 from blacksmith.tools.crank.checkpoint_manager import CrankCheckpointManager
 from blacksmith.tools.crank.device_manager import CrankDeviceManager
 from blacksmith.tools.crank.reproducibility_manager import CrankReproducibilityManager
-from blacksmith.tools.crank.torch_helpers import collate_fn_for_causal_lm
+from blacksmith.tools.crank.torch_helpers import collate_fn_for_causal_lm, loss_to_float
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.trainer.trainer import Trainer
 
@@ -121,6 +121,9 @@ class CrankLLMTrainer(Trainer):
         # device (no host readback), so the compiled training step is not broken.
         detached = loss.detach()
         return detached if running is None else running + detached
+
+    def loss_to_float(self, loss: torch.Tensor | float) -> float:
+        return loss_to_float(loss)
 
     def parameter_counts(self) -> tuple[int, int]:
         total = sum(p.numel() for p in self.model.parameters())

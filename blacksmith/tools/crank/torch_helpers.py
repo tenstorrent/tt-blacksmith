@@ -34,8 +34,10 @@ def to_host(obj):
     return obj
 
 
-def loss_to_float(loss: torch.Tensor) -> float:
+def loss_to_float(loss: torch.Tensor | float) -> float:
     """Pull a loss to host as a float, reducing a `Partial` DTensor first."""
+    if not isinstance(loss, torch.Tensor):
+        return float(loss)
     if isinstance(loss, DTensor):
         loss = loss.full_tensor()
     return float(loss.detach().cpu())

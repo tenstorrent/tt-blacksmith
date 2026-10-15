@@ -58,7 +58,7 @@ class MetricsCallback(Callback):
         steps_freq = trainer.config.metrics.steps_freq
         if trainer.global_step % steps_freq == 0:
             # Single host readback per log window (not per step).
-            available = {"loss": float(self._running_loss) / steps_freq}
+            available = {"loss": trainer.loss_to_float(self._running_loss) / steps_freq}
             metrics = self._select(available, trainer.config.metrics.train_metrics, phase="train")
             if metrics:
                 trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)
@@ -71,7 +71,7 @@ class MetricsCallback(Callback):
         if trainer.logger is None:
             return
         # Read the device-side mean back to the host once, here (off the hot path).
-        available = {"loss": float(val_loss)}
+        available = {"loss": trainer.loss_to_float(val_loss)}
         metrics = self._select(available, trainer.config.metrics.val_metrics, phase="val")
         if metrics:
             trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)

@@ -33,7 +33,7 @@ class CheckpointCallback(Callback):
         # metric (used for best-N tracking). Runs before `on_train_batch_end`.
         # Read the device-side loss back to a host float once, here (off the hot
         # path): it is serialized to JSON and compared for best-N selection.
-        self._last_metrics["val/loss"] = float(val_loss)
+        self._last_metrics["val/loss"] = trainer.loss_to_float(val_loss)
 
     def on_train_batch_end(self, trainer, *args, **kwargs):
         if self.manager is None:

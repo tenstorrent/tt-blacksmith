@@ -277,6 +277,16 @@ class Trainer(ABC):
         pass
 
     @abstractmethod
+    def loss_to_float(self, loss: Any) -> float:
+        """Read a loss back to the host as a Python float.
+
+        Must reduce a sharded / partial loss across devices first, so every rank
+        reports the global value rather than its local shard. ``loss`` may also
+        be a plain number (e.g. ``0.0`` from an empty validation set).
+        """
+        pass
+
+    @abstractmethod
     def parameter_counts(self) -> tuple[int, int]:
         """Return ``(total_params, trainable_params)`` for the current model."""
         pass
