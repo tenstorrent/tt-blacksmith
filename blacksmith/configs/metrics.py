@@ -15,7 +15,6 @@ class MetricsConfig(BaseModel):
 
     # Cadence at which train/validation metrics are logged.
     steps_freq: int = Field(ge=1)
-    epoch_freq: int = Field(ge=1)
 
     # Metric names to log, per phase. The callback logs each name it can resolve
     # (currently "loss"); names without a source yet are ignored, keeping the set

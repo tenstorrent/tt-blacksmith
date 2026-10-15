@@ -9,33 +9,14 @@ from typing import Optional
 import yaml
 from pydantic import BaseModel
 
+# Applied under pytest; deep-merged so the rest of logging / metrics / checkpoint is kept.
 _TEST_MODE_DEFAULTS = {
-    "test_config": {"max_steps_per_epoch": 15},
-    "steps_freq": 5,
     "val_steps_freq": 5,
-    "save_strategy": "none",
     "use_tt": True,
-    "log_on_wandb": False,
-}
-
-# Nested TrainerConfig equivalents of the flat keys above. Applied under
-# pytest when ``config`` has the nested sub-configs; deep-merged so the
-# rest of logging / metrics / checkpoint is kept.
-_TRAINER_TEST_MODE_DEFAULTS = {
     "logging": {"use_wandb": False},
     "metrics": {"steps_freq": 5},
     "checkpoint": {"save_strategy": "none"},
 }
-
-
-def _has_nested_trainer_configs(config: type[BaseModel]) -> bool:
-    """Structural check for a TrainerConfig-shaped class.
-
-    Both the tt-xla and the tt-crank trainer pipelines define their own
-    ``TrainerConfig``; checking the fields instead of ``issubclass`` keeps this
-    module free of either import and works for both.
-    """
-    return set(_TRAINER_TEST_MODE_DEFAULTS) <= set(config.model_fields)
 
 
 def _deep_update(base: dict, overlay: dict) -> dict:
@@ -66,9 +47,7 @@ def generate_config(
     # When running under pytest, apply defaults to limit training duration and
     # logging frequency. An explicit test config (below) can still override.
     if "PYTEST_CURRENT_TEST" in os.environ:
-        config_data |= _TEST_MODE_DEFAULTS
-        if _has_nested_trainer_configs(config):
-            _deep_update(config_data, _TRAINER_TEST_MODE_DEFAULTS)
+        _deep_update(config_data, _TEST_MODE_DEFAULTS)
 
     if test_yaml_path is not None:
         # Overlay on top of the experiment YAML (and test-mode defaults).
@@ -79,14 +58,16 @@ def generate_config(
             _deep_update(config_data, yaml.safe_load(file) or {})
 
     if test_checkpoint_path:
-        config_data["resume_from_checkpoint"] = True
-        config_data["resume_option"] = "path"
-        config_data["checkpoint_path"] = test_checkpoint_path
-        checkpoint = config_data.get("checkpoint")
-        if isinstance(checkpoint, dict):
-            checkpoint["resume_from_checkpoint"] = True
-            checkpoint["resume_option"] = "path"
-            checkpoint["checkpoint_path"] = test_checkpoint_path
+        _deep_update(
+            config_data,
+            {
+                "checkpoint": {
+                    "resume_from_checkpoint": True,
+                    "resume_option": "path",
+                    "checkpoint_path": test_checkpoint_path,
+                }
+            },
+        )
 
     return config.model_validate(config_data)
 

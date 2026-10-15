@@ -37,7 +37,6 @@ logging:
 # Metrics settings
 metrics:
   steps_freq: 10
-  epoch_freq: 1
   train_metrics: ["loss"]
   val_metrics: ["loss"]
 
@@ -58,7 +57,6 @@ checkpoint:
   checkpoint_path: ""
 
 # Reproducibility settings
-framework: "pytorch"
 seed: 23
 deterministic: False
 
