@@ -6,23 +6,12 @@ from typing import Any, Dict, Optional
 import torch
 from torch.distributed.tensor import DTensor, distribute_tensor
 
-from blacksmith.configs import CheckpointConfig
 from blacksmith.tools.checkpoints_manager import CheckpointManager
 from blacksmith.tools.crank.torch_helpers import to_host
-from blacksmith.tools.logging_manager import TrainingLogger
 
 
 class CrankCheckpointManager(CheckpointManager):
     """Checkpoint manager that (de)serializes torch model / optimizer state."""
-
-    def __init__(
-        self,
-        config: CheckpointConfig,
-        logger: Optional[TrainingLogger] = None,
-        device: Optional[torch.device] = None,
-    ):
-        super().__init__(config, logger=logger)
-        self.device = device
 
     @staticmethod
     def align_state_dict_parameter_names(loaded_state_dict, model_state_dict):

@@ -41,9 +41,8 @@ class CrankLLMTrainer(Trainer):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Defaults so subclasses that override `_load_model` still have a loss
+        # Default so subclasses that override `_load_model` still have a loss
         # callable before train().
-        self.eval_model = None
         self._compute_loss_fn = compute_causal_lm_loss
 
     # --------------------------------------------------------- manager factories
@@ -58,15 +57,13 @@ class CrankLLMTrainer(Trainer):
         checkpoint_config: CheckpointConfig,
         logger: TrainingLogger | None = None,
     ) -> CrankCheckpointManager:
-        device = getattr(self.device_manager, "device", None)
-        return CrankCheckpointManager(checkpoint_config, logger=logger, device=device)
+        return CrankCheckpointManager(checkpoint_config, logger=logger)
 
     # ------------------------------------------------------------------- hooks
     def _load_model(self) -> torch.nn.Module:
         # The model is returned eager; forward + loss are compiled as one callable so the
         # loss and its backward stay inside the tt graph.
         model = get_model(self.config, self.device_manager.device)
-        self.eval_model = model
         self._compute_loss_fn = compute_causal_lm_loss
         if self.config.use_tt:
             # dynamic=False: tt-crank cannot lower symbolic shapes.

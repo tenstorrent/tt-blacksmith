@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import numpy as np
 import pandas as pd
 
 from blacksmith.configs import LoggingConfig
@@ -147,35 +146,10 @@ class TrainingLogger:
             row = {"_step": step}
             if "train/loss" in metrics:
                 row["train/loss"] = metrics["train/loss"]
-            if "train/reward_mean" in metrics:
-                row["train/reward_mean"] = metrics["train/reward_mean"]
             if len(row) > 1:
                 self.train_log.append(row)
             if "val/loss" in metrics:
                 self.val_log.append({"_step": step, "val/loss": metrics["val/loss"]})
-
-    def log_image(self, key: str, image: Any, step: Optional[int] = None, caption: str = "", commit: bool = False):
-        """Log a PIL image to W&B (no-op on stdout-only runs besides a log line)."""
-        if self.config.use_wandb:
-            try:
-                image_payload = {key: self._wandb.Image(image, caption=caption)}
-                self.wandb_run.log(image_payload, step=step, commit=commit)
-            except Exception as e:
-                self.std_logger.warning(f"Failed to log image to W&B: {e}")
-        else:
-            self.std_logger.info(f"[{key}] step={step} {caption}")
-
-    def log_video(
-        self, key: str, frames_uint8: "np.ndarray", fps: int, step: Optional[int] = None, commit: bool = False
-    ):
-        """Log a video to W&B."""
-        if self.config.use_wandb:
-            try:
-                arr = np.transpose(frames_uint8, (0, 3, 1, 2))
-                video_payload = {key: self._wandb.Video(arr, fps=fps, format="mp4")}
-                self.wandb_run.log(video_payload, step=step, commit=commit)
-            except Exception as e:
-                self.std_logger.warning(f"Failed to log video to W&B: {e}")
 
     def log_model_info(self, model_info: Dict[str, Any]):
         """
