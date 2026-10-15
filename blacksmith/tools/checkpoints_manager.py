@@ -82,7 +82,7 @@ class CheckpointManager(ABC):
         """Determine if checkpoint should be saved at current step/epoch"""
         if epoch is not None:
             if self.config.save_strategy == "epoch":
-                return epoch % self.config.epoch_freq == 0
+                return (epoch + 1) % self.config.epoch_freq == 0
             return False
 
         if self.config.save_strategy == "step":
