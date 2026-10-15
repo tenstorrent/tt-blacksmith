@@ -33,9 +33,21 @@ def _import_wandb():
 
 
 class TrainingLogger:
-    def __init__(self, config: LoggingConfig, test_log_filename_prefix: Optional[str] = None):
+    def __init__(
+        self,
+        config: LoggingConfig,
+        test_log_filename_prefix: Optional[str] = None,
+        run_config: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Args:
+            config: Logger / W&B settings.
+            test_log_filename_prefix: If set, train / val losses are also written to CSV for golden comparison.
+            run_config: Full run hyperparameters uploaded as the W&B run config. Defaults to ``config``.
+        """
         self.config = config
         self.test_log_filename_prefix = test_log_filename_prefix
+        self.run_config = run_config if run_config is not None else config.model_dump()
         self._wandb = None
 
         self._setup_std_logger()
@@ -76,7 +88,7 @@ class TrainingLogger:
                 project=self.config.wandb_project,
                 name=self.config.wandb_run_name,
                 tags=self.config.wandb_tags,
-                config=self.config.model_dump(),
+                config=self.run_config,
                 save_code=True,
             )
         except Exception as e:
@@ -117,9 +129,13 @@ class TrainingLogger:
             step: Training step number
             commit: Whether to commit to W&B (batches logs if False)
         """
-        metrics_str = " | ".join([f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" for k, v in metrics.items()])
-        step_str = f"Step {step} | " if step is not None else ""
-        self.std_logger.info(f"{step_str}{metrics_str}")
+        # An empty dict is a pure W&B commit (flush of batched logs); nothing to print.
+        if metrics:
+            metrics_str = " | ".join(
+                [f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" for k, v in metrics.items()]
+            )
+            step_str = f"Step {step} | " if step is not None else ""
+            self.std_logger.info(f"{step_str}{metrics_str}")
 
         if self.config.use_wandb:
             try:
@@ -226,7 +242,7 @@ class TrainingLogger:
         if self.config.use_wandb:
             try:
                 for key, value in summary.items():
-                    self.wandb_run.run.summary[key] = value
+                    self.wandb_run.summary[key] = value
             except Exception as e:
                 self.std_logger.warning(f"Failed to log summary to W&B: {e}")
 
@@ -241,10 +257,9 @@ class TrainingLogger:
         if self.test_log_filename_prefix is not None:
             train_df = pd.DataFrame(self.train_log) if self.train_log else pd.DataFrame(columns=["_step", "train/loss"])
             train_df.to_csv(self.csv_path_train, index=False, float_format="%.10g")
-            # Skip val CSV when validation is disabled.
-            if getattr(self.config, "do_validation", True):
-                val_df = pd.DataFrame(self.val_log) if self.val_log else pd.DataFrame(columns=["_step", "val/loss"])
-                val_df.to_csv(self.csv_path_val, index=False, float_format="%.10g")
+            # Skip val CSV when no validation loss was logged (validation disabled or `val/loss` not requested).
+            if self.val_log:
+                pd.DataFrame(self.val_log).to_csv(self.csv_path_val, index=False, float_format="%.10g")
                 self.std_logger.info(
                     f"Training and validation logs saved to {self.csv_path_train} and {self.csv_path_val}"
                 )

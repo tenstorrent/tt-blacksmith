@@ -63,6 +63,7 @@ class Trainer(ABC):
             self.logger = TrainingLogger(
                 config.logging,
                 kwargs.get("test_log_filename_prefix"),
+                run_config=config.model_dump(mode="json"),
             )
         if self.reproducibility_manager is None:
             self.reproducibility_manager = self._create_reproducibility_manager()
