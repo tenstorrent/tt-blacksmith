@@ -48,6 +48,7 @@ class TrainingLogger:
         self.test_log_filename_prefix = test_log_filename_prefix
         self.run_config = run_config if run_config is not None else config.model_dump()
         self._wandb = None
+        self._finished = False
 
         self._setup_std_logger()
 
@@ -221,6 +222,11 @@ class TrainingLogger:
                 self.std_logger.warning(f"Failed to log summary to W&B: {e}")
 
     def finish(self):
+        """Close the W&B run and write CSV logs. Safe to call more than once."""
+        if self._finished:
+            return
+        self._finished = True
+
         if self.config.use_wandb:
             try:
                 self._wandb.finish()

@@ -49,7 +49,7 @@ class Trainer(ABC):
 
     def setup(
         self,
-        config: TrainerConfig | None = None,
+        config: TrainerConfig,
         **kwargs: Any,
     ) -> None:
         """
@@ -59,12 +59,11 @@ class Trainer(ABC):
             self.cleanup()
 
         self.config = config
-        if config is not None:
-            self.logger = TrainingLogger(
-                config.logging,
-                kwargs.get("test_log_filename_prefix"),
-                run_config=config.model_dump(mode="json"),
-            )
+        self.logger = TrainingLogger(
+            config.logging,
+            kwargs.get("test_log_filename_prefix"),
+            run_config=config.model_dump(mode="json"),
+        )
         if self.reproducibility_manager is None:
             self.reproducibility_manager = self._create_reproducibility_manager()
         self.reproducibility_manager.setup()
@@ -136,18 +135,16 @@ class Trainer(ABC):
             self.callback_handler("on_train_end")
         finally:
             # Finish the logger after the callbacks so they can still use it.
-            if self.logger is not None:
-                self.logger.finish()
+            self.logger.finish()
 
     def _init_step_state(self) -> None:
         """Reset the loss accumulator at the start of ``train()``."""
         self.step_loss = None
 
     def train(self) -> None:
-        self.callback_handler("on_train_start")
-        # `on_train_start` callbacks need to guard against having a config.
         if self.config is None:
-            return
+            raise RuntimeError("Trainer.setup(config) must be called before train().")
+        self.callback_handler("on_train_start")
 
         grad_accumulation_steps = self.config.gradient_accumulation_steps
         # Multichip: plain tensors HF builds internally count as replicated DTensors.
@@ -307,9 +304,12 @@ class Trainer(ABC):
         """
         Clean up trainer state, releasing references to free resources.
 
-        Deletes all state except ``callback_handler`` and resets the trainer to
-        a not-set-up state (``config`` is ``None``).
+        Finishes the logger (closing its W&B run), then deletes all state except
+        ``callback_handler`` and resets the trainer to a not-set-up state
+        (``config`` is ``None``).
         """
+        if self.logger is not None:
+            self.logger.finish()
         preserved = {"callback_handler"}
         for attr in list(self.__dict__):
             if attr not in preserved:

@@ -19,10 +19,6 @@ class MetricsCallback(Callback):
         self._running_loss = None
 
     def on_train_start(self, trainer, *args, **kwargs):
-        # `on_train_start` fires before the trainer validates its config, so guard.
-        if trainer.config is None or trainer.logger is None:
-            return
-
         total_params, trainable_params = trainer.parameter_counts()
         model_info = {
             "model_name": trainer.config.model_name,
@@ -43,9 +39,6 @@ class MetricsCallback(Callback):
         self._running_loss = window_loss if self._running_loss is None else self._running_loss + window_loss
 
     def on_step_end(self, trainer, global_step, *args, **kwargs):
-        if trainer.logger is None:
-            return
-
         steps_freq = trainer.config.metrics.steps_freq
         if global_step % steps_freq == 0:
             # Single host readback per log window (not per step).
@@ -59,8 +52,6 @@ class MetricsCallback(Callback):
         trainer.logger.log_metrics({}, commit=True, step=global_step)
 
     def on_validation_end(self, trainer, val_loss, *args, **kwargs):
-        if trainer.logger is None:
-            return
         # Read the device-side mean back to the host once, here (off the hot path).
         available = {"loss": trainer.loss_to_float(val_loss)}
         metrics = self._select(available, trainer.config.metrics.val_metrics, phase="val")
@@ -68,8 +59,7 @@ class MetricsCallback(Callback):
             trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)
 
     def on_error(self, trainer, exception, *args, **kwargs):
-        if trainer.logger is not None:
-            trainer.logger.error(f"Training failed with error: {exception}", traceback.format_exc())
+        trainer.logger.error(f"Training failed with error: {exception}", traceback.format_exc())
         raise exception
 
     @staticmethod
