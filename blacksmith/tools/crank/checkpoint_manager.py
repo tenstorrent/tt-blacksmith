@@ -4,6 +4,7 @@
 from typing import Any, Dict, Optional
 
 import torch
+from torch.distributed.tensor import DTensor, distribute_tensor
 
 from blacksmith.configs import CheckpointConfig
 from blacksmith.tools.checkpoints_manager import CheckpointManager
@@ -64,6 +65,24 @@ class CrankCheckpointManager(CheckpointManager):
 
         return new_state_dict
 
+    @staticmethod
+    def _like(value: Any, reference: torch.Tensor) -> Any:
+        """Lay out a host ``value`` like ``reference``: same mesh and placements if it is a DTensor."""
+        if not isinstance(reference, DTensor) or not isinstance(value, torch.Tensor) or isinstance(value, DTensor):
+            return value
+        return distribute_tensor(value, reference.device_mesh, reference.placements)
+
+    @classmethod
+    def _distribute_optimizer_state(cls, optimizer: torch.optim.Optimizer) -> None:
+        """Re-shard loaded optimizer state (e.g. Adam moments) to match its DTensor parameters.
+
+        Scalar state such as ``step`` stays a plain tensor.
+        """
+        for param, state in optimizer.state.items():
+            for key, value in state.items():
+                if isinstance(value, torch.Tensor) and value.shape == param.shape and value.dim() > 0:
+                    state[key] = cls._like(value, param)
+
     def _write_state(
         self,
         checkpoint_path: str,
@@ -96,13 +115,18 @@ class CrankCheckpointManager(CheckpointManager):
     ) -> Dict[str, Any]:
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
-        checkpoint["model_state_dict"] = self.align_state_dict_parameter_names(
-            checkpoint["model_state_dict"], model.state_dict()
-        )
-        model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        model_state_dict = model.state_dict()
+        loaded_state_dict = self.align_state_dict_parameter_names(checkpoint["model_state_dict"], model_state_dict)
+        loaded_state_dict = {
+            k: self._like(v, model_state_dict[k]) if k in model_state_dict else v for k, v in loaded_state_dict.items()
+        }
+        # Only trainable parameters are saved, so missing keys are expected; unexpected ones are not.
+        result = model.load_state_dict(loaded_state_dict, strict=False)
+        assert not result.unexpected_keys, f"Checkpoint has keys not in the model: {result.unexpected_keys}"
 
         if optimizer is not None and "optimizer_state_dict" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            self._distribute_optimizer_state(optimizer)
             self.logger.info("Loaded optimizer state")
 
         return {
