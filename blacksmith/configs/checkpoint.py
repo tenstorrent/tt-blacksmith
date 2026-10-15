@@ -22,6 +22,8 @@ class CheckpointConfig(BaseModel):
     # At least 1, so the checkpoint just saved (e.g. the final one) is never rotated away.
     keep_last_n: int = Field(ge=1)
     keep_best_n: int = Field(ge=0)
+    # Disables rotation: no checkpoint file is ever deleted and every save stays in the history.
+    keep_all_checkpoints: bool = False
     checkpoint_metric: str
     checkpoint_metric_mode: str  # [min, max]
 

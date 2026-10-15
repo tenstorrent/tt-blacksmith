@@ -61,6 +61,7 @@ checkpoint:
   save_optim: False
   keep_last_n: 3
   keep_best_n: 3
+  keep_all_checkpoints: False
   checkpoint_metric: "val/loss"
   checkpoint_metric_mode: "min"
   resume_from_checkpoint: False

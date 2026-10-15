@@ -142,8 +142,9 @@ class CheckpointManager(ABC):
 
         if self.config.checkpoint_metric in metrics:
             self._update_best_checkpoints(checkpoint_info)
-        self._rotate_last_checkpoints()
-        self._remove_untracked(tracked_before)
+        if not self.config.keep_all_checkpoints:
+            self._rotate_last_checkpoints()
+            self._remove_untracked(tracked_before)
         self._save_checkpoint_history()
 
         self.logger.info(f"Saved checkpoint: {checkpoint_path}")
