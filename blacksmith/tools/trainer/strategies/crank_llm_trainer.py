@@ -107,6 +107,9 @@ class CrankLLMTrainer(Trainer):
     def _backward(self, loss: torch.Tensor) -> None:
         loss.backward()
 
+    def _zero_grad(self) -> None:
+        self.optimizer.zero_grad(set_to_none=True)
+
     def _train_mode(self) -> None:
         self.model.train()
 

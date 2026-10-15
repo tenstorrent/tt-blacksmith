@@ -162,7 +162,11 @@ class Trainer(ABC):
                 self.callback_handler("on_train_epoch_start")
 
                 self._train_mode()
+                # Drop a trailing partial window from the previous epoch so its
+                # gradients and loss do not leak into this epoch's first step.
                 accumulation_step = 0
+                self.step_loss = None
+                self._zero_grad()
 
                 progress = tqdm(self.train_dataloader, desc=f"Training (epoch {epoch})")
                 for batch in progress:
@@ -249,6 +253,11 @@ class Trainer(ABC):
         Step the optimizer and reset gradients. Override for custom behaviour.
         """
         self.device_manager.optimizer_step(self.optimizer, zero_grad=True)
+
+    @abstractmethod
+    def _zero_grad(self) -> None:
+        """Reset accumulated gradients without stepping the optimizer."""
+        pass
 
     @abstractmethod
     def _train_mode(self) -> None:
