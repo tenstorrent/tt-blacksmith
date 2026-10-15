@@ -70,7 +70,7 @@ class CheckpointCallback(Callback):
             )
 
     def on_train_end(self, trainer, *args, **kwargs):
-        if self.manager is None:
+        if self.manager is None or trainer.config.checkpoint.save_strategy == "none":
             return
 
         final_name = trainer.config.checkpoint.final_checkpoint_name

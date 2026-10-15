@@ -3,6 +3,8 @@ generated_modules/
 **/__pycache__/
 *.egg-info/
 blacksmith_xla/**/checkpoints/
+blacksmith/**/checkpoints/
+outputs/
 wandb/
 results/
 logs/

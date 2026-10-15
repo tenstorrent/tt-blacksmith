@@ -46,7 +46,7 @@ checkpoint:
   steps_freq: 10
   epoch_freq: 1
   save_strategy: "step"
-  project_dir: "blacksmith/tools/trainer/examples/crank/llm/lora/single_chip"
+  project_dir: "outputs/crank/llm/lora/single_chip/llama_3_2_1b_sst2"
   final_checkpoint_name: "final_model.pth"
   save_optim: False
   keep_last_n: 3
