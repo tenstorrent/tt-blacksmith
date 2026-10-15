@@ -17,14 +17,11 @@ class MetricsCallback(Callback):
         # trainer's loss object (a device tensor) and only read back to a host float
         # when a log is actually emitted, to avoid a device sync every step.
         self._running_loss = None
-        self._prev_global_step = 0
 
     def on_train_start(self, trainer, *args, **kwargs):
         # `on_train_start` fires before the trainer validates its config, so guard.
         if trainer.config is None or trainer.logger is None:
             return
-
-        self._prev_global_step = trainer.global_step
 
         total_params, trainable_params = trainer.parameter_counts()
         model_info = {
@@ -45,27 +42,21 @@ class MetricsCallback(Callback):
         # the device; the host readback happens only at log time.
         self._running_loss = window_loss if self._running_loss is None else self._running_loss + window_loss
 
-    def on_train_batch_end(self, trainer, *args, **kwargs):
+    def on_step_end(self, trainer, global_step, *args, **kwargs):
         if trainer.logger is None:
             return
 
-        # Only finalize when an optimizer step completed this batch. Under
-        # gradient accumulation most micro-batches do not advance global_step.
-        if trainer.global_step == self._prev_global_step:
-            return
-        self._prev_global_step = trainer.global_step
-
         steps_freq = trainer.config.metrics.steps_freq
-        if trainer.global_step % steps_freq == 0:
+        if global_step % steps_freq == 0:
             # Single host readback per log window (not per step).
             available = {"loss": trainer.loss_to_float(self._running_loss) / steps_freq}
             metrics = self._select(available, trainer.config.metrics.train_metrics, phase="train")
             if metrics:
-                trainer.logger.log_metrics(metrics, commit=False, step=trainer.global_step)
+                trainer.logger.log_metrics(metrics, commit=False, step=global_step)
             self._running_loss = None
 
         # Flush the batched W&B logs so train and validation land on the same step.
-        trainer.logger.log_metrics({}, commit=True, step=trainer.global_step)
+        trainer.logger.log_metrics({}, commit=True, step=global_step)
 
     def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         if trainer.logger is None:

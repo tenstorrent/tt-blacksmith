@@ -56,6 +56,9 @@ class Callback(ABC):
     def on_optimizer_step_end(self, trainer, *args, **kwargs):
         pass
 
+    def on_step_end(self, trainer, global_step, *args, **kwargs):
+        pass
+
     # Error callback.
     def on_error(self, trainer, exception, *args, **kwargs):
         pass

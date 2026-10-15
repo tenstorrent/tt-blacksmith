@@ -13,7 +13,6 @@ class CheckpointCallback(Callback):
     def __init__(self):
         self.manager: CheckpointManager | None = None
         self._last_metrics: dict[str, float] = {}
-        self._prev_global_step = 0
 
     def on_train_start(self, trainer, *args, **kwargs):
         # `on_train_start` fires before the trainer validates its config, so guard.
@@ -23,7 +22,6 @@ class CheckpointCallback(Callback):
         # The trainer builds a framework-specific manager so this callback stays
         # free of framework imports.
         self.manager = trainer.create_checkpoint_manager(trainer.config.checkpoint, trainer.logger)
-        self._prev_global_step = trainer.global_step
 
         if trainer.config.checkpoint.resume_from_checkpoint:
             # The returned metadata (step / epoch / metrics) is dropped on purpose for now:
@@ -32,25 +30,19 @@ class CheckpointCallback(Callback):
 
     def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         # Cache the freshest validation loss so saved checkpoints carry it as a
-        # metric (used for best-N tracking). Runs before `on_train_batch_end`.
+        # metric (used for best-N tracking). Runs before that step's `on_step_end`.
         # Read the device-side loss back to a host float once, here (off the hot
         # path): it is serialized to JSON and compared for best-N selection.
         self._last_metrics["val/loss"] = trainer.loss_to_float(val_loss)
 
-    def on_train_batch_end(self, trainer, *args, **kwargs):
+    def on_step_end(self, trainer, global_step, *args, **kwargs):
         if self.manager is None:
             return
 
-        # Only act when an optimizer step completed this batch. Under gradient
-        # accumulation most batches do not advance `global_step`.
-        if trainer.global_step == self._prev_global_step:
-            return
-        self._prev_global_step = trainer.global_step
-
-        if self.manager.should_save_checkpoint(trainer.global_step):
+        if self.manager.should_save_checkpoint(global_step):
             self.manager.save_checkpoint(
                 trainer.model,
-                step=trainer.global_step,
+                step=global_step,
                 epoch=trainer.epoch,
                 optimizer=trainer.optimizer,
                 metrics=dict(self._last_metrics),

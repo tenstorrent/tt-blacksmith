@@ -203,6 +203,8 @@ class Trainer(ABC):
                         if self._validation_enabled() and self.global_step % self.config.val_steps_freq == 0:
                             self.validate()
 
+                        self.callback_handler("on_step_end", self.global_step)
+
                     self.callback_handler("on_train_batch_end")
 
                 self.callback_handler("on_train_epoch_end")
