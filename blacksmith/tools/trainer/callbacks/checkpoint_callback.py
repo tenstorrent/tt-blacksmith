@@ -26,6 +26,8 @@ class CheckpointCallback(Callback):
         self._prev_global_step = trainer.global_step
 
         if trainer.config.checkpoint.resume_from_checkpoint:
+            # The returned metadata (step / epoch / metrics) is dropped on purpose for now:
+            # resuming restores model and optimizer state only, and training restarts from step 0.
             self.manager.load_checkpoint(trainer.model, trainer.optimizer)
 
     def on_validation_end(self, trainer, val_loss, *args, **kwargs):
