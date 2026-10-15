@@ -4,6 +4,7 @@
 import math
 import os
 import re
+import warnings
 from typing import Dict, Optional, Sequence
 
 import torch
@@ -60,6 +61,14 @@ class CrankDeviceManager(DeviceManager):
         self.mesh = self._create_mesh()
 
     # ------------------------------------------------------------------ mesh
+    def _validate_mesh_config(self) -> None:
+        super()._validate_mesh_config()
+        if getattr(self.config, "mesh_shape", None) and "fsdp" in self.config.mesh_axis_names:
+            warnings.warn(
+                "mesh axis 'fsdp' requested but FSDP is not ported to tt-crank; "
+                "parameters along that axis are replicated (memory use matches DP, not FSDP)."
+            )
+
     def _create_mesh(self) -> Optional[DeviceMesh]:
         if not getattr(self.config, "mesh_shape", None):
             return None

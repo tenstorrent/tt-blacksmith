@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import contextlib
-import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
@@ -38,12 +37,6 @@ class DeviceManager(ABC):
                     assert (
                         dimension in axis_names and shape[axis_names.index(dimension)] > 1
                     ), f"Dimension {dimension} is not present in `mesh_axis_names` or it has size 1 for model sharding pattern {pattern_spec}."
-        if "fsdp" in axis_names:
-            warnings.warn(
-                "mesh axis 'fsdp' requested but FSDP is not ported to tt-crank; "
-                "parameters along that axis are replicated (memory use matches DP, not FSDP).",
-                stacklevel=2,
-            )
 
     def _axis_index(self, axis: str) -> int:
         return self.config.mesh_axis_names.index(axis)
@@ -60,10 +53,6 @@ class DeviceManager(ABC):
     def is_tensor_parallel(self) -> bool:
         """Check if tensor parallelism is enabled based on mesh configuration."""
         return self.config.model_sharding_patterns is not None and self.mesh is not None
-
-    def is_fsdp(self) -> bool:
-        """Check if FSDP is requested by the mesh configuration (not ported; see module docstring)."""
-        return self.mesh is not None and "fsdp" in self.config.mesh_axis_names
 
     # --------------------------------------------------------------- abstract
     @abstractmethod
