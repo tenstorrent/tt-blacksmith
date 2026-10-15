@@ -12,7 +12,7 @@ class CheckpointCallback(Callback):
 
     def __init__(self):
         self.manager: CheckpointManager | None = None
-        self._last_val_loss: float | None = None
+        self._last_metrics: dict[str, float] = {}
         self._prev_global_step = 0
 
     def on_train_start(self, trainer, *args, **kwargs):
@@ -33,7 +33,7 @@ class CheckpointCallback(Callback):
         # metric (used for best-N tracking). Runs before `on_train_batch_end`.
         # Read the device-side loss back to a host float once, here (off the hot
         # path): it is serialized to JSON and compared for best-N selection.
-        self._last_val_loss = float(val_loss)
+        self._last_metrics["val/loss"] = float(val_loss)
 
     def on_train_batch_end(self, trainer, *args, **kwargs):
         if self.manager is None:
@@ -51,7 +51,7 @@ class CheckpointCallback(Callback):
                 step=trainer.global_step,
                 epoch=trainer.epoch,
                 optimizer=trainer.optimizer,
-                metrics=self._metrics(trainer),
+                metrics=dict(self._last_metrics),
             )
 
     def on_train_epoch_end(self, trainer, *args, **kwargs):
@@ -64,7 +64,7 @@ class CheckpointCallback(Callback):
                 step=trainer.global_step,
                 epoch=trainer.epoch,
                 optimizer=trainer.optimizer,
-                metrics=self._metrics(trainer),
+                metrics=dict(self._last_metrics),
             )
 
     def on_train_end(self, trainer, *args, **kwargs):
@@ -77,13 +77,8 @@ class CheckpointCallback(Callback):
             step=trainer.global_step,
             epoch=trainer.epoch,
             optimizer=trainer.optimizer,
-            metrics=self._metrics(trainer),
+            metrics=dict(self._last_metrics),
             checkpoint_name=final_name,
         )
         if trainer.logger is not None:
             trainer.logger.log_artifact(final_path, artifact_type="model", name=final_name)
-
-    def _metrics(self, trainer):
-        if self._last_val_loss is None:
-            return {}
-        return {trainer.config.checkpoint.checkpoint_metric: self._last_val_loss}
