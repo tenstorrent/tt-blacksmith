@@ -9,7 +9,19 @@ from transformers.integrations.sdpa_attention import sdpa_attention_forward
 from transformers.masking_utils import ALL_MASK_ATTENTION_FUNCTIONS, sdpa_mask
 
 from blacksmith.configs import TrainerConfig
-from blacksmith.tools.crank.torch_helpers import torch_dtype
+
+TORCH_DTYPES = {
+    "torch.bfloat16": torch.bfloat16,
+    "torch.float32": torch.float32,
+}
+
+
+def torch_dtype(dtype: str) -> torch.dtype:
+    """Map a config dtype string (e.g. ``"torch.bfloat16"``) to a ``torch.dtype``."""
+    try:
+        return TORCH_DTYPES[dtype]
+    except KeyError as e:
+        raise ValueError(f"Unsupported dtype {dtype!r}; expected one of {sorted(TORCH_DTYPES)}") from e
 
 # HF's SDPA, except that a forward with no padding mask and no KV cache gets no mask at all and runs
 # `is_causal`. HF skips the mask itself only outside torch.compile; under compile it materializes a
