@@ -122,14 +122,19 @@ class Trainer(ABC):
 
     @contextmanager
     def _train_lifecycle(self) -> Iterator[None]:
-        """Run error / cleanup hooks around the training loop body."""
+        """Run error / end hooks around the training loop body.
+
+        An exception is passed to ``on_error`` and propagates only if a callback re-raises it.
+        ``on_train_end`` fires only when the loop completes, so it never sees a half-trained model.
+        """
         try:
             yield
         except Exception as exception:
             self.callback_handler("on_error", exception)
-        finally:
+        else:
             self.callback_handler("on_train_end")
-            # Finish the logger after `on_train_end` so callbacks can still use it.
+        finally:
+            # Finish the logger after the callbacks so they can still use it.
             if self.logger is not None:
                 self.logger.finish()
 

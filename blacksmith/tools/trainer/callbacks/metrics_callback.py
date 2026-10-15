@@ -79,6 +79,7 @@ class MetricsCallback(Callback):
     def on_error(self, trainer, exception, *args, **kwargs):
         if trainer.logger is not None:
             trainer.logger.error(f"Training failed with error: {exception}", traceback.format_exc())
+        raise exception
 
     @staticmethod
     def _select(available: dict[str, float], requested: list[str], phase: str) -> dict[str, float]:
