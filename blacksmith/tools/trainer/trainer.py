@@ -122,15 +122,18 @@ class Trainer(ABC):
 
     @contextmanager
     def _train_lifecycle(self) -> Iterator[None]:
-        """Run error / end hooks around the training loop body.
+        """Run start / error / end hooks around the training loop body.
 
-        An exception is passed to ``on_error`` and propagates only if a callback re-raises it.
+        An exception, including one from ``on_train_start``, is passed to every callback's
+        ``on_error`` and then re-raised, so ``train()`` never returns from a failed run.
         ``on_train_end`` fires only when the loop completes, so it never sees a half-trained model.
         """
         try:
+            self.callback_handler("on_train_start")
             yield
         except Exception as exception:
             self.callback_handler("on_error", exception)
+            raise
         else:
             self.callback_handler("on_train_end")
         finally:
@@ -144,7 +147,6 @@ class Trainer(ABC):
     def train(self) -> None:
         if self.config is None:
             raise RuntimeError("Trainer.setup(config) must be called before train().")
-        self.callback_handler("on_train_start")
 
         grad_accumulation_steps = self.config.gradient_accumulation_steps
         # Multichip: plain tensors HF builds internally count as replicated DTensors.
