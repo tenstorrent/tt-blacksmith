@@ -27,15 +27,22 @@ def torch_dtype(dtype: str) -> torch.dtype:
 # HF's SDPA, except that a forward with no padding mask and no KV cache gets no mask at all and runs
 # `is_causal`. HF skips the mask itself only outside torch.compile; under compile it materializes a
 # [batch, 1, seq, seq] causal mask, which keeps tt-crank's sdpa off the fused sdpa_fw/sdpa_bw kernels.
-# Packed sequences therefore need an explicit mask: their position_ids are not checked here.
+# HF clears `allow_is_causal_skip` for masks that are not plain causal. Under compile it also clears it whenever
+# position_ids come without a padding mask or cache, since it cannot check them for packing. There, or/and mask
+# overlays still show up as `use_vmap` and the bidirectional path as `allow_is_bidirectional_skip`, but packed
+# sequences and `block_sequence_ids` do not, so under compile they need an explicit mask.
 CAUSAL_SDPA = "sdpa_causal"
 
 
 def _causal_sdpa_mask(**kwargs):
     q_offset, kv_offset = kwargs.get("q_offset", 0), kwargs.get("kv_offset", 0)
     without_cache = isinstance(q_offset, int) and isinstance(kv_offset, int) and q_offset == kv_offset == 0
+    plain_causal = kwargs.get("allow_is_causal_skip", True) or (
+        torch.compiler.is_compiling() and not kwargs.get("use_vmap") and "allow_is_bidirectional_skip" not in kwargs
+    )
     if (
-        kwargs.get("attention_mask") is None
+        plain_causal
+        and kwargs.get("attention_mask") is None
         and kwargs.get("local_size") is None
         and without_cache
         and kwargs["q_length"] == kwargs["kv_length"]
