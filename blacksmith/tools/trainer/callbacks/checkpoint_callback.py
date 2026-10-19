@@ -20,9 +20,10 @@ class CheckpointCallback(Callback):
         self.manager = trainer.create_checkpoint_manager(trainer.config.checkpoint, trainer.logger)
 
         if trainer.config.checkpoint.init_from_checkpoint:
-            # Model and optimizer state only: training still starts at step 0,
-            # so the returned step / epoch / metrics are unused.
-            self.manager.load_checkpoint(trainer.model, trainer.optimizer)
+            # Weights only: loading optimizer state would also replace the configured param
+            # groups (lr, weight_decay, fused). Training still starts at step 0, so the
+            # returned step / epoch / metrics are unused.
+            self.manager.load_checkpoint(trainer.model)
 
     def on_validation_end(self, trainer, val_loss, *args, **kwargs):
         # Cache the freshest validation loss so saved checkpoints carry it as a

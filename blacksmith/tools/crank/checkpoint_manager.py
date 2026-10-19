@@ -55,6 +55,10 @@ class CrankCheckpointManager(CheckpointManager):
         return new_state_dict
 
     @staticmethod
+    def _trainable_names(model: torch.nn.Module) -> set[str]:
+        return {name for name, param in model.named_parameters() if param.requires_grad}
+
+    @staticmethod
     def _like(value: Any, reference: torch.Tensor) -> Any:
         """Lay out a host ``value`` like ``reference``: same mesh and placements if it is a DTensor."""
         if not isinstance(reference, DTensor) or not isinstance(value, torch.Tensor) or isinstance(value, DTensor):
@@ -80,7 +84,7 @@ class CrankCheckpointManager(CheckpointManager):
         optimizer: Optional[torch.optim.Optimizer] = None,
     ) -> None:
         # Copy state to host (gathers DTensor shards); `tt` tensors cannot be pickled in place.
-        trainable_names = {name for name, param in model.named_parameters() if param.requires_grad}
+        trainable_names = self._trainable_names(model)
         state_dict = to_host({name: v for name, v in model.state_dict().items() if name in trainable_names})
 
         checkpoint_data = {
@@ -109,7 +113,9 @@ class CrankCheckpointManager(CheckpointManager):
         loaded_state_dict = {
             k: self._like(v, model_state_dict[k]) if k in model_state_dict else v for k, v in loaded_state_dict.items()
         }
-        # Only trainable parameters are saved, so missing keys are expected; unexpected ones are not.
+        # Only trainable parameters are saved: frozen ones may be missing, trainable ones must all be present.
+        missing = sorted(self._trainable_names(model) - loaded_state_dict.keys())
+        assert not missing, f"Checkpoint is missing trainable parameters: {missing}"
         result = model.load_state_dict(loaded_state_dict, strict=False)
         assert not result.unexpected_keys, f"Checkpoint has keys not in the model: {result.unexpected_keys}"
 
