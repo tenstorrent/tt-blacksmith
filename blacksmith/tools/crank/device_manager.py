@@ -126,12 +126,9 @@ class CrankDeviceManager(DeviceManager):
 
     def _partition_fn(self, model: nn.Module):
         module_patterns = [(re.compile(p), tuple(s)) for p, s in (self.config.model_sharding_patterns or [])]
-        param_patterns = [(re.compile(p), tuple(s)) for p, s in getattr(self.config, "param_sharding_patterns", [])]
         replicate = [Replicate() for _ in self.config.mesh_shape]
 
-        # Resolve the per-parameter placement up front, by the same names the tt-xla
-        # DeviceManager matched on: module name for `.weight`, full parameter name
-        # for `param_sharding_patterns`.
+        # Only `.weight` is sharded; other parameters are replicated.
         placements_by_param: dict[str, list[Placement]] = {}
         for name, module in model.named_modules():
             weight = getattr(module, "weight", None)
@@ -140,10 +137,6 @@ class CrankDeviceManager(DeviceManager):
             match = next((spec for pattern, spec in module_patterns if pattern.search(name)), None)
             if match is not None:
                 placements_by_param[f"{name}.weight" if name else "weight"] = self._placements(match)
-        for name, _ in model.named_parameters():
-            match = next((spec for pattern, spec in param_patterns if pattern.search(name)), None)
-            if match is not None:
-                placements_by_param.setdefault(name, self._placements(match))
 
         def partition_fn(name: str, module: nn.Module, device_mesh: DeviceMesh) -> None:
             # Place every direct parameter ourselves, preserving requires_grad: torch's own

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.configs.compile import CompileConfig
@@ -19,6 +19,8 @@ class TrainerConfig(BaseModel):
 
     Holds fields that are common to all trainer configurations.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     # Dataset settings
     dataset_id: str

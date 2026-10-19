@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class LoggingConfig(BaseModel):
@@ -10,6 +10,8 @@ class LoggingConfig(BaseModel):
 
     Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.logging``).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     log_level: str
     use_wandb: bool

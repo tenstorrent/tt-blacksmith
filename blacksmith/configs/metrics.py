@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MetricsConfig(BaseModel):
@@ -12,6 +12,8 @@ class MetricsConfig(BaseModel):
     extend the set of logged metrics without touching logger configuration.
     Designed to be composed as a nested sub-config (e.g. ``TrainerConfig.metrics``).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     # Cadence at which train/validation metrics are logged.
     steps_freq: int = Field(ge=1)

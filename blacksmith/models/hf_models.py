@@ -70,6 +70,9 @@ def _flatten_linear_inputs(model: torch.nn.Module) -> None:
 
 
 def get_model(config: TrainerConfig, device: torch.device):
+    # Before loading, so an unsupported dtype fails without loading any weights.
+    dtype = torch_dtype(config.dtype)
+
     # Load a model
     load_kwargs = {
         "use_cache": False,
@@ -89,13 +92,10 @@ def get_model(config: TrainerConfig, device: torch.device):
         for param in model.parameters():
             param.requires_grad = True
 
-    model.to(torch_dtype(config.dtype))
+    model.to(dtype)
     if config.use_tt:
         _flatten_linear_inputs(model)
         model.to(device)
-
-    if config.use_tt and getattr(config, "weight_dtype_overrides", None):
-        raise ValueError("weight_dtype_overrides is deprecated; use `experimental_weight_dtype` (bfp_bf8 | bfp_bf4).")
 
     return model
 

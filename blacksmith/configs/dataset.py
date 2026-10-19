@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CustomDatasetConfig(BaseModel):
@@ -11,6 +11,8 @@ class CustomDatasetConfig(BaseModel):
     Additional config in case of custom datasets.
     Train and validation sets should be loaded from separate files.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     file_type: str = Field(default="json")
     train_dataset_path: Optional[str] = Field(default=None)
