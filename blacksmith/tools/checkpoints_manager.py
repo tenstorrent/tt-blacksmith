@@ -39,11 +39,20 @@ class CheckpointManager(ABC):
         self.checkpoint_history = self._load_checkpoint_history()
 
     def _load_checkpoint_history(self) -> Dict[str, Any]:
-        """Load checkpoint history from metadata file"""
+        """Load checkpoint history from metadata file when resuming, otherwise start an empty one.
+
+        A fresh run must not inherit an earlier run's entries from the same ``project_dir``:
+        they would compete for best-N, get their files rotated away by this run, and go stale
+        when this run overwrites a fixed-name checkpoint such as the final one.
+        """
         history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
         if os.path.exists(history_file):
-            with open(history_file, "r") as f:
-                return json.load(f)
+            if self.config.resume_from_checkpoint:
+                with open(history_file, "r") as f:
+                    return json.load(f)
+            self.logger.warning(
+                f"Not resuming, so the existing {history_file} is ignored and replaced on the first save"
+            )
 
         return {"checkpoints": [], "best_checkpoints": []}
 
@@ -138,6 +147,7 @@ class CheckpointManager(ABC):
             "timestamp": metadata["timestamp"],
         }
         tracked_before = self._tracked_paths() | {checkpoint_path}
+        self._drop_entries(checkpoint_path)
         self.checkpoint_history["checkpoints"].append(checkpoint_info)
 
         if self.config.checkpoint_metric in metrics:
@@ -162,6 +172,17 @@ class CheckpointManager(ABC):
         best_checkpoints.sort(key=lambda x: x["metric_value"], reverse=reverse)
 
         self.checkpoint_history["best_checkpoints"] = best_checkpoints[: self.config.keep_best_n]
+
+    def _drop_entries(self, checkpoint_path: str):
+        """Remove every entry for ``checkpoint_path`` from both lists.
+
+        Called after the file is overwritten, so the old entries (and their metrics) describe
+        weights that are gone.
+        """
+        for key in ("checkpoints", "best_checkpoints"):
+            self.checkpoint_history[key] = [
+                cp for cp in self.checkpoint_history.get(key, []) if cp["path"] != checkpoint_path
+            ]
 
     def _tracked_paths(self) -> set[str]:
         """Paths referenced by either the last-N or the best-N list."""
