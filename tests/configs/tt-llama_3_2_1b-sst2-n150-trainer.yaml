@@ -5,4 +5,4 @@ metrics:
 logging:
   use_wandb: false
 checkpoint:
-  resume_from_checkpoint: false
+  init_from_checkpoint: false

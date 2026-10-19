@@ -16,7 +16,7 @@ class CheckpointManager(ABC):
     """Framework-agnostic checkpoint bookkeeping.
 
     The base owns the on-disk history (metadata file, best / last-N rotation,
-    resume dispatch) and must stay importable without a deep-learning framework.
+    init dispatch) and must stay importable without a deep-learning framework.
     Reading and writing the actual model / optimizer state is delegated to the
     abstract ``_write_state`` / ``_read_state`` hooks, implemented by a concrete
     subclass such as ``CrankCheckpointManager``.
@@ -35,31 +35,36 @@ class CheckpointManager(ABC):
 
         self.checkpoint_dir = os.path.join(self.config.project_dir, "checkpoints")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
+        self.history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
 
-        self.checkpoint_history = self._load_checkpoint_history()
+        self.checkpoint_history = self._start_checkpoint_history()
 
-    def _load_checkpoint_history(self) -> Dict[str, Any]:
-        """Load checkpoint history from metadata file when resuming, otherwise start an empty one.
+    def _start_checkpoint_history(self) -> Dict[str, Any]:
+        """Start an empty history, also when this run is initialized from a checkpoint.
 
-        A fresh run must not inherit an earlier run's entries from the same ``project_dir``:
-        they would compete for best-N, get their files rotated away by this run, and go stale
-        when this run overwrites a fixed-name checkpoint such as the final one.
+        A run must not inherit an earlier run's entries from the same ``project_dir``: they would
+        compete for best-N, get their files rotated away by this run, go stale when this run
+        overwrites a fixed-name checkpoint such as the final one, and mix their step numbers with
+        this run's, which always start from 0. The earlier history is only read to find the
+        "last" / "best" checkpoint to initialize from.
         """
-        history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
-        if os.path.exists(history_file):
-            if self.config.resume_from_checkpoint:
-                with open(history_file, "r") as f:
-                    return json.load(f)
+        if os.path.exists(self.history_file):
             self.logger.warning(
-                f"Not resuming, so the existing {history_file} is ignored and replaced on the first save"
+                f"Starting a new checkpoint history; the existing {self.history_file} is replaced on the first save"
             )
 
         return {"checkpoints": [], "best_checkpoints": []}
 
+    def _read_saved_history(self) -> Dict[str, Any]:
+        """Read the metadata file, which holds the previous run's history until this run first saves."""
+        if not os.path.exists(self.history_file):
+            return {"checkpoints": [], "best_checkpoints": []}
+        with open(self.history_file, "r") as f:
+            return json.load(f)
+
     def _save_checkpoint_history(self):
         """Save checkpoint history to metadata file"""
-        history_file = os.path.join(self.checkpoint_dir, "checkpoint_history.json")
-        with open(history_file, "w") as f:
+        with open(self.history_file, "w") as f:
             json.dump(self.checkpoint_history, f, indent=2)
 
     # ------------------------------------------------------- framework hooks
@@ -206,18 +211,18 @@ class CheckpointManager(ABC):
                 os.remove(checkpoint_path)
                 self.logger.info(f"Removed old checkpoint: {checkpoint_path}")
 
-    def load_checkpoint(self, model: Any, optimizer: Optional[Any] = None):
-        """Load checkpoint based on resume option in config"""
-        if self.config.resume_option == "last":
+    def load_checkpoint(self, model: Any, optimizer: Optional[Any] = None) -> Dict[str, Any]:
+        """Load checkpoint based on init option in config"""
+        if self.config.init_option == "last":
             return self.load_latest_checkpoint(model, optimizer)
-        elif self.config.resume_option == "best":
+        elif self.config.init_option == "best":
             return self.load_best_checkpoint(model, optimizer)
-        elif self.config.resume_option == "path":
+        elif self.config.init_option == "path":
             if not self.config.checkpoint_path:
-                raise ValueError("checkpoint_path must be provided when resume_option is 'path'")
+                raise ValueError("checkpoint_path must be provided when init_option is 'path'")
             return self.load_checkpoint_path(self.config.checkpoint_path, model, optimizer)
         else:
-            raise ValueError(f"Unknown resume_option: {self.config.resume_option}")
+            raise ValueError(f"Unknown init_option: {self.config.init_option}")
 
     def load_checkpoint_path(
         self,
@@ -244,32 +249,37 @@ class CheckpointManager(ABC):
         self,
         model: Any,
         optimizer: Optional[Any] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Load the most recent checkpoint
+    ) -> Dict[str, Any]:
+        """Load the most recent checkpoint in the saved history
 
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)
+
+        Raises:
+            FileNotFoundError: If the saved history has no checkpoint
         """
-        if not self.checkpoint_history["checkpoints"]:
-            return None
+        checkpoints = self._read_saved_history()["checkpoints"]
+        if not checkpoints:
+            raise FileNotFoundError(f"No checkpoint recorded in {self.history_file}")
 
-        latest_checkpoint = self.checkpoint_history["checkpoints"][-1]
-        return self.load_checkpoint_path(latest_checkpoint["path"], model, optimizer)
+        return self.load_checkpoint_path(checkpoints[-1]["path"], model, optimizer)
 
-    def load_best_checkpoint(self, model: Any, optimizer: Optional[Any] = None) -> Optional[Dict[str, Any]]:
-        """Load the best checkpoint based on tracked metric
+    def load_best_checkpoint(self, model: Any, optimizer: Optional[Any] = None) -> Dict[str, Any]:
+        """Load the best checkpoint in the saved history based on tracked metric
 
         Args:
             model: Model to load state into
             optimizer: Optimizer to load state into (optional)
-        """
-        if not self.checkpoint_history.get("best_checkpoints"):
-            self.logger.warning("No best checkpoints found")
-            return None
 
-        best_checkpoint = self.checkpoint_history["best_checkpoints"][0]
-        return self.load_checkpoint_path(best_checkpoint["path"], model, optimizer)
+        Raises:
+            FileNotFoundError: If the saved history has no best checkpoint
+        """
+        best_checkpoints = self._read_saved_history().get("best_checkpoints")
+        if not best_checkpoints:
+            raise FileNotFoundError(f"No best checkpoint recorded in {self.history_file}")
+
+        return self.load_checkpoint_path(best_checkpoints[0]["path"], model, optimizer)
 
     def get_checkpoint_info(self) -> Dict[str, Any]:
         """Get information about all checkpoints"""

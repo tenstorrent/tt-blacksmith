@@ -62,8 +62,8 @@ def generate_config(
             config_data,
             {
                 "checkpoint": {
-                    "resume_from_checkpoint": True,
-                    "resume_option": "path",
+                    "init_from_checkpoint": True,
+                    "init_option": "path",
                     "checkpoint_path": test_checkpoint_path,
                 }
             },
@@ -89,7 +89,7 @@ def parse_cli_options(default_config: Path) -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--test-checkpoint-path", type=str, required=False, help="[Testing utils] Path to the checkpoint to resume from"
+        "--test-checkpoint-path", type=str, required=False, help="[Testing utils] Path to the checkpoint to init from"
     )
 
     args = parser.parse_args()

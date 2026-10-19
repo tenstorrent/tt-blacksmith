@@ -57,8 +57,8 @@ checkpoint:
   keep_all_checkpoints: False
   checkpoint_metric: "val/loss"
   checkpoint_metric_mode: "min"
-  resume_from_checkpoint: False
-  resume_option: "last"
+  init_from_checkpoint: False
+  init_option: "last"
   checkpoint_path: ""
 
 # Reproducibility settings

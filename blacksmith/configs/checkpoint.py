@@ -27,7 +27,7 @@ class CheckpointConfig(BaseModel):
     checkpoint_metric: str
     checkpoint_metric_mode: str  # [min, max]
 
-    # Resume settings.
-    resume_from_checkpoint: bool
-    resume_option: str  # [last, best, path]
-    checkpoint_path: str  # path to checkpoint if resume_option is "path"
+    # Initialize model / optimizer state from a checkpoint. Not a resume: training still starts at step 0.
+    init_from_checkpoint: bool
+    init_option: str  # [last, best, path]
+    checkpoint_path: str  # path to checkpoint if init_option is "path"
