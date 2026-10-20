@@ -68,3 +68,13 @@ deterministic: False
 
 # Device settings
 use_tt: True
+
+# Compile settings
+compile:
+  optimization_level: 1
+  enable_const_eval: False
+  fp32_dest_acc_en: True
+  math_fidelity: "HiFi4"
+  math_approx_mode: False
+  enable_trace: False
+  experimental_weight_dtype: null
