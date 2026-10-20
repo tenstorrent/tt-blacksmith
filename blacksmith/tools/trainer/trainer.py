@@ -157,11 +157,11 @@ class Trainer(ABC):
             if self._validation_enabled():
                 self.validate()
 
+            self._train_mode()
             for epoch in range(self.config.num_epochs):
                 self.epoch = epoch
                 self.callback_handler("on_train_epoch_start")
 
-                self._train_mode()
                 # Drop a trailing partial window from the previous epoch so its
                 # gradients and loss do not leak into this epoch's first step.
                 accumulation_step = 0
