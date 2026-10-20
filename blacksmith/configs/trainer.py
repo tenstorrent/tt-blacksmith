@@ -3,15 +3,14 @@
 # SPDX-License-Identifier: Apache-2.0
 from typing import List, Optional, Tuple
 
-import torch
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from blacksmith.configs.checkpoint import CheckpointConfig
+from blacksmith.configs.compile import CompileConfig
 from blacksmith.configs.dataset import CustomDatasetConfig
-
-TORCH_DTYPES = {
-    "torch.bfloat16": torch.bfloat16,
-    "torch.float32": torch.float32,
-}
+from blacksmith.configs.logging import LoggingConfig
+from blacksmith.configs.lora import LoraConfig
+from blacksmith.configs.metrics import MetricsConfig
 
 
 class TrainerConfig(BaseModel):
@@ -20,6 +19,8 @@ class TrainerConfig(BaseModel):
 
     Holds fields that are common to all trainer configurations.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     # Dataset settings
     dataset_id: str
@@ -34,10 +35,17 @@ class TrainerConfig(BaseModel):
     num_epochs: int = Field(gt=0)
     weight_decay: float = Field(ge=0.0)
     gradient_accumulation_steps: int = Field(gt=0)
-    training_model_type: str  # [lora, adapters]
 
     # Validation settings. 0 disables validation (no initial or periodic pass).
     val_steps_freq: int = Field(ge=0)
+
+    # Logging / metrics / checkpointing settings (nested sub-configs).
+    logging: LoggingConfig
+    metrics: MetricsConfig
+    checkpoint: CheckpointConfig
+
+    # LoRA settings (nested, optional). When unset the trainer does a full fine-tune.
+    lora: Optional[LoraConfig] = Field(default=None)
 
     # Custom dataset settings.
     custom_dataset: Optional[CustomDatasetConfig] = Field(default=None)
@@ -59,12 +67,4 @@ class TrainerConfig(BaseModel):
     input_sharding_dim: Optional[str] = Field(default=None)
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
-    # Compile options (see DeviceManager.compile_options).
-    optimization_level: int = Field(default=1, ge=0, le=2)
-    enable_const_eval: bool = Field(default=False)
-
-    def torch_dtype(self) -> torch.dtype:
-        try:
-            return TORCH_DTYPES[self.dtype]
-        except KeyError as e:
-            raise ValueError(f"Unsupported dtype {self.dtype!r}; expected one of {sorted(TORCH_DTYPES)}") from e
+    compile: Optional[CompileConfig] = Field(default=None)

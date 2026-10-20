@@ -1,0 +1,80 @@
+# Dataset settings
+dataset_id: "sst2"
+
+# Model settings
+model_name: "meta-llama/Llama-3.2-1B"
+max_length: 64
+dtype: "torch.bfloat16"
+
+# Training hyperparameters
+learning_rate: 1e-4
+batch_size: 16
+gradient_accumulation_steps: 1
+num_epochs: 1
+weight_decay: 0.0
+
+# LoRA setup (optional; omit this block for full fine-tuning)
+lora:
+  r: 4
+  alpha: 8
+  dropout: 0.0
+  target_modules: ["q_proj", "v_proj", "k_proj", "o_proj"]
+  task_type: "CAUSAL_LM"
+
+# Validation settings
+val_steps_freq: 10
+
+mesh_shape: [1, 2]
+mesh_axis_names: ["model", "batch"]
+input_sharding_dim: "batch"
+
+# Logging settings
+logging:
+  log_level: "INFO"
+  use_wandb: True
+  wandb_project: "llama1b-data-parallel-lora"
+  wandb_run_name: "tt-llama1b-dp-test"
+  wandb_tags: ["test"]
+  wandb_watch_mode: "all"
+  wandb_log_freq: 1000
+  model_to_wandb: False
+
+# Metrics settings
+metrics:
+  steps_freq: 10
+  train_metrics: ["loss"]
+  val_metrics: ["loss"]
+
+# Checkpoint settings
+checkpoint:
+  steps_freq: 10
+  epoch_freq: 1
+  save_strategy: "step"
+  project_dir: "outputs/crank/llm/lora/n300/llama_3_2_1b_sst2_dp"
+  final_checkpoint_name: "final_model.pth"
+  save_optim: False
+  keep_last_n: 3
+  keep_best_n: 3
+  keep_all_checkpoints: False
+  checkpoint_metric: "val/loss"
+  checkpoint_metric_mode: "min"
+  init_from_checkpoint: False
+  init_option: "last"
+  checkpoint_path: ""
+
+# Reproducibility settings
+seed: 23
+deterministic: False
+
+# Device settings
+use_tt: True
+
+# Compile settings
+compile:
+  optimization_level: 1
+  enable_const_eval: False
+  fp32_dest_acc_en: True
+  math_fidelity: "HiFi4"
+  math_approx_mode: False
+  enable_trace: False
+  experimental_weight_dtype: null

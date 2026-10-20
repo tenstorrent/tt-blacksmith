@@ -1,0 +1,168 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+import math
+import os
+import re
+import warnings
+from typing import Dict, Optional, Sequence
+
+import torch
+import torch.nn as nn
+from torch.distributed.tensor import (
+    DeviceMesh,
+    DTensor,
+    Placement,
+    Replicate,
+    Shard,
+    distribute_module,
+    distribute_tensor,
+)
+
+from blacksmith.configs.trainer import TrainerConfig
+from blacksmith.tools.device_manager import DeviceManager
+
+
+class CrankDeviceManager(DeviceManager):
+    """Owns the `tt` device and, for multichip runs, the DTensor mesh."""
+
+    def __init__(self, config: TrainerConfig):
+        super().__init__(config)
+
+        if not config.use_tt:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            return
+
+        # Importing the package registers the "tt" PrivateUse1 device, the "tt"
+        # dynamo backend and the "tt" c10d backend.
+        import tt_crank.torch  # noqa: F401
+
+        self.device = torch.device("tt")
+        self.mesh = self._create_mesh()
+
+    # ------------------------------------------------------------------ mesh
+    def _validate_mesh_config(self) -> None:
+        super()._validate_mesh_config()
+        if getattr(self.config, "mesh_shape", None) and "fsdp" in self.config.mesh_axis_names:
+            warnings.warn(
+                "mesh axis 'fsdp' requested but FSDP is not ported to tt-crank; "
+                "parameters along that axis are replicated (memory use matches DP, not FSDP)."
+            )
+
+    def _create_mesh(self) -> Optional[DeviceMesh]:
+        if not getattr(self.config, "mesh_shape", None):
+            return None
+
+        # Config-only validation already ran in the base `DeviceManager`.
+        shape = tuple(self.config.mesh_shape)
+        axis_names = self.config.mesh_axis_names
+
+        available = torch.tt.num_chips()
+        requested = math.prod(shape)
+        assert requested <= available, f"mesh {shape} needs {requested} chips, only {available} available"
+
+        self._init_process_group(requested)
+        # init_device_mesh opens the runtime MeshDevice at this shape *and* builds
+        # the torch DeviceMesh; the two must not be set up separately.
+        return torch.tt.init_device_mesh(shape, mesh_dim_names=tuple(axis_names))
+
+    @staticmethod
+    def _init_process_group(world_size: int) -> None:
+        """Bring up the "tt" c10d process group that DTensor collectives use."""
+        import torch.distributed as dist
+        from torch.testing._internal.distributed.fake_pg import FakeStore
+
+        if dist.is_initialized():
+            return
+        os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
+        os.environ.setdefault("MASTER_PORT", "29500")
+        os.environ.setdefault("RANK", "0")
+        os.environ.setdefault("WORLD_SIZE", str(world_size))
+        dist.init_process_group(backend="tt", rank=0, world_size=world_size, store=FakeStore())
+
+    def _placements(self, sharding_spec: Sequence[Optional[str]]) -> list[Placement]:
+        """tt-xla partition spec -> DTensor placements."""
+        placements: list[Placement] = [Replicate() for _ in self.config.mesh_shape]
+        for dim, axis in enumerate(sharding_spec):
+            if axis is not None:
+                placements[self._axis_index(axis)] = Shard(dim)
+        return placements
+
+    # ------------------------------------------------------------- sharding
+    def shard_tensor(self, tensor: torch.Tensor, sharding_spec: Sequence[Optional[str]]) -> torch.Tensor:
+        if self.mesh is None:
+            return tensor
+        return distribute_tensor(tensor, self.mesh, self._placements(sharding_spec))
+
+    def shard_model(self, model: nn.Module) -> nn.Module:
+        """Shard model based on mesh configuration."""
+        if self.mesh is None or self._is_distributed(model):
+            return model
+        return distribute_module(model, self.mesh, partition_fn=self._partition_fn(model))
+
+    @staticmethod
+    def _is_distributed(model: nn.Module) -> bool:
+        return isinstance(next(model.parameters(), None), DTensor)
+
+    def _partition_fn(self, model: nn.Module):
+        module_patterns = [(re.compile(p), tuple(s)) for p, s in (self.config.model_sharding_patterns or [])]
+        replicate = [Replicate() for _ in self.config.mesh_shape]
+
+        # Only `.weight` is sharded; other parameters are replicated.
+        placements_by_param: dict[str, list[Placement]] = {}
+        for name, module in model.named_modules():
+            weight = getattr(module, "weight", None)
+            if not isinstance(weight, nn.Parameter):
+                continue
+            match = next((spec for pattern, spec in module_patterns if pattern.search(name)), None)
+            if match is not None:
+                placements_by_param[f"{name}.weight" if name else "weight"] = self._placements(match)
+
+        def partition_fn(name: str, module: nn.Module, device_mesh: DeviceMesh) -> None:
+            # Place every direct parameter ourselves, preserving requires_grad: torch's own
+            # replicate pass in `distribute_module` rebuilds untouched parameters as bare
+            # `nn.Parameter(...)`, i.e. trainable, which under LoRA would unfreeze the base model.
+            for param_name, param in list(module._parameters.items()):
+                if param is None or isinstance(param, DTensor):
+                    continue
+                full_name = f"{name}.{param_name}" if name else param_name
+                placements = placements_by_param.get(full_name, replicate)
+                module.register_parameter(
+                    param_name,
+                    nn.Parameter(distribute_tensor(param, device_mesh, placements), requires_grad=param.requires_grad),
+                )
+
+        return partition_fn
+
+    def shard_optimizer(self, optimizer: torch.optim.Optimizer):
+        raise NotImplementedError("Optimizer sharding is not implemented yet.")
+
+    # ----------------------------------------------------------------- step
+    def prepare_batch(
+        self,
+        batch: Dict[str, torch.Tensor],
+        skip_keys: tuple[str, ...] = (),
+    ) -> Dict[str, torch.Tensor]:
+        """Move the batch to device and apply data-parallel sharding if configured.
+
+        ``skip_keys`` stay on the host.
+        """
+        batch = {k: v if k in skip_keys else v.to(self.device) for k, v in batch.items()}
+
+        if self.is_data_parallel():
+            for key, tensor in batch.items():
+                if key in skip_keys or tensor.dim() == 0:
+                    continue
+                partition_spec = (self.config.input_sharding_dim,) + (None,) * (tensor.dim() - 1)
+                batch[key] = distribute_tensor(tensor, self.mesh, self._placements(partition_spec))
+
+        return batch
+
+    def replication_context(self):
+        """Context in which plain tensors HF builds internally count as replicated DTensors."""
+        if self.mesh is None:
+            return super().replication_context()
+
+        from torch.distributed.tensor.experimental import implicit_replication
+
+        return implicit_replication()
