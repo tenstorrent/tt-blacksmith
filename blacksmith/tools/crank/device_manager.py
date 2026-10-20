@@ -23,26 +23,6 @@ from blacksmith.configs.trainer import TrainerConfig
 from blacksmith.tools.device_manager import DeviceManager
 
 
-def tt_compile_options(config) -> dict:
-    """tt-crank options for `torch.compile(fn, backend="tt", options=...)`, from `config.compile`."""
-    from tt_crank.torch._compile import BfpDtype, CompileOption, MathFidelity
-
-    compile_config = config.compile
-    options = {
-        CompileOption.FP32_DEST_ACC_EN: compile_config.fp32_dest_acc_en,
-        CompileOption.MATH_FIDELITY: getattr(MathFidelity, compile_config.math_fidelity),
-        CompileOption.MATH_APPROX_MODE: compile_config.math_approx_mode,
-        CompileOption.OPT_LEVEL: compile_config.optimization_level,
-        CompileOption.ENABLE_CONST_EVAL: compile_config.enable_const_eval,
-        CompileOption.ENABLE_TRACE: compile_config.enable_trace,
-    }
-    weight_dtype = compile_config.experimental_weight_dtype
-    if weight_dtype and weight_dtype != "bf16":
-        bfp = {"bfp_bf8": "BfpBf8", "bfp_bf4": "BfpBf4"}.get(weight_dtype.lower(), weight_dtype)
-        options[CompileOption.EXPERIMENTAL_WEIGHT_DTYPE] = getattr(BfpDtype, bfp)
-    return options
-
-
 class CrankDeviceManager(DeviceManager):
     """Owns the `tt` device and, for multichip runs, the DTensor mesh."""
 
@@ -177,20 +157,6 @@ class CrankDeviceManager(DeviceManager):
                 batch[key] = distribute_tensor(tensor, self.mesh, self._placements(partition_spec))
 
         return batch
-
-    def optimizer_step(self, optimizer: torch.optim.Optimizer, zero_grad: bool = False) -> None:
-        """
-        Perform optimizer step, optionally zeroing grads afterwards.
-
-        Under data parallelism the gradient all-reduce is implicit (``Partial`` DTensor grads).
-        """
-        optimizer.step()
-        if zero_grad:
-            optimizer.zero_grad(set_to_none=True)
-
-    def compile_options(self) -> dict:
-        """See `tt_compile_options`."""
-        return tt_compile_options(self.config)
 
     def replication_context(self):
         """Context in which plain tensors HF builds internally count as replicated DTensors."""

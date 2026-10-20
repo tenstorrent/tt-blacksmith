@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class CompileConfig(BaseModel):
     """
     tt-crank compile options, passed to every `torch.compile(..., backend="tt")` call
-    through `DeviceManager.compile_options()`. Nested as `TrainerConfig.compile` so a
-    training that does not go through the compiler simply leaves the block out.
+    through `tt_compile_options()`. Nested as `TrainerConfig.compile` so a training
+    that does not go through the compiler simply leaves the block out.
     """
 
     model_config = ConfigDict(extra="forbid")

@@ -67,5 +67,4 @@ class TrainerConfig(BaseModel):
     input_sharding_dim: Optional[str] = Field(default=None)
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
-    # Compile options (see CrankDeviceManager.compile_options).
-    compile: CompileConfig = Field(default_factory=CompileConfig)
+    compile: Optional[CompileConfig] = Field(default=None)

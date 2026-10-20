@@ -65,11 +65,6 @@ class DeviceManager(ABC):
         """Move the batch to device and apply data-parallel sharding if configured."""
         pass
 
-    @abstractmethod
-    def optimizer_step(self, optimizer: Any, zero_grad: bool = False) -> None:
-        """Perform an optimizer step, optionally zeroing gradients afterwards."""
-        pass
-
     # --------------------------------------------------------------- context
     def replication_context(self):
         """Context in which plain tensors count as replicated. No-op by default."""

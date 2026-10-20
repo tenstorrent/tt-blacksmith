@@ -250,11 +250,10 @@ class Trainer(ABC):
         """Run the backward pass for ``loss``."""
         pass
 
+    @abstractmethod
     def _optimizer_step(self) -> None:
-        """
-        Step the optimizer and reset gradients. Override for custom behaviour.
-        """
-        self.device_manager.optimizer_step(self.optimizer, zero_grad=True)
+        """Step the optimizer and reset gradients."""
+        pass
 
     @abstractmethod
     def _zero_grad(self) -> None:

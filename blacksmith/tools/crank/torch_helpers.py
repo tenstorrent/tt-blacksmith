@@ -4,6 +4,8 @@
 import torch
 from torch.distributed.tensor import DTensor
 
+from blacksmith.configs.compile import CompileConfig
+
 
 def to_host(obj):
     """Move tensors in a (nested) container to CPU, gathering DTensor shards."""
@@ -39,3 +41,23 @@ def collate_fn_for_causal_lm(batch):
     shifted_labels = labels[:, 1:].contiguous()
 
     return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": shifted_labels}
+
+
+def tt_compile_options(config) -> dict:
+    """tt-crank options for `torch.compile(fn, backend="tt", options=...)`, from `config.compile`."""
+    from tt_crank.torch._compile import BfpDtype, CompileOption, MathFidelity
+
+    compile_config = config.compile or CompileConfig()
+    options = {
+        CompileOption.FP32_DEST_ACC_EN: compile_config.fp32_dest_acc_en,
+        CompileOption.MATH_FIDELITY: getattr(MathFidelity, compile_config.math_fidelity),
+        CompileOption.MATH_APPROX_MODE: compile_config.math_approx_mode,
+        CompileOption.OPT_LEVEL: compile_config.optimization_level,
+        CompileOption.ENABLE_CONST_EVAL: compile_config.enable_const_eval,
+        CompileOption.ENABLE_TRACE: compile_config.enable_trace,
+    }
+    weight_dtype = compile_config.experimental_weight_dtype
+    if weight_dtype and weight_dtype != "bf16":
+        bfp = {"bfp_bf8": "BfpBf8", "bfp_bf4": "BfpBf4"}.get(weight_dtype.lower(), weight_dtype)
+        options[CompileOption.EXPERIMENTAL_WEIGHT_DTYPE] = getattr(BfpDtype, bfp)
+    return options

@@ -13,7 +13,11 @@ from blacksmith.models.hf_models import get_model
 from blacksmith.tools.crank.checkpoint_manager import CrankCheckpointManager
 from blacksmith.tools.crank.device_manager import CrankDeviceManager
 from blacksmith.tools.crank.reproducibility_manager import CrankReproducibilityManager
-from blacksmith.tools.crank.torch_helpers import collate_fn_for_causal_lm, loss_to_float
+from blacksmith.tools.crank.torch_helpers import (
+    collate_fn_for_causal_lm,
+    loss_to_float,
+    tt_compile_options,
+)
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.trainer.trainer import Trainer
 
@@ -71,7 +75,7 @@ class CrankLLMTrainer(Trainer):
                 compute_causal_lm_loss,
                 backend="tt",
                 dynamic=False,
-                options=self.device_manager.compile_options(),
+                options=tt_compile_options(self.config),
             )
         return model
 
@@ -103,6 +107,10 @@ class CrankLLMTrainer(Trainer):
 
     def _backward(self, loss: torch.Tensor) -> None:
         loss.backward()
+
+    def _optimizer_step(self) -> None:
+        self.optimizer.step()
+        self._zero_grad()
 
     def _zero_grad(self) -> None:
         self.optimizer.zero_grad(set_to_none=True)
