@@ -1,0 +1,33 @@
+# Dataset
+dataset_name: "PubMed"
+dataset_root: "blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/.cache/planetoid"
+
+# Model
+model_name: "GATv2"
+hidden_channels: 8
+heads: 8
+dropout: 0.6
+
+# Training
+learning_rate: 0.005
+weight_decay: 0.0005
+num_epochs: 300
+early_stop_patience: 50
+log_interval: 10
+
+# Reproducibility
+seed: 42
+deterministic: true
+
+# Logging/outputs
+log_level: "INFO"
+output_dir: "blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed/results"
+project_dir: "blacksmith/experiments/torch/BOUNTIES/gatv2-pubmed"
+run_name: "gatv2-pubmed-cpu-baseline"
+use_wandb: false
+
+# Device
+framework: "pytorch"
+use_tt: false
+device: "cpu"
+
