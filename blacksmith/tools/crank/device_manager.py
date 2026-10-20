@@ -31,6 +31,7 @@ def tt_compile_options(config) -> dict:
     options = {
         CompileOption.FP32_DEST_ACC_EN: compile_config.fp32_dest_acc_en,
         CompileOption.MATH_FIDELITY: getattr(MathFidelity, compile_config.math_fidelity),
+        CompileOption.MATH_APPROX_MODE: compile_config.math_approx_mode,
         CompileOption.OPT_LEVEL: compile_config.optimization_level,
         CompileOption.ENABLE_CONST_EVAL: compile_config.enable_const_eval,
         CompileOption.ENABLE_TRACE: compile_config.enable_trace,

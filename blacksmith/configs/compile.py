@@ -19,6 +19,7 @@ class CompileConfig(BaseModel):
     enable_const_eval: bool = Field(default=False)
     fp32_dest_acc_en: bool = Field(default=True)
     math_fidelity: Literal["LoFi", "HiFi2", "HiFi3", "HiFi4"] = Field(default="HiFi4")
+    math_approx_mode: bool = Field(default=False)
     enable_trace: bool = Field(default=False)
     # Compiler-wide weight dtype, "bfp_bf8" | "bfp_bf4" | "bf16" (no override).
     experimental_weight_dtype: Optional[str] = Field(default=None)
