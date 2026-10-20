@@ -54,8 +54,7 @@ class CrankDeviceManager(DeviceManager):
             return
 
         # Importing the package registers the "tt" PrivateUse1 device, the "tt"
-        # dynamo backend and the "tt" c10d backend. There is no PJRT_DEVICE /
-        # XLA_* environment to set.
+        # dynamo backend and the "tt" c10d backend.
         import tt_crank.torch  # noqa: F401
 
         self.device = torch.device("tt")
