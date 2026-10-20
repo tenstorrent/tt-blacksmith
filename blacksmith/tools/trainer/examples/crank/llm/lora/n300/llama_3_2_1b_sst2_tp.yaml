@@ -62,7 +62,7 @@ checkpoint:
   steps_freq: 50
   epoch_freq: 1
   save_strategy: "step"
-  project_dir: "outputs/crank/llm/lora/tensor_parallel/llama_3_2_1b_sst2"
+  project_dir: "outputs/crank/llm/lora/n300/llama_3_2_1b_sst2_tp"
   final_checkpoint_name: "final_model.pth"
   save_optim: False
   keep_last_n: 3
