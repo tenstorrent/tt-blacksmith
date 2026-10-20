@@ -13,5 +13,6 @@ class LoraConfig(BaseModel):
 
     r: int = Field(gt=0)
     alpha: int = Field(gt=0)
+    dropout: float = Field(default=0.0, ge=0.0, le=1.0)
     target_modules: list[str]
     task_type: str

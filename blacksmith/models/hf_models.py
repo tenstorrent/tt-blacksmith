@@ -104,6 +104,7 @@ def _apply_lora(model, lora_config):
     peft_config = PeftLoraConfig(
         r=lora_config.r,
         lora_alpha=lora_config.alpha,
+        lora_dropout=lora_config.dropout,
         target_modules=lora_config.target_modules,
         task_type=lora_config.task_type,
     )
