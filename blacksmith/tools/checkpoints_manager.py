@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+import shutil
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -21,6 +22,9 @@ class CheckpointManager(ABC):
     abstract ``_write_state`` / ``_read_state`` hooks, implemented by a concrete
     subclass such as ``CrankCheckpointManager``.
     """
+
+    # Appended to auto-generated checkpoint names. Empty for frameworks whose checkpoints are directories.
+    checkpoint_suffix = ".pt"
 
     def __init__(
         self,
@@ -130,7 +134,7 @@ class CheckpointManager(ABC):
 
         if checkpoint_name is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checkpoint_name = f"checkpoint_step{step}_epoch{epoch}_{timestamp}.pt"
+            checkpoint_name = f"checkpoint_step{step}_epoch{epoch}_{timestamp}{self.checkpoint_suffix}"
 
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
 
@@ -207,7 +211,10 @@ class CheckpointManager(ABC):
         falls out of best-N.
         """
         for checkpoint_path in previously_tracked - self._tracked_paths():
-            if os.path.exists(checkpoint_path):
+            if os.path.isdir(checkpoint_path):
+                shutil.rmtree(checkpoint_path)
+                self.logger.info(f"Removed old checkpoint: {checkpoint_path}")
+            elif os.path.exists(checkpoint_path):
                 os.remove(checkpoint_path)
                 self.logger.info(f"Removed old checkpoint: {checkpoint_path}")
 

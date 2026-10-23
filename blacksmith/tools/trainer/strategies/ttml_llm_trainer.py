@@ -11,13 +11,14 @@ import ttnn
 from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.datasets.dataset_utils import get_dataset
 from blacksmith.datasets.llm_dataset import LLMDataset
-from blacksmith.models.ttml import get_model
-from blacksmith.tools.checkpoints_manager import CheckpointManager
+from blacksmith.models.ttml import get_model, get_provider
 from blacksmith.tools.logging_manager import TrainingLogger
 from blacksmith.tools.trainer.trainer import Trainer
+from blacksmith.tools.ttml.checkpoint_manager import TtmlCheckpointManager
 from blacksmith.tools.ttml.device_manager import TtmlDeviceManager
 from blacksmith.tools.ttml.reproducibility_manager import TtmlReproducibilityManager
 from blacksmith.tools.ttml.ttml_helpers import build_dataloader
+from blacksmith.tools.ttml.utilities import write_adapter
 
 
 class TtmlLLMTrainer(Trainer):
@@ -41,11 +42,13 @@ class TtmlLLMTrainer(Trainer):
         self,
         checkpoint_config: CheckpointConfig,
         logger: TrainingLogger | None = None,
-    ) -> CheckpointManager:
-        raise NotImplementedError("LoRA checkpoints are not supported by the ttml trainer yet")
+    ) -> TtmlCheckpointManager:
+        # Checkpoints are PEFT adapters; the model provider maps them to and from the model.
+        return TtmlCheckpointManager(checkpoint_config, self.provider, self.config, logger=logger)
 
     # ------------------------------------------------------------------- hooks
     def _load_model(self) -> Any:
+        self.provider, _ = get_provider(self.config)
         return get_model(self.config)
 
     def _load_dataloaders(self) -> tuple[Any, Any | None]:
@@ -117,6 +120,9 @@ class TtmlLLMTrainer(Trainer):
 
     def current_learning_rate(self) -> float:
         return self.optimizer.get_lr()
+
+    def save_adapter(self, path: str) -> None:
+        write_adapter(path, self.provider.export_adapter(self.model, self.config))
 
     def cleanup(self) -> None:
         # The tokenized-dataset cache is process-wide; the next run may use another model / length.

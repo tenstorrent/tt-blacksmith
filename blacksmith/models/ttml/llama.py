@@ -11,9 +11,17 @@ What ttml's Llama can and can't train, and why ``check`` rejects the rest:
 - Sequence lengths are multiples of the 32-row tile; weights and adapters are bf16.
 """
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 from blacksmith.configs import LoraConfig, TrainerConfig
+from blacksmith.models.ttml.llama_peft import (
+    hf_target_modules,
+    peft_adapter_config,
+    peft_to_ttml,
+    ttml_to_peft,
+)
 from blacksmith.models.ttml.provider import AdapterState, UnsupportedTrainingConfig
 
 SUPPORTED_DTYPES = ("bfloat16", "torch.bfloat16")
@@ -75,22 +83,37 @@ def llama_config_kwargs(hf_config: Dict[str, Any], max_length: int) -> Dict[str,
     }
 
 
+def ttml_projections(lora: LoraConfig) -> List[str]:
+    """The ttml attention projections ("q", "kv", "o") the HF targets select."""
+    targets = set(lora.target_modules)
+    return [
+        projection
+        for projection, needed in (("q", {"q_proj"}), ("kv", {"k_proj", "v_proj"}), ("o", {"o_proj"}))
+        if needed <= targets
+    ]
+
+
+def _lora_layers(model: Any) -> List[Dict[str, Any]]:
+    """Per decoder block: ttml projection -> its ``LoraLinear``, for the projections LoRA wraps."""
+    from ttml.modules import LoraLinear
+
+    layers = []
+    for block in model.model.blocks:
+        attention = block.attention
+        candidates = (("q", attention.q_linear), ("kv", attention.kv_linear), ("o", attention.out_linear))
+        layers.append({name: layer for name, layer in candidates if isinstance(layer, LoraLinear)})
+    return layers
+
+
 def lora_config_kwargs(lora: LoraConfig) -> Dict[str, Any]:
     """blacksmith ``LoraConfig`` (HF target names) -> keyword arguments of ``ttml.modules.LoraConfig``."""
-    targets = set(lora.target_modules)
-    patterns = []
-    if "q_proj" in targets:
-        patterns.append(Q_PATTERN)
-    if {"k_proj", "v_proj"} <= targets:
-        patterns.append(KV_PATTERN)
-    if "o_proj" in targets:
-        patterns.append(O_PATTERN)
+    patterns = {"q": Q_PATTERN, "kv": KV_PATTERN, "o": O_PATTERN}
     return {
         "rank": lora.r,
         # Scaling alpha / r, as in PEFT.
         "alpha": float(lora.alpha),
         "lora_dropout": lora.dropout,
-        "target_modules": patterns,
+        "target_modules": [patterns[projection] for projection in ttml_projections(lora)],
         "use_rslora": False,
         "is_bias_trainable": False,
     }
@@ -183,7 +206,66 @@ class LlamaProvider:
             raise UnsupportedTrainingConfig(f"lora.target_modules: {e}") from e
 
     def export_adapter(self, model: Any, config: TrainerConfig) -> AdapterState:
-        raise NotImplementedError("PEFT adapter export lands with LoRA checkpoints")
+        layers = []
+        for lora_layers in _lora_layers(model):
+            # Stored [1, 1, r, in] / [1, 1, out, r] in bf16; read as float32, which is lossless.
+            layers.append(
+                {
+                    name: (layer.lora_A.tensor.to_numpy()[0, 0], layer.lora_B.tensor.to_numpy()[0, 0])
+                    for name, layer in lora_layers.items()
+                }
+            )
+        llama_config = model.model.config
+        lora = config.lora
+        return AdapterState(
+            tensors=ttml_to_peft(layers, llama_config.num_attention_heads, llama_config.num_key_value_heads),
+            config=peft_adapter_config(
+                config.model_name,
+                r=lora.r,
+                alpha=lora.alpha,
+                dropout=lora.dropout,
+                target_modules=hf_target_modules(ttml_projections(lora)),
+                task_type=lora.task_type,
+            ),
+        )
 
     def import_adapter(self, model: Any, state: AdapterState, config: TrainerConfig) -> None:
-        raise NotImplementedError("PEFT adapter import lands with LoRA checkpoints")
+        lora = config.lora
+        projections = ttml_projections(lora)
+        adapter = state.config
+        expected = {
+            "peft_type": "LORA",
+            "r": lora.r,
+            "lora_alpha": lora.alpha,
+            "use_rslora": False,
+            "target_modules": hf_target_modules(projections),
+        }
+        found = {key: adapter.get(key) for key in expected}
+        if isinstance(found["target_modules"], list):
+            found["target_modules"] = sorted(found["target_modules"])
+        mismatched = {key: (found[key], value) for key, value in expected.items() if found[key] != value}
+        if mismatched:
+            details = ", ".join(f"{key}: adapter {got!r} vs run {want!r}" for key, (got, want) in mismatched.items())
+            raise UnsupportedTrainingConfig(f"checkpoint: adapter doesn't match this run's LoRA ({details})")
+
+        import ttml
+
+        llama_config = model.model.config
+        adapters = peft_to_ttml(
+            state.tensors,
+            num_layers=llama_config.num_hidden_layers,
+            num_heads=llama_config.num_attention_heads,
+            num_kv_heads=llama_config.num_key_value_heads,
+            projections=projections,
+        )
+        for lora_layers, layer_adapters in zip(_lora_layers(model), adapters):
+            for name, layer in lora_layers.items():
+                a, b = layer_adapters[name]
+                for parameter, value in ((layer.lora_A, a), (layer.lora_B, b)):
+                    shape = tuple(parameter.tensor.shape()[2:])
+                    if value.shape != shape:
+                        raise UnsupportedTrainingConfig(
+                            f"checkpoint: adapter tensor of shape {value.shape} for a {shape} LoRA weight"
+                        )
+                    # Keeps the parameter's dtype (bf16) and layout.
+                    ttml.autograd.assign_numpy(parameter.tensor, value.reshape(1, 1, *shape).astype(np.float32))
