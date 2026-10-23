@@ -23,6 +23,7 @@ env/*
 !env/requirements.txt
 !env/crank_requirements.txt
 !env/download_crank_wheel.sh
+!env/ttml_requirements.txt
 
 # Local custom datasets
 blacksmith_xla/datasets/torch/custom/*.json

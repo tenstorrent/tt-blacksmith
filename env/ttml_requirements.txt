@@ -1,0 +1,22 @@
+# tt-metal: 1a7a23f43bdaaed380c0ec883ea2c431b11e6875
+#
+# Installed on top of the venv that tt-metal's create_venv.sh builds (ttnn, torch CPU, ttml .pth
+# files), so only what blacksmith needs beyond it is listed. Bump the SHA above together with any
+# change that depends on a newer ttml.
+#
+# Never list `ttml` here: ttml comes from the tt-metal checkout, and `ttml` on PyPI is an unrelated package.
+
+# Same pin as the crank env.
+transformers==5.12.1
+huggingface-hub
+datasets
+safetensors
+ml_dtypes
+wandb>=0.12.10
+pydantic>2.0
+pyyaml
+tqdm
+pandas
+pytest
+# Only used by the PEFT round-trip tests.
+peft

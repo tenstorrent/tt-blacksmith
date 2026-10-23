@@ -56,6 +56,18 @@ source env/activate --xla
 
 > **NOTE:** To run experiments on GPU instead of Tenstorrent hardware, Docker is not required. Simply clone the repository and use `source env/activate --gpu`.
 
+> **NOTE:** The ttml (tt-train) recipes use `source env/activate --ttml`. ttml is not pip-installable, so the env is built from a tt-metal checkout that was built with tt-train, at the commit pinned at the top of `env/ttml_requirements.txt`:
+>
+> ```bash
+> git clone https://github.com/tenstorrent/tt-metal.git && cd tt-metal
+> git checkout <sha from env/ttml_requirements.txt> && git submodule update --init --recursive
+> ./build_metal.sh --build-tt-train
+> export TT_METAL_HOME=$(pwd)
+> cd /path/to/tt-blacksmith && source env/activate --ttml
+> ```
+>
+> The first activation creates `env/ttml_env` with tt-metal's `create_venv.sh` and remembers the checkout, so later activations don't need `TT_METAL_HOME`.
+
 3. Run an experiment by following the instructions in its README file. For example, to run the LLaMA LoRA fine-tuning experiment, see the [LoRA README](https://github.com/tenstorrent/tt-blacksmith/blob/main/blacksmith/experiments/torch/llama/xla/lora/README.md).
 
 ---

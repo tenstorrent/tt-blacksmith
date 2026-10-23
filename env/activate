@@ -3,7 +3,7 @@ export TT_BLACKSMITH_HOME=$(pwd)
 EXPECTED_ARGS=1
 
 if [ "$#" -gt "$EXPECTED_ARGS" ]; then
-  echo "Single option for experiment type expected, possible options are: TT-Crank (--crank), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+  echo "Single option for experiment type expected, possible options are: TT-Crank (--crank), TT-ML (--ttml), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
   return 1
 fi
 
@@ -12,9 +12,10 @@ case $1 in
     --xla) EXPERIMENT_TYPE=1 ;;
     --gpu) EXPERIMENT_TYPE=2 ;;
     --crank) EXPERIMENT_TYPE=3 ;;
+    --ttml) EXPERIMENT_TYPE=4 ;;
     "")
         # No argument provided, default to TT-Crank
-        echo "No type of experiment was specified, possible options are: TT-Crank (--crank), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
+        echo "No type of experiment was specified, possible options are: TT-Crank (--crank), TT-ML (--ttml), TT-XLA (--xla), TT-Forge-FE (--ffe) or GPU (--gpu)"
         echo "Defaulting to TT-Crank (--crank)"
         EXPERIMENT_TYPE=3
         ;;
@@ -38,6 +39,9 @@ case $EXPERIMENT_TYPE in
         ;;
     3)
         export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/crank_env
+        ;;
+    4)
+        export TT_BLACKSMITH_ENV_DIR=$TT_BLACKSMITH_HOME/env/ttml_env
         ;;
     *)
         echo "Unknown experiment type: $EXPERIMENT_TYPE"
@@ -111,6 +115,92 @@ install_tt_crank() {
     pip install "$wheel" -r env/crank_requirements.txt -r env/requirements.txt || return 1
     echo "Note: tt-crank needs the SFPI toolchain in /opt/tenstorrent/sfpi; if missing or outdated run 'tt-crank-install-sfpi' (needs sudo)."
 }
+
+# ttml (tt-train) is not pip-installable: it is the Python sources of a tt-metal checkout plus the
+# _ttml extension built by `build_metal.sh --build-tt-train`, put on the path by .pth files that
+# tt-metal's create_venv.sh writes. Never `pip install ttml`: that name on PyPI is an unrelated package.
+TTML_REQUIREMENTS=env/ttml_requirements.txt
+# The checkout an env was created against; its .pth files point there.
+TTML_METAL_HOME_FILE=$TT_BLACKSMITH_ENV_DIR/tt_metal_home
+
+pinned_tt_metal_sha() {
+    grep -oP '^# tt-metal:\s*\K[0-9a-f]+' "$TTML_REQUIREMENTS"
+}
+
+ttml_extension() {
+    ls "$TT_METAL_HOME"/build/tt-train/sources/ttml/_ttml*.so 2>/dev/null | head -1
+}
+
+check_tt_metal_home() {
+    if [ -z "$TT_METAL_HOME" ] || [ -z "$(ttml_extension)" ]; then
+        echo "ttml needs TT_METAL_HOME set to a tt-metal checkout built with tt-train, e.g.:"
+        echo "  git clone https://github.com/tenstorrent/tt-metal.git && cd tt-metal"
+        echo "  git checkout $(pinned_tt_metal_sha) && git submodule update --init --recursive"
+        echo "  ./build_metal.sh --build-tt-train"
+        echo "  export TT_METAL_HOME=\$(pwd)"
+        return 1
+    fi
+}
+
+# The venv interpreter must match the ABI _ttml was built for (e.g. cpython-312); an abi3 build takes any.
+ttml_python_version() {
+    local tag
+    tag=$(basename "$(ttml_extension)" | grep -oP 'cpython-\K[0-9]+')
+    if [ -z "$tag" ]; then
+        echo "3.12"
+    else
+        echo "${tag:0:1}.${tag:1}"
+    fi
+}
+
+warn_tt_metal_sha_mismatch() {
+    local pinned actual
+    pinned=$(pinned_tt_metal_sha)
+    actual=$(git -c safe.directory="$TT_METAL_HOME" -C "$TT_METAL_HOME" rev-parse HEAD 2>/dev/null)
+    if [ -n "$pinned" ] && [ "$actual" != "$pinned" ]; then
+        echo "Warning: $TT_METAL_HOME is at ${actual:-an unknown commit}, $TTML_REQUIREMENTS pins $pinned"
+    fi
+}
+
+# Creates (first time) or activates the ttml env.
+setup_ttml_env() {
+    if [ -z "$TT_METAL_HOME" ] && [ -f "$TTML_METAL_HOME_FILE" ]; then
+        export TT_METAL_HOME=$(cat "$TTML_METAL_HOME_FILE")
+    fi
+    check_tt_metal_home || return 1
+    if [ -f "$TTML_METAL_HOME_FILE" ] && [ "$(cat "$TTML_METAL_HOME_FILE")" != "$TT_METAL_HOME" ]; then
+        echo "$TT_BLACKSMITH_ENV_DIR was created against $(cat "$TTML_METAL_HOME_FILE"), not $TT_METAL_HOME;"
+        echo "remove it and activate again to switch checkouts"
+        return 1
+    fi
+    # ttml utilities read the runtime root (kernel sources, data).
+    export TT_METAL_RUNTIME_ROOT=$TT_METAL_HOME
+    warn_tt_metal_sha_mismatch
+
+    if [ ! -f "$TT_BLACKSMITH_ENV_DIR/bin/activate" ]; then
+        echo "Creating virtual environment in $TT_BLACKSMITH_ENV_DIR from $TT_METAL_HOME"
+        # tt-metal builds the venv: ttnn (editable) and its deps, plus the ttml.pth / _ttml.pth files.
+        (cd "$TT_METAL_HOME" && PYTHON_ENV_DIR="$TT_BLACKSMITH_ENV_DIR" ./create_venv.sh \
+            --python-version "$(ttml_python_version)") || return 1
+        echo "$TT_METAL_HOME" > "$TTML_METAL_HOME_FILE"
+        source $TT_BLACKSMITH_ENV_DIR/bin/activate
+        # The venv comes with uv but without pip.
+        uv pip install -r $TTML_REQUIREMENTS -e $TT_BLACKSMITH_HOME || return 1
+    else
+        source $TT_BLACKSMITH_ENV_DIR/bin/activate
+    fi
+
+    python -c "import ttml, blacksmith" || {
+        echo "ttml does not import from $TT_BLACKSMITH_ENV_DIR; rebuild tt-metal with --build-tt-train or recreate the env"
+        return 1
+    }
+}
+
+# The ttml env is created and versioned by tt-metal, not by the requirement files below.
+if [ "$EXPERIMENT_TYPE" -eq 4 ]; then
+    setup_ttml_env
+    return
+fi
 
 # If environment directory already exists, check versions and activate
 if [ -d $TT_BLACKSMITH_ENV_DIR/bin ]; then
