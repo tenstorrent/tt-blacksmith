@@ -137,3 +137,6 @@ class CrankLLMTrainer(Trainer):
         total = sum(p.numel() for p in self.model.parameters())
         trainable = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         return total, trainable
+
+    def current_learning_rate(self) -> float:
+        return self.optimizer.param_groups[0]["lr"]

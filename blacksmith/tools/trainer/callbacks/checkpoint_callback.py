@@ -15,6 +15,8 @@ class CheckpointCallback(Callback):
         self._last_metrics: dict[str, float] = {}
 
     def on_train_start(self, trainer, *args, **kwargs):
+        # Callbacks outlive a run on a long-lived trainer; never carry the previous run's metrics.
+        self._last_metrics = {}
         # The trainer builds a framework-specific manager so this callback stays
         # free of framework imports.
         self.manager = trainer.create_checkpoint_manager(trainer.config.checkpoint, trainer.logger)

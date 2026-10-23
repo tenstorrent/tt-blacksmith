@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import gc
+import sys
+import traceback
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
@@ -179,12 +182,13 @@ class Trainer(ABC):
                     self.callback_handler("on_forward_end", loss)
 
                     # Scale here so _forward stays shared with val.
-                    scaled_loss = loss / grad_accumulation_steps
+                    scaled_loss = self._scale_loss(loss, grad_accumulation_steps)
                     self.callback_handler("on_backward_start", loss)
                     self._backward(scaled_loss)
                     # Accumulate the detached loss on the device; no host readback here.
                     self.step_loss = self._accumulate_loss(self.step_loss, scaled_loss)
                     self.callback_handler("on_backward_end", loss)
+                    self._clean_graph_state()
 
                     accumulation_step += 1
 
@@ -228,6 +232,7 @@ class Trainer(ABC):
                 total_loss = self._accumulate_loss(total_loss, loss)
                 num_batches += 1
                 self.callback_handler("on_validation_batch_end", batch, loss)
+                self._clean_graph_state()
 
         # Device-side mean (or 0.0 when there is no validation data). Consumers
         # read it back to the host off the hot path.
@@ -242,6 +247,20 @@ class Trainer(ABC):
 
         Shared by both ``train`` and ``validate``; gradient-accumulation scaling
         is applied by ``train`` before backward.
+        """
+        pass
+
+    def _scale_loss(self, loss: Any, divisor: int) -> Any:
+        """Scale a micro-batch loss by ``1 / divisor`` for gradient accumulation.
+
+        Override when the loss type has no true division (e.g. ttml tensors).
+        """
+        return loss / divisor
+
+    def _clean_graph_state(self) -> None:
+        """Called after each train micro-batch's backward and after each validation batch.
+
+        No-op by default; frameworks that keep per-batch graph state (ttml) release it here.
         """
         pass
 
@@ -301,20 +320,38 @@ class Trainer(ABC):
         """Return ``(total_params, trainable_params)`` for the current model."""
         pass
 
+    @abstractmethod
+    def current_learning_rate(self) -> float:
+        """Return the optimizer's current learning rate, so hosts don't read framework objects."""
+        pass
+
     def cleanup(self) -> None:
         """
-        Clean up trainer state, releasing references to free resources.
+        Release everything a run created, so the next ``setup`` starts from a clean process state.
 
-        Finishes the logger (closing its W&B run), then deletes all state except
-        ``callback_handler`` and resets the trainer to a not-set-up state
-        (``config`` is ``None``).
+        Safe to call more than once and after a failure at any point of ``setup`` / ``train``
+        (a long-lived host calls it from its ``finally``). Finishes the logger, drops all state
+        except ``callback_handler``, frees it while the device is still open, and closes the
+        device last, also when an earlier step fails.
         """
-        if self.logger is not None:
-            self.logger.finish()
-        preserved = {"callback_handler"}
-        for attr in list(self.__dict__):
-            if attr not in preserved:
-                delattr(self, attr)
+        device_manager = self.__dict__.get("device_manager")
+        try:
+            if self.logger is not None:
+                self.logger.finish()
+        finally:
+            # From a host's `finally`, the run's exception is still in flight: its traceback keeps
+            # the failed step's frames alive, and with them device tensors (batch, loss).
+            exception = sys.exc_info()[1]
+            if exception is not None:
+                traceback.clear_frames(exception.__traceback__)
+            preserved = {"callback_handler"}
+            for attr in list(self.__dict__):
+                if attr not in preserved:
+                    delattr(self, attr)
+            # Free model / optimizer / batch buffers before the device they live on is closed.
+            gc.collect()
+            if device_manager is not None:
+                device_manager.close()
         self.config = None
         self.reproducibility_manager = None
         self.logger = None
