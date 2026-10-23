@@ -7,6 +7,7 @@ import importlib
 # when it is asked for: importing one strategy never pulls in another framework.
 _STRATEGIES = {
     "CrankLLMTrainer": "blacksmith.tools.trainer.strategies.crank_llm_trainer",
+    "TtmlLLMTrainer": "blacksmith.tools.trainer.strategies.ttml_llm_trainer",
 }
 
 __all__ = list(_STRATEGIES)
