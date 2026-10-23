@@ -1,0 +1,13 @@
+# CI overrides for the ttml Llama 3.1 8B SST-2 recipe, initialized from the step-250 PEFT
+# adapter of tt-llama_3_1_8b-sst2-p150-ttml (tests/checkpoints/, passed as test_checkpoint_path).
+# The initial validation loss must match that run's validation loss at step 250; then 250
+# more steps with a fresh optimizer.
+test_config:
+  max_steps_per_epoch: 250
+val_steps_freq: 125
+metrics:
+  steps_freq: 1
+logging:
+  use_wandb: false
+checkpoint:
+  save_strategy: "none"

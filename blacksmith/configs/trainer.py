@@ -11,6 +11,7 @@ from blacksmith.configs.dataset import CustomDatasetConfig
 from blacksmith.configs.logging import LoggingConfig
 from blacksmith.configs.lora import LoraConfig
 from blacksmith.configs.metrics import MetricsConfig
+from blacksmith.configs.test_config import TestConfig
 
 
 class TrainerConfig(BaseModel):
@@ -68,3 +69,6 @@ class TrainerConfig(BaseModel):
     model_sharding_patterns: Optional[List[Tuple[str, Tuple[Optional[str], ...]]]] = Field(default=None)
 
     compile: Optional[CompileConfig] = Field(default=None)
+
+    # Test mode only (golden-file runs): limits the run length.
+    test_config: Optional[TestConfig] = Field(default=None)

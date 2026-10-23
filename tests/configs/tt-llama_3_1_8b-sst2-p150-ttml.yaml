@@ -1,0 +1,17 @@
+# CI overrides for the ttml Llama 3.1 8B SST-2 recipe
+# (blacksmith/tools/trainer/examples/ttml/llm/lora/single_chip/llama_3_1_8b_sst2.yaml):
+# 500 steps of SST-2, validation every 125 steps, PEFT checkpoints at steps 250 and 500.
+# The step-250 adapter is committed in tests/checkpoints/ and initializes
+# tt-llama_3_1_8b-sst2-p150-ttml-init_step250.
+test_config:
+  max_steps_per_epoch: 500
+val_steps_freq: 125
+metrics:
+  steps_freq: 1
+logging:
+  use_wandb: false
+checkpoint:
+  save_strategy: "step"
+  steps_freq: 250
+  keep_all_checkpoints: true
+  init_from_checkpoint: false

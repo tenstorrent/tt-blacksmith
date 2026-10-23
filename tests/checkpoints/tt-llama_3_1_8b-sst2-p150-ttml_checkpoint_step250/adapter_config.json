@@ -1,0 +1,25 @@
+{
+  "peft_type": "LORA",
+  "task_type": "CAUSAL_LM",
+  "base_model_name_or_path": "meta-llama/Llama-3.1-8B",
+  "revision": null,
+  "r": 4,
+  "lora_alpha": 8,
+  "lora_dropout": 0.0,
+  "target_modules": [
+    "k_proj",
+    "q_proj",
+    "v_proj"
+  ],
+  "bias": "none",
+  "fan_in_fan_out": false,
+  "use_rslora": false,
+  "use_dora": false,
+  "modules_to_save": null,
+  "init_lora_weights": true,
+  "layers_to_transform": null,
+  "layers_pattern": null,
+  "rank_pattern": {},
+  "alpha_pattern": {},
+  "inference_mode": true
+}
