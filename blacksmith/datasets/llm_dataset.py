@@ -36,6 +36,19 @@ class LLMDataset(BaseDataset):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         super().__init__(config, split, collate_fn)
+        self._limit_for_test()
+
+    def _limit_for_test(self):
+        """Keep only `test_config.max_steps_per_epoch` batches of examples (golden-file runs).
+
+        Limits the examples rather than wrapping the dataloader, so every framework's loader is
+        bounded the same way and each validation pass sees the same batches.
+        """
+        test_config = self.config.test_config
+        if self.dataset is None or test_config is None or test_config.max_steps_per_epoch is None:
+            return
+        limit = test_config.max_steps_per_epoch * self.config.batch_size
+        self.dataset = self.dataset.select(range(min(limit, len(self.dataset))))
 
     def _load_raw_dataset(self) -> Optional[Dataset]:
         """Return the raw HF dataset for `self.split`, or the whole source when

@@ -8,6 +8,7 @@ from blacksmith.configs.llm import LLMTrainerConfig
 from blacksmith.configs.logging import LoggingConfig
 from blacksmith.configs.lora import LoraConfig
 from blacksmith.configs.metrics import MetricsConfig
+from blacksmith.configs.test_config import TestConfig
 from blacksmith.configs.trainer import TrainerConfig
 
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "LoggingConfig",
     "LoraConfig",
     "MetricsConfig",
+    "TestConfig",
     "TrainerConfig",
 ]
