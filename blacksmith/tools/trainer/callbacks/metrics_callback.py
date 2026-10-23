@@ -19,6 +19,8 @@ class MetricsCallback(Callback):
         self._running_loss = None
 
     def on_train_start(self, trainer, *args, **kwargs):
+        # Callbacks outlive a run on a long-lived trainer; drop a partial window from a failed one.
+        self._running_loss = None
         total_params, trainable_params = trainer.parameter_counts()
         model_info = {
             "model_name": trainer.config.model_name,

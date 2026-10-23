@@ -69,3 +69,12 @@ class DeviceManager(ABC):
     def replication_context(self):
         """Context in which plain tensors count as replicated. No-op by default."""
         return contextlib.nullcontext()
+
+    # -------------------------------------------------------------- teardown
+    def close(self) -> None:
+        """Release the device so the next run (or another process) can open it.
+
+        Called last by ``Trainer.cleanup``, after the model and optimizer are freed. Must be
+        idempotent. No-op by default.
+        """
+        pass
