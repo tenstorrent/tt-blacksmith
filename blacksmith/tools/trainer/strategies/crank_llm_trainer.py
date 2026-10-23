@@ -17,6 +17,7 @@ from blacksmith.tools.crank.reproducibility_manager import CrankReproducibilityM
 from blacksmith.tools.crank.torch_helpers import (
     collate_fn_for_causal_lm,
     loss_to_float,
+    to_host,
     tt_compile_options,
 )
 from blacksmith.tools.logging_manager import TrainingLogger
@@ -141,6 +142,14 @@ class CrankLLMTrainer(Trainer):
 
     def current_learning_rate(self) -> float:
         return self.optimizer.param_groups[0]["lr"]
+
+    def save_adapter(self, path: str) -> None:
+        if self.config.lora is None:
+            raise ValueError("save_adapter needs a LoRA run; this run fine-tunes the full model")
+        # LoRA weights only, on the host (gathers DTensor shards; `tt` tensors can't be serialized in place).
+        trainable = {name for name, param in self.model.named_parameters() if param.requires_grad}
+        state_dict = to_host({name: v for name, v in self.model.state_dict().items() if name in trainable})
+        self.model.save_pretrained(path, state_dict=state_dict)
 
     def cleanup(self) -> None:
         # The tokenized-dataset cache is process-wide; the next run may use another model / length.

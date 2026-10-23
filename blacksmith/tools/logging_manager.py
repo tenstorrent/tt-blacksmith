@@ -196,7 +196,10 @@ class TrainingLogger:
             try:
                 artifact_name = name or os.path.basename(artifact_path)
                 artifact = self._wandb.Artifact(artifact_name, type=artifact_type)
-                artifact.add_file(artifact_path)
+                if os.path.isdir(artifact_path):
+                    artifact.add_dir(artifact_path)
+                else:
+                    artifact.add_file(artifact_path)
 
                 self.wandb_run.log_artifact(artifact)
                 self.std_logger.info(f"Logged artifact '{artifact_name}' to W&B")

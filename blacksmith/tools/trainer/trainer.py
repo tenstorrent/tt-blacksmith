@@ -321,6 +321,15 @@ class Trainer(ABC):
         pass
 
     @abstractmethod
+    def save_adapter(self, path: str) -> None:
+        """Save the trained LoRA adapter as a PEFT adapter directory at ``path``.
+
+        Framework-agnostic way for a host to export adapters: the directory loads with
+        ``peft.PeftModel.from_pretrained`` on the HF base model, whichever framework trained it.
+        """
+        pass
+
+    @abstractmethod
     def current_learning_rate(self) -> float:
         """Return the optimizer's current learning rate, so hosts don't read framework objects."""
         pass

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from blacksmith.configs import LLMTrainerConfig
 from blacksmith.tools.cli import generate_config, parse_cli_options
-from blacksmith.tools.trainer import MetricsCallback
+from blacksmith.tools.trainer import CheckpointCallback, MetricsCallback
 from blacksmith.tools.trainer.strategies import TtmlLLMTrainer
 
 if __name__ == "__main__":
@@ -18,8 +18,8 @@ if __name__ == "__main__":
         args.test_checkpoint_path,
     )
 
-    # Metrics are opt-in: pass the callbacks you want.
-    trainer = TtmlLLMTrainer(callbacks=[MetricsCallback()])
+    # Metrics/checkpointing are opt-in: pass the callbacks you want.
+    trainer = TtmlLLMTrainer(callbacks=[MetricsCallback(), CheckpointCallback()])
     try:
         trainer.setup(config, test_log_filename_prefix=args.test_log_filename_prefix)
         trainer.train()

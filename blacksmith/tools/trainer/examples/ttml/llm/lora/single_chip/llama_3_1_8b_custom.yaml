@@ -57,7 +57,7 @@ metrics:
 checkpoint:
   steps_freq: 10
   epoch_freq: 1
-  save_strategy: "none"
+  save_strategy: "step"
   project_dir: "outputs/ttml/llm/lora/single_chip/llama_3_1_8b_custom"
   final_checkpoint_name: "final_adapter"
   save_optim: False
