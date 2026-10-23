@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 from blacksmith.configs.checkpoint import CheckpointConfig
 from blacksmith.datasets.dataset_utils import get_dataset
+from blacksmith.datasets.llm_dataset import LLMDataset
 from blacksmith.models.hf_models import get_model
 from blacksmith.tools.crank.checkpoint_manager import CrankCheckpointManager
 from blacksmith.tools.crank.device_manager import CrankDeviceManager
@@ -140,3 +141,8 @@ class CrankLLMTrainer(Trainer):
 
     def current_learning_rate(self) -> float:
         return self.optimizer.param_groups[0]["lr"]
+
+    def cleanup(self) -> None:
+        # The tokenized-dataset cache is process-wide; the next run may use another model / length.
+        LLMDataset.clear_cache()
+        super().cleanup()
